@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>K-30_ERP - Company & Vertical AOP Targets</title>
+    <link rel="stylesheet" href="/src/index.css">
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="js/firebase-init.js" defer></script>
+    <script src="js/store.js" defer></script>
+    <script src="js/seed-data.js" defer></script>
+    <script src="auth-guard.js" defer></script>
+  </head>
+  <body class="bg-slate-50 min-h-screen text-slate-800">
+    
+    <!-- Navbar Container -->
+    <div id="navbar-container"></div>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+      
+      <!-- Header -->
+      <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-white p-6 rounded-2xl shadow-xs border border-slate-200">
+        <div>
+          <h1 class="text-2xl font-bold text-slate-900 tracking-tight">Annual Operating Plan (AOP) Configuration</h1>
+          <p class="text-sm text-slate-500 mt-1">Configure company-wide and vertical revenue benchmarks for financial planning</p>
+        </div>
+
+        <div class="flex items-center space-x-2 bg-slate-50 p-2 rounded-xl border border-slate-200">
+          <label class="text-xs font-bold text-slate-600 uppercase tracking-wider">Financial Year:</label>
+          <select id="fy-select" onchange="renderAopData()" class="px-3 py-1 bg-white border border-slate-200 rounded-lg text-xs font-bold text-indigo-700 focus:outline-none cursor-pointer">
+            <option value="2026-27" selected>FY 2026-27 (Current)</option>
+            <option value="2025-26">FY 2025-26</option>
+            <option value="2024-25">FY 2024-25</option>
+            <option value="All">All Financial Years</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Company Overall Summary & Target Benchmark Card -->
+      <div class="space-y-6">
+        <!-- Executive KPI Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div class="bg-white p-6 rounded-2xl shadow-xs border border-slate-200">
+            <div class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Company Target Revenue (AOP)</div>
+            <div class="text-2xl font-black text-slate-900" id="kpi-aop-target">₹0</div>
+            <div class="text-[11px] font-semibold text-slate-400 mt-1" id="kpi-aop-target-sub">FY Benchmark Target</div>
+          </div>
+          <div class="bg-white p-6 rounded-2xl shadow-xs border border-slate-200">
+            <div class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Actual Won Revenue</div>
+            <div class="text-2xl font-black text-indigo-600" id="kpi-aop-actual">₹0</div>
+            <div class="text-[11px] font-semibold text-slate-400 mt-1" id="kpi-aop-actual-sub">Total Closed Won Orders</div>
+          </div>
+          <div class="bg-white p-6 rounded-2xl shadow-xs border border-slate-200">
+            <div class="flex items-center justify-between mb-1">
+              <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">AOP Achievement %</span>
+              <span id="kpi-aop-status-badge" class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">Achieved</span>
+            </div>
+            <div class="text-2xl font-black text-slate-900 mb-2" id="kpi-aop-pct">0%</div>
+            <div class="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+              <div id="kpi-aop-bar" class="bg-emerald-500 h-2 rounded-full" style="width: 0%"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Benchmark Configuration Card -->
+        <div class="bg-white p-6 rounded-2xl shadow-xs border border-slate-200 space-y-4">
+          <h2 class="text-lg font-bold text-slate-900 border-b border-slate-100 pb-3">Configure Company AOP Target Benchmark</h2>
+          
+          <form onsubmit="handleSaveCompanyAop(event)" class="flex flex-col sm:flex-row sm:items-end gap-4 max-w-xl">
+            <div class="flex-1">
+              <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Company Target Revenue (INR) *</label>
+              <input type="number" id="inp-company-aop" required placeholder="80000000" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-black text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            </div>
+            <button type="submit" class="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors cursor-pointer">
+              Save Benchmark
+            </button>
+          </form>
+        </div>
+      </div>
+
+      <!-- Vertical Breakdown Targets & Actual Progress Table -->
+      <div class="bg-white rounded-2xl shadow-xs border border-slate-200 overflow-hidden space-y-4">
+        <div class="p-6 border-b border-slate-200 flex items-center justify-between">
+          <div>
+            <h2 class="text-lg font-bold text-slate-900">Vertical Target vs Actual Performance</h2>
+            <p class="text-xs text-slate-500">Live order conversion tracking against vertical benchmarks</p>
+          </div>
+          <button onclick="openVerticalAopModal()" class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold text-xs rounded-xl transition-colors cursor-pointer">
+            Edit Vertical Breakdown
+          </button>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="bg-slate-50 border-b border-slate-200 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                <th class="py-3 px-4">Business Vertical</th>
+                <th class="py-3 px-4 text-right">AOP Target (Rs.)</th>
+                <th class="py-3 px-4 text-right">Won Orders (Rs.)</th>
+                <th class="py-3 px-4 text-center w-48">Achievement %</th>
+                <th class="py-3 px-4 text-center">Status</th>
+              </tr>
+            </thead>
+            <tbody id="aop-verticals-tbody" class="divide-y divide-slate-100 text-xs">
+              <!-- Rendered dynamically -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Master AOP Top Sheet Table (Tab 3 Data) -->
+      <div class="bg-white rounded-2xl shadow-xs border border-slate-200 overflow-hidden space-y-4">
+        <div class="p-6 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h2 class="text-lg font-bold text-slate-900">Master AOP Top Sheet Line Items (Tab 3)</h2>
+            <p class="text-xs text-slate-500">Detailed breakdown per vertical & sub-vertical with ownership and roll-up basis</p>
+          </div>
+          <span class="px-3 py-1 bg-indigo-50 border border-indigo-100 rounded-lg text-xs font-bold text-indigo-700">MD / Owner Master</span>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="bg-slate-50 border-b border-slate-200 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                <th class="py-3 px-4">AOP Line Item</th>
+                <th class="py-3 px-4">Vertical</th>
+                <th class="py-3 px-4">Sub-Vertical</th>
+                <th class="py-3 px-4 text-right">Annual Target (₹)</th>
+                <th class="py-3 px-4">Owner Employee</th>
+                <th class="py-3 px-4">Roll-up Type & Split Basis</th>
+              </tr>
+            </thead>
+            <tbody id="aop-topsheet-tbody" class="divide-y divide-slate-100 text-xs">
+              <!-- Rendered dynamically -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </main>
+
+    <!-- Modal: Edit Vertical AOP -->
+    <div id="vertical-aop-modal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+      <div class="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-slate-100 overflow-hidden">
+        <div class="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+          <h3 class="text-base font-bold text-slate-900">Configure Vertical AOP Targets</h3>
+          <button onclick="closeVerticalAopModal()" class="text-slate-400 hover:text-slate-600 text-lg font-bold">&times;</button>
+        </div>
+
+        <form onsubmit="handleSaveVerticalAop(event)" class="p-6 space-y-4">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Sales Vertical Target (Rs.)</label>
+            <input type="number" id="inp-vert-sales" required class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Service / Parts Target (Rs.)</label>
+            <input type="number" id="inp-vert-service" required class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Projects Target (Rs.)</label>
+            <input type="number" id="inp-vert-projects" required class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          </div>
+
+          <div class="pt-4 border-t border-slate-100 flex items-center justify-end space-x-3">
+            <button type="button" onclick="closeVerticalAopModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl">Cancel</button>
+            <button type="submit" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-xl shadow-xs transition-colors cursor-pointer">
+              Save Targets
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <script src="js/aop-targets.js"></script>
+  </body>
+</html>

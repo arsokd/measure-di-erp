@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>K-30_ERP - My Scorecard</title>
+    <link rel="stylesheet" href="/src/index.css">
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="js/firebase-init.js" defer></script>
+    <script src="js/store.js" defer></script>
+    <script src="js/seed-data.js" defer></script>
+    <script src="auth-guard.js" defer></script>
+  </head>
+  <body class="bg-slate-50 min-h-screen text-slate-800">
+    
+    <!-- Navbar Container -->
+    <div id="navbar-container"></div>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+      
+      <!-- Top Title & Employee Selector / Read-Only Banner -->
+      <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-white p-6 rounded-2xl shadow-xs border border-slate-200">
+        <div>
+          <div class="flex items-center space-x-3">
+            <h1 class="text-2xl font-bold text-slate-900 tracking-tight" id="scorecard-title">Employee Scorecard</h1>
+            <span id="read-only-badge" class="hidden px-2.5 py-1 bg-amber-100 text-amber-800 font-bold text-[10px] uppercase rounded-full tracking-wider border border-amber-200">Read-Only View</span>
+          </div>
+          <p class="text-sm text-slate-500 mt-1" id="scorecard-subtitle">KRA / KPI Weighted Achievement & Monthly RevOps Compliance</p>
+        </div>
+
+        <!-- Employee Selector Dropdown for Admin/Manager -->
+        <select id="scorecard-fy-select" onchange="onEmployeeSelectChange()" class="px-3 py-2 bg-indigo-50 border border-indigo-200 text-indigo-700 font-bold text-xs rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer mr-2">
+            <option value="2026-27" selected>FY 2026-27 (Current)</option>
+            <option value="2025-26">FY 2025-26</option>
+            <option value="2024-25">FY 2024-25</option>
+            <option value="All">All Time (2024 - 2026)</option>
+          </select>
+          <div id="employee-select-container" class="hidden flex items-center space-x-2">
+          <label class="text-xs font-bold text-slate-600 uppercase tracking-wider">Select Employee:</label>
+          <select id="employee-dropdown" onchange="onEmployeeSelectChange()" class="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            <!-- Populated dynamically -->
+          </select>
+        </div>
+      </div>
+
+      <!-- NEW PANEL: This Month's DWM & Attendance Snapshot -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        
+        <!-- Overall Weighted Score Badge -->
+        <div class="bg-gradient-to-br from-indigo-900 to-slate-900 text-white p-6 rounded-2xl shadow-md relative overflow-hidden flex flex-col justify-between">
+          <div class="absolute -right-10 -top-10 w-32 h-32 bg-indigo-600 rounded-full opacity-20"></div>
+          <div>
+            <span class="text-xs font-bold uppercase tracking-widest text-indigo-300 block mb-1">Overall Weighted Score</span>
+            <div class="text-4xl font-black text-white tracking-tight" id="overall-score-display">0.0%</div>
+            <p class="text-xs text-indigo-200 mt-1">Weighted average across all assigned KRAs</p>
+          </div>
+          <div class="mt-4 pt-4 border-t border-indigo-800/60 flex items-center justify-between text-xs">
+            <span class="text-indigo-300 font-semibold">Evaluation Status</span>
+            <span id="overall-status-pill" class="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-500 text-white">Evaluating</span>
+          </div>
+        </div>
+
+        <!-- DWM Compliance % -->
+        <div class="bg-white p-6 rounded-2xl shadow-xs border border-slate-200 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-xs font-bold uppercase tracking-wider text-slate-500">This Month's DWM Compliance</span>
+              <span id="dwm-badge" class="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase bg-emerald-100 text-emerald-800">0%</span>
+            </div>
+            <div class="text-3xl font-black text-slate-900" id="dwm-compliance-val">0.0%</div>
+            <p class="text-xs text-slate-500 mt-1">Days this month with DWM activities logged & accomplished</p>
+          </div>
+          <div class="w-full bg-slate-100 h-2 rounded-full mt-4 overflow-hidden">
+            <div id="dwm-bar" class="bg-emerald-500 h-2 rounded-full" style="width: 0%"></div>
+          </div>
+        </div>
+
+        <!-- Attendance Compliance % -->
+        <div class="bg-white p-6 rounded-2xl shadow-xs border border-slate-200 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-xs font-bold uppercase tracking-wider text-slate-500">This Month's Attendance</span>
+              <span id="att-badge" class="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase bg-blue-100 text-blue-800">0%</span>
+            </div>
+            <div class="text-3xl font-black text-slate-900" id="att-compliance-val">0.0%</div>
+            <p class="text-xs text-slate-500 mt-1">Working days with completed punch-in / punch-out</p>
+          </div>
+          <div class="w-full bg-slate-100 h-2 rounded-full mt-4 overflow-hidden">
+            <div id="att-bar" class="bg-blue-500 h-2 rounded-full" style="width: 0%"></div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Daily Control Info Box (Reference) -->
+      <div class="bg-slate-900 text-white p-6 rounded-2xl shadow-sm border border-slate-800 space-y-3">
+        <div class="flex items-center space-x-2 text-indigo-400">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+          <h2 class="text-sm font-bold tracking-wide uppercase">Your Daily Control Points (from KRAs)</h2>
+        </div>
+        <div id="daily-controls-list" class="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs text-slate-300">
+          <!-- Rendered dynamically -->
+        </div>
+      </div>
+
+      <!-- KRA Performance Cards -->
+      <div class="space-y-4">
+        <h2 class="text-lg font-bold text-slate-900">Key Result Areas (KRAs) & Performance Targets</h2>
+        <div id="kra-cards-container" class="grid grid-cols-1 gap-6">
+          <!-- Rendered dynamically -->
+        </div>
+      </div>
+
+    </main>
+
+    <script src="js/my-scorecard.js"></script>
+  </body>
+</html>

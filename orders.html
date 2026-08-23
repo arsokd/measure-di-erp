@@ -1,0 +1,445 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>K-30_ERP - Equipment Orders</title>
+    <link rel="stylesheet" href="/src/index.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="js/firebase-init.js" defer></script>
+    <script src="js/store.js" defer></script>
+    <script src="js/seed-data.js" defer></script>
+    <script src="auth-guard.js" defer></script>
+  </head>
+  <body class="bg-slate-900 min-h-screen text-slate-100 font-sans antialiased">
+    
+    <!-- Navbar Container -->
+    <div id="navbar-container"></div>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+      
+      <!-- Header -->
+      <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-slate-850 p-6 rounded-2xl border border-slate-800 shadow-xl">
+        <div>
+          <div class="flex items-center space-x-2">
+            <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-purple-500/20 text-purple-300 border border-purple-500/30">
+              SOP Funnel Stage 3
+            </span>
+            <span class="text-xs text-slate-400 font-semibold">• Contract Booking & Contribution Attribution</span>
+          </div>
+          <h1 class="text-2xl font-black text-white tracking-tight mt-1 flex items-center gap-2">
+            <span>Orders & Commercial Contracts</span>
+            <span class="text-xs font-bold px-2 py-0.5 rounded bg-purple-950 text-purple-300 border border-purple-800/80">PO Booking</span>
+          </h1>
+          <p class="text-xs text-slate-400 mt-1">Customer-filtered quotations, 1st advance tracking, PO scan/image attachments, strict 100% sales contribution splits, and BG/Retention terms.</p>
+        </div>
+
+        <button onclick="openOrderModal()" class="px-4 py-2.5 bg-[#982B68] hover:bg-[#802256] text-white font-bold text-xs rounded-xl shadow-lg shadow-[#982B68]/30 transition-all flex items-center space-x-2 cursor-pointer">
+          <i class="fa-solid fa-plus text-xs"></i>
+          <span>+ Book New Order / Contract</span>
+        </button>
+      </div>
+
+      <!-- 4 Summary KPI Cards -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="bg-slate-850 p-5 rounded-2xl border border-slate-800 shadow-md">
+          <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Total Orders Booked</span>
+          <div class="text-2xl font-black text-white mt-1" id="stat-won-count">0</div>
+          <p class="text-[11px] text-slate-400 mt-1">Signed Commercial Contracts</p>
+        </div>
+
+        <div class="bg-slate-850 p-5 rounded-2xl border border-slate-800 shadow-md">
+          <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Total Contract Value (Excl. GST)</span>
+          <div class="text-2xl font-black text-indigo-400 mt-1" id="stat-total-value">₹0</div>
+          <p class="text-[11px] text-slate-400 mt-1">Net Booked Revenue in AOP</p>
+        </div>
+
+        <div class="bg-slate-850 p-5 rounded-2xl border border-slate-800 shadow-md">
+          <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Expected 1st Advances</span>
+          <div class="text-2xl font-black text-amber-400 mt-1" id="stat-advance-total">₹0</div>
+          <p class="text-[11px] text-slate-400 mt-1">Agreed PO Milestone Advances</p>
+        </div>
+
+        <div class="bg-slate-850 p-5 rounded-2xl border border-slate-800 shadow-md">
+          <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Average Order Size</span>
+          <div class="text-2xl font-black text-emerald-400 mt-1" id="stat-avg-value">₹0</div>
+          <p class="text-[11px] text-slate-400 mt-1">Per Commercial Contract</p>
+        </div>
+      </div>
+
+      <!-- Orders Table Container -->
+      <div class="bg-slate-850 rounded-2xl border border-slate-800 shadow-xl overflow-hidden space-y-4">
+        <div class="p-5 border-b border-slate-800 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <h2 class="text-base font-bold text-white flex items-center gap-2">
+            <span>Commercial Orders & Fulfillment Registry</span>
+            <span id="order-count-badge" class="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-slate-700 text-slate-300">0</span>
+          </h2>
+          
+          <div class="flex flex-wrap items-center gap-2.5">
+            <select id="order-fy-filter" onchange="renderOrdersTable()" class="px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-xl text-xs font-semibold text-slate-200 focus:outline-none focus:border-indigo-500">
+              <option value="2026-27" selected>FY 2026-27</option>
+              <option value="2025-26">FY 2025-26</option>
+              <option value="2024-25">FY 2024-25</option>
+              <option value="All">All FYs</option>
+            </select>
+            <div id="order-filter-wrapper" class="hidden">
+              <select id="order-emp-filter" onchange="renderOrdersTable()" class="px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-xl text-xs font-semibold text-slate-200 focus:outline-none focus:border-indigo-500">
+                <!-- Populated dynamically -->
+              </select>
+            </div>
+            <div class="relative w-48 sm:w-60">
+              <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs"></i>
+              <input type="text" id="order-search-input" oninput="renderOrdersTable()" placeholder="Search customer, PO ref, vertical..." class="w-full pl-8 pr-3 py-1.5 bg-slate-900 border border-slate-700 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-indigo-500" />
+            </div>
+          </div>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="bg-slate-900/80 border-b border-slate-800 text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                <th class="py-3 px-4">PO Ref & Date</th>
+                <th class="py-3 px-4">Customer & Vertical</th>
+                <th class="py-3 px-4 text-right">Order Value (Excl. GST)</th>
+                <th class="py-3 px-4 text-right">Agreed 1st Advance</th>
+                <th class="py-3 px-4">Sales Contribution Split</th>
+                <th class="py-3 px-4">PO Copy / Scan</th>
+                <th class="py-3 px-4">BG / Retention Terms</th>
+                <th class="py-3 px-4 text-center">Status</th>
+                <th class="py-3 px-4 text-center">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="orders-tbody" class="divide-y divide-slate-800/60 text-xs">
+              <!-- Populated dynamically -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </main>
+
+    <!-- Modal: Book New Order / Contract -->
+    <div id="order-modal" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+      <div class="bg-slate-900 w-full max-w-3xl rounded-2xl shadow-2xl border border-slate-700 overflow-hidden my-8 max-h-[92vh] flex flex-col">
+        <div class="px-6 py-4 bg-slate-850 border-b border-slate-800 flex items-center justify-between shrink-0">
+          <div>
+            <h3 class="text-base font-bold text-white flex items-center gap-2" id="order-modal-title">
+              <i class="fa-solid fa-file-contract text-purple-400"></i>
+              <span>Book Commercial Order / PO</span>
+            </h3>
+            <p class="text-xs text-slate-400">Customer-filtered quotations, 1st advance tracking, PO scan/image attachments, strict 100% sales contribution splits, and BG/Retention terms.</p>
+          </div>
+          <button onclick="closeOrderModal()" class="text-slate-400 hover:text-white text-xl font-bold p-1 cursor-pointer">&times;</button>
+        </div>
+
+        <form id="order-form" onsubmit="handleSaveOrder(event)" class="p-6 space-y-5 overflow-y-auto flex-1">
+          <input type="hidden" id="ord-doc-id" />
+          <input type="hidden" id="ord-lead-id" />
+          <input type="hidden" id="ord-po-file-data" />
+          <input type="hidden" id="ord-po-file-name" />
+
+          <!-- Section 1: Customer & Quotation Selection (Customer Filters Quotes) -->
+          <div class="bg-slate-800/50 p-4 rounded-xl border border-slate-750 space-y-3">
+            <div class="flex items-center justify-between">
+              <div class="text-xs font-black uppercase text-purple-400 tracking-wider flex items-center gap-2">
+                <i class="fa-solid fa-user-check"></i>
+                <span>Step 1: Choose Customer & Pending Quotation</span>
+              </div>
+              <span class="text-[10px] text-slate-400 bg-purple-950/60 px-2 py-0.5 rounded border border-purple-800/60 font-semibold">
+                Customer-Specific Quote Filter Active
+              </span>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <!-- Customer Selection Dropdown -->
+              <div>
+                <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">Select Customer / Account *</label>
+                <select id="inp-ord-customer-select" onchange="onCustomerSelectedForOrder()" required class="w-full px-3 py-2 bg-slate-950 border border-slate-750 rounded-xl text-xs font-semibold text-white focus:outline-none focus:border-indigo-500 cursor-pointer">
+                  <!-- Dynamically populated with unique customers -->
+                </select>
+                <input type="hidden" id="inp-ord-customer" />
+              </div>
+
+              <!-- Pending Quotations Filtered for that Selected Customer -->
+              <div>
+                <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">
+                  Pending Approved Quotation *
+                </label>
+                <select id="inp-ord-quote" onchange="handleQuoteSelectForOrder()" required class="w-full px-3 py-2 bg-slate-950 border border-slate-750 rounded-xl text-xs font-semibold text-white focus:outline-none focus:border-indigo-500 cursor-pointer">
+                  <!-- Populated dynamically based on chosen customer -->
+                </select>
+              </div>
+            </div>
+
+            <!-- Linked Lead & Quotation Info Badge Bar -->
+            <div id="linkage-info-box" class="hidden p-3 bg-slate-950 rounded-xl border border-slate-700/80 text-xs space-y-2">
+              <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px]">
+                <div>
+                  <span class="text-slate-400 block text-[10px] font-bold uppercase">Linked CRM Lead:</span>
+                  <span class="font-bold text-indigo-300 font-mono" id="disp-link-lead-no">None</span>
+                </div>
+                <div>
+                  <span class="text-slate-400 block text-[10px] font-bold uppercase">Primary Contact:</span>
+                  <span class="font-semibold text-white truncate block" id="disp-link-contact">-</span>
+                </div>
+                <div>
+                  <span class="text-slate-400 block text-[10px] font-bold uppercase">Quoted Net Value:</span>
+                  <span class="font-bold text-emerald-400" id="disp-link-quote-val">₹0</span>
+                </div>
+                <div>
+                  <span class="text-slate-400 block text-[10px] font-bold uppercase">Quotation Status:</span>
+                  <span class="font-bold text-sky-400" id="disp-link-quote-status">Approved</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div>
+                <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">Customer PO Number *</label>
+                <input type="text" id="inp-ord-ponum" required placeholder="PO/2026/JSW/8842" class="w-full px-3 py-2 bg-slate-950 border border-slate-750 rounded-xl text-xs font-mono text-white focus:outline-none focus:border-indigo-500" />
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">PO Date *</label>
+                <input type="date" id="inp-ord-podate" required class="w-full px-3 py-2 bg-slate-950 border border-slate-750 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500" />
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">Industry Vertical *</label>
+                <select id="inp-ord-vertical" required class="w-full px-3 py-2 bg-slate-950 border border-slate-750 rounded-xl text-xs font-semibold text-white focus:outline-none focus:border-indigo-500">
+                  <option value="Projects">Projects</option>
+                  <option value="Onboard">Onboard</option>
+                  <option value="Crane">Crane</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Section 2: Order Valuation, Tax & 1st Advance Milestone -->
+          <div class="bg-slate-800/50 p-4 rounded-xl border border-slate-750 space-y-3">
+            <div class="text-xs font-black uppercase text-indigo-400 tracking-wider flex items-center gap-2">
+              <i class="fa-solid fa-indian-rupee-sign"></i>
+              <span>Contract Valuation, Tax Details & Agreed 1st Advance</span>
+            </div>
+
+            <!-- Dynamic Discrepancy & Reconcile Alert Banner -->
+            <div id="discrepancy-alert" class="hidden p-3 rounded-xl text-xs font-medium bg-amber-950/40 border border-amber-500/50 text-amber-300 space-y-1.5">
+              <div class="flex items-center space-x-2 font-bold text-amber-400">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+                <span id="discrepancy-title">Quotation $\ne$ Final PO Value Variance Detected</span>
+              </div>
+              <p class="text-[11px] text-slate-300" id="discrepancy-desc">
+                The booked PO value differs from the initial quotation. The linked Quotation and Lead will be automatically updated and reconciled upon booking.
+              </p>
+              <label class="inline-flex items-center gap-2 mt-1 cursor-pointer">
+                <input type="checkbox" id="chk-auto-reconcile" checked class="rounded text-indigo-500" />
+                <span class="text-[11px] text-white font-bold">Auto-correct Quotation and Lead values to match this final PO</span>
+              </label>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div>
+                <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">Order Value (Excl. GST) *</label>
+                <input type="number" id="inp-ord-value" required min="1" oninput="recalculateOrderTotals()" placeholder="4500000" class="w-full px-3 py-2 bg-slate-950 border border-slate-750 rounded-xl text-xs font-bold text-white focus:outline-none focus:border-indigo-500" />
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">GST Rate *</label>
+                <select id="inp-ord-gstpct" onchange="recalculateOrderTotals()" class="w-full px-3 py-2 bg-slate-950 border border-slate-750 rounded-xl text-xs font-semibold text-white focus:outline-none focus:border-indigo-500">
+                  <option value="18" selected>18% Standard GST</option>
+                  <option value="12">12%</option>
+                  <option value="5">5%</option>
+                  <option value="0">0% (Export / Exempt)</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">Total with GST (₹)</label>
+                <input type="text" id="disp-ord-total" readonly class="w-full px-3 py-2 bg-slate-900 border border-slate-750 rounded-xl text-xs font-black text-emerald-400" value="₹0" />
+              </div>
+            </div>
+
+            <!-- First Advance Milestone (As per Quote & PO) -->
+            <div class="p-3 bg-slate-950/80 rounded-xl border border-slate-750/80 space-y-2">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <i class="fa-solid fa-coins text-amber-400"></i>
+                  <span>Agreed First Advance Terms (From Quote & PO) *</span>
+                </span>
+                <span class="text-[10px] text-slate-400">Compared directly upon payment receipt</span>
+              </div>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-[11px] font-bold text-slate-300 mb-1">First Advance Percentage (%)</label>
+                  <div class="flex items-center space-x-1.5">
+                    <input type="number" id="inp-ord-adv-pct" min="0" max="100" step="1" value="50" oninput="onAdvancePctChanged()" class="w-full px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-xl text-xs font-bold text-white focus:outline-none focus:border-indigo-500" />
+                    <span class="text-xs text-slate-400 font-bold">%</span>
+                  </div>
+                </div>
+                <div>
+                  <label class="block text-[11px] font-bold text-slate-300 mb-1">Expected 1st Advance Amount (₹) *</label>
+                  <input type="number" id="inp-ord-adv-amt" min="0" step="1" oninput="onAdvanceAmtChanged()" placeholder="e.g. 2250000" class="w-full px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-xl text-xs font-black text-amber-300 focus:outline-none focus:border-indigo-500" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Section 3: Sales Contribution % Split (Strict 100% Mandatory) -->
+          <div class="bg-slate-800/50 p-4 rounded-xl border border-slate-750 space-y-3">
+            <div class="flex items-center justify-between">
+              <div class="text-xs font-black uppercase text-emerald-400 tracking-wider flex items-center gap-2">
+                <i class="fa-solid fa-users-gear"></i>
+                <span>Sales Contribution Split (% of Revenue Recognized) *</span>
+              </div>
+              <div class="flex items-center space-x-2">
+                <button type="button" onclick="autoBalanceSplits()" class="px-2 py-1 bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-300 border border-indigo-500/40 rounded-lg text-[10px] font-bold flex items-center gap-1 cursor-pointer" title="Auto-balance splits to equal exactly 100%">
+                  <i class="fa-solid fa-scale-balanced"></i>
+                  <span>Auto-Balance 100%</span>
+                </button>
+                <button type="button" onclick="addSplitRow()" class="px-2.5 py-1 bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-300 border border-emerald-500/40 rounded-lg text-[11px] font-bold flex items-center gap-1 cursor-pointer">
+                  <i class="fa-solid fa-user-plus"></i>
+                  <span>+ Add Contributor</span>
+                </button>
+              </div>
+            </div>
+            <p class="text-[11px] text-slate-400">Total contribution must equal <strong>exactly 100.00%</strong>. This splits revenue directly towards individual employee AOP achievement.</p>
+
+            <!-- Dynamic Live Validation Warning / Success Banner -->
+            <div id="split-validation-alert" class="p-2.5 rounded-xl text-xs font-semibold flex items-center justify-between transition-all"></div>
+
+            <div id="splits-container" class="space-y-2">
+              <!-- Dynamically rendered split rows -->
+            </div>
+
+            <div class="p-2.5 bg-slate-900 rounded-xl border border-slate-750 flex items-center justify-between text-xs">
+              <span class="font-bold text-slate-300">Total Contribution:</span>
+              <div class="flex items-center space-x-2">
+                <span id="total-split-badge" class="font-black text-emerald-400">100%</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Section 4: Bank Guarantee & Performance Guarantee (BG / PG) + Retention Terms -->
+          <div class="bg-slate-800/50 p-4 rounded-xl border border-slate-750 space-y-3">
+            <div class="text-xs font-black uppercase text-amber-400 tracking-wider flex items-center gap-2">
+              <i class="fa-solid fa-shield-halved"></i>
+              <span>Bank Guarantee / Performance Guarantee (BG/PG) & Retention Terms</span>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div>
+                <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">PG / BG Required?</label>
+                <select id="inp-ord-bgreq" onchange="toggleBgFields()" class="w-full px-3 py-2 bg-slate-950 border border-slate-750 rounded-xl text-xs font-semibold text-white focus:outline-none focus:border-indigo-500">
+                  <option value="No">No BG / PG Required</option>
+                  <option value="Yes">Yes - Performance Bank Guarantee Required</option>
+                </select>
+              </div>
+
+              <div id="bg-amount-box" class="hidden">
+                <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">BG / PG Amount (₹)</label>
+                <input type="number" id="inp-ord-bgamt" placeholder="e.g. 450000" class="w-full px-3 py-2 bg-slate-950 border border-slate-750 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500" />
+              </div>
+
+              <div id="bg-expiry-box" class="hidden">
+                <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">BG Expiry / Claim Date</label>
+                <input type="date" id="inp-ord-bgdate" class="w-full px-3 py-2 bg-slate-950 border border-slate-750 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500" />
+              </div>
+            </div>
+
+            <!-- Retention & Warranty Period Settings -->
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2 border-t border-slate-750/60">
+              <div>
+                <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">Retention Condition in PO?</label>
+                <select id="inp-ord-retreq" onchange="toggleRetentionFields()" class="w-full px-3 py-2 bg-slate-950 border border-slate-750 rounded-xl text-xs font-semibold text-white focus:outline-none focus:border-indigo-500">
+                  <option value="No">No Payment Retention</option>
+                  <option value="Yes">Yes - Retention Amount to be Released After Warranty</option>
+                </select>
+              </div>
+
+              <div id="ret-amount-box" class="hidden">
+                <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">Retention Amount (₹) / %</label>
+                <input type="number" id="inp-ord-retamt" placeholder="e.g. 450000 (10%)" class="w-full px-3 py-2 bg-slate-950 border border-slate-750 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500" />
+              </div>
+
+              <div id="ret-period-box" class="hidden">
+                <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">Warranty / Release Timeline</label>
+                <input type="text" id="inp-ord-retperiod" placeholder="e.g. 12 Months from commissioning" value="12 Months from Commissioning" class="w-full px-3 py-2 bg-slate-950 border border-slate-750 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500" />
+              </div>
+            </div>
+          </div>
+
+          <!-- Section 5: Customer PO Copy (Image / PDF Attachment) & Factory Instructions -->
+          <div class="bg-slate-800/50 p-4 rounded-xl border border-slate-750 space-y-3">
+            <div class="text-xs font-black uppercase text-sky-400 tracking-wider flex items-center gap-2">
+              <i class="fa-solid fa-camera"></i>
+              <span>Customer PO Copy (Image / Scan / PDF) & Technical Factory Docs</span>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">
+                  Customer PO Copy (Image / Photo / PDF) *
+                </label>
+                <input type="file" id="inp-ord-pofile" accept="image/png,image/jpeg,image/jpg,.pdf,.doc,.docx" onchange="handlePOFileSelected(event)" class="w-full px-2 py-1.5 bg-slate-950 border border-slate-750 rounded-xl text-xs text-slate-400 file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-indigo-600 file:text-white cursor-pointer" />
+                
+                <!-- Live PO Image Thumbnail Preview Box -->
+                <div id="po-image-preview-container" class="hidden mt-2 p-2 bg-slate-950 rounded-xl border border-slate-700 flex items-center gap-3">
+                  <img id="po-image-thumbnail" src="" alt="PO Preview" class="w-12 h-12 rounded object-cover border border-slate-600 cursor-pointer" onclick="viewPOImageFromPreview()" />
+                  <div class="text-xs flex-1 truncate">
+                    <span class="font-bold text-white block truncate" id="po-image-file-label">PO_Image.jpg</span>
+                    <span class="text-[10px] text-emerald-400 font-semibold">✓ Image Captured & Attached</span>
+                  </div>
+                  <button type="button" onclick="removePOImageAttachment()" class="text-rose-400 hover:text-rose-300 text-xs font-bold px-2 py-1 cursor-pointer">&times; Remove</button>
+                </div>
+                <p class="text-[10px] text-slate-400 mt-1">Official signed purchase order document or direct camera snapshot</p>
+              </div>
+
+              <div>
+                <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">Technical Factory Instruction Document</label>
+                <input type="file" id="inp-ord-facfile" accept=".pdf,.doc,.docx,.zip,.xls,.xlsx" class="w-full px-2 py-1.5 bg-slate-950 border border-slate-750 rounded-xl text-xs text-slate-400 file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-sky-600 file:text-white cursor-pointer" />
+                <label class="inline-flex items-center mt-1.5 cursor-pointer">
+                  <input type="checkbox" id="inp-no-fac-doc" class="rounded text-indigo-500" />
+                  <span class="ml-1.5 text-[11px] text-slate-300 font-semibold">No special factory instruction document required</span>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <div class="pt-4 border-t border-slate-800 flex items-center justify-end space-x-3 shrink-0">
+            <button type="button" onclick="closeOrderModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl cursor-pointer">Cancel</button>
+            <button type="submit" class="px-5 py-2 bg-[#982B68] hover:bg-[#802256] text-white text-xs font-bold rounded-xl shadow-lg shadow-[#982B68]/30 transition-all cursor-pointer flex items-center gap-2">
+              <i class="fa-solid fa-check"></i>
+              <span>Book Order & Auto-Reconcile</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- MODAL: Full Size PO Image & Document Viewer -->
+    <div id="po-viewer-modal" class="hidden fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-sm flex items-center justify-center p-4">
+      <div class="bg-slate-900 w-full max-w-2xl rounded-2xl border border-slate-700 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+        <div class="px-5 py-3 bg-slate-850 border-b border-slate-800 flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <i class="fa-solid fa-image text-indigo-400"></i>
+            <h3 class="text-sm font-bold text-white" id="po-viewer-title">Customer Purchase Order Copy</h3>
+          </div>
+          <button onclick="closePOViewerModal()" class="text-slate-400 hover:text-white text-xl font-bold">&times;</button>
+        </div>
+        <div class="p-4 overflow-auto flex-1 flex items-center justify-center bg-slate-950">
+          <img id="po-viewer-image" src="" alt="PO Copy" class="max-w-full max-h-[70vh] rounded-lg shadow-lg border border-slate-800 object-contain" />
+          <div id="po-viewer-doc-fallback" class="hidden text-center space-y-3 p-8">
+            <i class="fa-solid fa-file-pdf text-4xl text-rose-500"></i>
+            <div class="text-sm font-bold text-white" id="po-viewer-doc-name">PO_Document.pdf</div>
+            <p class="text-xs text-slate-400">PDF document attached with order record.</p>
+          </div>
+        </div>
+        <div class="px-5 py-2.5 bg-slate-850 border-t border-slate-800 flex justify-end">
+          <button onclick="closePOViewerModal()" class="px-4 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-xs font-bold">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <script src="js/orders.js"></script>
+  </body>
+</html>

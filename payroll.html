@@ -1,0 +1,391 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>K-30_ERP - Payroll & CTC</title>
+    <link rel="stylesheet" href="/src/index.css">
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="js/firebase-init.js" defer></script>
+    <script src="js/store.js" defer></script>
+    <script src="js/seed-data.js" defer></script>
+    <script src="auth-guard.js" defer></script>
+    <style>
+      @media print {
+        body * { visibility: hidden; }
+        #printable-payslip, #printable-payslip * { visibility: visible; }
+        #printable-payslip { position: absolute; left: 0; top: 0; width: 100%; }
+        .no-print { display: none !important; }
+      }
+    </style>
+  </head>
+  <body class="bg-slate-50 min-h-screen text-slate-800">
+    
+    <!-- Navbar Container -->
+    <div id="navbar-container" class="no-print"></div>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 no-print">
+      
+      <!-- Top Header -->
+      <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-white p-6 rounded-2xl shadow-xs border border-slate-200">
+        <div>
+          <h1 class="text-2xl font-bold text-slate-900 tracking-tight">Corporate Payroll System</h1>
+          <p class="text-sm text-slate-500 mt-1">Attendance-linked payroll processing, statutory PF/ESI, loan recoveries & digital payslips</p>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-3">
+          <div class="flex items-center space-x-2 bg-slate-50 p-1.5 rounded-xl border border-slate-200">
+            <span class="text-xs font-bold text-slate-500 pl-2">Payroll Period:</span>
+            <select id="payroll-month-select" onchange="renderPayrollTable()" class="px-3 py-1 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+              <option value="2026-07">July 2026</option>
+              <option value="2026-06">June 2026</option>
+              <option value="2026-05">May 2026</option>
+              <option value="2026-04">April 2026</option>
+            </select>
+          </div>
+
+          <button onclick="handleProcessPayroll()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs rounded-xl shadow-xs transition-colors flex items-center space-x-1 cursor-pointer">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <span>Process & Approve Payroll</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Payroll Summary KPI Cards -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
+          <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Total Gross Monthly Payroll</div>
+          <div class="text-2xl font-extrabold text-slate-900 mt-1" id="stat-gross-payroll">Rs.0</div>
+          <div class="text-[11px] text-slate-500 mt-1" id="stat-headcount">0 Active Employees</div>
+        </div>
+
+        <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
+          <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Attendance LOP Deductions</div>
+          <div class="text-2xl font-extrabold text-rose-600 mt-1" id="stat-lop-deductions">Rs.0</div>
+          <div class="text-[11px] text-slate-500 mt-1" id="stat-lop-days">0 Absent Days</div>
+        </div>
+
+        <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
+          <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Statutory Deductions (PF/ESI)</div>
+          <div class="text-2xl font-extrabold text-amber-600 mt-1" id="stat-pf-esi">Rs.0</div>
+          <div class="text-[11px] text-slate-500 mt-1">Provident Fund & ESI Compliance</div>
+        </div>
+
+        <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
+          <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Net Salary Disbursable</div>
+          <div class="text-2xl font-extrabold text-emerald-600 mt-1" id="stat-net-payroll">Rs.0</div>
+          <div class="text-[11px] text-slate-500 mt-1">Ready for Bank Transfer</div>
+        </div>
+      </div>
+
+      <!-- Payroll Register Table -->
+      <div class="bg-white rounded-2xl shadow-xs border border-slate-200 overflow-hidden space-y-4">
+        <div class="p-6 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h2 class="text-lg font-bold text-slate-900">Monthly Payroll Register</h2>
+            <p class="text-xs text-slate-500 mt-0.5">Automated payroll calculation incorporating daily attendance logs and salary structures</p>
+          </div>
+          <input type="text" id="payroll-search" oninput="renderPayrollTable()" placeholder="Search employee name, ID..." class="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs w-64 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="bg-slate-50 border-b border-slate-200 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                <th class="py-3 px-4">Employee Name & ID</th>
+                <th class="py-3 px-4">Designation & Vertical</th>
+                <th class="py-3 px-4 text-center">Attendance Log</th>
+                <th class="py-3 px-4 text-right">Fixed Gross (₹)</th>
+                <th class="py-3 px-4 text-right">LOP Cut (₹)</th>
+                <th class="py-3 px-4 text-right">Statutory PF/ESI (₹)</th>
+                <th class="py-3 px-4 text-right">Advance Recovered (₹)</th>
+                <th class="py-3 px-4 text-right">Net Salary (₹)</th>
+                <th class="py-3 px-4 text-center">Status</th>
+                <th class="py-3 px-4 text-center">Payslip</th>
+              </tr>
+            </thead>
+            <tbody id="payroll-tbody" class="divide-y divide-slate-100 text-xs">
+              <!-- Populated dynamically -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </main>
+
+    <!-- PRINTABLE PAYSLIP MODAL -->
+    <div id="payslip-modal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+      <div class="bg-white w-full max-w-2xl rounded-2xl shadow-2xl border border-slate-200 overflow-hidden max-h-[90vh] flex flex-col">
+        <div class="px-6 py-4 bg-slate-900 text-white flex items-center justify-between no-print">
+          <h3 class="text-sm font-bold">Employee Digital Payslip PDF Copy</h3>
+          <div class="flex items-center space-x-2">
+            <button onclick="window.print()" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs rounded-lg transition-colors cursor-pointer flex items-center space-x-1">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+              <span>Print / Save Payslip</span>
+            </button>
+            <button onclick="closePayslipModal()" class="text-slate-400 hover:text-white text-lg font-bold px-2">&times;</button>
+          </div>
+        </div>
+
+        <div id="printable-payslip" class="p-8 space-y-6 overflow-y-auto bg-white text-slate-800">
+          <!-- Header -->
+          <div class="flex items-center justify-between border-b-2 border-slate-900 pb-4">
+            <div>
+              <h2 class="text-xl font-black text-slate-900 tracking-tight">MEASURE DI TECHNOLOGIES PRIVATE LIMITED</h2>
+              <p class="text-xs text-slate-600">Head Office, Chennai • Corporate Human Resources & Payroll</p>
+            </div>
+            <div class="text-right">
+              <div class="text-lg font-black text-indigo-900 uppercase tracking-wide">SALARY SLIP</div>
+              <div class="text-xs font-bold text-slate-600" id="ps-period">For July 2026</div>
+            </div>
+          </div>
+
+          <!-- Employee Profile Details Grid -->
+          <div class="grid grid-cols-2 gap-x-6 gap-y-2 bg-slate-50 p-4 rounded-xl border border-slate-200 text-xs">
+            <div><span class="font-bold text-slate-500 uppercase">Employee ID:</span> <span class="font-mono font-bold text-slate-900 ml-1" id="ps-emp-id">E-002</span></div>
+            <div><span class="font-bold text-slate-500 uppercase">Employee Name:</span> <span class="font-bold text-slate-900 ml-1" id="ps-emp-name">Murugan</span></div>
+            <div><span class="font-bold text-slate-500 uppercase">Designation:</span> <span class="font-semibold text-slate-800 ml-1" id="ps-designation">Sales & Marketing Head</span></div>
+            <div><span class="font-bold text-slate-500 uppercase">Vertical:</span> <span class="font-semibold text-slate-800 ml-1" id="ps-vertical">Sales</span></div>
+            <div><span class="font-bold text-slate-500 uppercase">Bank Name & A/c:</span> <span class="font-semibold text-slate-800 ml-1" id="ps-bank">HDFC Bank • ****4892</span></div>
+            <div><span class="font-bold text-slate-500 uppercase">PF UAN / PAN:</span> <span class="font-mono text-slate-800 ml-1" id="ps-pf-pan">UAN10098273 / AAAPM1234F</span></div>
+          </div>
+
+          <!-- Attendance Days Summary -->
+          <div class="grid grid-cols-4 gap-2 text-center text-xs bg-indigo-50/70 p-3 rounded-xl border border-indigo-100">
+            <div><span class="text-[10px] font-bold text-indigo-800 uppercase block">Total Days</span> <span class="font-extrabold text-indigo-950 text-sm" id="ps-days-total">31</span></div>
+            <div><span class="text-[10px] font-bold text-indigo-800 uppercase block">Present Days</span> <span class="font-extrabold text-emerald-700 text-sm" id="ps-days-present">29</span></div>
+            <div><span class="text-[10px] font-bold text-indigo-800 uppercase block">Paid Leave</span> <span class="font-extrabold text-blue-700 text-sm" id="ps-days-leave">1</span></div>
+            <div><span class="text-[10px] font-bold text-indigo-800 uppercase block">LOP Absences</span> <span class="font-extrabold text-rose-700 text-sm" id="ps-days-lop">1</span></div>
+          </div>
+
+          <!-- Earnings vs Deductions Table -->
+          <div class="grid grid-cols-2 gap-4 border border-slate-200 rounded-xl overflow-hidden text-xs">
+            <!-- Left: Earnings -->
+            <div class="border-r border-slate-200">
+              <div class="bg-slate-900 text-white px-3 py-2 font-bold uppercase text-[11px] flex justify-between">
+                <span>Gross Earnings</span>
+                <span>Amount (₹)</span>
+              </div>
+              <div class="p-3 space-y-2">
+                <div class="flex justify-between"><span class="text-slate-600">Basic Salary</span> <span class="font-bold text-slate-900" id="ps-earn-basic">Rs.37,500</span></div>
+                <div class="flex justify-between"><span class="text-slate-600">House Rent Allowance (HRA)</span> <span class="font-bold text-slate-900" id="ps-earn-hra">Rs.18,750</span></div>
+                <div class="flex justify-between"><span class="text-slate-600">Conveyance & Special Allowance</span> <span class="font-bold text-slate-900" id="ps-earn-allow">Rs.18,750</span></div>
+                <div class="pt-2 border-t border-slate-200 flex justify-between font-extrabold text-sm text-slate-900">
+                  <span>Total Gross Earnings</span>
+                  <span id="ps-earn-total">Rs.75,000</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Right: Deductions -->
+            <div>
+              <div class="bg-slate-900 text-white px-3 py-2 font-bold uppercase text-[11px] flex justify-between">
+                <span>Deductions</span>
+                <span>Amount (₹)</span>
+              </div>
+              <div class="p-3 space-y-2">
+                <div class="flex justify-between"><span class="text-slate-600">Attendance LOP Deduction</span> <span class="font-bold text-rose-600" id="ps-ded-lop">Rs.2,419</span></div>
+                <div class="flex justify-between"><span class="text-slate-600">Provident Fund (PF)</span> <span class="font-bold text-slate-900" id="ps-ded-pf">Rs.1,800</span></div>
+                <div class="flex justify-between"><span class="text-slate-600">ESI Statutory Contribution</span> <span class="font-bold text-slate-900" id="ps-ded-esi">Rs.0</span></div>
+                <div class="flex justify-between"><span class="text-slate-600">Salary Advance / Loan Recovery</span> <span class="font-bold text-slate-900" id="ps-ded-loan">Rs.0</span></div>
+                <div class="pt-2 border-t border-slate-200 flex justify-between font-extrabold text-sm text-rose-700">
+                  <span>Total Deductions</span>
+                  <span id="ps-ded-total">Rs.4,219</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Net Salary Highlight -->
+          <div class="bg-emerald-50 border-2 border-emerald-300 p-4 rounded-xl flex items-center justify-between">
+            <div>
+              <span class="text-xs font-bold text-emerald-800 uppercase block">Net Salary Payable:</span>
+              <span class="text-xs italic text-emerald-700 font-medium" id="ps-net-words">Rupees Seventy-Zero Thousand Seven Hundred Eighty-One Only</span>
+            </div>
+            <div class="text-2xl font-black text-emerald-950" id="ps-net-amount">Rs.70,781</div>
+          </div>
+
+          <!-- Signatures Footer -->
+          <div class="grid grid-cols-2 gap-6 pt-8 text-xs text-slate-600 font-semibold text-center border-t border-slate-200">
+            <div>
+              <div class="border-b border-slate-300 pb-1 mb-1"></div>
+              <span>Employee Signature / Acknowledgement</span>
+            </div>
+            <div>
+              <div class="border-b border-slate-300 pb-1 mb-1"></div>
+              <span>Authorized HR & Payroll Officer</span>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <script>
+      document.addEventListener('DOMContentLoaded', function() {
+        if (checkAuth(['super_admin', 'admin'])) {
+          renderPayrollTable();
+        }
+      });
+
+      function renderPayrollTable() {
+        var period = document.getElementById('payroll-month-select').value;
+        var emps = window.RevOpsStore.getCollection('employees') || [];
+        var att = window.RevOpsStore.getCollection('attendance') || [];
+        var search = document.getElementById('payroll-search').value.toLowerCase();
+
+        var totalGross = 0, totalLop = 0, totalPfEsi = 0, totalNet = 0;
+        var totalLopDays = 0;
+
+        var tbody = document.getElementById('payroll-tbody');
+        tbody.innerHTML = "";
+
+        var filtered = emps.filter(function(e) {
+          if (e.isActive === false) return false;
+          if (search && !( e.fullName.toLowerCase().includes(search) || e.employeeId.toLowerCase().includes(search) )) return false;
+          return true;
+        });
+
+        if (filtered.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="10" class="py-6 text-center text-slate-400">No active employees found for payroll.</td></tr>`;
+          return;
+        }
+
+        filtered.forEach(function(emp) {
+          // Determine base monthly salary structure (CTC)
+          var monthlyCtc = Number(emp.monthlyCtc) || Number(emp.basicSalary * 2) || 75000;
+          if (emp.employeeId === 'E-001') monthlyCtc = 150000;
+          if (emp.employeeId === 'E-002') monthlyCtc = 110000;
+          if (emp.employeeId === 'E-003') monthlyCtc = 85000;
+          if (emp.employeeId === 'E-004') monthlyCtc = 75000;
+
+          var totalDaysInMonth = 31;
+          
+          // Count employee attendance for selected period
+          var empAtt = att.filter(function(a) { return a.employeeId === emp.employeeId; });
+          var presentDays = 26;
+          var leaveDays = 2;
+          if (empAtt.length > 0) {
+            presentDays = empAtt.filter(a => a.status === 'Present' || a.status === 'Late' || a.status === 'On-Site').length;
+            leaveDays = empAtt.filter(a => a.status === 'Leave' || a.status === 'Half-Day').length;
+          }
+
+          var lopDays = Math.max(0, totalDaysInMonth - (presentDays + leaveDays));
+          totalLopDays += lopDays;
+
+          var dailyRate = monthlyCtc / totalDaysInMonth;
+          var lopDeduction = Math.round(dailyRate * lopDays);
+
+          // Salary Breakdown
+          var basic = Math.round(monthlyCtc * 0.5);
+          var pf = basic > 0 ? Math.min(1800, Math.round(basic * 0.12)) : 0;
+          var esi = (monthlyCtc <= 21000) ? Math.round(monthlyCtc * 0.0075) : 0;
+
+          // Advance recovery
+          var advanceRecovery = Number(emp.salaryAdvanceBalance) || 0;
+
+          var netSalary = monthlyCtc - lopDeduction - pf - esi - advanceRecovery;
+
+          totalGross += monthlyCtc;
+          totalLop += lopDeduction;
+          totalPfEsi += (pf + esi);
+          totalNet += netSalary;
+
+          var tr = document.createElement('tr');
+          tr.className = "hover:bg-slate-50 transition-colors";
+          tr.innerHTML = `
+            <td class="py-3 px-4 font-bold text-slate-900">
+              <div>${escapeHtml(emp.fullName)}</div>
+              <div class="text-[10px] text-slate-400 font-mono">${escapeHtml(emp.employeeId)}</div>
+            </td>
+            <td class="py-3 px-4 text-slate-700">
+              <div class="font-semibold text-slate-800">${escapeHtml(emp.designation)}</div>
+              <div class="text-[10px] text-slate-500">${escapeHtml(emp.vertical)}</div>
+            </td>
+            <td class="py-3 px-4 text-center">
+              <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">${presentDays} Present</span>
+              <span class="px-2 py-0.5 rounded text-[10px] font-bold ${lopDays > 0 ? 'bg-rose-100 text-rose-800' : 'bg-slate-100 text-slate-600'}">${lopDays} LOP</span>
+            </td>
+            <td class="py-3 px-4 text-right font-extrabold text-slate-900 text-sm">${formatINR(monthlyCtc)}</td>
+            <td class="py-3 px-4 text-right font-bold text-rose-600">${formatINR(lopDeduction)}</td>
+            <td class="py-3 px-4 text-right font-bold text-amber-600">${formatINR(pf + esi)}</td>
+            <td class="py-3 px-4 text-right font-medium text-slate-700">${formatINR(advanceRecovery)}</td>
+            <td class="py-3 px-4 text-right font-black text-emerald-600 text-sm">${formatINR(netSalary)}</td>
+            <td class="py-3 px-4 text-center">
+              <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-emerald-100 text-emerald-800 border border-emerald-300">Calculated</span>
+            </td>
+            <td class="py-3 px-4 text-center">
+              <button onclick="viewPayslip('${escapeHtml(emp.employeeId)}', ${monthlyCtc}, ${presentDays}, ${leaveDays}, ${lopDays}, ${lopDeduction}, ${pf}, ${esi}, ${advanceRecovery}, ${netSalary})" class="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-[11px] rounded-lg transition-colors cursor-pointer border border-indigo-200">
+                View Payslip
+              </button>
+            </td>
+          `;
+          tbody.appendChild(tr);
+        });
+
+        document.getElementById('stat-gross-payroll').innerText = formatINR(totalGross);
+        document.getElementById('stat-headcount').innerText = filtered.length + " Employees Processed";
+        document.getElementById('stat-lop-deductions').innerText = formatINR(totalLop);
+        document.getElementById('stat-lop-days').innerText = totalLopDays + " Total LOP Days";
+        document.getElementById('stat-pf-esi').innerText = formatINR(totalPfEsi);
+        document.getElementById('stat-net-payroll').innerText = formatINR(totalNet);
+      }
+
+      function handleProcessPayroll() {
+        var period = document.getElementById('payroll-month-select').value;
+        if (confirm("Approve & Disburse Payroll for " + period + "? This will generate official payslips and update salary ledger.")) {
+          alert("Payroll for " + period + " successfully processed & approved! All employee digital payslips are now ready.");
+        }
+      }
+
+      function viewPayslip(empId, gross, present, leave, lop, lopCut, pf, esi, advance, net) {
+        var emps = window.RevOpsStore.getCollection('employees') || [];
+        var emp = emps.find(function(e) { return e.employeeId === empId; });
+        if (!emp) return;
+
+        var period = document.getElementById('payroll-month-select').value;
+
+        document.getElementById('ps-period').innerText = "For Period: " + period;
+        document.getElementById('ps-emp-id').innerText = emp.employeeId;
+        document.getElementById('ps-emp-name').innerText = emp.fullName;
+        document.getElementById('ps-designation').innerText = emp.designation;
+        document.getElementById('ps-vertical').innerText = emp.vertical;
+        document.getElementById('ps-bank').innerText = (emp.bankName || 'HDFC Bank') + " • " + (emp.accountNumber ? ('****' + emp.accountNumber.slice(-4)) : '****8842');
+        document.getElementById('ps-pf-pan').innerText = (emp.pfNumber || 'UAN10098273') + " / " + (emp.panNumber || 'AAAPM1234F');
+
+        document.getElementById('ps-days-total').innerText = 31;
+        document.getElementById('ps-days-present').innerText = present;
+        document.getElementById('ps-days-leave').innerText = leave;
+        document.getElementById('ps-days-lop').innerText = lop;
+
+        var basic = Math.round(gross * 0.5);
+        var hra = Math.round(gross * 0.25);
+        var allow = Math.round(gross * 0.25);
+
+        document.getElementById('ps-earn-basic').innerText = formatINR(basic);
+        document.getElementById('ps-earn-hra').innerText = formatINR(hra);
+        document.getElementById('ps-earn-allow').innerText = formatINR(allow);
+        document.getElementById('ps-earn-total').innerText = formatINR(gross);
+
+        document.getElementById('ps-ded-lop').innerText = formatINR(lopCut);
+        document.getElementById('ps-ded-pf').innerText = formatINR(pf);
+        document.getElementById('ps-ded-esi').innerText = formatINR(esi);
+        document.getElementById('ps-ded-loan').innerText = formatINR(advance);
+
+        var totalDeductions = lopCut + pf + esi + advance;
+        document.getElementById('ps-ded-total').innerText = formatINR(totalDeductions);
+
+        document.getElementById('ps-net-amount').innerText = formatINR(net);
+        document.getElementById('ps-net-words').innerText = "Rupees " + net.toLocaleString('en-IN') + " Only";
+
+        document.getElementById('payslip-modal').classList.remove('hidden');
+      }
+
+      function closePayslipModal() {
+        document.getElementById('payslip-modal').classList.add('hidden');
+      }
+    </script>
+  </body>
+</html>

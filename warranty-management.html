@@ -1,0 +1,343 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>K-30_ERP - Warranty Management</title>
+    <link rel="stylesheet" href="/src/index.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="js/firebase-init.js" defer></script>
+    <script src="js/store.js" defer></script>
+    <script src="js/seed-data.js" defer></script>
+    <script src="auth-guard.js" defer></script>
+  </head>
+  <body class="bg-slate-900 min-h-screen text-slate-100 font-sans antialiased">
+    
+    <!-- Navbar Container -->
+    <div id="navbar-container"></div>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+      
+      <!-- Top Header & Action Controls -->
+      <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-slate-850 p-6 rounded-2xl border border-slate-800 shadow-xl">
+        <div>
+          <div class="flex items-center space-x-2">
+            <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-purple-500/20 text-purple-300 border border-purple-500/30">
+              Service & Quality Engine
+            </span>
+            <span class="text-xs text-slate-400 font-semibold">• Installed Base Warranty & RMA Tracking</span>
+          </div>
+          <h1 class="text-2xl font-black text-white tracking-tight mt-1 flex items-center gap-2">
+            <span>Warranty Management & Installed Base</span>
+            <span class="text-xs font-bold px-2 py-0.5 rounded bg-purple-950 text-purple-300 border border-purple-800/80">RevOps v28</span>
+          </h1>
+          <p class="text-xs text-slate-400 mt-1">Equipment commissioning warranty tracking, countdown alerts, RMA claims, replacement parts & seamless 1-click AMC conversion funnel.</p>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2.5">
+          <a href="service-tickets.html" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-750 text-slate-200 text-xs font-bold rounded-xl border border-slate-700 transition-colors flex items-center gap-1.5 cursor-pointer" title="Service Tickets">
+            <i class="fa-solid fa-screwdriver-wrench text-amber-400"></i>
+            <span>Service Tickets</span>
+          </a>
+          <a href="amc-contracts.html" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-750 text-slate-200 text-xs font-bold rounded-xl border border-slate-700 transition-colors flex items-center gap-1.5 cursor-pointer" title="AMC Contracts Hub">
+            <i class="fa-solid fa-file-contract text-emerald-400"></i>
+            <span>AMC Contracts</span>
+          </a>
+          <button onclick="openNewWarrantyModal()" class="px-4 py-2 bg-[#982B68] hover:bg-[#802256] text-white font-bold text-xs rounded-xl shadow-lg shadow-[#982B68]/30 transition-all flex items-center space-x-1.5 cursor-pointer">
+            <i class="fa-solid fa-plus text-xs"></i>
+            <span>+ Register Equipment Warranty</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- KPI Summary Cards -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <!-- KPI 1 -->
+        <div class="bg-slate-850 p-5 rounded-2xl border border-slate-800 shadow-xl flex items-center justify-between">
+          <div>
+            <div class="text-[10px] font-black uppercase tracking-wider text-slate-400">Active Warranted Units</div>
+            <div class="text-2xl font-black text-white mt-1" id="stat-active-warranties">0</div>
+            <div class="text-[11px] text-emerald-400 font-semibold mt-0.5" id="stat-installed-base">Total Base: 0 Units</div>
+          </div>
+          <div class="w-12 h-12 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center justify-center text-xl">
+            <i class="fa-solid fa-shield-check"></i>
+          </div>
+        </div>
+
+        <!-- KPI 2 -->
+        <div class="bg-slate-850 p-5 rounded-2xl border border-slate-800 shadow-xl flex items-center justify-between">
+          <div>
+            <div class="text-[10px] font-black uppercase tracking-wider text-amber-400">Expiring in &le; 45 Days</div>
+            <div class="text-2xl font-black text-amber-400 mt-1" id="stat-expiring-warranties">0</div>
+            <div class="text-[11px] text-slate-400 font-semibold mt-0.5">High-Priority AMC Conversion</div>
+          </div>
+          <div class="w-12 h-12 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center justify-center text-xl">
+            <i class="fa-solid fa-hourglass-half"></i>
+          </div>
+        </div>
+
+        <!-- KPI 3 -->
+        <div class="bg-slate-850 p-5 rounded-2xl border border-slate-800 shadow-xl flex items-center justify-between">
+          <div>
+            <div class="text-[10px] font-black uppercase tracking-wider text-purple-400">Warranty-to-AMC Rate</div>
+            <div class="text-2xl font-black text-purple-400 mt-1" id="stat-amc-conversion-rate">72.4%</div>
+            <div class="text-[11px] text-slate-400 font-semibold mt-0.5">Target: &ge; 65.0% Conversion</div>
+          </div>
+          <div class="w-12 h-12 rounded-xl bg-purple-500/10 text-purple-400 border border-purple-500/20 flex items-center justify-center text-xl">
+            <i class="fa-solid fa-arrows-spin"></i>
+          </div>
+        </div>
+
+        <!-- KPI 4 -->
+        <div class="bg-slate-850 p-5 rounded-2xl border border-slate-800 shadow-xl flex items-center justify-between">
+          <div>
+            <div class="text-[10px] font-black uppercase tracking-wider text-rose-400">RMA & Claims Rate</div>
+            <div class="text-2xl font-black text-rose-400 mt-1" id="stat-claims-rate">2.1%</div>
+            <div class="text-[11px] text-slate-400 font-semibold mt-0.5" id="stat-claims-count">0 Claims Recorded</div>
+          </div>
+          <div class="w-12 h-12 rounded-xl bg-rose-500/10 text-rose-400 border border-rose-500/20 flex items-center justify-center text-xl">
+            <i class="fa-solid fa-hand-holding-hand"></i>
+          </div>
+        </div>
+      </div>
+
+      <!-- Filter Controls & Search -->
+      <div class="bg-slate-850 p-4 rounded-2xl border border-slate-800 shadow-xl flex flex-wrap items-center justify-between gap-3">
+        <div class="flex flex-wrap items-center gap-2.5 flex-1 min-w-[300px]">
+          <!-- Search -->
+          <div class="relative flex-1 min-w-[200px]">
+            <input type="text" id="warranty-search-input" oninput="renderWarrantyTable()" placeholder="Search by Serial #, Customer, Model, Order Ref..." class="w-full pl-8 pr-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500" />
+            <i class="fa-solid fa-magnifying-glass absolute left-2.5 top-3 text-slate-500 text-xs"></i>
+          </div>
+
+          <!-- Status Filter -->
+          <select id="warranty-status-filter" onchange="renderWarrantyTable()" class="px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-slate-300 font-semibold focus:outline-none focus:border-purple-500">
+            <option value="All">All Warranty Statuses</option>
+            <option value="Active">Under Active Warranty</option>
+            <option value="Expiring Soon">Expiring Soon (&le; 45 Days)</option>
+            <option value="Expired">Out of Warranty (Expired)</option>
+            <option value="Converted to AMC">Converted to AMC</option>
+          </select>
+
+          <!-- Type Filter -->
+          <select id="warranty-type-filter" onchange="renderWarrantyTable()" class="px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-slate-300 font-semibold focus:outline-none focus:border-purple-500">
+            <option value="All">All Warranty Types</option>
+            <option value="Standard 12-Month OEM">Standard 12-Month OEM</option>
+            <option value="Extended 24-Month Premium">Extended 24-Month Premium</option>
+            <option value="Replacement Part 6-Month">Replacement Part 6-Month</option>
+          </select>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <span class="text-xs text-slate-400 font-bold" id="warranty-count-badge">0 units</span>
+          <button onclick="exportWarrantyCSV()" class="px-3 py-2 bg-slate-800 hover:bg-slate-750 text-slate-200 text-xs font-bold rounded-xl border border-slate-700 transition-colors flex items-center gap-1.5 cursor-pointer">
+            <i class="fa-solid fa-download text-xs text-slate-400"></i>
+            <span>Export CSV</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Warranty Master Registry Table -->
+      <div class="bg-slate-850 rounded-2xl border border-slate-800 shadow-xl overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="bg-slate-900/80 border-b border-slate-800 text-[10px] font-black uppercase tracking-wider text-slate-400">
+                <th class="py-3 px-4">Serial Number & Order Ref</th>
+                <th class="py-3 px-4">Customer & Plant Site</th>
+                <th class="py-3 px-4">Equipment Model & Vertical</th>
+                <th class="py-3 px-4">Commissioning & Expiry</th>
+                <th class="py-3 px-4 text-center">Warranty Tier</th>
+                <th class="py-3 px-4 text-center">Status & Countdown</th>
+                <th class="py-3 px-4 text-center">RMA / Claims</th>
+                <th class="py-3 px-4 text-center">Actions & AMC Funnel</th>
+              </tr>
+            </thead>
+            <tbody id="warranty-tbody" class="divide-y divide-slate-800 text-xs">
+              <!-- Dynamically populated via JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </main>
+
+    <!-- MODAL 1: REGISTER / EDIT EQUIPMENT WARRANTY -->
+    <div id="warranty-modal" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md hidden flex items-center justify-center p-4 overflow-y-auto">
+      <div class="bg-slate-900 border border-slate-700/80 rounded-2xl w-full max-w-2xl shadow-2xl p-6 text-slate-200 space-y-5 my-8">
+        
+        <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+          <div class="flex items-center space-x-2.5">
+            <div class="w-9 h-9 rounded-xl bg-purple-500 text-white flex items-center justify-center font-black text-sm">
+              <i class="fa-solid fa-shield"></i>
+            </div>
+            <div>
+              <h3 class="text-sm font-black text-white uppercase tracking-wider" id="warranty-modal-title">Register Equipment Warranty</h3>
+              <p class="text-[11px] text-slate-400">Record equipment commissioning date, warranty period & customer site details</p>
+            </div>
+          </div>
+          <button type="button" onclick="closeWarrantyModal()" class="text-slate-400 hover:text-white text-lg font-bold p-1 cursor-pointer">&times;</button>
+        </div>
+
+        <form id="warranty-form" onsubmit="handleSaveWarranty(event)" class="space-y-4">
+          <input type="hidden" id="warranty-doc-id" value="" />
+
+          <!-- Row 1: Customer & Order Ref -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Customer Name *</label>
+              <input type="text" id="inp-warr-customer" required placeholder="e.g. JSW Steel Limited" class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white font-semibold focus:outline-none focus:border-purple-500" />
+            </div>
+
+            <div>
+              <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Original Order / Contract #</label>
+              <input type="text" id="inp-warr-order" placeholder="ORD-2025-042" class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white font-mono focus:outline-none focus:border-purple-500" />
+            </div>
+          </div>
+
+          <!-- Row 2: Equipment Model & Serial No -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Equipment Model *</label>
+              <input type="text" id="inp-warr-model" required placeholder="Wireless Crane Scale 50T (CS-50W)" class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white font-semibold focus:outline-none focus:border-purple-500" />
+            </div>
+
+            <div>
+              <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Serial Number *</label>
+              <input type="text" id="inp-warr-serial" required placeholder="CS-50T-2025-104" class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-amber-300 font-mono font-bold focus:outline-none focus:border-purple-500" />
+            </div>
+          </div>
+
+          <!-- Row 3: Commissioning Date, Tier & Expiry -->
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Commissioning Date *</label>
+              <input type="date" id="inp-warr-comm-date" required onchange="calculateWarrantyExpiryDate()" class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-purple-500" />
+            </div>
+
+            <div>
+              <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Warranty Period Tier *</label>
+              <select id="inp-warr-tier" required onchange="calculateWarrantyExpiryDate()" class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white font-semibold focus:outline-none focus:border-purple-500">
+                <option value="Standard 12-Month OEM" selected>Standard 12-Month OEM</option>
+                <option value="Extended 24-Month Premium">Extended 24-Month Premium</option>
+                <option value="Replacement Part 6-Month">Replacement Part 6-Month</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Warranty Expiry Date *</label>
+              <input type="date" id="inp-warr-expiry-date" required class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-amber-300 font-bold focus:outline-none focus:border-purple-500" />
+            </div>
+          </div>
+
+          <!-- Row 4: Site Location & Service Vertical -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Plant / Site Location</label>
+              <input type="text" id="inp-warr-location" placeholder="Bay 3 Blast Furnace, Toranagallu" class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-purple-500" />
+            </div>
+
+            <div>
+              <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Service Vertical</label>
+              <select id="inp-warr-vertical" class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white font-semibold focus:outline-none focus:border-purple-500">
+                <option value="Crane" selected>Crane Scales</option>
+                <option value="Projects">Projects (Train Weighers / Ladle)</option>
+                <option value="Onboard">Onboard Scales</option>
+                <option value="Service and Parts">Service and Parts</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Actions -->
+          <div class="flex items-center justify-between pt-3 border-t border-slate-800">
+            <button type="button" onclick="closeWarrantyModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-750 text-slate-300 font-bold text-xs rounded-xl cursor-pointer">
+              Cancel
+            </button>
+            <button type="submit" class="px-5 py-2 bg-[#982B68] hover:bg-[#802256] text-white font-bold text-xs rounded-xl shadow-md transition-colors flex items-center space-x-1.5 cursor-pointer">
+              <i class="fa-solid fa-floppy-disk text-xs"></i>
+              <span>Save Warranty Record</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- MODAL 2: LOG WARRANTY CLAIM / RMA -->
+    <div id="claim-modal" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md hidden flex items-center justify-center p-4 overflow-y-auto">
+      <div class="bg-slate-900 border border-slate-700/80 rounded-2xl w-full max-w-lg shadow-2xl p-6 text-slate-200 space-y-4 my-8">
+        
+        <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+          <div class="flex items-center space-x-2.5">
+            <div class="w-9 h-9 rounded-xl bg-rose-500 text-white flex items-center justify-center font-black text-sm">
+              <i class="fa-solid fa-clipboard-check"></i>
+            </div>
+            <div>
+              <h3 class="text-sm font-black text-white uppercase tracking-wider">Log Warranty Claim / RMA</h3>
+              <p class="text-[11px] text-slate-400" id="claim-modal-subtitle">Record zero-cost warranty part replacement & root cause</p>
+            </div>
+          </div>
+          <button type="button" onclick="closeClaimModal()" class="text-slate-400 hover:text-white text-lg font-bold p-1 cursor-pointer">&times;</button>
+        </div>
+
+        <form id="claim-form" onsubmit="handleSaveClaim(event)" class="space-y-3.5">
+          <input type="hidden" id="claim-warr-id" value="" />
+
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">RMA Claim #</label>
+              <input type="text" id="claim-rma-num" readonly class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-rose-400 font-mono font-bold" />
+            </div>
+            <div>
+              <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Claim Date *</label>
+              <input type="date" id="claim-date" required class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-rose-500" />
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Failed Component *</label>
+            <input type="text" id="claim-component" required placeholder="e.g. 50T Shear Beam Load Cell #1 (Bridge Zero Shift)" class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-rose-500" />
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Failure Root Cause *</label>
+              <select id="claim-rca" required class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white font-semibold focus:outline-none focus:border-rose-500">
+                <option value="Component Infant Mortality">Component Infant Mortality</option>
+                <option value="Power Surge / Lightning">Power Surge / Electrical Surge</option>
+                <option value="Mechanical Overload Impact">Mechanical Overload Impact</option>
+                <option value="Moisture Ingress / Corrosion">Moisture Ingress / Corrosion</option>
+                <option value="Cable Shearing / Physical Damage">Cable Shearing / Physical Damage</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Replacement Part S/N</label>
+              <input type="text" id="claim-replacement-sn" placeholder="SP-LC-2026-904" class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-emerald-400 font-mono focus:outline-none focus:border-rose-500" />
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Action & Technician Findings</label>
+            <textarea id="claim-findings" rows="2.5" placeholder="Replaced defective strain gauge sensor on-site under zero-cost warranty. Re-calibrated with 20T standard weights. Client signed CSR." class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-rose-500"></textarea>
+          </div>
+
+          <div class="flex items-center justify-between pt-3 border-t border-slate-800">
+            <button type="button" onclick="closeClaimModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-750 text-slate-300 font-bold text-xs rounded-xl cursor-pointer">
+              Cancel
+            </button>
+            <button type="submit" class="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow-md transition-colors flex items-center space-x-1.5 cursor-pointer">
+              <i class="fa-solid fa-shield-virus text-xs"></i>
+              <span>Authorize & Log RMA Claim</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Page Logic Script -->
+    <script src="js/warranty-management.js"></script>
+  </body>
+</html>

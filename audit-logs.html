@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-slate-950">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Universal Audit & Activity Trail | K-30_ERP</title>
+  <link rel="stylesheet" href="/src/index.css">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+  <script src="js/firebase-init.js" defer></script>
+  <script src="js/store.js" defer></script>
+  <script src="js/seed-data.js" defer></script>
+  <script src="auth-guard.js" defer></script>
+</head>
+<body class="min-h-full bg-slate-950 text-slate-100 antialiased flex flex-col font-sans">
+  <div id="navbar-container"></div>
+
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+    
+    <!-- Executive Header Section -->
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-900/90 border border-slate-800 p-5 rounded-2xl shadow-xl backdrop-blur-md">
+      <div class="space-y-1">
+        <div class="flex items-center gap-2.5">
+          <span class="p-2.5 rounded-xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 text-indigo-400 border border-indigo-500/30">
+            <i class="fa-solid fa-shield-halved text-xl"></i>
+          </span>
+          <div>
+            <h1 class="text-xl sm:text-2xl font-black tracking-tight text-white flex items-center gap-2">
+              <span>Universal Audit & Activity Trail</span>
+              <span class="px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider bg-fuchsia-500/20 text-fuchsia-300 border border-fuchsia-500/30">
+                Director & Super Admin Oversight
+              </span>
+            </h1>
+            <p class="text-xs text-slate-400">Complete, tamper-proof activity ledger recording all entries, edits, deletions, approvals and dispatches with exact timestamps and actor identity.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="flex flex-wrap items-center gap-2.5">
+        <button onclick="exportAuditLogsCSV()" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer shadow-sm">
+          <i class="fa-solid fa-file-csv text-emerald-400 text-sm"></i>
+          <span>Export Audit CSV</span>
+        </button>
+        <button onclick="refreshAuditLogs()" class="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-indigo-900/30 flex items-center gap-2 cursor-pointer">
+          <i class="fa-solid fa-arrows-rotate text-sm" id="refresh-icon"></i>
+          <span>Live Refresh</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Metric Summary KPIs -->
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div class="bg-slate-900/80 border border-slate-800 p-4 rounded-2xl">
+        <div class="flex items-center justify-between text-slate-400 text-xs font-bold uppercase tracking-wider mb-1">
+          <span>Total Actions Logged</span>
+          <i class="fa-solid fa-list-check text-indigo-400"></i>
+        </div>
+        <div class="text-2xl font-black text-white" id="kpi-total-logs">0</div>
+        <div class="text-[10px] text-slate-500 mt-0.5">Across all RevOps modules</div>
+      </div>
+
+      <div class="bg-slate-900/80 border border-slate-800 p-4 rounded-2xl">
+        <div class="flex items-center justify-between text-slate-400 text-xs font-bold uppercase tracking-wider mb-1">
+          <span>New Entries (Creates)</span>
+          <i class="fa-solid fa-plus-circle text-emerald-400"></i>
+        </div>
+        <div class="text-2xl font-black text-emerald-400" id="kpi-creates-count">0</div>
+        <div class="text-[10px] text-slate-500 mt-0.5">Leads, Quotes, Orders & Invoices</div>
+      </div>
+
+      <div class="bg-slate-900/80 border border-slate-800 p-4 rounded-2xl">
+        <div class="flex items-center justify-between text-slate-400 text-xs font-bold uppercase tracking-wider mb-1">
+          <span>Modifications / Edits</span>
+          <i class="fa-solid fa-pen-to-square text-sky-400"></i>
+        </div>
+        <div class="text-2xl font-black text-sky-400" id="kpi-updates-count">0</div>
+        <div class="text-[10px] text-slate-500 mt-0.5">Field edits & stage conversions</div>
+      </div>
+
+      <div class="bg-slate-900/80 border border-slate-800 p-4 rounded-2xl">
+        <div class="flex items-center justify-between text-slate-400 text-xs font-bold uppercase tracking-wider mb-1">
+          <span>Approvals & Dispatches</span>
+          <i class="fa-solid fa-stamp text-purple-400"></i>
+        </div>
+        <div class="text-2xl font-black text-purple-400" id="kpi-approvals-count">0</div>
+        <div class="text-[10px] text-slate-500 mt-0.5">Director approvals & client emails</div>
+      </div>
+    </div>
+
+    <!-- Filter and Search Bar -->
+    <div class="bg-slate-900/90 border border-slate-800 p-4 rounded-2xl shadow-xl space-y-3">
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        
+        <!-- Search -->
+        <div class="relative">
+          <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Search Keywords / Ref #</label>
+          <div class="relative">
+            <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs"></i>
+            <input type="text" id="inp-search-audit" onkeyup="renderAuditTable()" placeholder="e.g. LD-2026, QT-2026, Tata Steel..." class="w-full bg-slate-950 border border-slate-800 rounded-xl pl-8 pr-3 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500">
+          </div>
+        </div>
+
+        <!-- Module Filter -->
+        <div>
+          <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Module</label>
+          <select id="sel-module-filter" onchange="renderAuditTable()" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500">
+            <option value="ALL">All Modules</option>
+            <option value="Leads">Leads & Pipeline</option>
+            <option value="Quotations">Quotations</option>
+            <option value="Orders">Orders & Bookings</option>
+            <option value="Invoices">Invoices</option>
+            <option value="Payments">Payments & AR</option>
+            <option value="MasterData">Master Data</option>
+            <option value="Employees">Employees & HR</option>
+            <option value="Expenses">Expenses</option>
+            <option value="DWM">Daily Work (DWM)</option>
+            <option value="Reviews">Performance Reviews</option>
+            <option value="ServiceTickets">Service Tickets</option>
+          </select>
+        </div>
+
+        <!-- Actor / User Filter -->
+        <div>
+          <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Action Actor (Who)</label>
+          <select id="sel-actor-filter" onchange="renderAuditTable()" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500">
+            <option value="ALL">All Team Members</option>
+          </select>
+        </div>
+
+        <!-- Action Type Filter -->
+        <div>
+          <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Action Type</label>
+          <select id="sel-action-filter" onchange="renderAuditTable()" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500">
+            <option value="ALL">All Actions</option>
+            <option value="CREATE">CREATE (New Entry)</option>
+            <option value="UPDATE">UPDATE (Edit / Change)</option>
+            <option value="APPROVE">APPROVE (Tier 1/2)</option>
+            <option value="REJECT">REJECT</option>
+            <option value="DISPATCH">DISPATCH (Client Email)</option>
+            <option value="CONVERT">CONVERT (To Order / Invoice)</option>
+            <option value="DELETE">DELETE</option>
+          </select>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Audit Log Records Table -->
+    <div class="bg-slate-900/80 border border-slate-800 rounded-2xl shadow-xl overflow-hidden backdrop-blur-sm">
+      
+      <div class="p-4 border-b border-slate-800 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <i class="fa-solid fa-clock-rotate-left text-indigo-400 text-sm"></i>
+          <h2 class="text-sm font-bold text-white">Chronological Activity Stream</h2>
+        </div>
+        <span class="text-xs text-slate-400 font-semibold" id="audit-count-label">Showing 0 log entries</span>
+      </div>
+
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-xs text-slate-300 border-collapse">
+          <thead class="bg-slate-950/80 text-slate-400 uppercase tracking-wider text-[10px] font-bold border-b border-slate-800">
+            <tr>
+              <th class="py-3 px-4">Exact Timestamp</th>
+              <th class="py-3 px-4">Actor (Who Made Entry/Change)</th>
+              <th class="py-3 px-4">Module & Ref #</th>
+              <th class="py-3 px-4 text-center">Action</th>
+              <th class="py-3 px-4">Activity Summary & Details</th>
+              <th class="py-3 px-4 text-center">Inspect</th>
+            </tr>
+          </thead>
+          <tbody id="audit-table-body" class="divide-y divide-slate-800/60 font-medium">
+            <!-- Populated dynamically via JS -->
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Empty State -->
+      <div id="audit-empty-state" class="hidden py-16 text-center space-y-3">
+        <div class="w-12 h-12 rounded-2xl bg-slate-800 text-slate-500 flex items-center justify-center mx-auto text-xl">
+          <i class="fa-solid fa-clipboard-check"></i>
+        </div>
+        <p class="text-sm text-slate-300 font-bold">No activity records found matching the filter criteria.</p>
+        <p class="text-xs text-slate-500">Every new entry, lead edit, order split update, or quotation approval creates a permanent record here.</p>
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- MODAL: Diff & Deep Inspection of Old vs New Values -->
+  <div id="diff-modal" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+    <div class="bg-slate-900 w-full max-w-3xl rounded-2xl shadow-2xl border border-slate-700 overflow-hidden my-8 max-h-[90vh] flex flex-col">
+      <div class="px-6 py-4 bg-slate-850 border-b border-slate-800 flex items-center justify-between shrink-0">
+        <div>
+          <h3 class="text-base font-bold text-white flex items-center gap-2" id="diff-modal-title">
+            <i class="fa-solid fa-code-compare text-indigo-400"></i>
+            <span>Detailed Change Inspector</span>
+          </h3>
+          <p class="text-xs text-slate-400" id="diff-modal-subtitle">Activity metadata & snapshot comparison</p>
+        </div>
+        <button onclick="closeDiffModal()" class="text-slate-400 hover:text-white text-xl font-bold cursor-pointer">&times;</button>
+      </div>
+
+      <div class="p-6 overflow-y-auto space-y-4">
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3 bg-slate-950 rounded-xl border border-slate-800 text-xs">
+          <div>
+            <span class="block text-[10px] font-bold text-slate-500 uppercase">Actor:</span>
+            <span class="font-bold text-white" id="diff-meta-actor">-</span>
+          </div>
+          <div>
+            <span class="block text-[10px] font-bold text-slate-500 uppercase">Timestamp:</span>
+            <span class="font-bold text-indigo-400" id="diff-meta-time">-</span>
+          </div>
+          <div>
+            <span class="block text-[10px] font-bold text-slate-500 uppercase">Module / Ref:</span>
+            <span class="font-bold text-purple-300" id="diff-meta-module">-</span>
+          </div>
+          <div>
+            <span class="block text-[10px] font-bold text-slate-500 uppercase">Action:</span>
+            <span class="font-bold text-emerald-400" id="diff-meta-action">-</span>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">Activity Summary</label>
+          <div class="p-3 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-200 font-medium" id="diff-summary-text">
+            -
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-bold text-rose-400 uppercase tracking-wider mb-1 flex items-center gap-1.5">
+              <i class="fa-solid fa-clock-rotate-left"></i> Previous State (Before Change)
+            </label>
+            <pre class="w-full h-64 p-3 bg-slate-950 border border-rose-950/60 rounded-xl text-[11px] font-mono text-rose-300 overflow-auto whitespace-pre-wrap leading-relaxed" id="diff-old-value">No previous state recorded (Initial creation)</pre>
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-emerald-400 uppercase tracking-wider mb-1 flex items-center gap-1.5">
+              <i class="fa-solid fa-check"></i> Updated State (After Change)
+            </label>
+            <pre class="w-full h-64 p-3 bg-slate-950 border border-emerald-950/60 rounded-xl text-[11px] font-mono text-emerald-300 overflow-auto whitespace-pre-wrap leading-relaxed" id="diff-new-value">-</pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="px-6 py-3 bg-slate-950 border-t border-slate-800 flex justify-end">
+        <button onclick="closeDiffModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold cursor-pointer">
+          Close Inspector
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    var allAuditLogs = [];
+
+    document.addEventListener('DOMContentLoaded', function() {
+      if (checkAuth(['super_admin', 'admin'])) {
+        initAuditPage();
+      }
+    });
+
+    function initAuditPage() {
+      populateActorDropdown();
+      refreshAuditLogs();
+    }
+
+    function populateActorDropdown() {
+      var select = document.getElementById('sel-actor-filter');
+      if (!select) return;
+      var employees = window.RevOpsStore.getCollection('employees') || [];
+      select.innerHTML = '<option value="ALL">All Team Members</option>';
+      employees.forEach(function(e) {
+        var opt = document.createElement('option');
+        opt.value = e.employeeId;
+        opt.innerText = (e.fullName || e.name) + ' (' + e.employeeId + ')';
+        select.appendChild(opt);
+      });
+    }
+
+    function refreshAuditLogs() {
+      var icon = document.getElementById('refresh-icon');
+      if (icon) icon.classList.add('fa-spin');
+
+      var logs = window.RevOpsStore.getCollection('auditLogs') || [];
+
+      // If empty in mock session, generate realistic audit history
+      if (logs.length === 0) {
+        logs = generateInitialAuditTrail();
+        window.RevOpsStore.saveCollection('auditLogs', logs);
+      }
+
+      allAuditLogs = logs;
+      updateKPIs(allAuditLogs);
+      renderAuditTable();
+
+      setTimeout(function() {
+        if (icon) icon.classList.remove('fa-spin');
+      }, 400);
+    }
+
+    function generateInitialAuditTrail() {
+      return [
+        {
+          id: 'audit_init_1',
+          timestamp: new Date(Date.now() - 5 * 60000).toISOString(),
+          formattedDate: getFormattedToday() + ' 10:42:15',
+          employeeId: 'E-001',
+          employeeName: 'Ravichandran',
+          employeeRole: 'super_admin',
+          module: 'Leads',
+          docId: 'LD-2026-1049',
+          action: 'CREATE',
+          summary: 'Created new lead Tata Steel Kalinganagar (Projects - Blast Furnace Hopper Scale)',
+          oldValue: null,
+          newValue: { customerName: "Tata Steel Kalinganagar", vertical: "Projects", productName: "Blast Furnace Automatic Hopper Scale (BFH-100)", estimatedValue: 3200000, stage: "Lead Qualified / Pre-Qualification" }
+        },
+        {
+          id: 'audit_init_2',
+          timestamp: new Date(Date.now() - 25 * 60000).toISOString(),
+          formattedDate: getFormattedToday() + ' 10:22:04',
+          employeeId: 'E-003',
+          employeeName: 'Rajesh Kumar',
+          employeeRole: 'manager',
+          module: 'Quotations',
+          docId: 'QT-2026-0018',
+          action: 'UPDATE',
+          summary: 'Updated quotation discount to 12% for JSW Steel Vijayanagar and attached GA drawings',
+          oldValue: { discount: 5, grandTotal: 2660000 },
+          newValue: { discount: 12, grandTotal: 2464000, attachmentsCount: 2 }
+        },
+        {
+          id: 'audit_init_3',
+          timestamp: new Date(Date.now() - 65 * 60000).toISOString(),
+          formattedDate: getFormattedToday() + ' 09:41:30',
+          employeeId: 'E-001',
+          employeeName: 'Ravichandran',
+          employeeRole: 'super_admin',
+          module: 'Orders',
+          docId: 'ORD-2026-0042',
+          action: 'UPDATE',
+          summary: 'Auto-balanced 100% Sales Contribution Split (Rajesh Kumar 60%, Priya Sharma 40%)',
+          oldValue: { splits: [{ empId: "E-003", percent: 50 }, { empId: "E-004", percent: 40 }] },
+          newValue: { splits: [{ empId: "E-003", percent: 60 }, { empId: "E-004", percent: 40 }], totalSplit: 100 }
+        },
+        {
+          id: 'audit_init_4',
+          timestamp: new Date(Date.now() - 140 * 60000).toISOString(),
+          formattedDate: getFormattedToday() + ' 08:26:12',
+          employeeId: 'E-002',
+          employeeName: 'Murugan',
+          employeeRole: 'admin',
+          module: 'Invoices',
+          docId: 'INV-2026-27-0104',
+          action: 'APPROVE',
+          summary: 'Director Approved Tax Invoice for Vedanta Aluminium (₹18,50,000)',
+          oldValue: { status: "Pending Senior Approval" },
+          newValue: { status: "Approved", approvedBy: "Murugan (E-002)" }
+        },
+        {
+          id: 'audit_init_5',
+          timestamp: new Date(Date.now() - 280 * 60000).toISOString(),
+          formattedDate: getFormattedToday() + ' 06:15:00',
+          employeeId: 'E-003',
+          employeeName: 'Rajesh Kumar',
+          employeeRole: 'manager',
+          module: 'Quotations',
+          docId: 'QT-2026-0015',
+          action: 'DISPATCH',
+          summary: 'Sent official quotation PDF to client contact (purchase@jindalsteel.com) with CC to sales@measuredi.com',
+          oldValue: { status: "Approved" },
+          newValue: { status: "Sent to Customer", sentAt: new Date().toISOString() }
+        }
+      ];
+    }
+
+    function updateKPIs(logs) {
+      document.getElementById('kpi-total-logs').innerText = logs.length;
+
+      var creates = logs.filter(function(l) { return l.action === 'CREATE'; }).length;
+      var updates = logs.filter(function(l) { return l.action === 'UPDATE'; }).length;
+      var approvals = logs.filter(function(l) { return l.action === 'APPROVE' || l.action === 'DISPATCH'; }).length;
+
+      document.getElementById('kpi-creates-count').innerText = creates;
+      document.getElementById('kpi-updates-count').innerText = updates;
+      document.getElementById('kpi-approvals-count').innerText = approvals;
+    }
+
+    function renderAuditTable() {
+      var tbody = document.getElementById('audit-table-body');
+      var emptyState = document.getElementById('audit-empty-state');
+      var countLabel = document.getElementById('audit-count-label');
+      if (!tbody) return;
+
+      tbody.innerHTML = '';
+
+      var search = (document.getElementById('inp-search-audit').value || '').toLowerCase().trim();
+      var modFilter = document.getElementById('sel-module-filter').value;
+      var actFilter = document.getElementById('sel-actor-filter').value;
+      var typeFilter = document.getElementById('sel-action-filter').value;
+
+      var filtered = allAuditLogs.filter(function(log) {
+        if (modFilter !== 'ALL' && log.module !== modFilter) return false;
+        if (actFilter !== 'ALL' && log.employeeId !== actFilter) return false;
+        if (typeFilter !== 'ALL' && log.action !== typeFilter) return false;
+
+        if (search) {
+          var matchStr = (log.docId + ' ' + log.summary + ' ' + log.employeeName + ' ' + log.employeeId + ' ' + log.module + ' ' + log.action).toLowerCase();
+          if (matchStr.indexOf(search) === -1) return false;
+        }
+        return true;
+      });
+
+      countLabel.innerText = "Showing " + filtered.length + " of " + allAuditLogs.length + " log entries";
+
+      if (filtered.length === 0) {
+        emptyState.classList.remove('hidden');
+        return;
+      }
+      emptyState.classList.add('hidden');
+
+      filtered.forEach(function(log, idx) {
+        var tr = document.createElement('tr');
+        tr.className = "hover:bg-slate-800/40 transition-colors";
+
+        var actionBadge = "bg-slate-800 text-slate-300 border-slate-700";
+        if (log.action === 'CREATE') actionBadge = "bg-emerald-950 text-emerald-300 border-emerald-700/60";
+        else if (log.action === 'UPDATE') actionBadge = "bg-sky-950 text-sky-300 border-sky-700/60";
+        else if (log.action === 'DELETE') actionBadge = "bg-rose-950 text-rose-300 border-rose-700/60";
+        else if (log.action === 'APPROVE') actionBadge = "bg-purple-950 text-purple-300 border-purple-700/60";
+        else if (log.action === 'DISPATCH') actionBadge = "bg-indigo-950 text-indigo-300 border-indigo-700/60";
+        else if (log.action === 'CONVERT') actionBadge = "bg-amber-950 text-amber-300 border-amber-700/60";
+
+        var timeStr = log.formattedDate || (new Date(log.timestamp).toLocaleString());
+        var relativeTime = getRelativeTimeString(log.timestamp);
+
+        tr.innerHTML = `
+          <td class="py-3 px-4 whitespace-nowrap">
+            <div class="font-bold text-white font-mono text-[11px]">${escapeHtml(timeStr)}</div>
+            <div class="text-[10px] text-indigo-400 font-semibold">${relativeTime}</div>
+          </td>
+          <td class="py-3 px-4">
+            <div class="font-bold text-white flex items-center gap-1.5">
+              <span class="w-6 h-6 rounded-full bg-slate-800 text-indigo-400 border border-slate-700 flex items-center justify-center text-[10px] font-black">
+                ${escapeHtml((log.employeeName || 'U').charAt(0))}
+              </span>
+              <span>${escapeHtml(log.employeeName || 'System User')}</span>
+            </div>
+            <div class="text-[10px] text-slate-400 ml-7.5">${escapeHtml(log.employeeId || 'E-001')} &bull; <span class="uppercase text-[9px] font-bold text-slate-300">${escapeHtml(log.employeeRole || 'staff')}</span></div>
+          </td>
+          <td class="py-3 px-4 whitespace-nowrap">
+            <span class="px-2 py-0.5 rounded text-[10px] font-extrabold uppercase bg-slate-800 text-indigo-300 border border-slate-700">
+              ${escapeHtml(log.module || 'General')}
+            </span>
+            <div class="font-bold text-white font-mono text-[11px] mt-1">${escapeHtml(log.docId || 'N/A')}</div>
+          </td>
+          <td class="py-3 px-4 text-center whitespace-nowrap">
+            <span class="inline-block px-2 py-0.5 rounded-full text-[10px] font-black border ${actionBadge}">
+              ${escapeHtml(log.action || 'UPDATE')}
+            </span>
+          </td>
+          <td class="py-3 px-4">
+            <div class="text-xs text-slate-200 font-medium leading-snug">${escapeHtml(log.summary || '')}</div>
+          </td>
+          <td class="py-3 px-4 text-center whitespace-nowrap">
+            <button onclick="openDiffModal('${log.id}')" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-indigo-300 hover:text-white rounded-lg border border-slate-700 text-[11px] font-bold transition-colors cursor-pointer flex items-center gap-1 mx-auto" title="Inspect changes & previous state">
+              <i class="fa-solid fa-code-compare text-xs"></i>
+              <span>Inspect</span>
+            </button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function getRelativeTimeString(isoTimestamp) {
+      if (!isoTimestamp) return '';
+      var date = new Date(isoTimestamp);
+      if (isNaN(date.getTime())) return '';
+      var diffMs = Date.now() - date.getTime();
+      var diffMins = Math.floor(diffMs / 60000);
+      if (diffMins < 1) return 'Just now';
+      if (diffMins < 60) return diffMins + ' min' + (diffMins > 1 ? 's' : '') + ' ago';
+      var diffHours = Math.floor(diffMins / 60);
+      if (diffHours < 24) return diffHours + ' hr' + (diffHours > 1 ? 's' : '') + ' ago';
+      var diffDays = Math.floor(diffHours / 24);
+      return diffDays + ' day' + (diffDays > 1 ? 's' : '') + ' ago';
+    }
+
+    function openDiffModal(logId) {
+      var log = allAuditLogs.find(function(l) { return l.id === logId; });
+      if (!log) return;
+
+      document.getElementById('diff-meta-actor').innerText = (log.employeeName || 'User') + ' (' + (log.employeeId || 'E-001') + ')';
+      document.getElementById('diff-meta-time').innerText = log.formattedDate || log.timestamp;
+      document.getElementById('diff-meta-module').innerText = (log.module || 'General') + ' / ' + (log.docId || 'N/A');
+      document.getElementById('diff-meta-action').innerText = log.action || 'UPDATE';
+      document.getElementById('diff-summary-text').innerText = log.summary || 'No summary available.';
+
+      var oldValContainer = document.getElementById('diff-old-value');
+      var newValContainer = document.getElementById('diff-new-value');
+
+      if (!log.oldValue) {
+        oldValContainer.innerText = "No previous record (Initial creation action).";
+      } else {
+        try {
+          var parsedOld = (typeof log.oldValue === 'string' && (log.oldValue.startsWith('{') || log.oldValue.startsWith('['))) ? JSON.parse(log.oldValue) : log.oldValue;
+          oldValContainer.innerText = JSON.stringify(parsedOld, null, 2);
+        } catch(e) {
+          oldValContainer.innerText = String(log.oldValue);
+        }
+      }
+
+      if (!log.newValue) {
+        newValContainer.innerText = "Record deleted or no state snapshot stored.";
+      } else {
+        try {
+          var parsedNew = (typeof log.newValue === 'string' && (log.newValue.startsWith('{') || log.newValue.startsWith('['))) ? JSON.parse(log.newValue) : log.newValue;
+          newValContainer.innerText = JSON.stringify(parsedNew, null, 2);
+        } catch(e) {
+          newValContainer.innerText = String(log.newValue);
+        }
+      }
+
+      document.getElementById('diff-modal').classList.remove('hidden');
+    }
+
+    function closeDiffModal() {
+      document.getElementById('diff-modal').classList.add('hidden');
+    }
+
+    function exportAuditLogsCSV() {
+      if (allAuditLogs.length === 0) {
+        alert("No audit logs available to export.");
+        return;
+      }
+
+      var headers = ["Log ID", "Exact Timestamp", "Actor Name", "Actor ID", "Actor Role", "Module", "Document Ref", "Action", "Summary Details"];
+      var rows = allAuditLogs.map(function(l) {
+        return [
+          l.id || '',
+          l.formattedDate || l.timestamp || '',
+          l.employeeName || '',
+          l.employeeId || '',
+          l.employeeRole || '',
+          l.module || '',
+          l.docId || '',
+          l.action || '',
+          ('"' + (l.summary || '').replace(/"/g, '""') + '"')
+        ].join(',');
+      });
+
+      var csvContent = "data:text/csv;charset=utf-8," + [headers.join(',')].concat(rows).join('\n');
+      var encodedUri = encodeURI(csvContent);
+      var link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", "MeasureDI_RevOps_Audit_Trail_" + getFormattedToday().replace(/\//g, '-') + ".csv");
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  </script>
+</body>
+</html>

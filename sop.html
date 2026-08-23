@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Standard Operating Procedures (SOP) | K-30_ERP</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="auth-guard.js" defer></script>
+  <script src="js/store.js" defer></script>
+  <style>
+    @media print {
+      body { background-color: #ffffff !important; color: #0f172a !important; padding: 0 !important; }
+      .no-print { display: none !important; }
+      .print-card { break-inside: avoid; border: 1px solid #cbd5e1 !important; background: #ffffff !important; color: #0f172a !important; }
+      .print-card * { color: #0f172a !important; }
+      .print-card pre, .print-card code { background-color: #f8fafc !important; color: #0f172a !important; border: 1px solid #e2e8f0 !important; }
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col font-sans selection:bg-[#982B68] selection:text-white">
+
+  <!-- Top Hero Header -->
+  <div class="bg-gradient-to-r from-slate-900 via-slate-900 to-indigo-950/80 border-b border-slate-800 py-8 px-4 sm:px-6 lg:px-8">
+    <div class="max-w-7xl mx-auto space-y-4">
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div class="space-y-1">
+          <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#982B68]/20 border border-[#982B68]/40 text-[#E283BD] text-xs font-black uppercase tracking-widest">
+            <span>Enterprise SOP & New Joiner Training Manual</span>
+          </div>
+          <h1 class="text-2xl sm:text-3xl font-black text-white tracking-tight flex items-center gap-3">
+            <span>Standard Operating Procedures (SOP)</span>
+            <span class="text-xs font-mono font-normal px-2.5 py-0.5 rounded-lg bg-emerald-950 text-emerald-300 border border-emerald-800">Version 2.6 Live</span>
+          </h1>
+          <p class="text-sm text-slate-300 max-w-3xl">
+            Step-by-step role-based execution guide for new joiners, operations managers, and business leaders at <strong>Measure DI Technologies</strong>. Learn exact day-to-day procedures for Lead-to-Cash, Service, Attendance, DWM, and Financial governance.
+          </p>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2.5">
+          <button onclick="window.print()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl border border-slate-700 shadow-sm flex items-center gap-1.5 transition-all">
+            <svg class="w-4 h-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+            <span>Print SOP</span>
+          </button>
+          <a href="Measure_DI_RevOps_Client_Demo_Guide.pdf" download="Measure_DI_RevOps_Client_Demo_Guide.pdf" target="_blank" class="px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold rounded-xl shadow-md flex items-center gap-1.5 transition-all">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+            <span>Download PDF Guide</span>
+          </a>
+          <a href="user-guide.html" class="px-4 py-2 bg-[#982B68] hover:bg-[#b03279] text-white text-xs font-bold rounded-xl shadow-md flex items-center gap-1.5 transition-all">
+            <span>Interactive Demo Manual &rarr;</span>
+          </a>
+        </div>
+      </div>
+
+      <!-- Quick Role-Based Filter / Switcher Bar -->
+      <div class="pt-4 border-t border-slate-800 flex flex-wrap items-center gap-2 text-xs">
+        <span class="font-bold text-slate-400 uppercase tracking-wider text-[11px]">Jump by Role:</span>
+        <a href="#role-sales" class="px-3 py-1 rounded-lg bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-800/80 text-emerald-300 font-bold transition-colors">Sales & Commercial</a>
+        <a href="#role-service" class="px-3 py-1 rounded-lg bg-amber-950/80 hover:bg-amber-900 border border-amber-800/80 text-amber-300 font-bold transition-colors">Field & Service Engineers</a>
+        <a href="#role-projects" class="px-3 py-1 rounded-lg bg-blue-950/80 hover:bg-blue-900 border border-blue-800/80 text-blue-300 font-bold transition-colors">Project Managers</a>
+        <a href="#role-finance" class="px-3 py-1 rounded-lg bg-indigo-950/80 hover:bg-indigo-900 border border-indigo-800/80 text-indigo-300 font-bold transition-colors">Finance & Billing</a>
+        <a href="#role-hr" class="px-3 py-1 rounded-lg bg-sky-950/80 hover:bg-sky-900 border border-sky-800/80 text-sky-300 font-bold transition-colors">HR & People Operations</a>
+        <a href="#role-general" class="px-3 py-1 rounded-lg bg-pink-950/80 hover:bg-pink-900 border border-pink-800/80 text-pink-300 font-bold transition-colors">All New Joiners (Day 1 Daily Rhythm)</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Content Container -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-10 flex-1">
+
+    <!-- SOP SECTION 1: NEW JOINER ONBOARDING (DAY 1 TO FIRST 30 DAYS) -->
+    <section id="role-general" class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-5 print-card">
+      <div class="flex items-center space-x-3 pb-4 border-b border-slate-800">
+        <div class="w-10 h-10 rounded-xl bg-pink-600/20 text-[#E283BD] font-black flex items-center justify-center text-base border border-pink-500/30">1</div>
+        <div>
+          <h2 class="text-xl font-black text-white">Day 1 Onboarding & Daily Routine SOP (Every Employee)</h2>
+          <p class="text-xs text-slate-400">Standard operating cadence for attendance, daily task commitments, special assignments, and scorecards.</p>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-5 text-xs">
+        <!-- Step 1: Morning Check-in -->
+        <div class="p-4 bg-slate-800/60 rounded-xl border border-slate-700/80 space-y-3">
+          <div class="flex items-center justify-between">
+            <span class="px-2.5 py-0.5 rounded-md bg-sky-950 text-sky-300 font-bold">09:00 AM - 09:30 AM</span>
+            <span class="text-slate-400 font-mono">attendance.html</span>
+          </div>
+          <h3 class="font-bold text-sky-400 text-sm">Step 1: Attendance Check-In & Work Arrangement</h3>
+          <p class="text-slate-300 leading-relaxed">
+            Navigate to <strong>Attendance & Leaves</strong> on your web or mobile device.
+          </p>
+          <ul class="list-disc list-inside text-slate-400 space-y-1">
+            <li>Select work location: <strong>Office / In-Station</strong>, <strong>Site / On-Field</strong>, or <strong>Work-From-Home (WFH)</strong>.</li>
+            <li>Click <strong>Punch In</strong> to capture the timestamp and start shift tracking.</li>
+            <li>If applying for leave or half-day, submit via the <strong>Apply Leave</strong> form at least 24h in advance.</li>
+          </ul>
+        </div>
+
+        <!-- Step 2: DWM Morning Plan -->
+        <div class="p-4 bg-slate-800/60 rounded-xl border border-slate-700/80 space-y-3">
+          <div class="flex items-center justify-between">
+            <span class="px-2.5 py-0.5 rounded-md bg-emerald-950 text-emerald-300 font-bold">09:30 AM - 10:00 AM</span>
+            <span class="text-slate-400 font-mono">dwm.html</span>
+          </div>
+          <h3 class="font-bold text-emerald-400 text-sm">Step 2: Daily Work Management (DWM) Morning Plan</h3>
+          <p class="text-slate-300 leading-relaxed">
+            Navigate to <strong>Daily Work (DWM)</strong>. Your employee ID is auto-populated from session.
+          </p>
+          <ul class="list-disc list-inside text-slate-400 space-y-1">
+            <li>Log planned task deliverables with allocated hours totaling 8.0 hrs standard.</li>
+            <li>Link tasks to specific <strong>Customer Leads</strong>, <strong>Projects</strong>, or <strong>Service Tickets</strong>.</li>
+            <li><strong>Special Assignment Rule:</strong> If attending full-day customer training, installation audit, or emergency breakdown, select <em>Special Assignment</em> to receive 100% full-day productivity credit.</li>
+          </ul>
+        </div>
+
+        <!-- Step 3: Evening Closeout -->
+        <div class="p-4 bg-slate-800/60 rounded-xl border border-slate-700/80 space-y-3">
+          <div class="flex items-center justify-between">
+            <span class="px-2.5 py-0.5 rounded-md bg-pink-950 text-pink-300 font-bold">06:00 PM - 06:30 PM</span>
+            <span class="text-slate-400 font-mono">dwm.html / my-scorecard.html</span>
+          </div>
+          <h3 class="font-bold text-pink-400 text-sm">Step 3: Evening Actuals & Punch-Out</h3>
+          <p class="text-slate-300 leading-relaxed">
+            Close your workday by confirming task accomplishment status and checkout time.
+          </p>
+          <ul class="list-disc list-inside text-slate-400 space-y-1">
+            <li>Update task status: <strong>Done</strong>, <strong>Partial</strong>, or <strong>Rescheduled</strong> with brief remarks.</li>
+            <li>Review daily productivity score gauge (&ge;85% is target green).</li>
+            <li>Return to <strong>Attendance</strong> and click <strong>Punch Out</strong> to record total shift duration.</li>
+            <li>Check <strong>My Scorecard</strong> weekly to monitor achievement pace across active KRAs.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- SOP SECTION 2: SALES & COMMERCIAL TEAM SOP (LEAD-TO-CASH) -->
+    <section id="role-sales" class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-5 print-card">
+      <div class="flex items-center space-x-3 pb-4 border-b border-slate-800">
+        <div class="w-10 h-10 rounded-xl bg-emerald-600/20 text-emerald-400 font-black flex items-center justify-center text-base border border-emerald-500/30">2</div>
+        <div>
+          <h2 class="text-xl font-black text-white">Sales & Commercial Team SOP: Lead-to-Cash Workflow (RevOps v28)</h2>
+          <p class="text-xs text-slate-400">Standard operating guidelines for capturing leads across 10 sources, cascading vertical specs, 8-stage funnel, 2-tier quote approvals, order split attribution, and finance invoicing.</p>
+        </div>
+      </div>
+
+      <!-- Flow Chart Diagram for Sales -->
+      <div class="bg-slate-950/80 p-4 rounded-xl border border-slate-800 text-xs">
+        <div class="font-bold text-emerald-400 mb-2 flex items-center gap-2">
+          <span>&rarr; RevOps 5-Stage Commercial Execution Chain:</span>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-5 gap-2 text-center">
+          <div class="p-2.5 rounded-lg bg-slate-900 border border-slate-700">
+            <div class="font-bold text-white">1. Capture Lead</div>
+            <div class="text-[10px] text-slate-400">leads.html (8 Stages)</div>
+          </div>
+          <div class="p-2.5 rounded-lg bg-slate-900 border border-slate-700">
+            <div class="font-bold text-white">2. Quotation & Approvals</div>
+            <div class="text-[10px] text-slate-400">quotations.html (2-Tier)</div>
+          </div>
+          <div class="p-2.5 rounded-lg bg-slate-900 border border-slate-700">
+            <div class="font-bold text-white">3. Order Booking</div>
+            <div class="text-[10px] text-slate-400">orders.html (100% Split)</div>
+          </div>
+          <div class="p-2.5 rounded-lg bg-slate-900 border border-slate-700">
+            <div class="font-bold text-white">4. Finance Invoicing</div>
+            <div class="text-[10px] text-slate-400">invoices.html (Accounts Only)</div>
+          </div>
+          <div class="p-2.5 rounded-lg bg-slate-900 border border-slate-700">
+            <div class="font-bold text-white">5. AR & Settlement</div>
+            <div class="text-[10px] text-slate-400">payments.html (BG/PG Alert)</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="space-y-4 text-xs">
+        <div class="p-4 bg-slate-800/60 rounded-xl border border-slate-700/80 space-y-2">
+          <h4 class="font-bold text-emerald-400 text-sm">Procedure 2.1: Commercial Lead Entry, 10 Standard Sources & 8-Stage Funnel</h4>
+          <p class="text-slate-300 leading-relaxed">
+            Open <strong>Leads & Pipeline</strong> (<code>leads.html</code>) and click <strong>+ Add New Lead</strong>. Follow these mandatory entry rules:
+          </p>
+          <ul class="list-disc list-inside text-slate-300 space-y-1.5 leading-relaxed">
+            <li><strong>Lead Source (Select from 10 Prescribed Channels):</strong> India Mart, Tender / E-Procurement Portal, SEO, Existing Client, Customer Reference, Ariba, OEM, Mail Marketing / Digital Marketing, Direct Customer Approach, or Exhibition / Trade Fair.</li>
+            <li><strong>Industry Origin:</strong> Select from <em>Onboard</em>, <em>Project</em> (specify sector: Steel, Cement, Power Plant, Infrastructure, Mining, Other), <em>Crane</em>, or <em>Spare/Service</em>.</li>
+            <li><strong>Vertical & Cascading Product Specs:</strong> Choose Vertical (<em>Projects, Onboard, Crane, Service and Parts</em>). The product dropdown will dynamically filter only items belonging to that vertical from the Product Master, auto-filling technical specs and HSN codes.</li>
+            <li><strong>Multi-Contact Entry:</strong> Add up to 5 customer contact persons with Designation, Mobile, Email, and Auto-CC toggles.</li>
+            <li><strong>8-Stage Funnel Progression:</strong> Maintain active progression through:
+              <ol class="list-decimal list-inside ml-4 text-slate-400 space-y-0.5 mt-1">
+                <li>Customer Contacted / Contact Attempted</li>
+                <li>Follow-Up Scheduled</li>
+                <li>Site Visit Completed</li>
+                <li>Technical Evaluation in Progress</li>
+                <li>Commercial Offer Submitted (Auto-synced from Quotation)</li>
+                <li>Pre-Qualification Completed (Eligibility confirmed)</li>
+                <li>Lead Qualified (Confirmed sales opportunity with high order probability)</li>
+                <li>Order Confirmed (Won - Ready for PO / Order Booking)</li>
+              </ol>
+            </li>
+          </ul>
+        </div>
+
+        <div class="p-4 bg-slate-800/60 rounded-xl border border-slate-700/80 space-y-2">
+          <h4 class="font-bold text-emerald-400 text-sm">Procedure 2.2: Quotation Generation & 2-Tier Approval Workflow</h4>
+          <p class="text-slate-300">Quotation pricing and gross margins follow a strict 2-tier approval hierarchy:</p>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs border border-slate-700 rounded-lg overflow-hidden mt-2">
+              <thead class="bg-slate-900 text-slate-200">
+                <tr>
+                  <th class="p-2.5 border-b border-slate-700 font-bold">Approval Level</th>
+                  <th class="p-2.5 border-b border-slate-700 font-bold">Designated Authority</th>
+                  <th class="p-2.5 border-b border-slate-700 font-bold">Threshold Condition</th>
+                  <th class="p-2.5 border-b border-slate-700 font-bold">System Enforcement</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-800 text-slate-300">
+                <tr class="bg-slate-850">
+                  <td class="p-2.5 font-bold text-indigo-400">Level 1</td>
+                  <td class="p-2.5 font-semibold text-white">Mr. Murugan V (Sales & Marketing Head)</td>
+                  <td class="p-2.5">Standard Quotations (&le;25% Discount)</td>
+                  <td class="p-2.5">Mandatory technical & commercial review before client email dispatch.</td>
+                </tr>
+                <tr class="bg-rose-950/20">
+                  <td class="p-2.5 font-bold text-rose-400">Level 2</td>
+                  <td class="p-2.5 font-semibold text-white">Mr. Ravichandran (Director)</td>
+                  <td class="p-2.5 font-bold text-amber-400">Discount Exceeds 25.0%</td>
+                  <td class="p-2.5">Escalated to Director sign-off. Quotation locked until approved.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="text-[11px] text-slate-400 mt-1">Discounts can be entered as absolute value (₹) with auto % calculation. Up to 10 PDF/ZIP attachments and delivery commitment lead-time are supported.</p>
+        </div>
+
+        <div class="p-4 bg-slate-800/60 rounded-xl border border-slate-700/80 space-y-2">
+          <h4 class="font-bold text-emerald-400 text-sm">Procedure 2.3: Order Booking & 100% Sales Contribution Split</h4>
+          <ul class="list-disc list-inside text-slate-300 space-y-1">
+            <li>Open <strong>Orders & Contracts</strong> (<code>orders.html</code>) and link the approved Quotation.</li>
+            <li><strong>Mandatory 100% Contribution Split:</strong> Add all contributing sales engineers and allocate percentage effort (summing to exactly 100%). This feeds individual AOP revenue achievement in <code>my-scorecard.html</code>.</li>
+            <li>Attach signed Customer PO Copy and Technical Factory Instruction Document.</li>
+            <li>Configure Bank / Performance Guarantee (BG/PG) amount and expiry date if required by customer contract.</li>
+          </ul>
+        </div>
+
+        <div class="p-4 bg-slate-800/60 rounded-xl border border-slate-700/80 space-y-2">
+          <h4 class="font-bold text-indigo-400 text-sm">Procedure 2.4: Finance Department Commercial Invoicing & AR Governance</h4>
+          <ul class="list-disc list-inside text-slate-300 space-y-1">
+            <li><strong>Role Restriction:</strong> Commercial Invoices (Tax & Proforma) are raised strictly by the <strong>Accounting and Finance Department</strong> (and Director / Super Admin). Sales engineers can view invoice statuses and balance dues.</li>
+            <li>Invoices auto-populate line items and GST details directly from confirmed POs.</li>
+            <li>Official invoices feature company bank details from <code>bankDetailsMaster</code> and the authorized signatory seal and digital signature of <strong>Mr. Ravichandran (Director)</strong>.</li>
+            <li>All activities across Leads, Quotes, Orders, Invoices, and Master Data are logged into the <strong>Universal Audit Trail</strong> viewable exclusively by the Director and Super Admin.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- SOP SECTION 3: FINANCE, INVOICING & AR WRITE-OFF SOP -->
+    <section id="role-finance" class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-5 print-card">
+      <div class="flex items-center space-x-3 pb-4 border-b border-slate-800">
+        <div class="w-10 h-10 rounded-xl bg-indigo-600/20 text-indigo-400 font-black flex items-center justify-center text-base border border-indigo-500/30">3</div>
+        <div>
+          <h2 class="text-xl font-black text-white">Finance, Invoicing & Accounts Receivable (AR) SOP</h2>
+          <p class="text-xs text-slate-400">Standard operating guidelines for GST tax billing, Director approval gates, collection reconciliation, and bad debt adjustments.</p>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+        <div class="p-4 bg-slate-800/60 rounded-xl border border-slate-700/80 space-y-2.5">
+          <h4 class="font-bold text-indigo-400 text-sm">Procedure 3.1: Tax & Proforma Invoice Issuance</h4>
+          <ol class="list-decimal list-inside text-slate-300 space-y-1.5 leading-relaxed">
+            <li>Open <strong>Invoices & Approvals</strong> (<code>invoices.html</code>) and click <strong>Create New Invoice</strong>.</li>
+            <li>Select Client, Project, and Invoice Type (<em>Tax Invoice</em> or <em>Proforma Invoice</em>).</li>
+            <li>Line items auto-calculate 18% GST (CGST+SGST 9%+9% for intra-state Karnataka, or IGST 18% for inter-state).</li>
+            <li><strong>Director Approval Threshold:</strong> Invoices with total value &ge; INR 5,00,000 enter <code>Pending Director Approval</code>. Only Director / Super Admin can approve and release for client email dispatch.</li>
+            <li>When client pays against Proforma, use <strong>Convert to Tax Invoice</strong> to generate official tax invoice number without re-entering data.</li>
+          </ol>
+        </div>
+
+        <div class="p-4 bg-slate-800/60 rounded-xl border border-slate-700/80 space-y-2.5">
+          <h4 class="font-bold text-indigo-400 text-sm">Procedure 3.2: Payment Logging & Director AR Write-Offs</h4>
+          <ol class="list-decimal list-inside text-slate-300 space-y-1.5 leading-relaxed">
+            <li>Open <strong>Payments & Collections</strong> (<code>payments.html</code>) upon receipt of bank credit.</li>
+            <li>Select invoice from the pending collection dropdown (automatically calculates outstanding balance).</li>
+            <li>Enter Bank Transaction Reference (UTR / Cheque), TDS Deducted (if any), and Net Amount Received.</li>
+            <li><strong>Goodwill Discount / Bad Debt Write-Off Rule:</strong>
+              <ul class="list-disc list-inside text-slate-400 pl-4 pt-1 space-y-1">
+                <li>If a customer dispute or balance rounding requires an adjustment, click <strong>Request AR Adjustment</strong>.</li>
+                <li>Enter Adjustment Type (<em>Goodwill Discount</em> or <em>Bad Debt Write-Off</em>) with mandatory audit explanation.</li>
+                <li>Write-offs are locked until approved by Managing Director to prevent unauthorized revenue leakage.</li>
+              </ul>
+            </li>
+          </ol>
+        </div>
+      </div>
+    </section>
+
+    <!-- SOP SECTION 4: SERVICE, FIELD ENGINEERS & QUALITY SLA SOP -->
+    <section id="role-service" class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-5 print-card">
+      <div class="flex items-center space-x-3 pb-4 border-b border-slate-800">
+        <div class="w-10 h-10 rounded-xl bg-amber-600/20 text-amber-400 font-black flex items-center justify-center text-base border border-amber-500/30">4</div>
+        <div>
+          <h2 class="text-xl font-black text-white">Service & Field Engineering Team SOP</h2>
+          <p class="text-xs text-slate-400">Operating procedures for breakdown tickets, calibration SLAs, spare parts requisitions, and emergency callouts.</p>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+        <div class="p-4 bg-slate-800/60 rounded-xl border border-slate-700/80 space-y-2">
+          <h4 class="font-bold text-amber-400 text-sm">1. Ticket Logging & SLA Triage</h4>
+          <p class="text-slate-300 leading-relaxed">
+            When a client reports an equipment fault or calibration request:
+          </p>
+          <ul class="list-disc list-inside text-slate-400 space-y-1">
+            <li>Open <code>service-tickets.html</code> and click <strong>Raise Ticket</strong>.</li>
+            <li>Set Priority: <strong>P1 Critical (&le;4h SLA)</strong>, <strong>P2 High (&le;12h SLA)</strong>, <strong>P3 Medium (&le;24h)</strong>, or <strong>P4 Low</strong>.</li>
+            <li>Assign Lead Engineer based on client site territory.</li>
+          </ul>
+        </div>
+
+        <div class="p-4 bg-slate-800/60 rounded-xl border border-slate-700/80 space-y-2">
+          <h4 class="font-bold text-amber-400 text-sm">2. On-Site Action & Parts Usage</h4>
+          <p class="text-slate-300 leading-relaxed">
+            During client site troubleshooting:
+          </p>
+          <ul class="list-disc list-inside text-slate-400 space-y-1">
+            <li>Punch Attendance with <em>Site / On-Field</em> location flag.</li>
+            <li>Log DWM task as <em>Special Assignment - Client Emergency Breakdown</em>.</li>
+            <li>Record spare part replacements (load cells, indicators, junction boxes) from Master Catalog.</li>
+          </ul>
+        </div>
+
+        <div class="p-4 bg-slate-800/60 rounded-xl border border-slate-700/80 space-y-2">
+          <h4 class="font-bold text-amber-400 text-sm">3. Ticket Closure & Sign-Off</h4>
+          <p class="text-slate-300 leading-relaxed">
+            Post-restoration and customer verification:
+          </p>
+          <ul class="list-disc list-inside text-slate-400 space-y-1">
+            <li>Upload service report notes and root cause analysis (RCA).</li>
+            <li>Change ticket status to <strong>Resolved</strong> &rarr; <strong>Closed</strong> with customer sign-off.</li>
+            <li>Trigger Service Quotation or Billing Invoice if billable out-of-warranty.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- SOP SECTION 5: MASTER DATA MANAGEMENT & CSV BULK IMPORT SOP -->
+    <section id="role-projects" class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-5 print-card">
+      <div class="flex items-center space-x-3 pb-4 border-b border-slate-800">
+        <div class="w-10 h-10 rounded-xl bg-teal-600/20 text-teal-400 font-black flex items-center justify-center text-base border border-teal-500/30">5</div>
+        <div>
+          <h2 class="text-xl font-black text-white">Master Data & Bulk Import SOP (Operations & Admins)</h2>
+          <p class="text-xs text-slate-400">Standard protocol for onboarding new clients, active projects, employee roster updates, and spare parts catalog.</p>
+        </div>
+      </div>
+
+      <div class="p-4 bg-slate-800/60 rounded-xl border border-slate-700/80 space-y-3 text-xs">
+        <h3 class="font-bold text-teal-400 text-sm">Step-by-Step CSV Bulk Upload Protocol (<code>master-data.html</code>)</h3>
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-3 text-slate-300">
+          <div class="p-3 bg-slate-900/80 rounded-lg border border-slate-800 space-y-1">
+            <div class="font-bold text-teal-300">1. Select Entity Tab</div>
+            <p class="text-slate-400">Choose between <em>Clients</em>, <em>Projects</em>, <em>Employees</em>, or <em>Spare Parts</em>.</p>
+          </div>
+          <div class="p-3 bg-slate-900/80 rounded-lg border border-slate-800 space-y-1">
+            <div class="font-bold text-teal-300">2. Download CSV Template</div>
+            <p class="text-slate-400">Click <strong>Download Prescribed CSV Template</strong> to obtain correct column headers.</p>
+          </div>
+          <div class="p-3 bg-slate-900/80 rounded-lg border border-slate-800 space-y-1">
+            <div class="font-bold text-teal-300">3. Fill & Validate Data</div>
+            <p class="text-slate-400">Ensure GSTIN 15-character format, valid email formats, and mandatory phone numbers.</p>
+          </div>
+          <div class="p-3 bg-slate-900/80 rounded-lg border border-slate-800 space-y-1">
+            <div class="font-bold text-teal-300">4. Upload & Merge</div>
+            <p class="text-slate-400">Drop CSV file into uploader. System checks for duplicates and merges into local & cloud DB.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SOP SECTION 6: HR, PEOPLE & APPRAISAL GOVERNANCE SOP -->
+    <section id="role-hr" class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-5 print-card">
+      <div class="flex items-center space-x-3 pb-4 border-b border-slate-800">
+        <div class="w-10 h-10 rounded-xl bg-sky-600/20 text-sky-400 font-black flex items-center justify-center text-base border border-sky-500/30">6</div>
+        <div>
+          <h2 class="text-xl font-black text-white">HR, Attendance, Payroll & Appraisal Governance SOP</h2>
+          <p class="text-xs text-slate-400">Standard operating cadence for headcount administration, payroll cutoffs, Loss-Of-Pay deductions, and quarterly appraisals.</p>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+        <div class="p-4 bg-slate-800/60 rounded-xl border border-slate-700/80 space-y-2.5">
+          <h4 class="font-bold text-sky-400 text-sm">Procedure 6.1: Monthly Payroll Processing & Loss-Of-Pay (LOP)</h4>
+          <ol class="list-decimal list-inside text-slate-300 space-y-1.5 leading-relaxed">
+            <li>Payroll cutoff date is the <strong>25th of every month</strong>.</li>
+            <li>HR opens <strong>Payroll & CTC</strong> (<code>payroll.html</code>) to review unapproved leave records and missing punch logs.</li>
+            <li>The system automatically calculates <strong>Loss-Of-Pay (LOP)</strong> deductions: <code>(Monthly Gross Salary / 30) * Unapproved Absent Days</code>.</li>
+            <li>Statutory deductions (Provident Fund 12%, ESI 0.75%, TDS) are computed and net disbursement vouchers are locked for Director sign-off.</li>
+          </ol>
+        </div>
+
+        <div class="p-4 bg-slate-800/60 rounded-xl border border-slate-700/80 space-y-2.5">
+          <h4 class="font-bold text-sky-400 text-sm">Procedure 6.2: Quarterly Performance Appraisals & Reviews</h4>
+          <ol class="list-decimal list-inside text-slate-300 space-y-1.5 leading-relaxed">
+            <li>At quarter end (Q1 to Q4), employee fills self-assessment on <strong>Performance Reviews</strong> (<code>reviews.html</code>).</li>
+            <li>Reporting Manager evaluates target metrics vs actual output logged in <strong>My Scorecard</strong> and <strong>DWM</strong>.</li>
+            <li>Manager provides numerical ratings (1.0 to 5.0 scale) and qualitative growth goals.</li>
+            <li>Managing Director conducts final calibration review for annual compensation increments and promotions.</li>
+          </ol>
+        </div>
+      </div>
+    </section>
+
+    <!-- SOP QUICK REFERENCE INDEX & EMERGENCY CONTACTS -->
+    <section class="bg-slate-900/90 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4 print-card">
+      <h3 class="text-sm font-black text-white uppercase tracking-wider text-slate-300">Quick Reference Links & Technical Contacts</h3>
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+        <div class="p-3 bg-slate-800/40 rounded-xl border border-slate-700/60">
+          <div class="font-bold text-emerald-400">RevOps Administrator</div>
+          <div class="text-slate-300">Mr. Murugan V (VP Operations)</div>
+          <div class="text-slate-500 font-mono text-[11px]">murugan@measuredi.com</div>
+        </div>
+        <div class="p-3 bg-slate-800/40 rounded-xl border border-slate-700/60">
+          <div class="font-bold text-indigo-400">Commercial & Invoicing Head</div>
+          <div class="text-slate-300">Mr. Rajesh Kumar (Commercial Head)</div>
+          <div class="text-slate-500 font-mono text-[11px]">rajesh@measuredi.com</div>
+        </div>
+        <div class="p-3 bg-slate-800/40 rounded-xl border border-slate-700/60">
+          <div class="font-bold text-pink-400">Executive Escalations</div>
+          <div class="text-slate-300">Mr. Ravichandran (Managing Director)</div>
+          <div class="text-slate-500 font-mono text-[11px]">ars.okd@gmail.com</div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+</body>
+</html>

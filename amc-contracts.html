@@ -1,0 +1,389 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>K-30_ERP - AMC Registration & Monitoring</title>
+    <link rel="stylesheet" href="/src/index.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="js/firebase-init.js" defer></script>
+    <script src="js/store.js" defer></script>
+    <script src="js/seed-data.js" defer></script>
+    <script src="auth-guard.js" defer></script>
+  </head>
+  <body class="bg-slate-900 min-h-screen text-slate-100 font-sans antialiased">
+    
+    <!-- Navbar Container -->
+    <div id="navbar-container"></div>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+      
+      <!-- Top Header & Action Controls -->
+      <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-slate-850 p-6 rounded-2xl border border-slate-800 shadow-xl">
+        <div>
+          <div class="flex items-center space-x-2">
+            <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/30">
+              Service & Quality Engine
+            </span>
+            <span class="text-xs text-slate-400 font-semibold">• Annual Maintenance & SLA Governance</span>
+          </div>
+          <h1 class="text-2xl font-black text-white tracking-tight mt-1 flex items-center gap-2">
+            <span>AMC Registration & Monitoring Hub</span>
+            <span class="text-xs font-bold px-2 py-0.5 rounded bg-amber-950 text-amber-300 border border-amber-800/80">RevOps v28</span>
+          </h1>
+          <p class="text-xs text-slate-400 mt-1">End-to-end Annual Maintenance Contract registration, PM visit schedules, renewal countdown alerts, milestone invoicing & SLA compliance.</p>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2.5">
+          <a href="service-leads.html" class="px-3 py-2 bg-slate-800 hover:bg-slate-750 text-slate-200 text-xs font-bold rounded-xl border border-slate-700 transition-colors flex items-center gap-1.5 cursor-pointer" title="Service & AMC Leads Pipeline">
+            <i class="fa-solid fa-filter text-emerald-400"></i>
+            <span>Service Leads</span>
+          </a>
+          <a href="amc-quotes.html" class="px-3 py-2 bg-slate-800 hover:bg-slate-750 text-slate-200 text-xs font-bold rounded-xl border border-slate-700 transition-colors flex items-center gap-1.5 cursor-pointer" title="AMC Quotations & Proposals">
+            <i class="fa-solid fa-file-contract text-indigo-400"></i>
+            <span>AMC Quotes</span>
+          </a>
+          <a href="amc-orders.html" class="px-3 py-2 bg-slate-800 hover:bg-slate-750 text-slate-200 text-xs font-bold rounded-xl border border-slate-700 transition-colors flex items-center gap-1.5 cursor-pointer" title="AMC Order Registration">
+            <i class="fa-solid fa-box-open text-amber-400"></i>
+            <span>AMC Orders</span>
+          </a>
+          <a href="amc-invoices.html" class="px-3 py-2 bg-slate-800 hover:bg-slate-750 text-slate-200 text-xs font-bold rounded-xl border border-slate-700 transition-colors flex items-center gap-1.5 cursor-pointer" title="AMC Milestone Invoicing">
+            <i class="fa-solid fa-receipt text-sky-400"></i>
+            <span>AMC Invoices</span>
+          </a>
+          <button onclick="openNewAmcModal()" class="px-4 py-2 bg-[#982B68] hover:bg-[#802256] text-white font-bold text-xs rounded-xl shadow-lg shadow-[#982B68]/30 transition-all flex items-center space-x-1.5 cursor-pointer">
+            <i class="fa-solid fa-plus text-xs"></i>
+            <span>+ Register New AMC</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- KPI Executive Summary Cards -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <!-- KPI 1 -->
+        <div class="bg-slate-850 p-5 rounded-2xl border border-slate-800 shadow-xl flex items-center justify-between">
+          <div>
+            <div class="text-[10px] font-black uppercase tracking-wider text-slate-400">Active AMC Value (ACV)</div>
+            <div class="text-2xl font-black text-white mt-1" id="stat-active-acv">₹0</div>
+            <div class="text-[11px] text-emerald-400 font-semibold mt-0.5" id="stat-active-count">0 Active Contracts</div>
+          </div>
+          <div class="w-12 h-12 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center justify-center text-xl">
+            <i class="fa-solid fa-shield-halved"></i>
+          </div>
+        </div>
+
+        <!-- KPI 2 -->
+        <div class="bg-slate-850 p-5 rounded-2xl border border-slate-800 shadow-xl flex items-center justify-between">
+          <div>
+            <div class="text-[10px] font-black uppercase tracking-wider text-amber-400">Expiring in &le; 60 Days</div>
+            <div class="text-2xl font-black text-amber-400 mt-1" id="stat-expiring-count">0</div>
+            <div class="text-[11px] text-slate-400 font-semibold mt-0.5" id="stat-expiring-value">Renewal Value: ₹0</div>
+          </div>
+          <div class="w-12 h-12 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center justify-center text-xl">
+            <i class="fa-solid fa-clock-rotate-left"></i>
+          </div>
+        </div>
+
+        <!-- KPI 3 -->
+        <div class="bg-slate-850 p-5 rounded-2xl border border-slate-800 shadow-xl flex items-center justify-between">
+          <div>
+            <div class="text-[10px] font-black uppercase tracking-wider text-indigo-400">PM Visit Compliance</div>
+            <div class="text-2xl font-black text-indigo-400 mt-1" id="stat-pm-compliance">0%</div>
+            <div class="text-[11px] text-slate-400 font-semibold mt-0.5" id="stat-pm-counts">0 Done / 0 Scheduled</div>
+          </div>
+          <div class="w-12 h-12 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 flex items-center justify-center text-xl">
+            <i class="fa-solid fa-calendar-check"></i>
+          </div>
+        </div>
+
+        <!-- KPI 4 -->
+        <div class="bg-slate-850 p-5 rounded-2xl border border-slate-800 shadow-xl flex items-center justify-between">
+          <div>
+            <div class="text-[10px] font-black uppercase tracking-wider text-sky-400">Billed vs Collected</div>
+            <div class="text-2xl font-black text-sky-400 mt-1" id="stat-billed-pct">0%</div>
+            <div class="text-[11px] text-slate-400 font-semibold mt-0.5" id="stat-billed-amounts">₹0 / ₹0 ACV</div>
+          </div>
+          <div class="w-12 h-12 rounded-xl bg-sky-500/10 text-sky-400 border border-sky-500/20 flex items-center justify-center text-xl">
+            <i class="fa-solid fa-file-invoice"></i>
+          </div>
+        </div>
+      </div>
+
+      <!-- Filter Controls & Search -->
+      <div class="bg-slate-850 p-4 rounded-2xl border border-slate-800 shadow-xl flex flex-wrap items-center justify-between gap-3">
+        <div class="flex flex-wrap items-center gap-2.5 flex-1 min-w-[300px]">
+          <!-- Search -->
+          <div class="relative flex-1 min-w-[200px]">
+            <input type="text" id="amc-search-input" oninput="renderAmcTable()" placeholder="Search by Contract ID, Customer, Serial, Model..." class="w-full pl-8 pr-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500" />
+            <i class="fa-solid fa-magnifying-glass absolute left-2.5 top-3 text-slate-500 text-xs"></i>
+          </div>
+
+          <!-- Status Filter -->
+          <select id="amc-status-filter" onchange="renderAmcTable()" class="px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-slate-300 font-semibold focus:outline-none focus:border-amber-500">
+            <option value="All">All Contract Statuses</option>
+            <option value="Active">Active Contracts</option>
+            <option value="Expiring Soon">Expiring Soon (&le; 60 Days)</option>
+            <option value="Expired">Expired Contracts</option>
+            <option value="Renewal Quoted">Renewal Quoted</option>
+          </select>
+
+          <!-- Tier Filter -->
+          <select id="amc-tier-filter" onchange="renderAmcTable()" class="px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-slate-300 font-semibold focus:outline-none focus:border-amber-500">
+            <option value="All">All AMC Tiers</option>
+            <option value="Comprehensive">Comprehensive (Spares + Labor)</option>
+            <option value="Non-Comprehensive">Non-Comprehensive (Labor Only)</option>
+            <option value="High-Temp Crane Scale">High-Temp Crane Scale AMC</option>
+            <option value="Weighbridge Bi-Annual">Weighbridge Bi-Annual Calibration AMC</option>
+          </select>
+
+          <!-- FY Filter -->
+          <select id="amc-fy-filter" onchange="renderAmcTable()" class="px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-slate-300 font-semibold focus:outline-none focus:border-amber-500">
+            <option value="All">All Financial Years</option>
+            <option value="2026-27" selected>FY 2026-27</option>
+            <option value="2025-26">FY 2025-26</option>
+            <option value="2024-25">FY 2024-25</option>
+          </select>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <span class="text-xs text-slate-400 font-bold" id="amc-count-badge">0 contracts</span>
+          <button onclick="exportAmcCSV()" class="px-3 py-2 bg-slate-800 hover:bg-slate-750 text-slate-200 text-xs font-bold rounded-xl border border-slate-700 transition-colors flex items-center gap-1.5 cursor-pointer">
+            <i class="fa-solid fa-download text-xs text-slate-400"></i>
+            <span>Export CSV</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- AMC Contract Master Registry Table -->
+      <div class="bg-slate-850 rounded-2xl border border-slate-800 shadow-xl overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="bg-slate-900/80 border-b border-slate-800 text-[10px] font-black uppercase tracking-wider text-slate-400">
+                <th class="py-3 px-4">Contract # & Period</th>
+                <th class="py-3 px-4">Customer & Location</th>
+                <th class="py-3 px-4">Equipment & Serial No</th>
+                <th class="py-3 px-4">Tier & Terms</th>
+                <th class="py-3 px-4 text-right">ACV & Billing</th>
+                <th class="py-3 px-4 text-center">PM Visit Tracker (Q1 - Q4)</th>
+                <th class="py-3 px-4 text-center">Status & Countdown</th>
+                <th class="py-3 px-4 text-center">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="amc-contracts-tbody" class="divide-y divide-slate-800 text-xs">
+              <!-- Dynamically populated via JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </main>
+
+    <!-- MODAL 1: REGISTER / EDIT AMC CONTRACT -->
+    <div id="amc-modal" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md hidden flex items-center justify-center p-4 overflow-y-auto">
+      <div class="bg-slate-900 border border-slate-700/80 rounded-2xl w-full max-w-3xl shadow-2xl p-6 text-slate-200 space-y-5 my-8">
+        
+        <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+          <div class="flex items-center space-x-2.5">
+            <div class="w-9 h-9 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center font-black text-sm">
+              <i class="fa-solid fa-file-contract"></i>
+            </div>
+            <div>
+              <h3 class="text-sm font-black text-white uppercase tracking-wider" id="amc-modal-title">Register New AMC Contract</h3>
+              <p class="text-[11px] text-slate-400">Establish Annual Maintenance Contract with PM schedules, equipment links & billing milestones</p>
+            </div>
+          </div>
+          <button type="button" onclick="closeAmcModal()" class="text-slate-400 hover:text-white text-lg font-bold p-1 cursor-pointer">&times;</button>
+        </div>
+
+        <form id="amc-form" onsubmit="handleSaveAmcContract(event)" class="space-y-4">
+          <input type="hidden" id="amc-doc-id" value="" />
+
+          <!-- Row 1: Cascading Customer -> Model -> Serial Selection -->
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Customer Name *</label>
+              <select id="amc-inp-customer" required onchange="handleAmcCustomerChange(this.value)" class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white font-semibold focus:outline-none focus:border-amber-500">
+                <option value="">Select Customer...</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Equipment Model *</label>
+              <select id="amc-inp-model" required onchange="handleAmcModelChange(this.value)" class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white font-semibold focus:outline-none focus:border-amber-500">
+                <option value="">Select Model...</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Serial Number(s) *</label>
+              <input type="text" id="amc-inp-serial" required placeholder="e.g. CS-50T-2024-001, CS-50T-2024-002" class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white font-mono focus:outline-none focus:border-amber-500" />
+            </div>
+          </div>
+
+          <!-- Row 2: Contract Tier, Annual Value & Payment Terms -->
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">AMC Contract Tier *</label>
+              <select id="amc-inp-tier" required class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white font-semibold focus:outline-none focus:border-amber-500">
+                <option value="Comprehensive">Comprehensive (Spares + Labor + Calibration)</option>
+                <option value="Non-Comprehensive" selected>Non-Comprehensive (Preventive + Labor Only)</option>
+                <option value="High-Temp Crane Scale">High-Temp Crane Scale AMC</option>
+                <option value="Weighbridge Bi-Annual">Weighbridge Bi-Annual Calibration AMC</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Annual Contract Value (₹ ACV) *</label>
+              <input type="number" min="0" step="1000" id="amc-inp-acv" required placeholder="180000" class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white font-bold focus:outline-none focus:border-amber-500" />
+            </div>
+
+            <div>
+              <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Invoicing Milestone *</label>
+              <select id="amc-inp-billing" required class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white font-semibold focus:outline-none focus:border-amber-500">
+                <option value="100% 1st Quarter Advance">100% 1st Quarter Advance</option>
+                <option value="50% Semi-Annual Advance">50% Semi-Annual Advance</option>
+                <option value="25% Quarterly Advance" selected>25% Quarterly Advance</option>
+                <option value="100% Full Year Advance">100% Full Year Advance</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Row 3: Period & Service Level Agreement (SLA) -->
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Start Date *</label>
+              <input type="date" id="amc-inp-start-date" required class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-amber-500" />
+            </div>
+
+            <div>
+              <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">End Date *</label>
+              <input type="date" id="amc-inp-end-date" required class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-amber-500" />
+            </div>
+
+            <div>
+              <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">SLA Breakdown Response *</label>
+              <select id="amc-inp-sla" required class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white font-semibold focus:outline-none focus:border-amber-500">
+                <option value="4 Hours Emergency">4 Hours Emergency (Critical Plant Lines)</option>
+                <option value="8 Hours Same Day" selected>8 Hours Same Day</option>
+                <option value="24 Hours Next Business Day">24 Hours Next Business Day</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Row 4: Assigned Engineer & PM Schedule Frequency -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Primary Assigned Field Engineer</label>
+              <select id="amc-inp-engineer" class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white font-semibold focus:outline-none focus:border-amber-500">
+                <option value="">Auto-Assign / Default Service Lead</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">PM Visit Frequency</label>
+              <select id="amc-inp-pm-freq" class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white font-semibold focus:outline-none focus:border-amber-500">
+                <option value="Quarterly (4 Visits/Year)" selected>Quarterly (4 Mandatory PM Audits / Year)</option>
+                <option value="Bi-Annual (2 Visits/Year)">Bi-Annual (2 Mandatory PM Audits / Year)</option>
+                <option value="Monthly (12 Visits/Year)">Monthly (12 High-Frequency Visits / Year)</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Row 5: Notes & Special Conditions -->
+          <div>
+            <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Coverage Notes, Free Spares Limit & Special Terms</label>
+            <textarea id="amc-inp-notes" rows="2.5" placeholder="Includes 4 quarterly PM visits, test weights calibration, sensor zero check. All electronic PCB replacements covered under comprehensive tier..." class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-amber-500"></textarea>
+          </div>
+
+          <!-- Actions -->
+          <div class="flex items-center justify-between pt-3 border-t border-slate-800">
+            <button type="button" onclick="closeAmcModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-xl cursor-pointer">
+              Cancel
+            </button>
+            <button type="submit" class="px-5 py-2 bg-[#982B68] hover:bg-[#802256] text-white font-bold text-xs rounded-xl shadow-md transition-colors flex items-center space-x-1.5 cursor-pointer">
+              <i class="fa-solid fa-floppy-disk text-xs"></i>
+              <span>Save AMC Contract</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- MODAL 2: LOG PM VISIT & CSR ATTACHMENT -->
+    <div id="pm-visit-modal" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md hidden flex items-center justify-center p-4 overflow-y-auto">
+      <div class="bg-slate-900 border border-slate-700/80 rounded-2xl w-full max-w-lg shadow-2xl p-6 text-slate-200 space-y-4 my-8">
+        
+        <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+          <div class="flex items-center space-x-2.5">
+            <div class="w-9 h-9 rounded-xl bg-indigo-500 text-white flex items-center justify-center font-black text-sm">
+              <i class="fa-solid fa-wrench"></i>
+            </div>
+            <div>
+              <h3 class="text-sm font-black text-white uppercase tracking-wider" id="pm-modal-title">Log Preventive Maintenance (PM) Visit</h3>
+              <p class="text-[11px] text-slate-400" id="pm-modal-subtitle">Record visit findings, calibration audit & signed CSR report</p>
+            </div>
+          </div>
+          <button type="button" onclick="closePmVisitModal()" class="text-slate-400 hover:text-white text-lg font-bold p-1 cursor-pointer">&times;</button>
+        </div>
+
+        <form id="pm-visit-form" onsubmit="handleSavePmVisit(event)" class="space-y-3.5">
+          <input type="hidden" id="pm-contract-id" value="" />
+          <input type="hidden" id="pm-quarter-key" value="" />
+
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Visit Quarter / Milestone</label>
+              <input type="text" id="pm-quarter-label" readonly class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-amber-300 font-bold" />
+            </div>
+            <div>
+              <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Actual Visit Date *</label>
+              <input type="date" id="pm-visit-date" required class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500" />
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Attending Field Engineer *</label>
+            <select id="pm-attending-engineer" required class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white font-semibold focus:outline-none focus:border-indigo-500">
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Calibration & Accuracy Result *</label>
+            <select id="pm-calibration-result" required class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white font-semibold focus:outline-none focus:border-indigo-500">
+              <option value="Passed - Within 0.1% Standard Metrology Tolerance">Passed - Within 0.1% Standard Metrology Tolerance</option>
+              <option value="Adjusted - Span & Zero Calibration Performed">Adjusted - Span & Zero Calibration Performed</option>
+              <option value="Critical Wear - Component Replacement Recommended">Critical Wear - Component Replacement Recommended</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Engineer PM Checklist Notes</label>
+            <textarea id="pm-checklist-notes" rows="2" placeholder="Cleaned junction box, checked shear beam torque, verified power grounding, calibrated with 20T certified weights..." class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-indigo-500"></textarea>
+          </div>
+
+          <div>
+            <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Customer Signed Report (CSR) Upload</label>
+            <input type="file" id="pm-csr-upload" accept="image/*,.pdf" class="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-700 rounded-xl text-xs text-slate-300 file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-[#982B68] file:text-white" />
+          </div>
+
+          <div class="flex items-center justify-between pt-3 border-t border-slate-800">
+            <button type="button" onclick="closePmVisitModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-750 text-slate-300 font-bold text-xs rounded-xl cursor-pointer">
+              Cancel
+            </button>
+            <button type="submit" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-md transition-colors flex items-center space-x-1.5 cursor-pointer">
+              <i class="fa-solid fa-check text-xs"></i>
+              <span>Complete & Sign-Off PM Visit</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Page Logic Script -->
+    <script src="js/amc-contracts.js"></script>
+  </body>
+</html>

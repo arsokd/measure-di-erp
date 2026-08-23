@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>K-30_ERP - Spare Parts Sales</title>
+    <link rel="stylesheet" href="/src/index.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="js/firebase-init.js" defer></script>
+    <script src="js/store.js" defer></script>
+    <script src="js/seed-data.js" defer></script>
+    <script src="auth-guard.js" defer></script>
+  </head>
+  <body class="bg-slate-900 min-h-screen text-slate-100 font-sans antialiased">
+    
+    <!-- Navbar Container -->
+    <div id="navbar-container"></div>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+      
+      <!-- Top Header & Action Controls -->
+      <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-slate-850 p-6 rounded-2xl border border-slate-800 shadow-xl">
+        <div>
+          <div class="flex items-center space-x-2">
+            <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+              Service & Quality Pipeline
+            </span>
+            <span class="text-xs text-slate-400 font-semibold">• Component Sales & Margin Model</span>
+          </div>
+          <h1 class="text-2xl font-black text-white tracking-tight mt-1 flex items-center gap-2">
+            <span>Spare Parts Sales & Revenue Engine</span>
+            <span class="text-xs font-bold px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-800/80">RevOps v28</span>
+          </h1>
+          <p class="text-xs text-slate-400 mt-1">High-margin industrial spares catalog, load cells, indicators, inventory turn-rates, unit margin economics & AOP revenue fulfillment.</p>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2.5">
+          <a href="service-leads.html" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-750 text-slate-200 text-xs font-bold rounded-xl border border-slate-700 transition-colors flex items-center gap-1.5 cursor-pointer" title="View Inbound Service & Spares Leads">
+            <i class="fa-solid fa-funnel-dollar text-amber-400"></i>
+            <span>Spares Leads</span>
+          </a>
+          <a href="quotations.html?quoteType=Parts" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-750 text-slate-200 text-xs font-bold rounded-xl border border-slate-700 transition-colors flex items-center gap-1.5 cursor-pointer" title="Raise Spare Parts Quotation">
+            <i class="fa-solid fa-file-invoice-dollar text-indigo-400"></i>
+            <span>Quote Spares</span>
+          </a>
+          <a href="orders.html?vertical=Service and Parts&orderType=Spare Parts" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-750 text-slate-200 text-xs font-bold rounded-xl border border-slate-700 transition-colors flex items-center gap-1.5 cursor-pointer" title="Register Spare Parts Order">
+            <i class="fa-solid fa-box-archive text-emerald-400"></i>
+            <span>Parts Orders</span>
+          </a>
+          <button onclick="openNewPartModal()" class="px-4 py-2 bg-[#982B68] hover:bg-[#802256] text-white font-bold text-xs rounded-xl shadow-lg shadow-[#982B68]/30 transition-all flex items-center space-x-1.5 cursor-pointer">
+            <i class="fa-solid fa-plus text-xs"></i>
+            <span>+ Add Catalog Part</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- KPI Revenue Economics Cards -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <!-- KPI 1 -->
+        <div class="bg-slate-850 p-5 rounded-2xl border border-slate-800 shadow-xl flex items-center justify-between">
+          <div>
+            <div class="text-[10px] font-black uppercase tracking-wider text-slate-400">FY 26-27 Parts Revenue</div>
+            <div class="text-2xl font-black text-white mt-1" id="stat-parts-revenue">₹0</div>
+            <div class="text-[11px] text-emerald-400 font-semibold mt-0.5" id="stat-parts-orders-count">0 Dispatched Orders</div>
+          </div>
+          <div class="w-12 h-12 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center justify-center text-xl">
+            <i class="fa-solid fa-chart-line"></i>
+          </div>
+        </div>
+
+        <!-- KPI 2 -->
+        <div class="bg-slate-850 p-5 rounded-2xl border border-slate-800 shadow-xl flex items-center justify-between">
+          <div>
+            <div class="text-[10px] font-black uppercase tracking-wider text-indigo-400">Avg Gross Margin %</div>
+            <div class="text-2xl font-black text-indigo-400 mt-1" id="stat-avg-margin">44.8%</div>
+            <div class="text-[11px] text-slate-400 font-semibold mt-0.5">Target: &ge; 40.0% Contribution</div>
+          </div>
+          <div class="w-12 h-12 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 flex items-center justify-center text-xl">
+            <i class="fa-solid fa-percent"></i>
+          </div>
+        </div>
+
+        <!-- KPI 3 -->
+        <div class="bg-slate-850 p-5 rounded-2xl border border-slate-800 shadow-xl flex items-center justify-between">
+          <div>
+            <div class="text-[10px] font-black uppercase tracking-wider text-amber-400">Inventory Asset Valuation</div>
+            <div class="text-2xl font-black text-amber-400 mt-1" id="stat-stock-valuation">₹0</div>
+            <div class="text-[11px] text-slate-400 font-semibold mt-0.5" id="stat-total-skus">0 Active SKUs on Hand</div>
+          </div>
+          <div class="w-12 h-12 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center justify-center text-xl">
+            <i class="fa-solid fa-boxes-stacked"></i>
+          </div>
+        </div>
+
+        <!-- KPI 4 -->
+        <div class="bg-slate-850 p-5 rounded-2xl border border-slate-800 shadow-xl flex items-center justify-between">
+          <div>
+            <div class="text-[10px] font-black uppercase tracking-wider text-rose-400">Reorder Threshold Alerts</div>
+            <div class="text-2xl font-black text-rose-400 mt-1" id="stat-low-stock-count">0</div>
+            <div class="text-[11px] text-slate-400 font-semibold mt-0.5">Critical Fast-Moving Parts</div>
+          </div>
+          <div class="w-12 h-12 rounded-xl bg-rose-500/10 text-rose-400 border border-rose-500/20 flex items-center justify-center text-xl">
+            <i class="fa-solid fa-triangle-exclamation"></i>
+          </div>
+        </div>
+      </div>
+
+      <!-- Filter Controls & Search -->
+      <div class="bg-slate-850 p-4 rounded-2xl border border-slate-800 shadow-xl flex flex-wrap items-center justify-between gap-3">
+        <div class="flex flex-wrap items-center gap-2.5 flex-1 min-w-[300px]">
+          <!-- Search -->
+          <div class="relative flex-1 min-w-[200px]">
+            <input type="text" id="part-search-input" oninput="renderPartsTable()" placeholder="Search by Part #, Name, Compatible Model, HSN..." class="w-full pl-8 pr-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500" />
+            <i class="fa-solid fa-magnifying-glass absolute left-2.5 top-3 text-slate-500 text-xs"></i>
+          </div>
+
+          <!-- Category Filter -->
+          <select id="part-cat-filter" onchange="renderPartsTable()" class="px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-slate-300 font-semibold focus:outline-none focus:border-emerald-500">
+            <option value="All">All Part Categories</option>
+            <option value="Load Cells">Load Cells & Sensors</option>
+            <option value="Digital Indicators">Digital Indicators & Controllers</option>
+            <option value="Junction Boxes">Summing & Junction Boxes</option>
+            <option value="Wireless & Telemetry">Wireless & Telemetry Modules</option>
+            <option value="Cables & Hardware">Cables, Encoders & Hardware</option>
+          </select>
+
+          <!-- Stock Level Filter -->
+          <select id="part-stock-filter" onchange="renderPartsTable()" class="px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-slate-300 font-semibold focus:outline-none focus:border-emerald-500">
+            <option value="All">All Stock Levels</option>
+            <option value="In Stock">In Stock (&gt; Minimum Level)</option>
+            <option value="Low Stock">Low Stock (&le; Reorder Level)</option>
+          </select>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <span class="text-xs text-slate-400 font-bold" id="part-count-badge">0 parts</span>
+          <button onclick="exportPartsCSV()" class="px-3 py-2 bg-slate-800 hover:bg-slate-750 text-slate-200 text-xs font-bold rounded-xl border border-slate-700 transition-colors flex items-center gap-1.5 cursor-pointer">
+            <i class="fa-solid fa-download text-xs text-slate-400"></i>
+            <span>Export CSV</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Spare Parts Master & Revenue Economics Table -->
+      <div class="bg-slate-850 rounded-2xl border border-slate-800 shadow-xl overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="bg-slate-900/80 border-b border-slate-800 text-[10px] font-black uppercase tracking-wider text-slate-400">
+                <th class="py-3 px-4">Part # & Category</th>
+                <th class="py-3 px-4">Component Name & Specs</th>
+                <th class="py-3 px-4">Compatible Equipment</th>
+                <th class="py-3 px-4 text-center">HSN & GST</th>
+                <th class="py-3 px-4 text-right">Cost Price (COGS)</th>
+                <th class="py-3 px-4 text-right">Selling Price (₹)</th>
+                <th class="py-3 px-4 text-center">Gross Margin %</th>
+                <th class="py-3 px-4 text-center">Stock & Reorder</th>
+                <th class="py-3 px-4 text-center">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="parts-tbody" class="divide-y divide-slate-800 text-xs">
+              <!-- Dynamically populated via JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </main>
+
+    <!-- MODAL: ADD / EDIT SPARE PART ITEM -->
+    <div id="part-modal" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md hidden flex items-center justify-center p-4 overflow-y-auto">
+      <div class="bg-slate-900 border border-slate-700/80 rounded-2xl w-full max-w-2xl shadow-2xl p-6 text-slate-200 space-y-5 my-8">
+        
+        <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+          <div class="flex items-center space-x-2.5">
+            <div class="w-9 h-9 rounded-xl bg-emerald-500 text-slate-950 flex items-center justify-center font-black text-sm">
+              <i class="fa-solid fa-gears"></i>
+            </div>
+            <div>
+              <h3 class="text-sm font-black text-white uppercase tracking-wider" id="part-modal-title">Add Spare Part Catalog Item</h3>
+              <p class="text-[11px] text-slate-400">Define component pricing, inventory reorder limits & revenue margins</p>
+            </div>
+          </div>
+          <button type="button" onclick="closePartModal()" class="text-slate-400 hover:text-white text-lg font-bold p-1 cursor-pointer">&times;</button>
+        </div>
+
+        <form id="part-form" onsubmit="handleSavePart(event)" class="space-y-4">
+          <input type="hidden" id="part-doc-id" value="" />
+
+          <!-- Row 1: Part Number & Name -->
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Part Number *</label>
+              <input type="text" id="inp-part-number" required placeholder="e.g. SP-LC-50T" class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white font-mono uppercase focus:outline-none focus:border-emerald-500" />
+            </div>
+
+            <div class="sm:col-span-2">
+              <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Component Name *</label>
+              <input type="text" id="inp-part-name" required placeholder="50-Ton Shear Beam Class C3 Stainless Steel Load Cell" class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white font-semibold focus:outline-none focus:border-emerald-500" />
+            </div>
+          </div>
+
+          <!-- Row 2: Category & Compatible Model -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Category *</label>
+              <select id="inp-part-category" required class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white font-semibold focus:outline-none focus:border-emerald-500">
+                <option value="Load Cells">Load Cells & Sensors</option>
+                <option value="Digital Indicators">Digital Indicators & Controllers</option>
+                <option value="Junction Boxes">Summing & Junction Boxes</option>
+                <option value="Wireless & Telemetry">Wireless & Telemetry Modules</option>
+                <option value="Cables & Hardware">Cables, Encoders & Hardware</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Compatible Equipment Model *</label>
+              <input type="text" id="inp-part-compat" required placeholder="Crane Scale CS-50W / IMW-500 / Pitless Weighbridge" class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500" />
+            </div>
+          </div>
+
+          <!-- Row 3: Financial Economics (Cost, Selling Price, Margin) -->
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-950/60 p-3 rounded-xl border border-slate-800">
+            <div>
+              <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Cost Price (COGS ₹) *</label>
+              <input type="number" min="0" id="inp-part-cost" oninput="updateMarginPreview()" required placeholder="24000" class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-slate-200 font-bold focus:outline-none focus:border-emerald-500" />
+            </div>
+
+            <div>
+              <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Selling Price (₹) *</label>
+              <input type="number" min="0" id="inp-part-price" oninput="updateMarginPreview()" required placeholder="45000" class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white font-bold focus:outline-none focus:border-emerald-500" />
+            </div>
+
+            <div>
+              <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Gross Margin %</label>
+              <div class="px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs font-black text-emerald-400 flex items-center justify-between" id="preview-part-margin">
+                <span>0.0%</span>
+                <span class="text-[9px] text-slate-400">Profit: ₹0</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Row 4: HSN, GST, Stock Qty, Reorder Level -->
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div>
+              <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">HSN Code *</label>
+              <input type="text" id="inp-part-hsn" required value="90318000" class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white font-mono focus:outline-none focus:border-emerald-500" />
+            </div>
+
+            <div>
+              <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">GST % *</label>
+              <input type="number" id="inp-part-gst" required value="18" class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white font-bold focus:outline-none focus:border-emerald-500" />
+            </div>
+
+            <div>
+              <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Stock Qty (Nos) *</label>
+              <input type="number" min="0" id="inp-part-stock" required value="10" class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white font-bold focus:outline-none focus:border-emerald-500" />
+            </div>
+
+            <div>
+              <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Min Reorder Level *</label>
+              <input type="number" min="0" id="inp-part-min" required value="4" class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-amber-300 font-bold focus:outline-none focus:border-emerald-500" />
+            </div>
+          </div>
+
+          <!-- Actions -->
+          <div class="flex items-center justify-between pt-3 border-t border-slate-800">
+            <button type="button" onclick="closePartModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-750 text-slate-300 font-bold text-xs rounded-xl cursor-pointer">
+              Cancel
+            </button>
+            <button type="submit" class="px-5 py-2 bg-[#982B68] hover:bg-[#802256] text-white font-bold text-xs rounded-xl shadow-md transition-colors flex items-center space-x-1.5 cursor-pointer">
+              <i class="fa-solid fa-floppy-disk text-xs"></i>
+              <span>Save Catalog Item</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Page Logic Script -->
+    <script src="js/parts-sales.js"></script>
+  </body>
+</html>

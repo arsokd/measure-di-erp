@@ -1,0 +1,319 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>K-30_ERP - Employee Directory</title>
+    <link rel="stylesheet" href="/src/index.css">
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="js/firebase-init.js" defer></script>
+    <script src="js/store.js" defer></script>
+    <script src="js/seed-data.js" defer></script>
+    <script src="auth-guard.js" defer></script>
+  </head>
+  <body class="bg-slate-50 min-h-screen text-slate-800">
+    
+    <!-- Navbar Container -->
+    <div id="navbar-container"></div>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+      
+      <!-- Header -->
+      <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-white p-6 rounded-2xl shadow-xs border border-slate-200">
+        <div>
+          <h1 class="text-2xl font-bold text-slate-900 tracking-tight">Employee Master Administration</h1>
+          <p class="text-sm text-slate-500 mt-1">Manage corporate personnel, reporting hierarchy, roles, active status, Mobile ID & login credentials</p>
+        </div>
+
+        <div class="flex items-center space-x-3">
+          <button onclick="openSetPasswordModalPrompt()" class="px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs rounded-xl shadow-xs transition-colors flex items-center space-x-1 cursor-pointer">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/></svg>
+            <span>🔑 Set / Change Passwords</span>
+          </button>
+          <button onclick="openEmployeeModal()" class="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs rounded-xl shadow-xs transition-colors flex items-center space-x-1 cursor-pointer">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+            <span>+ Add New Employee</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Employee Master Table -->
+      <div class="bg-white rounded-2xl shadow-xs border border-slate-200 overflow-hidden space-y-4">
+        <div class="p-6 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <h2 class="text-lg font-bold text-slate-900">All Company Employees</h2>
+          <input type="text" id="emp-search-input" oninput="renderEmployeesTable()" placeholder="Search by name, ID, email, or mobile..." class="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs w-72 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="bg-slate-50 border-b border-slate-200 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                <th class="py-3 px-4">Employee ID & Name</th>
+                <th class="py-3 px-4">Designation & Vertical</th>
+                <th class="py-3 px-4">Reports To</th>
+                <th class="py-3 px-4">Email & Mobile Phone</th>
+                <th class="py-3 px-4 text-center">Role</th>
+                <th class="py-3 px-4 text-center">Active Status</th>
+                <th class="py-3 px-4 text-center">Login Management</th>
+                <th class="py-3 px-4 text-center">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="employees-tbody" class="divide-y divide-slate-100 text-xs">
+              <!-- Populated dynamically -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </main>
+
+    <!-- Modal: Add / Edit Employee -->
+    <div id="emp-modal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+      <div class="bg-white w-full max-w-2xl rounded-2xl shadow-2xl border border-slate-100 overflow-hidden max-h-[90vh] flex flex-col">
+        <div class="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between shrink-0">
+          <h3 class="text-base font-bold text-slate-900" id="emp-modal-title">Add Employee</h3>
+          <button onclick="closeEmployeeModal()" class="text-slate-400 hover:text-slate-600 text-lg font-bold">&times;</button>
+        </div>
+
+        <form onsubmit="handleSaveEmployee(event)" class="p-6 space-y-4 overflow-y-auto">
+          <input type="hidden" id="emp-doc-id" />
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Employee ID *</label>
+              <input type="text" id="inp-employee-id" required placeholder="e.g. E-006" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Full Name *</label>
+              <input type="text" id="inp-full-name" required placeholder="e.g. Ramesh Chandra" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Designation *</label>
+              <input type="text" id="inp-designation" required placeholder="e.g. Territory Sales Manager" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Vertical *</label>
+              <select id="inp-vertical" required class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                <option value="Sales">Sales</option>
+                <option value="Service/Parts">Service/Parts</option>
+                <option value="Projects">Projects</option>
+                <option value="Management">Management</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Sub-Vertical</label>
+              <input type="text" id="inp-sub-vertical" placeholder="e.g. Project Sales" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Reports To (Manager)</label>
+              <select id="inp-reports-to" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                <!-- Populated dynamically -->
+              </select>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Email Address *</label>
+              <input type="email" id="inp-email" required placeholder="ramesh@measuredi.com" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Mobile Phone *</label>
+              <input type="text" id="inp-mobile" required placeholder="+91 98300 00000" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Location</label>
+              <input type="text" id="inp-location" placeholder="e.g. Kolkata" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">System Access Role *</label>
+              <select id="inp-role" required onchange="updateRoleAccessHint()" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                <option value="super_admin">⚡ Super Admin (MD / Board View - Full Access)</option>
+                <option value="admin">👑 Admin (VP / Operations - All Departments)</option>
+                <option value="manager">📊 Manager (Vertical Head - Team Access)</option>
+                <option value="staff">👤 Staff (Field Engineer / Exec - Own Records Only)</option>
+              </select>
+              <p id="role-access-hint" class="text-[10px] text-indigo-700 bg-indigo-50 border border-indigo-100 p-2 rounded-lg mt-1 font-medium">
+                💡 <strong>Super Admin Access:</strong> Unrestricted visibility across Executive RevOps Dashboard, Payroll CTC, Company Financials, and All Employee Scorecards.
+              </p>
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Primary AOP Target (Rs.)</label>
+              <input type="number" id="inp-aop-target" placeholder="10000000" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            </div>
+          </div>
+
+          <!-- Section: Payroll & Financial Master -->
+          <div class="pt-4 border-t border-slate-200 space-y-4">
+            <h4 class="text-xs font-bold text-indigo-900 uppercase tracking-wider">Payroll & Bank Details</h4>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Monthly Salary CTC (Rs.)</label>
+                <input type="number" id="inp-monthly-ctc" placeholder="e.g. 75000" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900" />
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Bank Name</label>
+                <input type="text" id="inp-bank-name" placeholder="e.g. HDFC Bank" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs" />
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div>
+                <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Bank Account No</label>
+                <input type="text" id="inp-account-number" placeholder="50100234982" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono" />
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Bank IFSC Code</label>
+                <input type="text" id="inp-ifsc-code" placeholder="HDFC0000123" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono" />
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">PAN Number</label>
+                <input type="text" id="inp-pan-number" placeholder="AAAPM1234F" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono" />
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div>
+                <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">PF UAN / Number</label>
+                <input type="text" id="inp-pf-number" placeholder="UAN10098273" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono" />
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Salary Advance Balance (Rs.)</label>
+                <input type="number" id="inp-advance-balance" placeholder="0" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-rose-600" />
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Employee Loan Balance (Rs.)</label>
+                <input type="number" id="inp-loan-balance" placeholder="0" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-amber-600" />
+              </div>
+            </div>
+          </div>
+
+          <div class="pt-4 border-t border-slate-100 flex items-center justify-end space-x-3 shrink-0">
+            <button type="button" onclick="closeEmployeeModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl">Cancel</button>
+            <button type="submit" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-xl shadow-xs transition-colors cursor-pointer">
+              Save Employee
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Modal: Digital File Dossier -->
+    <div id="digital-dossier-modal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+      <div class="bg-white w-full max-w-2xl rounded-2xl shadow-2xl border border-slate-100 overflow-hidden flex flex-col max-h-[90vh]">
+        <div class="px-6 py-4 bg-slate-900 text-white flex items-center justify-between shrink-0">
+          <div class="flex items-center space-x-3">
+            <div class="w-9 h-9 bg-indigo-600 rounded-xl flex items-center justify-center font-black text-white text-sm" id="dossier-avatar">M</div>
+            <div>
+              <h3 class="text-base font-bold text-white" id="dossier-title">Digital Employee Dossier</h3>
+              <p class="text-xs text-slate-400 font-mono" id="dossier-sub">E-002 • Active Master Record</p>
+            </div>
+          </div>
+          <button onclick="closeDigitalDossier()" class="text-slate-400 hover:text-white text-lg font-bold">&times;</button>
+        </div>
+
+        <div class="p-6 space-y-6 overflow-y-auto bg-white text-xs">
+          <!-- Overview Grid -->
+          <div class="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
+            <div><span class="font-bold text-slate-500 uppercase block">Full Legal Name</span> <span class="font-bold text-slate-900 text-sm" id="dos-name">Murugan</span></div>
+            <div><span class="font-bold text-slate-500 uppercase block">Designation</span> <span class="font-semibold text-slate-800" id="dos-designation">Sales & Marketing Head</span></div>
+            <div><span class="font-bold text-slate-500 uppercase block">Vertical & Sub-Vertical</span> <span class="font-semibold text-indigo-700" id="dos-vertical">Sales (Project Sales)</span></div>
+            <div><span class="font-bold text-slate-500 uppercase block">Reporting Manager</span> <span class="font-semibold text-slate-800" id="dos-manager">Top Level / None</span></div>
+            <div><span class="font-bold text-slate-500 uppercase block">Official Email</span> <span class="font-mono text-slate-800" id="dos-email">murugan@measuredi.com</span></div>
+            <div><span class="font-bold text-slate-500 uppercase block">Mobile & Location</span> <span class="font-semibold text-slate-800" id="dos-contact">+91 98400 12345 (Chennai)</span></div>
+          </div>
+
+          <!-- Financial & Statutory Grid -->
+          <div class="space-y-2">
+            <h4 class="font-bold text-slate-900 uppercase tracking-wider text-[11px]">Financial & Payroll Master Data</h4>
+            <div class="grid grid-cols-3 gap-3 bg-slate-50 p-4 rounded-xl border border-slate-200">
+              <div><span class="text-slate-500 uppercase block font-bold">Monthly CTC</span> <span class="font-black text-slate-900 text-sm" id="dos-ctc">Rs.110,000</span></div>
+              <div><span class="text-slate-500 uppercase block font-bold">Annual AOP Target</span> <span class="font-bold text-slate-900" id="dos-aop">Rs.10,000,000</span></div>
+              <div><span class="text-slate-500 uppercase block font-bold">System Role</span> <span class="font-bold text-indigo-600 uppercase" id="dos-role">Staff</span></div>
+              <div><span class="text-slate-500 uppercase block font-bold">Bank Name</span> <span class="font-semibold text-slate-800" id="dos-bank">HDFC Bank</span></div>
+              <div><span class="text-slate-500 uppercase block font-bold">Account Number</span> <span class="font-mono text-slate-800" id="dos-account">****4892</span></div>
+              <div><span class="text-slate-500 uppercase block font-bold">IFSC Code</span> <span class="font-mono text-slate-800" id="dos-ifsc">HDFC0000123</span></div>
+              <div><span class="text-slate-500 uppercase block font-bold">PAN Number</span> <span class="font-mono text-slate-800" id="dos-pan">AAAPM1234F</span></div>
+              <div><span class="text-slate-500 uppercase block font-bold">PF UAN No</span> <span class="font-mono text-slate-800" id="dos-pf">UAN10098273</span></div>
+              <div><span class="text-slate-500 uppercase block font-bold">Salary Advance Balance</span> <span class="font-bold text-rose-600" id="dos-advance">Rs.0</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center justify-end shrink-0">
+          <button onclick="closeDigitalDossier()" class="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-xl">Close Dossier</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal: Set Employee Password (Admin / Super Admin / Developer) -->
+    <div id="set-password-modal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+      <div class="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-slate-100 overflow-hidden">
+        <div class="px-6 py-4 bg-amber-600 text-white flex items-center justify-between">
+          <div class="flex items-center space-x-2">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/></svg>
+            <h3 class="text-base font-bold text-white">🔑 Set Employee Password</h3>
+          </div>
+          <button onclick="closeSetPasswordModal()" class="text-amber-200 hover:text-white text-lg font-bold">&times;</button>
+        </div>
+
+        <form onsubmit="handleSaveEmployeePassword(event)" class="p-6 space-y-4">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Select Employee *</label>
+            <select id="pass-modal-emp-select" onchange="updatePassModalDetails()" required class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500">
+              <!-- Populated dynamically -->
+            </select>
+          </div>
+
+          <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs space-y-1">
+            <div class="flex justify-between">
+              <span class="text-slate-500">Mobile ID (Login):</span>
+              <span class="font-mono font-bold text-indigo-700" id="pass-modal-mobile">9176699747</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-slate-500">Corporate Email:</span>
+              <span class="font-mono text-slate-800" id="pass-modal-email">ravi@measuredi.com</span>
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">New Password *</label>
+            <div class="flex space-x-2">
+              <input type="text" id="pass-modal-input" required placeholder="Enter or generate password" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500" />
+              <button type="button" onclick="document.getElementById('pass-modal-input').value=generateRandomPassword()" class="px-3 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-semibold rounded-xl shrink-0 cursor-pointer flex items-center space-x-1" title="Generate Random Password">
+                <span>🎲 Generate</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="pt-4 border-t border-slate-100 flex items-center justify-end space-x-3">
+            <button type="button" onclick="closeSetPasswordModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl">Cancel</button>
+            <button type="submit" class="px-5 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold rounded-xl shadow-xs transition-colors cursor-pointer">
+              Save Password
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <script src="js/employees.js"></script>
+  </body>
+</html>

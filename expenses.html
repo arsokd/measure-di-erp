@@ -1,0 +1,561 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>K-30_ERP - Expenses & Profit Center</title>
+    <link rel="stylesheet" href="/src/index.css">
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="js/firebase-init.js" defer></script>
+    <script src="js/store.js" defer></script>
+    <script src="js/seed-data.js" defer></script>
+    <script src="auth-guard.js" defer></script>
+    <style>
+      @media print {
+        body * { visibility: hidden; }
+        #printable-voucher, #printable-voucher * { visibility: visible; }
+        #printable-voucher { position: absolute; left: 0; top: 0; width: 100%; }
+        .no-print { display: none !important; }
+      }
+    </style>
+  </head>
+  <body class="bg-slate-50 min-h-screen text-slate-800">
+    
+    <div id="navbar-container" class="no-print"></div>
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 no-print">
+      
+      <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-white p-6 rounded-2xl shadow-xs border border-slate-200">
+        <div>
+          <h1 class="text-2xl font-bold text-slate-900 tracking-tight">Financial Accounting & Profit Center</h1>
+          <p class="text-sm text-slate-500 mt-1">Expense ledger, travel claims with bill receipts, project gross profit matrices & budget limits</p>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+          <button onclick="openPreApprovalModal()" class="px-3.5 py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-semibold text-xs rounded-xl shadow-xs transition-colors flex items-center space-x-1 cursor-pointer">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+            <span>+ Travel Pre-Approval</span>
+          </button>
+          <button onclick="openTravelClaimModal()" class="px-3.5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs rounded-xl shadow-xs transition-colors flex items-center space-x-1 cursor-pointer">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
+            <span>+ Submit Travel Claim</span>
+          </button>
+          <button onclick="openExpenseModal()" class="px-3.5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs rounded-xl shadow-xs transition-colors flex items-center space-x-1 cursor-pointer">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+            <span>+ Log Expense</span>
+          </button>
+        </div>
+      </div>
+      
+      <div class="flex space-x-2 border-b border-slate-200 overflow-x-auto">
+        <button id="tab-btn-travel-app" onclick="switchMainTab('travel-app')" class="px-4 py-2.5 font-bold text-xs border-b-2 border-transparent text-slate-500 hover:text-slate-800 flex items-center space-x-1 cursor-pointer whitespace-nowrap">
+          <span>Travel Pre-Approvals & Extensions</span>
+        </button>
+        <button id="tab-btn-ledger" onclick="switchMainTab('ledger')" class="px-4 py-2.5 font-bold text-xs border-b-2 border-indigo-600 text-indigo-600 flex items-center space-x-1 cursor-pointer whitespace-nowrap">
+          <span>Expense & Travel Ledger</span>
+        </button>
+        <button id="tab-btn-split" onclick="switchMainTab('split')" class="px-4 py-2.5 font-bold text-xs border-b-2 border-transparent text-slate-500 hover:text-slate-800 flex items-center space-x-1 cursor-pointer whitespace-nowrap">
+          <span>Revenue & Multi-Project Expense Splitting</span>
+        </button>
+        <button id="tab-btn-policy" onclick="switchMainTab('policy')" class="px-4 py-2.5 font-bold text-xs border-b-2 border-transparent text-slate-500 hover:text-slate-800 flex items-center space-x-1 cursor-pointer whitespace-nowrap">
+          <span>Master Expense Limits Policy</span>
+        </button>
+        <button id="tab-btn-profit" onclick="switchMainTab('profit')" class="px-4 py-2.5 font-bold text-xs border-b-2 border-transparent text-slate-500 hover:text-slate-800 flex items-center space-x-1 cursor-pointer whitespace-nowrap">
+          <span>Project Profit Center</span>
+        </button>
+        <button id="tab-btn-budget" onclick="switchMainTab('budget')" class="px-4 py-2.5 font-bold text-xs border-b-2 border-transparent text-slate-500 hover:text-slate-800 flex items-center space-x-1 cursor-pointer whitespace-nowrap">
+          <span>Budget vs Actual</span>
+        </button>
+        <button id="tab-btn-fin-statements" onclick="switchMainTab('fin-statements')" class="px-4 py-2.5 font-bold text-xs border-b-2 border-transparent text-slate-500 hover:text-slate-800 flex items-center space-x-1 cursor-pointer whitespace-nowrap">
+          <span>📊 Financial Statements (P&L, BS, Cash Flow)</span>
+        </button>
+      </div>
+      
+      <div id="sec-travel-app" class="hidden space-y-6">
+        <div class="bg-white p-6 rounded-2xl shadow-xs border border-slate-200">
+          <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+            <div>
+              <h2 class="text-lg font-bold text-slate-900">Pre-Travel Approvals & Extension Register</h2>
+              <p class="text-xs text-slate-500 mt-0.5">Mandatory pre-travel authorizations, trip extensions, client meeting purpose & estimated budgets</p>
+            </div>
+            <button onclick="openPreApprovalModal()" class="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white font-semibold text-xs rounded-xl shadow-xs transition-colors flex items-center space-x-1 cursor-pointer">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+              <span>Request New Travel Approval</span>
+            </button>
+          </div>
+          <div class="overflow-x-auto border border-slate-200 rounded-xl">
+            <table class="w-full text-left border-collapse">
+              <thead>
+                <tr class="bg-slate-100 border-b border-slate-200 text-[11px] font-bold uppercase tracking-wider text-slate-600">
+                  <th class="py-3 px-4">Req No & Dates</th>
+                  <th class="py-3 px-4">Employee & Role</th>
+                  <th class="py-3 px-4">Visited Places & Route</th>
+                  <th class="py-3 px-4">Purpose & Client Details</th>
+                  <th class="py-3 px-4 text-right">Est Budget (₹)</th>
+                  <th class="py-3 px-4 text-center">Approval Status</th>
+                  <th class="py-3 px-4 text-center">Action</th>
+                </tr>
+              </thead>
+              <tbody id="travel-app-tbody" class="divide-y divide-slate-100 text-xs">
+                
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      
+      <div id="sec-ledger" class="space-y-6">
+        
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
+            <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Total Expenses Logged</div>
+            <div class="text-2xl font-extrabold text-slate-900 mt-1" id="stat-total-expenses">Rs.0</div>
+            <div class="text-[11px] text-slate-500 mt-1" id="stat-expense-count">0 Transactions</div>
+          </div>
+          <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
+            <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Travel Claims & DA</div>
+            <div class="text-2xl font-extrabold text-emerald-600 mt-1" id="stat-travel-expenses">Rs.0</div>
+            <div class="text-[11px] text-slate-500 mt-1" id="stat-travel-count">0 Claims</div>
+          </div>
+          <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
+            <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Salary & Advances Paid</div>
+            <div class="text-2xl font-extrabold text-indigo-600 mt-1" id="stat-salary-advances">Rs.0</div>
+            <div class="text-[11px] text-slate-500 mt-1">Disbursed via Finance</div>
+          </div>
+          <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
+            <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Project Direct Costs</div>
+            <div class="text-2xl font-extrabold text-purple-600 mt-1" id="stat-project-expenses">Rs.0</div>
+            <div class="text-[11px] text-slate-500 mt-1">Allocated to Turnkey Orders</div>
+          </div>
+        </div>
+        
+        <div class="bg-white rounded-2xl shadow-xs border border-slate-200 overflow-hidden space-y-4">
+          <div class="p-6 border-b border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <h2 class="text-lg font-bold text-slate-900">Expense Vouchers & Claim Records</h2>
+            <div class="flex flex-wrap items-center gap-3">
+              <select id="flt-category" onchange="renderExpensesTable()" class="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold">
+                <option value="All">All Categories</option>
+                <option value="Admin">Admin Overhead</option>
+                <option value="Travelling">Travelling & DA</option>
+                <option value="Salary">Salary Disbursement</option>
+                <option value="Salary Advance">Salary Advance</option>
+                <option value="Loan to Employee">Employee Loan</option>
+                <option value="Project Expenses">Project Direct Expenses</option>
+                <option value="Utilities">Utilities & Rent</option>
+                <option value="Equipment">Equipment & Maintenance</option>
+              </select>
+              <select id="flt-vertical" onchange="renderExpensesTable()" class="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold">
+                <option value="All">All Verticals</option>
+                <option value="Sales">Sales</option>
+                <option value="Service/Parts">Service/Parts</option>
+                <option value="Projects">Projects</option>
+                <option value="Overhead">Overhead</option>
+              </select>
+              <input type="text" id="flt-search" oninput="renderExpensesTable()" placeholder="Search vendor, project, payee..." class="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs w-48 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            </div>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+              <thead>
+                <tr class="bg-slate-50 border-b border-slate-200 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                  <th class="py-3 px-4">Date & Voucher No</th>
+                  <th class="py-3 px-4">Category & Payee</th>
+                  <th class="py-3 px-4">Vertical & Project Tag</th>
+                  <th class="py-3 px-4 text-right">Amount (₹)</th>
+                  <th class="py-3 px-4 text-center">Payment Mode</th>
+                  <th class="py-3 px-4 text-center">Receipt Bill</th>
+                  <th class="py-3 px-4 text-center">Status</th>
+                  <th class="py-3 px-4 text-center">Action</th>
+                </tr>
+              </thead>
+              <tbody id="expenses-tbody" class="divide-y divide-slate-100 text-xs">
+                
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      
+      <div id="sec-policy" class="hidden space-y-6">
+        <div class="bg-white p-6 rounded-2xl shadow-xs border border-slate-200 space-y-6">
+          <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+            <div>
+              <div class="flex items-center space-x-2">
+                <span class="px-2.5 py-0.5 bg-indigo-100 text-indigo-800 text-[10px] font-black rounded-md uppercase tracking-wider border border-indigo-200">Corporate Governance</span>
+                <h2 class="text-lg font-extrabold text-slate-900">Grade Level Master Travel Expense Limits Policy</h2>
+              </div>
+              <p class="text-xs text-slate-500 mt-1">Tiered expense ceilings, hotel stay limits, daily food allowances & flight eligibility configured per Employee Grade Level (M1 to E2)</p>
+            </div>
+            <div class="flex items-center space-x-3">
+              <button onclick="openPolicyEditModal()" class="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors cursor-pointer flex items-center space-x-1.5">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                <span>+ Add / Configure Grade Policy</span>
+              </button>
+            </div>
+          </div>
+          
+          <div class="flex items-center space-x-2 overflow-x-auto pb-1" id="policy-grade-filter-pills">
+            
+          </div>
+          
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="policy-cards-container">
+            
+          </div>
+        </div>
+      </div>
+      
+      <div id="sec-split" class="hidden space-y-6">
+        
+        <div class="bg-white p-6 rounded-2xl shadow-xs border border-slate-200 space-y-6">
+          <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <div class="flex items-center space-x-2">
+                <span class="px-2.5 py-0.5 bg-indigo-100 text-indigo-800 text-[10px] font-black rounded-md uppercase tracking-wider border border-indigo-200">Revenue & Profit Engine</span>
+                <h2 class="text-lg font-extrabold text-slate-900">Project Code Revenue & Multi-Expense Profit Center</h2>
+              </div>
+              <p class="text-xs text-slate-500 mt-0.5">Track project codes covering contract revenue (milestones, T&M, change orders) and direct vs pro-rata allocated expenses at the time of spending</p>
+            </div>
+            <div class="flex items-center space-x-3">
+              <button onclick="openAddProjectModal()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-xs cursor-pointer flex items-center space-x-1.5 transition-colors">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                <span>+ Create New Project Code</span>
+              </button>
+            </div>
+          </div>
+          
+          <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
+            <div class="bg-slate-50 p-3 rounded-xl border border-slate-200">
+              <div class="text-[10px] font-bold text-slate-500 uppercase">Total Revenue</div>
+              <div class="text-base font-extrabold text-slate-900 mt-1" id="spl-total-rev">Rs.0</div>
+            </div>
+            <div class="bg-slate-50 p-3 rounded-xl border border-slate-200">
+              <div class="text-[10px] font-bold text-slate-500 uppercase">Invoiced Revenue</div>
+              <div class="text-base font-bold text-indigo-700 mt-1" id="spl-invoiced-rev">Rs.0</div>
+            </div>
+            <div class="bg-slate-50 p-3 rounded-xl border border-slate-200">
+              <div class="text-[10px] font-bold text-slate-500 uppercase">Received Cash</div>
+              <div class="text-base font-bold text-emerald-700 mt-1" id="spl-received-rev">Rs.0</div>
+            </div>
+            <div class="bg-amber-50 p-3 rounded-xl border border-amber-200">
+              <div class="text-[10px] font-bold text-amber-900 uppercase">Pending Cash</div>
+              <div class="text-base font-bold text-amber-900 mt-1" id="spl-pending-rev">Rs.0</div>
+            </div>
+            <div class="bg-slate-50 p-3 rounded-xl border border-slate-200">
+              <div class="text-[10px] font-bold text-slate-500 uppercase">Direct Expenses</div>
+              <div class="text-base font-bold text-rose-600 mt-1" id="spl-direct-exp">Rs.0</div>
+            </div>
+            <div class="bg-slate-50 p-3 rounded-xl border border-slate-200">
+              <div class="text-[10px] font-bold text-slate-500 uppercase">Allocated Shared</div>
+              <div class="text-base font-bold text-purple-600 mt-1" id="spl-shared-exp">Rs.0</div>
+            </div>
+            <div class="bg-slate-50 p-3 rounded-xl border border-slate-200">
+              <div class="text-[10px] font-bold text-slate-500 uppercase">Total Expenses</div>
+              <div class="text-base font-extrabold text-rose-700 mt-1" id="spl-total-exp">Rs.0</div>
+            </div>
+            <div class="bg-emerald-50 p-3 rounded-xl border border-emerald-200">
+              <div class="text-[10px] font-bold text-emerald-900 uppercase">Gross Profit</div>
+              <div class="text-base font-extrabold text-emerald-800 mt-1" id="spl-gross-profit">Rs.0</div>
+            </div>
+          </div>
+          
+          <div class="overflow-x-auto border border-slate-200 rounded-xl">
+            <table class="w-full text-left border-collapse">
+              <thead>
+                <tr class="bg-slate-900 text-white text-[10px] font-bold uppercase tracking-wider">
+                  <th class="py-3 px-3">Project Code & Title</th>
+                  <th class="py-3 px-3">Client Organization</th>
+                  <th class="py-3 px-3 text-right">Total Revenue (₹)</th>
+                  <th class="py-3 px-3 text-right">Invoiced (₹)</th>
+                  <th class="py-3 px-3 text-right text-emerald-400">Received (₹)</th>
+                  <th class="py-3 px-3 text-right text-amber-300">Pending (₹)</th>
+                  <th class="py-3 px-3 text-right text-rose-300">Direct Cost (₹)</th>
+                  <th class="py-3 px-3 text-right text-purple-300">Allocated Cost (₹)</th>
+                  <th class="py-3 px-3 text-right text-rose-400">Total Exp (₹)</th>
+                  <th class="py-3 px-3 text-right text-emerald-300">Gross Profit (₹)</th>
+                  <th class="py-3 px-3 text-center">Margin %</th>
+                  <th class="py-3 px-3 text-center">Revenue Items</th>
+                </tr>
+              </thead>
+              <tbody id="split-projects-tbody" class="divide-y divide-slate-100 text-xs">
+                
+              </tbody>
+            </table>
+          </div>
+        </div>
+        
+        <div class="bg-white p-6 rounded-2xl shadow-xs border border-slate-200 space-y-6">
+          <div>
+            <h3 class="text-base font-extrabold text-slate-900">Interactive Multi-Project Expense Split Simulator & Allocation Testbench</h3>
+            <p class="text-xs text-slate-500 mt-0.5">Test how single receipts (travel, materials, subcontractors) are dynamically divided across multiple active project codes using Direct, Equal, Weighted %, or Fixed Amount modes</p>
+          </div>
+          <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 bg-slate-50 p-5 rounded-2xl border border-slate-200">
+            
+            <div class="lg:col-span-5 space-y-4 bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
+              <div>
+                <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Receipt Gross Amount (₹) *</label>
+                <input type="number" id="sim-amount" value="30000" oninput="runSimSplitCalc()" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-extrabold text-indigo-900" />
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Expense Category *</label>
+                <select id="sim-category" onchange="runSimSplitCalc()" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800">
+                  <option value="Direct Labor">Direct Labor (Hours x Loaded Rate)</option>
+                  <option value="Subcontractors / Vendor Invoices">Subcontractors / Vendor Invoices</option>
+                  <option value="Direct Materials & Rentals">Direct Materials & Equipment Rentals</option>
+                  <option value="Travel & Lodging">Travel & Lodging (Flights, Hotels, Per Diem)</option>
+                  <option value="Local Conveyance & Mileage">Local Conveyance & Mileage</option>
+                  <option value="Site / Overhead">Site / Administrative Overhead</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Allocation Mode *</label>
+                <div class="grid grid-cols-2 gap-2 text-xs font-semibold">
+                  <label class="flex items-center space-x-2 bg-slate-50 p-2 rounded-lg border border-slate-200 cursor-pointer">
+                    <input type="radio" name="sim-mode" value="direct" onchange="runSimSplitCalc()" />
+                    <span>Direct (100% 1 Project)</span>
+                  </label>
+                  <label class="flex items-center space-x-2 bg-slate-50 p-2 rounded-lg border border-slate-200 cursor-pointer">
+                    <input type="radio" name="sim-mode" value="equal" checked onchange="runSimSplitCalc()" />
+                    <span>Equal Split (1/N)</span>
+                  </label>
+                  <label class="flex items-center space-x-2 bg-slate-50 p-2 rounded-lg border border-slate-200 cursor-pointer">
+                    <input type="radio" name="sim-mode" value="weighted" onchange="runSimSplitCalc()" />
+                    <span>Weighted / % Split</span>
+                  </label>
+                  <label class="flex items-center space-x-2 bg-slate-50 p-2 rounded-lg border border-slate-200 cursor-pointer">
+                    <input type="radio" name="sim-mode" value="fixed" onchange="runSimSplitCalc()" />
+                    <span>Fixed Amount Split</span>
+                  </label>
+                </div>
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Select Participating Project Codes *</label>
+                <div id="sim-project-checkboxes" class="space-y-1.5 max-h-40 overflow-y-auto p-2 bg-slate-50 rounded-xl border border-slate-200">
+                  
+                </div>
+              </div>
+            </div>
+            
+            <div class="lg:col-span-7 space-y-3 flex flex-col">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-extrabold text-slate-800 uppercase tracking-wider">Live Split Allocation Calculation Result</span>
+                <span id="sim-status-badge" class="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-emerald-100 text-emerald-800 border border-emerald-300">Total Allocated: 100% (Balanced)</span>
+              </div>
+              <div class="overflow-x-auto border border-slate-200 rounded-xl bg-white flex-1">
+                <table class="w-full text-left border-collapse">
+                  <thead>
+                    <tr class="bg-slate-100 border-b border-slate-200 text-[10px] font-bold uppercase tracking-wider text-slate-600">
+                      <th class="py-2.5 px-3">Project Code</th>
+                      <th class="py-2.5 px-3">Client</th>
+                      <th class="py-2.5 px-3 text-center">Split Ratio / Input</th>
+                      <th class="py-2.5 px-3 text-right">Allocated Share (₹)</th>
+                      <th class="py-2.5 px-3 text-center">Expense Classification</th>
+                    </tr>
+                  </thead>
+                  <tbody id="sim-split-tbody" class="divide-y divide-slate-100 text-xs">
+                    
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          
+          <div class="bg-white p-6 rounded-2xl shadow-xs border border-slate-200 space-y-4">
+            <div class="flex items-center justify-between">
+              <div>
+                <span class="text-[10px] font-black uppercase px-2 py-0.5 bg-indigo-100 text-indigo-800 rounded">Deliverable A</span>
+                <h3 class="text-sm font-extrabold text-slate-900 mt-1">Multi-Project Data Schema Architecture</h3>
+              </div>
+              <span class="text-[11px] text-slate-400 font-mono">JSON Collections</span>
+            </div>
+            <div class="bg-slate-950 text-slate-200 p-4 rounded-xl text-[11px] font-mono overflow-x-auto max-h-80 space-y-2 leading-relaxed">
+<pre class="text-emerald-400 font-bold">// 1. Projects Table (projectsMaster)</pre>
+{
+  "projectCode": "PRJ-2026-101",
+  "projectName": "Tata Steel Weighbridge SLA",
+  "clientName": "Tata Steel Long Products",
+  "vertical": "Projects",
+  "budget": 2500000,
+  "milestones": [ { "id": "M1", "title": "Supply", "amount": 1500000, "status": "Invoiced" } ],
+  "tmBillings": [ { "id": "TM1", "hours": 40, "rate": 2000, "amount": 80000, "status": "Invoiced" } ],
+  "changeOrders": [ { "id": "CO1", "title": "Extra Sensor Cable", "amount": 50000, "status": "Approved" } ]
+}
+<pre class="text-emerald-400 font-bold">// 2. Expense_Splits Table (expenseSplits)</pre>
+{
+  "splitId": "SPL-9001",
+  "expenseId": "TRV-1001",
+  "projectCode": "PRJ-2026-101",
+  "allocationMode": "weighted", // direct | equal | weighted | fixed
+  "allocatedPercentage": 60.0,
+  "allocatedAmount": 18000.0,
+  "expenseClassification": "Allocated Shared" // Direct vs Allocated Shared
+}
+            </div>
+          </div>
+          
+          <div class="bg-white p-6 rounded-2xl shadow-xs border border-slate-200 space-y-4">
+            <div>
+              <span class="text-[10px] font-black uppercase px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded">Deliverable B</span>
+              <h3 class="text-sm font-extrabold text-slate-900 mt-1">Calculation Formulas & Financial Engine</h3>
+            </div>
+            <div class="space-y-2 text-xs text-slate-700">
+              <div class="p-2.5 bg-slate-50 rounded-xl border border-slate-200">
+                <span class="font-bold text-indigo-900 block">Total Project Revenue:</span>
+                <code class="text-[11px] text-slate-800">Σ (Milestone Invoices + T&M Billings + Approved Change Orders)</code>
+              </div>
+              <div class="p-2.5 bg-slate-50 rounded-xl border border-slate-200">
+                <span class="font-bold text-rose-900 block">Total Direct Expenses:</span>
+                <code class="text-[11px] text-slate-800">Σ (Direct Labor + Subcontractors + Direct Materials)</code>
+              </div>
+              <div class="p-2.5 bg-slate-50 rounded-xl border border-slate-200">
+                <span class="font-bold text-purple-900 block">Total Allocated Shared Expenses:</span>
+                <code class="text-[11px] text-slate-800">Σ (Pro-rata Travel & Lodging + Local Conveyance + Overhead)</code>
+              </div>
+              <div class="p-2.5 bg-emerald-50 rounded-xl border border-emerald-200">
+                <span class="font-bold text-emerald-900 block">Gross Profit & Margin %:</span>
+                <code class="text-[11px] text-emerald-800">Gross Profit = Total Revenue - (Direct Exp + Allocated Shared Exp)</code><br/>
+                <code class="text-[11px] text-emerald-800">Margin % = (Gross Profit / Total Revenue) * 100</code>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div id="sec-profit" class="hidden space-y-6">
+        <div class="bg-white p-6 rounded-2xl shadow-xs border border-slate-200">
+          <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+            <div>
+              <h2 class="text-lg font-bold text-slate-900">Project Profitability Matrix</h2>
+              <p class="text-xs text-slate-500 mt-0.5">Real-time revenue vs project-specific direct expenses & gross profit margins</p>
+            </div>
+            <div class="flex items-center space-x-3">
+              <span class="text-xs font-semibold text-slate-500">Filter Project Vertical:</span>
+              <select id="flt-project-vertical" onchange="renderProjectProfitability()" class="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold">
+                <option value="All">All Verticals</option>
+                <option value="Projects">Projects Vertical</option>
+                <option value="Sales">Sales</option>
+                <option value="Service/Parts">Service/Parts</option>
+              </select>
+            </div>
+          </div>
+          
+          <div class="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-6">
+            <div class="bg-slate-50 p-4 rounded-xl border border-slate-200">
+              <div class="text-[11px] font-bold text-slate-400 uppercase">Total Project Bookings</div>
+              <div class="text-xl font-extrabold text-slate-900 mt-1" id="prof-total-rev">Rs.0</div>
+            </div>
+            <div class="bg-slate-50 p-4 rounded-xl border border-slate-200">
+              <div class="text-[11px] font-bold text-slate-400 uppercase">Total Direct Project Expenses</div>
+              <div class="text-xl font-extrabold text-rose-600 mt-1" id="prof-total-exp">Rs.0</div>
+            </div>
+            <div class="bg-slate-50 p-4 rounded-xl border border-slate-200">
+              <div class="text-[11px] font-bold text-slate-400 uppercase">Total Gross Profit</div>
+              <div class="text-xl font-extrabold text-emerald-600 mt-1" id="prof-total-profit">Rs.0</div>
+            </div>
+            <div class="bg-slate-50 p-4 rounded-xl border border-slate-200">
+              <div class="text-[11px] font-bold text-slate-400 uppercase">Avg Gross Margin %</div>
+              <div class="text-xl font-extrabold text-indigo-600 mt-1" id="prof-avg-margin">0%</div>
+            </div>
+          </div>
+          
+          <div class="overflow-x-auto border border-slate-200 rounded-xl">
+            <table class="w-full text-left border-collapse">
+              <thead>
+                <tr class="bg-slate-100 border-b border-slate-200 text-[11px] font-bold uppercase tracking-wider text-slate-600">
+                  <th class="py-3 px-4">Project / Order ID & Client</th>
+                  <th class="py-3 px-4">Vertical</th>
+                  <th class="py-3 px-4 text-right">Revenue (₹)</th>
+                  <th class="py-3 px-4 text-right">Direct Expenses (₹)</th>
+                  <th class="py-3 px-4 text-right">Gross Profit (₹)</th>
+                  <th class="py-3 px-4 text-center">Gross Margin %</th>
+                  <th class="py-3 px-4 text-center">Status</th>
+                </tr>
+              </thead>
+              <tbody id="profit-tbody" class="divide-y divide-slate-100 text-xs">
+                
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      
+      <div id="sec-budget" class="hidden space-y-6">
+        <div class="bg-white p-6 rounded-2xl shadow-xs border border-slate-200">
+          <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+            <div>
+              <h2 class="text-lg font-bold text-slate-900">Expense Budget vs Actual Monitoring</h2>
+              <p class="text-xs text-slate-500 mt-0.5">Track departmental expense limits, actual spend variance & compliance thresholds</p>
+            </div>
+            <button onclick="openSetBudgetModal()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs rounded-xl shadow-xs transition-colors cursor-pointer">
+              + Set Category Budget Limit
+            </button>
+          </div>
+          
+          <div id="budget-cards-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            
+          </div>
+        </div>
+      </div>
+      
+      <div id="sec-fin-statements" class="hidden space-y-6">
+        <div class="bg-white p-6 rounded-2xl shadow-xs border border-slate-200 space-y-6">
+          
+          <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+            <div>
+              <div class="flex items-center space-x-2">
+                <span class="px-2.5 py-0.5 bg-emerald-100 text-emerald-900 text-[10px] font-black rounded-md uppercase tracking-wider border border-emerald-300">Statutory & Executive Reporting</span>
+                <h2 class="text-lg font-extrabold text-slate-900">Financial Statements & Executive Accounting Reports</h2>
+              </div>
+              <p class="text-xs text-slate-500 mt-1">Audit-ready Profit & Loss (Income Statement), Balance Sheet (Financial Position), and Cash Flow Statement computed from real RevOps ledgers</p>
+            </div>
+            <div class="flex flex-wrap items-center gap-3">
+              
+              <select id="fin-fy-select" onchange="renderFinancialStatements()" class="px-3.5 py-2 bg-indigo-50 border border-indigo-200 text-indigo-700 font-bold text-xs rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer">
+                <option value="2026-27" selected>FY 2026-27 (Current)</option>
+                <option value="2025-26">FY 2025-26</option>
+                <option value="2024-25">FY 2024-25</option>
+                <option value="All">All Time Combined</option>
+              </select>
+              
+              <button onclick="downloadTallyXML()" class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center space-x-1.5 cursor-pointer">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                <span>Download Tally XML (CA Audit)</span>
+              </button>
+              
+              <button onclick="openPrintFinancialModal()" class="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center space-x-1.5 cursor-pointer">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+                <span>Print / Export PDF</span>
+              </button>
+            </div>
+          </div>
+          
+          <div class="flex border-b border-slate-200 space-x-2 overflow-x-auto pb-1">
+            <button id="fin-subtab-summary" onclick="switchFinSubTab('summary')" class="px-4 py-2.5 font-bold text-xs border-b-2 border-indigo-600 text-indigo-600 whitespace-nowrap cursor-pointer">
+              📈 Executive Summary & KPI Ratios
+            </button>
+            <button id="fin-subtab-pnl" onclick="switchFinSubTab('pnl')" class="px-4 py-2.5 font-bold text-xs border-b-2 border-transparent text-slate-500 hover:text-slate-800 whitespace-nowrap cursor-pointer">
+              📄 Profit & Loss Statement (P&L)
+            </button>
+            <button id="fin-subtab-bs" onclick="switchFinSubTab('bs')" class="px-4 py-2.5 font-bold text-xs border-b-2 border-transparent text-slate-500 hover:text-slate-800 whitespace-nowrap cursor-pointer">
+              ⚖️ Balance Sheet
+            </button>
+            <button id="fin-subtab-cf" onclick="switchFinSubTab('cf')" class="px-4 py-2.5 font-bold text-xs border-b-2 border-transparent text-slate-500 hover:text-slate-800 whitespace-nowrap cursor-pointer">
+              💸 Cash Flow Statement
+            </button>
+          </div>
+          
+          <div id="fin-statements-content-area" class="space-y-6">
+            
+          </div>
+        </div>
+      </div>
+    </main>
+    
+    
+<div id="expenses-modals-container"></div>
+  <script src="js/expenses-travel.js"></script>
+  <script src="js/expenses-financials.js"></script>
+  
+</body>
+</html>

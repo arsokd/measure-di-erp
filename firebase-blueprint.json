@@ -1,0 +1,306 @@
+{
+  "entities": {
+    "ClientMaster": {
+      "title": "Client Master Record",
+      "description": "Master registry of customer companies, GSTIN, contacts, credit terms, and industry verticals for bulk upload and RevOps operations",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "clientCode": { "type": "string" },
+        "clientName": { "type": "string" },
+        "gstin": { "type": "string" },
+        "contactPerson": { "type": "string" },
+        "email": { "type": "string" },
+        "phone": { "type": "string" },
+        "address": { "type": "string" },
+        "city": { "type": "string" },
+        "state": { "type": "string" },
+        "vertical": { "type": "string" },
+        "creditPeriodDays": { "type": "number" },
+        "accountManagerId": { "type": "string" },
+        "accountManagerName": { "type": "string" },
+        "isActive": { "type": "boolean" }
+      },
+      "required": ["clientName", "vertical"]
+    },
+    "ProjectMaster": {
+      "title": "Project Master Record",
+      "description": "Master registry of turnkey automation and equipment projects, budgets, client links, and milestones",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "projectCode": { "type": "string" },
+        "projectName": { "type": "string" },
+        "clientName": { "type": "string" },
+        "vertical": { "type": "string" },
+        "projectValue": { "type": "number" },
+        "startDate": { "type": "string" },
+        "targetCompletionDate": { "type": "string" },
+        "projectManagerId": { "type": "string" },
+        "projectManagerName": { "type": "string" },
+        "status": { "type": "string", "enum": ["Planning", "In Execution", "Testing", "Commissioned", "Closed", "On Hold"] },
+        "budgetINR": { "type": "number" }
+      },
+      "required": ["projectCode", "projectName", "clientName", "status"]
+    },
+    "SparePartMaster": {
+      "title": "Spare Parts & Products Master",
+      "description": "Industrial spare parts catalog, HSN codes, equipment model linkage, pricing, GST rates, and inventory reorder levels",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "partNumber": { "type": "string" },
+        "partName": { "type": "string" },
+        "category": { "type": "string" },
+        "compatibleModel": { "type": "string" },
+        "hsnCode": { "type": "string" },
+        "unitPrice": { "type": "number" },
+        "gstPercent": { "type": "number" },
+        "uom": { "type": "string" },
+        "stockQty": { "type": "number" },
+        "minReorderLevel": { "type": "number" },
+        "leadTimeDays": { "type": "number" },
+        "isActive": { "type": "boolean" }
+      },
+      "required": ["partNumber", "partName", "hsnCode", "unitPrice"]
+    },
+    "Employee": {
+      "title": "Employee Master Record",
+      "description": "Personnel master record including reporting hierarchy, roles, department, and contact information",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "employeeId": { "type": "string" },
+        "fullName": { "type": "string" },
+        "designation": { "type": "string" },
+        "vertical": { "type": "string" },
+        "reportsTo": { "type": "string" },
+        "reportsToName": { "type": "string" },
+        "email": { "type": "string" },
+        "mobile": { "type": "string" },
+        "role": { "type": "string", "enum": ["super_admin", "admin", "manager", "staff"] },
+        "workArrangement": { "type": "string" },
+        "dateOfJoining": { "type": "string" },
+        "isActive": { "type": "boolean" }
+      },
+      "required": ["employeeId", "fullName", "email", "role"]
+    },
+    "DwmActivity": {
+      "title": "Daily Work Management Activity & Special Assignment",
+      "description": "Daily employee task and special assignment logs for complete productivity tracking without miss",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "employeeId": { "type": "string" },
+        "employeeName": { "type": "string" },
+        "date": { "type": "string" },
+        "isSpecialAssignment": { "type": "boolean" },
+        "specialAssignmentType": { "type": "string", "enum": ["Full Day Meeting", "Full Day Training", "Emergency Client Breakdown", "Outstation Business Travel", "Audit / Inspection", "Special Project Task", "General KRA Task"] },
+        "durationHours": { "type": "number" },
+        "location": { "type": "string" },
+        "activityDescription": { "type": "string" },
+        "linkedKraId": { "type": "string" },
+        "linkedKra": { "type": "string" },
+        "planStatus": { "type": "string", "enum": ["Planned", "Approved", "In Progress"] },
+        "accomplishmentStatus": { "type": "string", "enum": ["Pending", "Done", "Partial", "Not Done", "Attended"] },
+        "accomplishmentRemarks": { "type": "string" },
+        "productivityImpactPercent": { "type": "number" }
+      },
+      "required": ["employeeId", "date", "activityDescription", "planStatus"]
+    },
+    "ServiceTicket": {
+      "title": "Service Ticket",
+      "description": "Customer service ticket for equipment support, maintenance, defect tracking and quality monitoring",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "ticketNumber": { "type": "string" },
+        "customerName": { "type": "string" },
+        "equipmentSerial": { "type": "string" },
+        "equipmentModel": { "type": "string" },
+        "vertical": { "type": "string" },
+        "complaintCategory": { "type": "string" },
+        "complaintDescription": { "type": "string" },
+        "severity": { "type": "string", "enum": ["Critical", "High", "Medium", "Low"] },
+        "status": { "type": "string", "enum": ["Open", "In Progress", "Pending Parts", "Resolved", "Closed", "Escalated"] },
+        "assignedTo": { "type": "string" },
+        "assignedToName": { "type": "string" },
+        "createdDate": { "type": "string" },
+        "targetSlaDate": { "type": "string" },
+        "resolvedDate": { "type": "string" },
+        "resolutionNotes": { "type": "string" },
+        "rootCause": { "type": "string" },
+        "isRepetitiveDefect": { "type": "boolean" },
+        "repeatCountIn30Days": { "type": "number" },
+        "csatRating": { "type": "number" },
+        "warrantyStatus": { "type": "string" }
+      },
+      "required": ["ticketNumber", "customerName", "complaintCategory", "status"]
+    },
+    "Attendance": {
+      "title": "Attendance Record",
+      "description": "Daily employee punch-in and punch-out attendance record with mandatory live GPS location capture and timestamp verification",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "employeeId": { "type": "string" },
+        "employeeName": { "type": "string" },
+        "date": { "type": "string" },
+        "punchInTime": { "type": "string" },
+        "punchInLocation": {
+          "type": "object",
+          "properties": {
+            "latitude": { "type": "number" },
+            "longitude": { "type": "number" },
+            "accuracy": { "type": "number" },
+            "timestamp": { "type": "string" },
+            "formattedLocation": { "type": "string" },
+            "googleMapsUrl": { "type": "string" }
+          }
+        },
+        "punchOutTime": { "type": "string" },
+        "punchOutLocation": {
+          "type": "object",
+          "properties": {
+            "latitude": { "type": "number" },
+            "longitude": { "type": "number" },
+            "accuracy": { "type": "number" },
+            "timestamp": { "type": "string" },
+            "formattedLocation": { "type": "string" },
+            "googleMapsUrl": { "type": "string" }
+          }
+        },
+        "workedHours": { "type": "number" },
+        "dwmPlanCount": { "type": "number" },
+        "dwmAccomplishedCount": { "type": "number" },
+        "status": { "type": "string", "enum": ["Punched In", "Completed"] }
+      },
+      "required": ["employeeId", "date", "punchInTime", "status"]
+    },
+    "Invoice": {
+      "title": "Commercial & Proforma Invoice",
+      "description": "Tax and proforma invoices with line-item HSN codes, senior approval workflow, Proforma-to-Tax-Invoice conversion, client email dispatch, goodwill adjustments, and Director write-off tracking",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "invoiceNumber": { "type": "string" },
+        "invoiceType": { "type": "string", "enum": ["Tax Invoice", "Proforma Invoice"] },
+        "convertedFromProformaId": { "type": "string" },
+        "convertedFromProformaNo": { "type": "string" },
+        "customerName": { "type": "string" },
+        "customerGstin": { "type": "string" },
+        "quotationId": { "type": "string" },
+        "orderId": { "type": "string" },
+        "projectId": { "type": "string" },
+        "vertical": { "type": "string" },
+        "grossSubtotal": { "type": "number" },
+        "taxableValue": { "type": "number" },
+        "taxAmount": { "type": "number" },
+        "grandTotal": { "type": "number" },
+        "paidAmount": { "type": "number" },
+        "tdsDeducted": { "type": "number" },
+        "adjustmentAmount": { "type": "number" },
+        "writeOffAmount": { "type": "number" },
+        "balanceDue": { "type": "number" },
+        "status": { "type": "string" },
+        "invoiceDate": { "type": "string" },
+        "dueDate": { "type": "string" },
+        "employeeId": { "type": "string" }
+      },
+      "required": ["invoiceNumber", "customerName", "grandTotal", "status"]
+    },
+    "Payment": {
+      "title": "Payment Collection & Settlement Receipt",
+      "description": "Invoice-linked partial and full payments with official payment settlement receipt and email dispatch",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "receiptNumber": { "type": "string" },
+        "invoiceId": { "type": "string" },
+        "invoiceNumber": { "type": "string" },
+        "customerName": { "type": "string" },
+        "amount": { "type": "number" },
+        "tdsAmount": { "type": "number" },
+        "paymentMode": { "type": "string" },
+        "utrNumber": { "type": "string" },
+        "paymentDate": { "type": "string" },
+        "status": { "type": "string" }
+      },
+      "required": ["customerName", "amount", "paymentDate", "status"]
+    },
+    "ArAdjustment": {
+      "title": "AR Adjustment & Director Write-Off",
+      "description": "Commercial goodwill discounts, price adjustments, and Director-approved bad debt write-offs for unrecoverable receivables",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "adjustmentNumber": { "type": "string" },
+        "type": { "type": "string", "enum": ["Goodwill Discount / Commercial Adjustment", "Bad Debt Write-Off (Unrecoverable AR)"] },
+        "invoiceId": { "type": "string" },
+        "invoiceNumber": { "type": "string" },
+        "customerName": { "type": "string" },
+        "invoiceGrandTotal": { "type": "number" },
+        "invoiceCurrentBalance": { "type": "number" },
+        "amount": { "type": "number" },
+        "reasonCategory": { "type": "string" },
+        "detailedJustification": { "type": "string" },
+        "requestedBy": { "type": "string" },
+        "requestedDate": { "type": "string" },
+        "status": { "type": "string", "enum": ["Pending Director Approval", "Approved", "Rejected"] },
+        "directorApproval": {
+          "type": "object",
+          "properties": {
+            "approvedBy": { "type": "string" },
+            "directorRole": { "type": "string" },
+            "approvedDate": { "type": "string" },
+            "directorRemarks": { "type": "string" },
+            "authorizationCode": { "type": "string" }
+          }
+        }
+      },
+      "required": ["adjustmentNumber", "type", "invoiceNumber", "amount", "status"]
+    }
+  },
+  "firestore": {
+    "/clientsMaster/{clientId}": {
+      "schema": { "$ref": "#/entities/ClientMaster" },
+      "description": "Collection of corporate client accounts"
+    },
+    "/projectsMaster/{projectId}": {
+      "schema": { "$ref": "#/entities/ProjectMaster" },
+      "description": "Collection of turnkey automation projects"
+    },
+    "/sparePartsMaster/{partId}": {
+      "schema": { "$ref": "#/entities/SparePartMaster" },
+      "description": "Collection of spare parts and industrial inventory master catalog"
+    },
+    "/employees/{employeeId}": {
+      "schema": { "$ref": "#/entities/Employee" },
+      "description": "Collection of employees and user profiles"
+    },
+    "/dwmActivities/{activityId}": {
+      "schema": { "$ref": "#/entities/DwmActivity" },
+      "description": "Collection of daily work management activities and special assignments"
+    },
+    "/serviceTickets/{ticketId}": {
+      "schema": { "$ref": "#/entities/ServiceTicket" },
+      "description": "Collection of customer service tickets and quality records"
+    },
+    "/attendance/{attendanceId}": {
+      "schema": { "$ref": "#/entities/Attendance" },
+      "description": "Collection of employee daily attendance records with mandatory live GPS location verification"
+    },
+    "/invoices/{invoiceId}": {
+      "schema": { "$ref": "#/entities/Invoice" },
+      "description": "Collection of commercial tax and proforma invoices with approval workflows"
+    },
+    "/payments/{paymentId}": {
+      "schema": { "$ref": "#/entities/Payment" },
+      "description": "Collection of payment records, receipts and settlement acknowledgments"
+    },
+    "/arAdjustments/{adjustmentId}": {
+      "schema": { "$ref": "#/entities/ArAdjustment" },
+      "description": "Collection of commercial goodwill discounts, credit adjustments and Director-approved bad-debt write-offs"
+    }
+  }
+}

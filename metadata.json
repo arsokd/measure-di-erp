@@ -1,0 +1,6 @@
+{
+  "name": "Measure DI RevOps",
+  "description": "Industrial Revenue Operations platform for Measure DI Technologies: DWM, Attendance, Invoicing, Filtered Pending Payment Collections, Goodwill Adjustments & Director Write-Offs",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

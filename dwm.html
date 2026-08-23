@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>K-30_ERP - Daily Work Management (DWM)</title>
+    <link rel="stylesheet" href="/src/index.css">
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="js/firebase-init.js" defer></script>
+    <script src="js/store.js" defer></script>
+    <script src="js/seed-data.js" defer></script>
+    <script src="auth-guard.js" defer></script>
+  </head>
+  <body class="bg-slate-50 min-h-screen text-slate-800">
+    
+    <!-- Navbar Container -->
+    <div id="navbar-container"></div>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+      
+      <!-- Top Title & View Dropdown for Managers/Admins -->
+      <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-white p-6 rounded-2xl shadow-xs border border-slate-200">
+        <div>
+          <div class="flex items-center space-x-3">
+            <h1 class="text-2xl font-bold text-slate-900 tracking-tight">Daily Work Management (DWM)</h1>
+            <span id="date-badge" class="px-3 py-1 bg-indigo-50 text-indigo-700 font-bold text-xs rounded-full border border-indigo-200">Today</span>
+          </div>
+          <p class="text-sm text-slate-500 mt-1">Plan morning activities linked to KRAs & record evening accomplishments</p>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-3">
+          <div class="flex items-center space-x-2">
+            <label class="text-xs font-bold text-slate-600 uppercase tracking-wider">Period:</label>
+            <select id="dwm-view-mode" onchange="renderDwmData(dwmViewingEmpId)" class="px-3 py-2 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer">
+              <option value="Today" selected>Today</option>
+              <option value="2024-25">FY 2024-25</option>
+              <option value="2025-26">FY 2025-26</option>
+              <option value="2026-27">FY 2026-27</option>
+              <option value="All">All 24 Months</option>
+            </select>
+          </div>
+
+          <div id="dwm-employee-selector" class="hidden flex items-center space-x-2">
+            <label class="text-xs font-bold text-slate-600 uppercase tracking-wider">Viewing For:</label>
+            <select id="dwm-select-emp" onchange="onDwmEmpChange()" class="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500">
+              <!-- Populated dynamically -->
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- SECTION 0: Daily Productivity Score Card -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="bg-white p-5 rounded-2xl shadow-xs border border-slate-200">
+          <div class="text-[11px] font-bold uppercase tracking-wider text-slate-500">Daily Productivity Score</div>
+          <div class="flex items-baseline space-x-2 mt-2">
+            <span id="stat-dwm-score" class="text-3xl font-black text-indigo-600">0%</span>
+            <span id="stat-dwm-score-badge" class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600">Pending</span>
+          </div>
+          <div class="w-full bg-slate-100 h-2 rounded-full mt-3 overflow-hidden">
+            <div id="stat-dwm-progress" class="bg-indigo-600 h-full rounded-full transition-all duration-300" style="width: 0%"></div>
+          </div>
+        </div>
+
+        <div class="bg-white p-5 rounded-2xl shadow-xs border border-slate-200">
+          <div class="text-[11px] font-bold uppercase tracking-wider text-slate-500">Productive Hours Logged</div>
+          <div class="flex items-baseline space-x-2 mt-2">
+            <span id="stat-dwm-hours" class="text-3xl font-black text-slate-900">0.0</span>
+            <span class="text-xs font-semibold text-slate-500">/ 8.0 hrs standard</span>
+          </div>
+          <p class="text-xs text-slate-500 mt-3">Target: 8.0 Hours / Shift</p>
+        </div>
+
+        <div class="bg-white p-5 rounded-2xl shadow-xs border border-slate-200">
+          <div class="text-[11px] font-bold uppercase tracking-wider text-slate-500">Special Assignments</div>
+          <div class="flex items-baseline space-x-2 mt-2">
+            <span id="stat-dwm-special" class="text-3xl font-black text-purple-600">0.0</span>
+            <span class="text-xs font-semibold text-slate-500">hrs</span>
+          </div>
+          <p class="text-xs text-purple-600 mt-3 font-medium">Training, Meetings, Audits</p>
+        </div>
+
+        <div class="bg-white p-5 rounded-2xl shadow-xs border border-slate-200">
+          <div class="text-[11px] font-bold uppercase tracking-wider text-slate-500">Activities Completed</div>
+          <div class="flex items-baseline space-x-2 mt-2">
+            <span id="stat-dwm-done-count" class="text-3xl font-black text-emerald-600">0</span>
+            <span id="stat-dwm-total-count" class="text-xs font-semibold text-slate-500">/ 0 total</span>
+          </div>
+          <p class="text-xs text-slate-500 mt-3" id="stat-dwm-status-summary">Attendance Synced</p>
+        </div>
+      </div>
+
+      <!-- Reference Box: Daily Control Points from KRAs -->
+      <div class="bg-slate-100 p-5 rounded-2xl border border-slate-200 space-y-2">
+        <div class="text-xs font-bold uppercase tracking-wider text-slate-600 flex items-center space-x-2">
+          <svg class="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          <span>Your Daily Control Points (from your KRAs) — Reference Only</span>
+        </div>
+        <div id="daily-control-points-container" class="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs text-slate-700 pt-1">
+          <!-- Populated dynamically -->
+        </div>
+      </div>
+
+      <!-- SECTION A: Today's Plan -->
+      <div class="bg-white p-6 rounded-2xl shadow-xs border border-slate-200 space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-100 pb-4">
+          <div>
+            <h2 class="text-lg font-bold text-slate-900 flex items-center space-x-2">
+              <span class="w-3 h-3 rounded-full bg-amber-500"></span>
+              <span>SECTION A — Today's Plan</span>
+            </h2>
+            <p class="text-xs text-slate-500">Fill this in the morning before punching in for attendance</p>
+          </div>
+
+          <div id="add-plan-btn-wrapper" class="flex items-center space-x-2">
+            <button onclick="openAddSpecialAssignmentModal()" class="px-3.5 py-2 bg-purple-50 hover:bg-purple-100 text-purple-700 font-semibold text-xs rounded-xl border border-purple-200 transition-colors flex items-center space-x-1 cursor-pointer">
+              <span>⭐ Special Assignment</span>
+            </button>
+            <button onclick="openAddActivityModal()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs rounded-xl shadow-xs transition-colors flex items-center space-x-1 cursor-pointer">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+              <span>+ Add Activity</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="bg-slate-50 border-b border-slate-200 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                <th class="py-3 px-4">Planned Activity Description</th>
+                <th class="py-3 px-4">Linked KRA</th>
+                <th class="py-3 px-4 text-center">Plan Status</th>
+                <th class="py-3 px-4 text-center">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="section-a-tbody" class="divide-y divide-slate-100 text-xs">
+              <!-- Populated dynamically -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- SECTION B: Today's Accomplishment -->
+      <div class="bg-white p-6 rounded-2xl shadow-xs border border-slate-200 space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-100 pb-4">
+          <div>
+            <h2 class="text-lg font-bold text-slate-900 flex items-center space-x-2">
+              <span class="w-3 h-3 rounded-full bg-emerald-500"></span>
+              <span>SECTION B — Today's Accomplishment</span>
+            </h2>
+            <p class="text-xs text-slate-500">Fill this in the evening before punching out</p>
+          </div>
+
+          <div class="px-3 py-1.5 bg-slate-100 rounded-xl text-xs font-semibold text-slate-700" id="accomplishment-progress-summary">
+            0 of 0 activities updated
+          </div>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="bg-slate-50 border-b border-slate-200 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                <th class="py-3 px-4">Activity Description</th>
+                <th class="py-3 px-4">Linked KRA</th>
+                <th class="py-3 px-4 w-40">Accomplishment Status</th>
+                <th class="py-3 px-4">Remarks</th>
+              </tr>
+            </thead>
+            <tbody id="section-b-tbody" class="divide-y divide-slate-100 text-xs">
+              <!-- Populated dynamically -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 7-Day History Strip -->
+      <div class="bg-white p-6 rounded-2xl shadow-xs border border-slate-200 space-y-3">
+        <h2 class="text-xs font-bold uppercase tracking-wider text-slate-500">Last 7 Days DWM Compliance History</h2>
+        <div id="history-strip-container" class="flex items-center justify-between gap-2 overflow-x-auto pt-2 pb-1">
+          <!-- Populated dynamically -->
+        </div>
+      </div>
+
+    </main>
+
+    <!-- Modal: Add Activity / Special Assignment -->
+    <div id="add-activity-modal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+      <div class="bg-white w-full max-w-lg rounded-2xl shadow-2xl border border-slate-100 overflow-hidden">
+        <div class="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+          <div class="flex items-center space-x-2">
+            <h3 id="modal-activity-title" class="text-base font-bold text-slate-900">Add DWM Activity for Today</h3>
+            <span id="modal-activity-badge" class="hidden px-2 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-800">Special Assignment</span>
+          </div>
+          <button onclick="closeAddActivityModal()" class="text-slate-400 hover:text-slate-600 text-lg font-bold">&times;</button>
+        </div>
+
+        <form onsubmit="handleSaveActivity(event)" class="p-6 space-y-4">
+          <input type="hidden" id="inp-is-special" value="false" />
+
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Activity Type / Category *</label>
+            <select id="activity-category-select" onchange="onActivityCategoryChange()" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500">
+              <option value="Standard KRA Activity">Standard Daily KRA Activity</option>
+              <option value="Full Day Training">⭐ Full Day Training / Workshop (8.0 hrs)</option>
+              <option value="Full Day Meeting">⭐ Full Day Meeting / Review / Audit (8.0 hrs)</option>
+              <option value="Client Emergency Call">⭐ Client Emergency Site Support (Breakdown)</option>
+              <option value="Special Assignment">⭐ Other Special Assignment (Management Directive)</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Activity Description *</label>
+            <textarea id="activity-desc" required rows="3" placeholder="e.g. Full day training on High-Capacity Crane Scale Load Cell calibration or JSW Steel Slag Yard site inspection" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"></textarea>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Estimated Hours Logged *</label>
+              <input type="number" id="activity-hours" step="0.5" min="0.5" max="16" value="2.0" required class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Impact on Productivity</label>
+              <div id="productivity-credit-badge" class="px-3 py-2 bg-slate-100 text-slate-700 rounded-xl text-xs font-semibold">
+                KRA Linked Progress
+              </div>
+            </div>
+          </div>
+
+          <div id="kra-field-section">
+            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Which KRA does this activity serve? *</label>
+            <div id="kra-dropdown-wrapper">
+              <select id="activity-kra-select" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                <!-- Populated dynamically -->
+              </select>
+            </div>
+            <div id="no-kra-warning" class="hidden mt-1 text-xs text-rose-600 bg-rose-50 p-3 rounded-lg border border-rose-200">
+              No KRAs assigned to you yet — ask your manager to set up targets. You can still log Special Assignments!
+            </div>
+          </div>
+
+          <div class="pt-4 border-t border-slate-100 flex items-center justify-end space-x-3">
+            <button type="button" onclick="closeAddActivityModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition-colors">Cancel</button>
+            <button type="submit" id="save-activity-btn" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-xl shadow-xs transition-colors cursor-pointer">Save Activity</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <script src="js/dwm.js"></script>
+  </body>
+</html>

@@ -1,0 +1,336 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>K-30_ERP - KRA/KPI Targets</title>
+    <link rel="stylesheet" href="/src/index.css">
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="js/firebase-init.js" defer></script>
+    <script src="js/store.js" defer></script>
+    <script src="js/seed-data.js" defer></script>
+    <script src="auth-guard.js" defer></script>
+  </head>
+  <body class="bg-slate-50 min-h-screen text-slate-800">
+    
+    <!-- Navbar Container -->
+    <div id="navbar-container"></div>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+      
+      <!-- Header -->
+      <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-white p-6 rounded-2xl shadow-xs border border-slate-200">
+        <div>
+          <h1 class="text-2xl font-bold text-slate-900 tracking-tight">KRA / KPI Targets Configuration</h1>
+          <p class="text-sm text-slate-500 mt-1">Assign operational Key Result Areas, targets & daily control points to personnel</p>
+        </div>
+
+        <button id="add-kra-btn" onclick="openKraModal()" class="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs rounded-xl shadow-xs transition-colors flex items-center space-x-1 cursor-pointer">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+          <span>+ Add KRA Target</span>
+        </button>
+      </div>
+
+      <!-- KRA Table -->
+      <div class="bg-white rounded-2xl shadow-xs border border-slate-200 overflow-hidden space-y-4">
+        <div class="p-6 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <h2 class="text-lg font-bold text-slate-900">Assigned Employee KRA Matrix</h2>
+          <div class="flex items-center space-x-3">
+            <select id="kra-fy-filter" onchange="renderKraTable()" class="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500">
+              <option value="2026-27" selected>FY 2026-27 (Current)</option>
+              <option value="2025-26">FY 2025-26</option>
+              <option value="2024-25">FY 2024-25</option>
+              <option value="All">All FYs (2024 - 2026)</option>
+            </select>
+            <select id="kra-emp-filter" onchange="renderKraTable()" class="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500">
+              <!-- Populated dynamically -->
+            </select>
+          </div>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="bg-slate-50 border-b border-slate-200 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                <th class="py-3 px-4">Employee</th>
+                <th class="py-3 px-4">KRA Title</th>
+                <th class="py-3 px-4">KPI Metric & Weight</th>
+                <th class="py-3 px-4 text-right">Annual Target</th>
+                <th class="py-3 px-4">Daily Control Point (DWM)</th>
+                <th class="py-3 px-4">Vertical / Line</th>
+                <th class="py-3 px-4 text-center">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="kra-tbody" class="divide-y divide-slate-100 text-xs">
+              <!-- Populated dynamically -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </main>
+
+    <!-- Modal: Add/Edit KRA -->
+    <div id="kra-modal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+      <div class="bg-white w-full max-w-lg rounded-2xl shadow-2xl border border-slate-100 overflow-hidden">
+        <div class="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+          <h3 class="text-base font-bold text-slate-900" id="kra-modal-title">Add KRA Target</h3>
+          <button onclick="closeKraModal()" class="text-slate-400 hover:text-slate-600 text-lg font-bold">&times;</button>
+        </div>
+
+        <form onsubmit="handleSaveKra(event)" class="p-6 space-y-4">
+          <input type="hidden" id="kra-doc-id" />
+
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Employee *</label>
+            <select id="inp-kra-emp" required class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500">
+              <!-- Populated dynamically -->
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">KRA Name / Title *</label>
+            <input type="text" id="inp-kra-name" required placeholder="e.g. Territory Revenue Generation" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Daily Control Point (Reference for DWM) *</label>
+            <textarea id="inp-kra-dailycontrol" required rows="2" placeholder="e.g. Conduct minimum 3 customer plant visits daily and log quote follow-ups" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"></textarea>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Target Metric *</label>
+              <input type="text" id="inp-kra-metric" required placeholder="e.g. Revenue (INR)" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Target Value *</label>
+              <input type="number" id="inp-kra-value" required placeholder="10000000" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Linked AOP Line / Vertical</label>
+            <select id="inp-kra-aopline" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500">
+              <option value="Sales">Sales Vertical</option>
+              <option value="Service/Parts">Service/Parts Vertical</option>
+              <option value="Projects">Projects Vertical</option>
+            </select>
+          </div>
+
+          <div class="pt-4 border-t border-slate-100 flex items-center justify-end space-x-3">
+            <button type="button" onclick="closeKraModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl">Cancel</button>
+            <button type="submit" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-xl shadow-xs transition-colors cursor-pointer">
+              Save KRA Target
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <script>
+      document.addEventListener('DOMContentLoaded', function() {
+        if (checkAuth(['admin', 'manager', 'staff'])) {
+          initKraPage();
+        }
+      });
+
+      function initKraPage() {
+        var userRole = localStorage.getItem('userRole');
+        var myEmpId = localStorage.getItem('employeeId');
+        var employees = window.RevOpsStore.getCollection('employees') || [];
+        var filter = document.getElementById('kra-emp-filter');
+        var select = document.getElementById('inp-kra-emp');
+        var addBtn = document.getElementById('add-kra-btn');
+
+        if (userRole === 'staff') {
+          if (addBtn) addBtn.classList.add('hidden');
+          filter.innerHTML = "";
+          var myEmp = employees.find(function(e) { return e.employeeId === myEmpId; });
+          var opt = document.createElement('option');
+          opt.value = myEmpId;
+          opt.innerText = (myEmp ? myEmp.fullName : 'My Targets') + " (" + myEmpId + ")";
+          opt.selected = true;
+          filter.appendChild(opt);
+          filter.disabled = true;
+        } else if (userRole === 'manager') {
+          filter.innerHTML = `<option value="All">All Team Members</option>`;
+          select.innerHTML = "";
+          var teamEmps = employees.filter(function(e) { return e.employeeId === myEmpId || e.reportsTo === myEmpId; });
+          teamEmps.forEach(function(e) {
+            if (e.employeeId === 'E-001') return;
+            var opt1 = document.createElement('option');
+            opt1.value = e.employeeId;
+            opt1.innerText = e.fullName + " (" + e.employeeId + ")";
+            filter.appendChild(opt1);
+
+            var opt2 = document.createElement('option');
+            opt2.value = e.employeeId;
+            opt2.innerText = e.fullName + " (" + e.employeeId + ")";
+            select.appendChild(opt2);
+          });
+        } else {
+          filter.innerHTML = `<option value="All">All Employees</option>`;
+          select.innerHTML = "";
+          employees.forEach(function(e) {
+            if (e.employeeId === 'E-001') return;
+            var opt1 = document.createElement('option');
+            opt1.value = e.employeeId;
+            opt1.innerText = e.fullName + " (" + e.employeeId + ")";
+            filter.appendChild(opt1);
+
+            var opt2 = document.createElement('option');
+            opt2.value = e.employeeId;
+            opt2.innerText = e.fullName + " (" + e.employeeId + ")";
+            select.appendChild(opt2);
+          });
+        }
+
+        renderKraTable();
+      }
+
+      function renderKraTable() {
+        var userRole = localStorage.getItem('userRole');
+        var myEmpId = localStorage.getItem('employeeId');
+        var filterFy = document.getElementById('kra-fy-filter') ? document.getElementById('kra-fy-filter').value : '2026-27';
+        var filterEmp = document.getElementById('kra-emp-filter') && document.getElementById('kra-emp-filter').value ? document.getElementById('kra-emp-filter').value : 'All';
+        var kras = window.RevOpsStore.getCollection('kraTargets') || [];
+        var employees = window.RevOpsStore.getCollection('employees') || [];
+
+        var tbody = document.getElementById('kra-tbody');
+        tbody.innerHTML = "";
+
+        var filtered = kras.filter(function(k) {
+          if (k.employeeId === "E-001") return false; // Business Head excluded from individual KRA targets
+          if (userRole === 'staff' && k.employeeId !== myEmpId) return false;
+          var matchFy = (filterFy === "All" || (k.financialYear || '2026-27') === filterFy);
+          var matchEmp = (filterEmp === "All" || k.employeeId === filterEmp);
+          return matchFy && matchEmp;
+        });
+
+        if (filtered.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="7" class="py-6 text-center text-slate-400">No KRA targets defined.</td></tr>`;
+          return;
+        }
+
+        filtered.forEach(function(k) {
+          var emp = employees.find(function(e) { return e.employeeId === k.employeeId; });
+          var empName = emp ? emp.fullName : (k.employeeName || k.employeeId);
+          var empDesignation = emp ? emp.designation : '';
+
+          var unitStr = k.unit || '';
+          var val = k.annualTarget !== undefined ? k.annualTarget : (k.targetValue || 0);
+          var formattedVal = "";
+          if (unitStr.indexOf('₹') !== -1 || unitStr.indexOf('INR') !== -1) {
+            formattedVal = formatINR(val);
+          } else if (unitStr === '%') {
+            formattedVal = val + "%";
+          } else if (unitStr === 'days') {
+            formattedVal = val + " days";
+          } else {
+            formattedVal = Number(val).toLocaleString('en-IN') + " " + (unitStr || 'units');
+          }
+
+          var weightBadge = k.weight ? `<span class="inline-block px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 font-bold text-[10px] ml-1">${escapeHtml(k.weight)}% Weight</span>` : '';
+          var leadLagBadge = k.leadLag ? `<span class="inline-block px-1.5 py-0.5 rounded ${k.leadLag === 'Leading' ? 'bg-amber-50 text-amber-700' : 'bg-slate-100 text-slate-600'} font-semibold text-[9px] ml-1">${escapeHtml(k.leadLag)}</span>` : '';
+
+          var tr = document.createElement('tr');
+          tr.className = "hover:bg-slate-50 transition-colors";
+          tr.innerHTML = `
+            <td class="py-3 px-4">
+              <div class="font-bold text-slate-900">${escapeHtml(empName)}</div>
+              <div class="text-[10px] text-slate-500">${escapeHtml(empDesignation)} (${escapeHtml(k.employeeId)})</div>
+            </td>
+            <td class="py-3 px-4 font-semibold text-indigo-700">${escapeHtml(k.kraName || '')}</td>
+            <td class="py-3 px-4">
+              <div class="font-medium text-slate-800">${escapeHtml(k.kpi || k.targetMetric || '--')}</div>
+              <div class="mt-0.5 flex items-center">${weightBadge} ${leadLagBadge}</div>
+            </td>
+            <td class="py-3 px-4 text-right font-black text-slate-900">${escapeHtml(formattedVal)}</td>
+            <td class="py-3 px-4 text-slate-600 max-w-xs truncate" title="${escapeHtml(k.dailyControl || '')}">${escapeHtml(k.dailyControl || '--')}</td>
+            <td class="py-3 px-4">
+              <span class="px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-semibold text-[10px] max-w-[120px] inline-block truncate">${escapeHtml(k.vertical || k.aopLine || 'Sales')}</span>
+            </td>
+            <td class="py-3 px-4 text-center space-x-2">
+              <button onclick="editKra('${escapeHtml(k.id)}')" class="text-indigo-600 hover:text-indigo-800 font-bold hover:underline">Edit</button>
+              <button onclick="deleteKra('${escapeHtml(k.id)}')" class="text-rose-600 hover:text-rose-800 font-bold hover:underline">Delete</button>
+            </td>
+          `;
+          tbody.appendChild(tr);
+        });
+      }
+
+      function openKraModal() {
+        document.getElementById('kra-doc-id').value = "";
+        document.getElementById('kra-modal-title').innerText = "Add KRA Target";
+
+        document.getElementById('inp-kra-name').value = "";
+        document.getElementById('inp-kra-dailycontrol').value = "";
+        document.getElementById('inp-kra-metric').value = "Revenue (INR)";
+        document.getElementById('inp-kra-value').value = 10000000;
+
+        document.getElementById('kra-modal').classList.remove('hidden');
+      }
+
+      function closeKraModal() {
+        document.getElementById('kra-modal').classList.add('hidden');
+      }
+
+      function editKra(docId) {
+        var kras = window.RevOpsStore.getCollection('kraTargets') || [];
+        var k = kras.find(function(item) { return item.id === docId; });
+        if (!k) return;
+
+        document.getElementById('kra-doc-id').value = k.id;
+        document.getElementById('kra-modal-title').innerText = "Edit KRA Target";
+
+        document.getElementById('inp-kra-emp').value = k.employeeId;
+        document.getElementById('inp-kra-name').value = k.kraName;
+        document.getElementById('inp-kra-dailycontrol').value = k.dailyControl || '';
+        document.getElementById('inp-kra-metric').value = k.targetMetric;
+        document.getElementById('inp-kra-value').value = k.targetValue;
+        document.getElementById('inp-kra-aopline').value = k.aopLine || 'Sales';
+
+        document.getElementById('kra-modal').classList.remove('hidden');
+      }
+
+      function handleSaveKra(e) {
+        e.preventDefault();
+        var docId = document.getElementById('kra-doc-id').value;
+        var empId = document.getElementById('inp-kra-emp').value;
+
+        var employees = window.RevOpsStore.getCollection('employees') || [];
+        var emp = employees.find(function(e) { return e.employeeId === empId; });
+
+        var kraData = {
+          employeeId: empId,
+          employeeName: emp ? emp.fullName : 'Employee',
+          kraName: document.getElementById('inp-kra-name').value.trim(),
+          dailyControl: document.getElementById('inp-kra-dailycontrol').value.trim(),
+          targetMetric: document.getElementById('inp-kra-metric').value.trim(),
+          targetValue: Number(document.getElementById('inp-kra-value').value) || 0,
+          aopLine: document.getElementById('inp-kra-aopline').value
+        };
+
+        if (docId) {
+          window.RevOpsStore.updateItem('kraTargets', docId, kraData);
+        } else {
+          window.RevOpsStore.addItem('kraTargets', kraData);
+        }
+
+        closeKraModal();
+        renderKraTable();
+      }
+
+      function deleteKra(docId) {
+        if (confirm("Are you sure you want to delete this KRA target?")) {
+          window.RevOpsStore.deleteItem('kraTargets', docId);
+          renderKraTable();
+        }
+      }
+    </script>
+  </body>
+</html>

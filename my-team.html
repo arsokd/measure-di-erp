@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>K-30_ERP - My Team</title>
+    <link rel="stylesheet" href="/src/index.css">
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="js/firebase-init.js" defer></script>
+    <script src="js/store.js" defer></script>
+    <script src="js/seed-data.js" defer></script>
+    <script src="auth-guard.js" defer></script>
+  </head>
+  <body class="bg-slate-50 min-h-screen text-slate-800">
+    
+    <!-- Navbar Container -->
+    <div id="navbar-container"></div>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+      
+      <!-- No Direct Reports State for Staff without reports -->
+      <div id="no-reports-state" class="hidden bg-white p-12 rounded-2xl shadow-xs border border-slate-200 text-center space-y-4 max-w-lg mx-auto my-12">
+        <div class="w-16 h-16 bg-slate-100 text-slate-400 rounded-full flex items-center justify-center mx-auto text-2xl font-bold">
+          👥
+        </div>
+        <h2 class="text-xl font-bold text-slate-900">No Direct Reports Assigned</h2>
+        <p class="text-sm text-slate-500">You don't have any direct reports yet. If you are expecting direct reports, please contact your administrator.</p>
+        <div class="pt-4">
+          <a href="my-scorecard.html" class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs rounded-xl transition-colors inline-block">
+            Return to My Scorecard &rarr;
+          </a>
+        </div>
+      </div>
+
+      <!-- Main Team Workspace Content -->
+      <div id="team-workspace-content" class="space-y-8">
+        
+        <!-- Header -->
+        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-white p-6 rounded-2xl shadow-xs border border-slate-200">
+          <div>
+            <h1 class="text-2xl font-bold text-slate-900 tracking-tight">My Direct Team Management</h1>
+            <p class="text-sm text-slate-500 mt-1">Real-time daily productivity, attendance, DWM compliance, and KPI performance</p>
+          </div>
+          <div class="flex items-center space-x-3">
+            <select id="team-fy-select" onchange="renderTeamData()" class="px-3.5 py-2 bg-indigo-50 border border-indigo-200 text-indigo-700 font-bold text-xs rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer">
+              <option value="2026-27" selected>FY 2026-27 (Current)</option>
+              <option value="2025-26">FY 2025-26</option>
+              <option value="2024-25">FY 2024-25</option>
+              <option value="All">All FYs (2024 - 2026)</option>
+            </select>
+            <button onclick="renderTeamData()" class="px-4 py-2 bg-indigo-50 text-indigo-600 font-semibold text-xs rounded-xl border border-indigo-200 hover:bg-indigo-100 transition-colors cursor-pointer">
+              Refresh Team Status
+            </button>
+          </div>
+        </div>
+
+        <!-- 4 Team Summary Cards -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div class="bg-white p-6 rounded-2xl shadow-xs border border-slate-200">
+            <span class="text-xs font-bold uppercase tracking-wider text-slate-500">Team Size</span>
+            <div class="text-3xl font-black text-slate-900 mt-1" id="stat-team-size">0</div>
+            <p class="text-[11px] text-slate-400 mt-1">Direct Reporting Members</p>
+          </div>
+
+          <div class="bg-white p-6 rounded-2xl shadow-xs border border-slate-200">
+            <span class="text-xs font-bold uppercase tracking-wider text-slate-500">Avg KPI Achievement</span>
+            <div class="text-3xl font-black text-indigo-600 mt-1" id="stat-avg-kpi">0.0%</div>
+            <p class="text-[11px] text-slate-400 mt-1">Weighted Contribution Score</p>
+          </div>
+
+          <div class="bg-white p-6 rounded-2xl shadow-xs border border-slate-200">
+            <span class="text-xs font-bold uppercase tracking-wider text-slate-500">DWM Plan Pending</span>
+            <div class="text-3xl font-black text-amber-600 mt-1" id="stat-no-dwm">0</div>
+            <p class="text-[11px] text-slate-400 mt-1">Members without DWM today</p>
+          </div>
+
+          <div class="bg-white p-6 rounded-2xl shadow-xs border border-slate-200">
+            <span class="text-xs font-bold uppercase tracking-wider text-slate-500">Not Punched In</span>
+            <div class="text-3xl font-black text-rose-600 mt-1" id="stat-no-punch">0</div>
+            <p class="text-[11px] text-slate-400 mt-1">Members missing attendance today</p>
+          </div>
+        </div>
+
+        <!-- Team Members List / Grid -->
+        <div class="space-y-4">
+          <h2 class="text-lg font-bold text-slate-900">Direct Report Team Roster</h2>
+          <div id="team-members-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <!-- Populated dynamically -->
+          </div>
+        </div>
+
+      </div>
+
+    </main>
+
+    <!-- Create Login Modal -->
+    <div id="create-login-modal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+      <div class="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-slate-100 overflow-hidden">
+        <div class="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+          <h3 class="text-base font-bold text-slate-900" id="create-login-title">Create Login Credentials</h3>
+          <button onclick="closeCreateLoginModal()" class="text-slate-400 hover:text-slate-600 text-lg font-bold">&times;</button>
+        </div>
+
+        <form onsubmit="handleCreateLoginSubmit(event)" class="p-6 space-y-4">
+          <input type="hidden" id="modal-emp-id" />
+          
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Employee Email</label>
+            <input type="email" id="modal-emp-email" readonly class="w-full px-3 py-2 bg-slate-100 border border-slate-200 rounded-xl text-xs text-slate-600 font-semibold cursor-not-allowed" />
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Temporary Password</label>
+            <div class="flex space-x-2">
+              <input type="text" id="modal-emp-password" required class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-900" />
+              <button type="button" onclick="generateRandomPassword()" class="px-3 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-semibold rounded-xl transition-colors shrink-0">
+                Generate
+              </button>
+            </div>
+          </div>
+
+          <div class="pt-4 border-t border-slate-100 flex items-center justify-end space-x-3">
+            <button type="button" onclick="closeCreateLoginModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl">Cancel</button>
+            <button type="submit" id="create-login-submit-btn" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-xl shadow-xs transition-colors cursor-pointer">
+              Create Login
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <script src="js/my-team.js"></script>
+  </body>
+</html>

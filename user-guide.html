@@ -1,0 +1,846 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>K-30_ERP - User Guide & Operating Manual</title>
+  <link rel="stylesheet" href="/src/index.css">
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="js/firebase-init.js" defer></script>
+    <script src="js/store.js" defer></script>
+    <script src="js/seed-data.js" defer></script>
+  <script src="auth-guard.js" defer></script>
+  <style>
+    @media print {
+      body {
+        background-color: white !important;
+        color: black !important;
+      }
+      .no-print {
+        display: none !important;
+      }
+      .print-break-before {
+        page-break-before: always;
+      }
+      .print-card {
+        border: 1px solid #cbd5e1 !important;
+        box-shadow: none !important;
+        background: #ffffff !important;
+        color: #0f172a !important;
+      }
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans min-h-screen antialiased flex flex-col">
+  
+  <div id="navbar-container"></div>
+  
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    
+    <div class="no-print bg-slate-900 border border-slate-800 rounded-2xl p-6 mb-8 shadow-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+      <div class="space-y-1">
+        <div class="flex items-center space-x-2">
+          <span class="px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider rounded-md bg-[#982B68] text-white">Official Documentation</span>
+          <span class="px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider rounded-md bg-emerald-950/80 text-emerald-400 border border-emerald-800/80">Auto-Updating SOP v2.4</span>
+        </div>
+        <h1 class="text-2xl sm:text-3xl font-black text-white tracking-tight flex items-center space-x-2">
+          <span>📖 K-30_ERP User Guide & SOP</span>
+        </h1>
+        <p class="text-xs text-slate-400 max-w-2xl">
+          Comprehensive operational manual, role permissions matrix, module workflows, and standard operating procedures (SOP). Updated dynamically with real-time app capabilities.
+        </p>
+      </div>
+      
+      <div class="flex flex-wrap items-center gap-3 shrink-0">
+        <a href="Measure_DI_RevOps_Client_Demo_Guide.pdf" download="Measure_DI_RevOps_Client_Demo_Guide.pdf" onclick="downloadClientDemoGuidePDF(event)" target="_blank" class="px-4 py-2.5 bg-sky-600 hover:bg-sky-500 text-white font-extrabold text-xs rounded-xl shadow-lg transition-all flex items-center space-x-2 cursor-pointer border border-sky-400">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 11v6m0 0l-3-3m3 3l3-3"/></svg>
+          <span>📊 Client Demo Guide (PDF)</span>
+        </a>
+        <button id="btn-download-pdf" onclick="generateUserGuidePDF()" class="px-4 py-2.5 bg-[#982B68] hover:bg-[#7e2356] text-white font-extrabold text-xs rounded-xl shadow-lg transition-all flex items-center space-x-2 cursor-pointer border border-[#be3b85]">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+          <span>Download PDF Manual</span>
+        </button>
+        <button onclick="window.print()" class="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs rounded-xl transition-all flex items-center space-x-2 cursor-pointer border border-slate-700">
+          <svg class="w-4 h-4 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+          <span>Print / Save PDF</span>
+        </button>
+        
+        <div class="flex items-center space-x-1 bg-slate-800/80 p-1 rounded-xl border border-slate-700 text-[10px]">
+          <span class="px-2 py-1 rounded-lg bg-[#982B68] text-white font-bold">English (Active)</span>
+          <span class="px-2 py-1 text-slate-400 cursor-not-allowed" title="Tamil translation coming in next build phase">தமிழ் (Soon)</span>
+          <span class="px-2 py-1 text-slate-400 cursor-not-allowed" title="Hindi translation coming in next build phase">हिंदी (Soon)</span>
+        </div>
+      </div>
+    </div>
+    
+    <div id="pdf-content-area" class="space-y-8 text-slate-200">
+      
+      <div class="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 border border-slate-800 rounded-2xl p-8 shadow-2xl relative overflow-hidden">
+        <div class="absolute -right-10 -bottom-10 w-64 h-64 bg-[#982B68]/10 rounded-full blur-3xl pointer-events-none"></div>
+        <div class="max-w-3xl space-y-3 relative z-10">
+          <div class="flex items-center space-x-3">
+            <div class="w-10 h-10 rounded-xl bg-[#982B68] text-white font-black flex items-center justify-center text-lg shadow-md border border-white/20">M</div>
+            <div>
+              <span class="text-xs font-black uppercase tracking-widest text-[#E283BD] block">Measure DI Technologies</span>
+              <span class="text-[10px] text-slate-400 font-semibold">Revenue Operations & Enterprise Performance Analytics</span>
+            </div>
+          </div>
+          <h2 class="text-3xl sm:text-4xl font-black text-white tracking-tight leading-tight pt-2">
+            Measure DI RevOps Platform<br/><span class="text-[#E283BD]">User Guide & Standard Operating Procedures (SOP)</span>
+          </h2>
+          <p class="text-xs sm:text-sm text-slate-300 leading-relaxed font-normal pt-1">
+            An end-to-end guide detailing system navigation, sales pipeline management, financial ledger split, HR & employee administration, performance scorecards, and executive decision-making tools.
+          </p>
+          <div class="pt-4 flex flex-wrap items-center gap-4 text-[11px] text-slate-400 font-medium border-t border-slate-800/80">
+            <div><span class="text-slate-500">Document Type:</span> <strong class="text-white">Enterprise User Manual</strong></div>
+            <div><span class="text-slate-500">Effective Date:</span> <strong class="text-white">FY 2024-2026</strong></div>
+            <div><span class="text-slate-500">Target Audience:</span> <strong class="text-white">All Staff, Managers & Leadership</strong></div>
+            <div><span class="text-slate-500">Language:</span> <strong class="text-emerald-400 font-bold">English (Master Edition)</strong></div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-6 shadow-xl no-print">
+        <h3 class="text-xs font-black uppercase text-[#E283BD] tracking-wider mb-4 flex items-center space-x-2">
+          <svg class="w-4 h-4 text-[#982B68]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg>
+          <span>Table of Contents</span>
+        </h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 text-xs">
+          <a href="#sec-nav-map" class="p-3 bg-indigo-950/80 hover:bg-indigo-900/80 rounded-xl border border-indigo-700/60 transition-colors flex items-center space-x-2.5">
+            <span class="w-6 h-6 rounded-lg bg-indigo-600 text-white font-black text-[10px] flex items-center justify-center shadow-xs">★</span>
+            <span class="font-bold text-white">Sequential Main & Sub-Menu Map</span>
+          </a>
+          <a href="#sec-overview" class="p-3 bg-slate-800/60 hover:bg-slate-800 rounded-xl border border-slate-700/60 transition-colors flex items-center space-x-2.5">
+            <span class="w-6 h-6 rounded-lg bg-sky-950 text-sky-400 font-black text-[10px] flex items-center justify-center border border-sky-800/50">1</span>
+            <span class="font-bold text-white">System Architecture & Overview</span>
+          </a>
+          <a href="#sec-rbac" class="p-3 bg-slate-800/60 hover:bg-slate-800 rounded-xl border border-slate-700/60 transition-colors flex items-center space-x-2.5">
+            <span class="w-6 h-6 rounded-lg bg-purple-950 text-purple-400 font-black text-[10px] flex items-center justify-center border border-purple-800/50">2</span>
+            <span class="font-bold text-white">Role-Based Access Control (RBAC)</span>
+          </a>
+          <a href="#sec-sales" class="p-3 bg-slate-800/60 hover:bg-slate-800 rounded-xl border border-slate-700/60 transition-colors flex items-center space-x-2.5">
+            <span class="w-6 h-6 rounded-lg bg-emerald-950 text-emerald-400 font-black text-[10px] flex items-center justify-center border border-emerald-800/50">3</span>
+            <span class="font-bold text-white">Sales & Revenue CRM Modules</span>
+          </a>
+          <a href="#sec-finance" class="p-3 bg-slate-800/60 hover:bg-slate-800 rounded-xl border border-slate-700/60 transition-colors flex items-center space-x-2.5">
+            <span class="w-6 h-6 rounded-lg bg-indigo-950 text-indigo-400 font-black text-[10px] flex items-center justify-center border border-indigo-800/50">4</span>
+            <span class="font-bold text-white">Finance, Payroll & Expenses</span>
+          </a>
+          <a href="#sec-hr" class="p-3 bg-slate-800/60 hover:bg-slate-800 rounded-xl border border-slate-700/60 transition-colors flex items-center space-x-2.5">
+            <span class="w-6 h-6 rounded-lg bg-amber-950 text-amber-400 font-black text-[10px] flex items-center justify-center border border-amber-800/50">5</span>
+            <span class="font-bold text-white">People, HR & Attendance</span>
+          </a>
+          <a href="#sec-perf" class="p-3 bg-slate-800/60 hover:bg-slate-800 rounded-xl border border-slate-700/60 transition-colors flex items-center space-x-2.5">
+            <span class="w-6 h-6 rounded-lg bg-[#982B68]/30 text-[#E283BD] font-black text-[10px] flex items-center justify-center border border-[#982B68]/50">6</span>
+            <span class="font-bold text-white">Performance, Scorecards & AOP</span>
+          </a>
+          <a href="#sec-dashboard" class="p-3 bg-slate-800/60 hover:bg-slate-800 rounded-xl border border-slate-700/60 transition-colors flex items-center space-x-2.5">
+            <span class="w-6 h-6 rounded-lg bg-rose-950 text-rose-400 font-black text-[10px] flex items-center justify-center border border-rose-800/50">7</span>
+            <span class="font-bold text-white">Executive Dashboard & Ratios</span>
+          </a>
+          <a href="#sec-sop" class="p-3 bg-slate-800/60 hover:bg-slate-800 rounded-xl border border-slate-700/60 transition-colors flex items-center space-x-2.5">
+            <span class="w-6 h-6 rounded-lg bg-teal-950 text-teal-400 font-black text-[10px] flex items-center justify-center border border-teal-800/50">8</span>
+            <span class="font-bold text-white">Daily, Weekly & Monthly SOP</span>
+          </a>
+        </div>
+      </div>
+      
+      <section id="sec-nav-map" class="bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 border border-indigo-800/80 rounded-2xl p-6 shadow-2xl space-y-6 print-card">
+        <div class="flex flex-col md:flex-row items-start md:items-center justify-between border-b border-indigo-900/60 pb-4 gap-3">
+          <div class="flex items-center space-x-3">
+            <div class="w-10 h-10 rounded-xl bg-indigo-600 text-white font-black flex items-center justify-center text-lg shadow-md border border-indigo-400">📋</div>
+            <div>
+              <h3 class="text-xl font-black text-white flex items-center gap-2">
+                <span>Sidebar Navigation & Sequential Menu Demonstration Order</span>
+              </h3>
+              <p class="text-xs text-indigo-200">Main menu categories and sub-menu items listed in exact sidebar sequence for client presentation</p>
+            </div>
+          </div>
+          <a href="Measure_DI_RevOps_Client_Demo_Guide.pdf" download="Measure_DI_RevOps_Client_Demo_Guide.pdf" onclick="downloadClientDemoGuidePDF(event)" class="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center space-x-2 border border-indigo-400 shrink-0">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+            <span>Download Demo PDF with Screen Diagrams</span>
+          </a>
+        </div>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-xs">
+          
+          <div class="bg-slate-900/90 border border-fuchsia-800/60 rounded-xl p-4 space-y-2.5">
+            <div class="flex items-center justify-between border-b border-fuchsia-900/60 pb-2">
+              <span class="text-[11px] font-black uppercase text-fuchsia-400 tracking-wider flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-fuchsia-400 animate-pulse"></span>
+                OVERVIEW
+              </span>
+              <span class="px-2 py-0.5 rounded-md bg-fuchsia-950 text-fuchsia-300 text-[10px] font-bold">1 Sub-Menu</span>
+            </div>
+            <a href="dashboard.html" class="block p-2 bg-slate-800/80 hover:bg-slate-800 rounded-lg border border-slate-700/80 transition-all hover:border-fuchsia-500 group">
+              <div class="flex items-center justify-between">
+                <span class="font-extrabold text-white group-hover:text-fuchsia-300">1. Executive Dashboard</span>
+                <span class="text-[10px] text-slate-400 font-mono">dashboard.html</span>
+              </div>
+              <p class="text-[11px] text-slate-400 mt-1">C-suite macro metrics, active pipeline conversion funnels & ratio scaling.</p>
+            </a>
+          </div>
+          
+          <div class="bg-slate-900/90 border border-emerald-800/60 rounded-xl p-4 space-y-2.5">
+            <div class="flex items-center justify-between border-b border-emerald-900/60 pb-2">
+              <span class="text-[11px] font-black uppercase text-emerald-400 tracking-wider flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+                SALES & REVENUE (LEAD-TO-CASH)
+              </span>
+              <span class="px-2 py-0.5 rounded-md bg-emerald-950 text-emerald-300 text-[10px] font-bold">5 Sub-Menus</span>
+            </div>
+            <div class="space-y-2">
+              <a href="leads.html" class="block p-2 bg-slate-800/80 hover:bg-slate-800 rounded-lg border border-slate-700/80 transition-all hover:border-emerald-500 group">
+                <div class="flex items-center justify-between">
+                  <span class="font-extrabold text-white group-hover:text-emerald-300">2. Leads & Pipeline CRM</span>
+                  <span class="text-[10px] text-slate-400 font-mono">leads.html</span>
+                </div>
+                <p class="text-[11px] text-slate-400 mt-1">Commercial deals, probability weighting & stage funnels.</p>
+              </a>
+              <a href="quotations.html" class="block p-2 bg-slate-800/80 hover:bg-slate-800 rounded-lg border border-slate-700/80 transition-all hover:border-emerald-500 group">
+                <div class="flex items-center justify-between">
+                  <span class="font-extrabold text-white group-hover:text-emerald-300">3. Quotations & Approvals</span>
+                  <span class="text-[10px] text-slate-400 font-mono">quotations.html</span>
+                </div>
+                <p class="text-[11px] text-slate-400 mt-1">Discount threshold gates (>15% Head, >25% MD) & PDF quotes.</p>
+              </a>
+              <a href="invoices.html" class="block p-2 bg-slate-800/80 hover:bg-slate-800 rounded-lg border border-slate-700/80 transition-all hover:border-emerald-500 group">
+                <div class="flex items-center justify-between">
+                  <span class="font-extrabold text-white group-hover:text-emerald-300">4. Invoices & Approvals</span>
+                  <span class="text-[10px] text-slate-400 font-mono">invoices.html</span>
+                </div>
+                <p class="text-[11px] text-slate-400 mt-1">Tax & proforma billing, Director approval gate & client dispatch.</p>
+              </a>
+              <a href="orders.html" class="block p-2 bg-slate-800/80 hover:bg-slate-800 rounded-lg border border-slate-700/80 transition-all hover:border-emerald-500 group">
+                <div class="flex items-center justify-between">
+                  <span class="font-extrabold text-white group-hover:text-emerald-300">5. Orders & Contracts</span>
+                  <span class="text-[10px] text-slate-400 font-mono">orders.html</span>
+                </div>
+                <p class="text-[11px] text-slate-400 mt-1">Customer POs, dispatch milestones & contract SLAs.</p>
+              </a>
+              <a href="payments.html" class="block p-2 bg-slate-800/80 hover:bg-slate-800 rounded-lg border border-slate-700/80 transition-all hover:border-emerald-500 group">
+                <div class="flex items-center justify-between">
+                  <span class="font-extrabold text-white group-hover:text-emerald-300">6. Payments & AR Write-Offs</span>
+                  <span class="text-[10px] text-slate-400 font-mono">payments.html</span>
+                </div>
+                <p class="text-[11px] text-slate-400 mt-1">AR collections, pending invoices & Director Bad Debt write-offs.</p>
+              </a>
+            </div>
+          </div>
+          
+          <div class="bg-slate-900/90 border border-amber-800/60 rounded-xl p-4 space-y-2.5">
+            <div class="flex items-center justify-between border-b border-amber-900/60 pb-2">
+              <span class="text-[11px] font-black uppercase text-amber-400 tracking-wider flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-amber-400"></span>
+                SERVICE & QUALITY
+              </span>
+              <span class="px-2 py-0.5 rounded-md bg-amber-950 text-amber-300 text-[10px] font-bold">1 Sub-Menu</span>
+            </div>
+            <a href="service-tickets.html" class="block p-2 bg-slate-800/80 hover:bg-slate-800 rounded-lg border border-slate-700/80 transition-all hover:border-amber-500 group">
+              <div class="flex items-center justify-between">
+                <span class="font-extrabold text-white group-hover:text-amber-300">7. Service Tickets & Quality</span>
+                <span class="text-[10px] text-slate-400 font-mono">service-tickets.html</span>
+              </div>
+              <p class="text-[11px] text-slate-400 mt-1">Post-sale support tickets, SLA resolution & warranty tracking.</p>
+            </a>
+          </div>
+          
+          <div class="bg-slate-900/90 border border-teal-800/60 rounded-xl p-4 space-y-2.5">
+            <div class="flex items-center justify-between border-b border-teal-900/60 pb-2">
+              <span class="text-[11px] font-black uppercase text-teal-400 tracking-wider flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-teal-400"></span>
+                MASTER DATA & BULK IMPORT
+              </span>
+              <span class="px-2 py-0.5 rounded-md bg-teal-950 text-teal-300 text-[10px] font-bold">1 Sub-Menu</span>
+            </div>
+            <a href="master-data.html" class="block p-2 bg-slate-800/80 hover:bg-slate-800 rounded-lg border border-slate-700/80 transition-all hover:border-teal-500 group">
+              <div class="flex items-center justify-between">
+                <span class="font-extrabold text-white group-hover:text-teal-300">8. Master Data & Bulk Upload</span>
+                <span class="text-[10px] text-slate-400 font-mono">master-data.html</span>
+              </div>
+              <p class="text-[11px] text-slate-400 mt-1">CSV templates, bulk upload for Clients, Projects, Staff & Spare Parts.</p>
+            </a>
+          </div>
+          
+          <div class="bg-slate-900/90 border border-indigo-800/60 rounded-xl p-4 space-y-2.5">
+            <div class="flex items-center justify-between border-b border-indigo-900/60 pb-2">
+              <span class="text-[11px] font-black uppercase text-indigo-400 tracking-wider flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-indigo-400"></span>
+                FINANCE & LEDGER
+              </span>
+              <span class="px-2 py-0.5 rounded-md bg-indigo-950 text-indigo-300 text-[10px] font-bold">2 Sub-Menus</span>
+            </div>
+            <div class="space-y-2">
+              <a href="expenses.html" class="block p-2 bg-slate-800/80 hover:bg-slate-800 rounded-lg border border-slate-700/80 transition-all hover:border-indigo-500 group">
+                <div class="flex items-center justify-between">
+                  <span class="font-extrabold text-white group-hover:text-indigo-300">9. Expenses & Profit Center</span>
+                  <span class="text-[10px] text-slate-400 font-mono">expenses.html</span>
+                </div>
+                <p class="text-[11px] text-slate-400 mt-1">Project-wise overheads, material claims & net margin %.</p>
+              </a>
+              <a href="payroll.html" class="block p-2 bg-slate-800/80 hover:bg-slate-800 rounded-lg border border-slate-700/80 transition-all hover:border-indigo-500 group">
+                <div class="flex items-center justify-between">
+                  <span class="font-extrabold text-white group-hover:text-indigo-300">10. Payroll & CTC</span>
+                  <span class="text-[10px] text-slate-400 font-mono">payroll.html</span>
+                </div>
+                <p class="text-[11px] text-slate-400 mt-1">Monthly compensation, LOP attendance deductions & CTC.</p>
+              </a>
+            </div>
+          </div>
+          
+          <div class="bg-slate-900/90 border border-sky-800/60 rounded-xl p-4 space-y-2.5">
+            <div class="flex items-center justify-between border-b border-sky-900/60 pb-2">
+              <span class="text-[11px] font-black uppercase text-sky-400 tracking-wider flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-sky-400"></span>
+                PEOPLE & HR
+              </span>
+              <span class="px-2 py-0.5 rounded-md bg-sky-950 text-sky-300 text-[10px] font-bold">3 Sub-Menus</span>
+            </div>
+            <div class="space-y-2">
+              <a href="employees.html" class="block p-2 bg-slate-800/80 hover:bg-slate-800 rounded-lg border border-slate-700/80 transition-all hover:border-sky-500 group">
+                <div class="flex items-center justify-between">
+                  <span class="font-extrabold text-white group-hover:text-sky-300">11. Employee Directory</span>
+                  <span class="text-[10px] text-slate-400 font-mono">employees.html</span>
+                </div>
+                <p class="text-[11px] text-slate-400 mt-1">Staff roster, supervisor mapping & active headcount master.</p>
+              </a>
+              <a href="attendance.html" class="block p-2 bg-slate-800/80 hover:bg-slate-800 rounded-lg border border-slate-700/80 transition-all hover:border-sky-500 group">
+                <div class="flex items-center justify-between">
+                  <span class="font-extrabold text-white group-hover:text-sky-300">12. Attendance & Leaves</span>
+                  <span class="text-[10px] text-slate-400 font-mono">attendance.html</span>
+                </div>
+                <p class="text-[11px] text-slate-400 mt-1">Punch logs, shift hours, WFH status & leave approvals.</p>
+              </a>
+              <a href="my-team.html" class="block p-2 bg-slate-800/80 hover:bg-slate-800 rounded-lg border border-slate-700/80 transition-all hover:border-sky-500 group">
+                <div class="flex items-center justify-between">
+                  <span class="font-extrabold text-white group-hover:text-sky-300">13. My Team</span>
+                  <span class="text-[10px] text-slate-400 font-mono">my-team.html</span>
+                </div>
+                <p class="text-[11px] text-slate-400 mt-1">Manager portal for direct report workload & output ratings.</p>
+              </a>
+            </div>
+          </div>
+          
+          <div class="bg-slate-900/90 border border-pink-800/60 rounded-xl p-4 space-y-2.5 lg:col-span-2">
+            <div class="flex items-center justify-between border-b border-pink-900/60 pb-2">
+              <span class="text-[11px] font-black uppercase text-pink-400 tracking-wider flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-pink-400"></span>
+                PERFORMANCE & STRATEGY
+              </span>
+              <span class="px-2 py-0.5 rounded-md bg-pink-950 text-pink-300 text-[10px] font-bold">5 Sub-Menus</span>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <a href="my-scorecard.html" class="block p-2 bg-slate-800/80 hover:bg-slate-800 rounded-lg border border-slate-700/80 transition-all hover:border-pink-500 group">
+                <div class="flex items-center justify-between">
+                  <span class="font-extrabold text-white group-hover:text-pink-300">14. My Scorecard</span>
+                  <span class="text-[10px] text-slate-400 font-mono">my-scorecard.html</span>
+                </div>
+                <p class="text-[11px] text-slate-400 mt-1">Real-time target score gauge based on active KRA weightages.</p>
+              </a>
+              <a href="dwm.html" class="block p-2 bg-slate-800/80 hover:bg-slate-800 rounded-lg border border-slate-700/80 transition-all hover:border-pink-500 group">
+                <div class="flex items-center justify-between">
+                  <span class="font-extrabold text-white group-hover:text-pink-300">15. Daily Work (DWM) & Productivity</span>
+                  <span class="text-[10px] text-slate-400 font-mono">dwm.html</span>
+                </div>
+                <p class="text-[11px] text-slate-400 mt-1">Auto-selected session, Special Assignment 100% credit & scores.</p>
+              </a>
+              <a href="kra-targets.html" class="block p-2 bg-slate-800/80 hover:bg-slate-800 rounded-lg border border-slate-700/80 transition-all hover:border-pink-500 group">
+                <div class="flex items-center justify-between">
+                  <span class="font-extrabold text-white group-hover:text-pink-300">16. KRAs & Targets</span>
+                  <span class="text-[10px] text-slate-400 font-mono">kra-targets.html</span>
+                </div>
+                <p class="text-[11px] text-slate-400 mt-1">Quarterly metric targets, weightages & assignments.</p>
+              </a>
+              <a href="reviews.html" class="block p-2 bg-slate-800/80 hover:bg-slate-800 rounded-lg border border-slate-700/80 transition-all hover:border-pink-500 group">
+                <div class="flex items-center justify-between">
+                  <span class="font-extrabold text-white group-hover:text-pink-300">17. Performance Reviews</span>
+                  <span class="text-[10px] text-slate-400 font-mono">reviews.html</span>
+                </div>
+                <p class="text-[11px] text-slate-400 mt-1">Structured 360 appraisals & manager evaluation feedback.</p>
+              </a>
+              <a href="aop-targets.html" class="block p-2 bg-slate-800/80 hover:bg-slate-800 rounded-lg border border-slate-700/80 transition-all hover:border-pink-500 group">
+                <div class="flex items-center justify-between">
+                  <span class="font-extrabold text-white group-hover:text-pink-300">18. Annual Plan (AOP)</span>
+                  <span class="text-[10px] text-slate-400 font-mono">aop-targets.html</span>
+                </div>
+                <p class="text-[11px] text-slate-400 mt-1">Company-wide annual strategic goals per vertical.</p>
+              </a>
+            </div>
+          </div>
+          
+          <div class="bg-slate-900/90 border border-purple-800/60 rounded-xl p-4 space-y-2.5">
+            <div class="flex items-center justify-between border-b border-purple-900/60 pb-2">
+              <span class="text-[11px] font-black uppercase text-purple-400 tracking-wider flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-purple-400"></span>
+                ANALYTICS & DOCS
+              </span>
+              <span class="px-2 py-0.5 rounded-md bg-purple-950 text-purple-300 text-[10px] font-bold">1 Sub-Menu</span>
+            </div>
+            <a href="reports.html" class="block p-2 bg-slate-800/80 hover:bg-slate-800 rounded-lg border border-slate-700/80 transition-all hover:border-purple-500 group">
+              <div class="flex items-center justify-between">
+                <span class="font-extrabold text-white group-hover:text-purple-300">19. Executive Reports</span>
+                <span class="text-[10px] text-slate-400 font-mono">reports.html</span>
+              </div>
+              <p class="text-[11px] text-slate-400 mt-1">Cross-functional board analytics with one-click PDF & CSV exports.</p>
+            </a>
+          </div>
+        </div>
+      </section>
+      
+      <section id="sec-overview" class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4 print-card">
+        <div class="flex items-center space-x-3 pb-3 border-b border-slate-800">
+          <div class="w-8 h-8 rounded-xl bg-sky-500/20 text-sky-400 font-black flex items-center justify-center text-sm border border-sky-500/30">1</div>
+          <div>
+            <h3 class="text-lg font-black text-white">System Architecture & Overview</h3>
+            <p class="text-xs text-slate-400">Core purpose, business domain model, and multi-year dataset</p>
+          </div>
+        </div>
+        <div class="text-xs text-slate-300 leading-relaxed space-y-3">
+          <p>
+            <strong>Measure DI RevOps</strong> is an enterprise Revenue Operations and Performance Management suite designed for industrial machinery, equipment sales, automation projects, and service operations. The platform unifies CRM leads, customer contracts, milestone invoicing, project expenses, payroll, employee attendance, quarterly KRAs, daily task compliance (DWM), and Annual Operating Plan (AOP) strategies into a single source of truth.
+          </p>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
+            <div class="p-3.5 bg-slate-800/70 rounded-xl border border-slate-700">
+              <strong class="text-sky-400 block mb-1">📊 Multi-Year Horizon</strong>
+              <span>Full dataset support for Financial Years <strong>2024-25</strong>, <strong>2025-26</strong>, and <strong>2026-27</strong> with instant cross-comparison.</span>
+            </div>
+            <div class="p-3.5 bg-slate-800/70 rounded-xl border border-slate-700">
+              <strong class="text-emerald-400 block mb-1">⏱️ Precise Period Scaling</strong>
+              <span>Filter targets and achievements accurately across <strong>WTD</strong>, <strong>MTD</strong>, <strong>QTD</strong>, <strong>Q1-Q4</strong>, <strong>H1-H2</strong>, and <strong>Full Year</strong> ratios.</span>
+            </div>
+            <div class="p-3.5 bg-slate-800/70 rounded-xl border border-slate-700">
+              <strong class="text-purple-400 block mb-1">🔒 Local + Cloud Sync</strong>
+              <span>Operates with robust local offline capability in LocalStorage with seamless Firebase Firestore cloud synchronization.</span>
+            </div>
+          </div>
+        </div>
+      </section>
+      
+      <section id="sec-rbac" class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4 print-card">
+        <div class="flex items-center space-x-3 pb-3 border-b border-slate-800">
+          <div class="w-8 h-8 rounded-xl bg-purple-500/20 text-purple-400 font-black flex items-center justify-center text-sm border border-purple-500/30">2</div>
+          <div>
+            <h3 class="text-lg font-black text-white">Role-Based Access Control (RBAC) & Hierarchy</h3>
+            <p class="text-xs text-slate-400">Permissions for Super Admin (MD), Admin (Head), Manager, and Staff</p>
+          </div>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs border-collapse">
+            <thead>
+              <tr class="bg-slate-800 text-slate-300 font-bold border-b border-slate-700">
+                <th class="p-3">Module / Feature</th>
+                <th class="p-3 text-fuchsia-300">Super Admin<br/><span class="text-[10px] text-slate-400 font-normal">(Mr. Ravichandran - MD)</span></th>
+                <th class="p-3 text-purple-300">Admin<br/><span class="text-[10px] text-slate-400 font-normal">(Mr. Murugan - Head)</span></th>
+                <th class="p-3 text-sky-300">Manager<br/><span class="text-[10px] text-slate-400 font-normal">(Vertical / Dept Head)</span></th>
+                <th class="p-3 text-slate-300">Staff<br/><span class="text-[10px] text-slate-400 font-normal">(Sales / Service / Ops)</span></th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-800 text-slate-300">
+              <tr>
+                <td class="p-3 font-semibold text-white">Executive Dashboard</td>
+                <td class="p-3 text-fuchsia-400 font-extrabold">Full Visibility & Global Filters</td>
+                <td class="p-3 text-purple-400 font-bold">Full Visibility & Global Filters</td>
+                <td class="p-3 text-emerald-400 font-bold">Full Visibility & Department Filters</td>
+                <td class="p-3 text-slate-500">Restricted (Redirected to Scorecard)</td>
+              </tr>
+              <tr>
+                <td class="p-3 font-semibold text-white">Leads, Orders & Payments</td>
+                <td class="p-3 text-fuchsia-400 font-extrabold">Full Access & System Override</td>
+                <td class="p-3 text-purple-400 font-bold">Full Access & Edit All Deals</td>
+                <td class="p-3 text-emerald-400 font-bold">Full Access & Team Scope</td>
+                <td class="p-3 text-amber-400 font-semibold">Assigned & Owned Deals</td>
+              </tr>
+              <tr>
+                <td class="p-3 font-semibold text-white">Expenses & Profit Center</td>
+                <td class="p-3 text-fuchsia-400 font-extrabold">Full Access & Ledger Audit</td>
+                <td class="p-3 text-purple-400 font-bold">Full Access & Multi-Project Ledger</td>
+                <td class="p-3 text-emerald-400 font-bold">View & Submit Claims</td>
+                <td class="p-3 text-amber-400 font-semibold">Submit Personal Expense Claims</td>
+              </tr>
+              <tr>
+                <td class="p-3 font-semibold text-white">Payroll & CTC</td>
+                <td class="p-3 text-fuchsia-400 font-extrabold">Full Executive Oversight</td>
+                <td class="p-3 text-purple-400 font-bold">View All Employee Salaries</td>
+                <td class="p-3 text-emerald-400 font-bold">View Team Salary Structure</td>
+                <td class="p-3 text-amber-400 font-semibold">Personal Pay Slip & CTC View</td>
+              </tr>
+              <tr>
+                <td class="p-3 font-semibold text-white">My Team & Reviews</td>
+                <td class="p-3 text-fuchsia-400 font-extrabold">Super Executive Appraisal & Ratings</td>
+                <td class="p-3 text-purple-400 font-bold">Full Executive Review & Appraisals</td>
+                <td class="p-3 text-emerald-400 font-bold">Direct Reports Review & Rating</td>
+                <td class="p-3 text-slate-500">Restricted</td>
+              </tr>
+              <tr>
+                <td class="p-3 font-semibold text-white">AOP Targets (Annual Plan)</td>
+                <td class="p-3 text-fuchsia-400 font-extrabold">Full Access (Company Strategy)</td>
+                <td class="p-3 text-purple-400 font-bold">Full Access (Edit Targets)</td>
+                <td class="p-3 text-slate-500">Restricted</td>
+                <td class="p-3 text-slate-500">Restricted</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+      
+      <section id="sec-sales" class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4 print-card">
+        <div class="flex items-center space-x-3 pb-3 border-b border-slate-800">
+          <div class="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 font-black flex items-center justify-center text-sm border border-emerald-500/30">3</div>
+          <div>
+            <h3 class="text-lg font-black text-white">Sales & Revenue (Lead-to-Cash) Modules</h3>
+            <p class="text-xs text-slate-400">Leads CRM, Quotation Approval Gates, Invoicing Governance, Orders & AR Write-Offs</p>
+          </div>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+          <div class="p-4 bg-slate-800/60 rounded-xl border border-slate-700/80 space-y-2">
+            <h4 class="font-bold text-emerald-400 text-sm flex items-center space-x-1.5">
+              <span>📈 Leads & Pipeline CRM</span>
+            </h4>
+            <p class="text-slate-300 leading-relaxed">
+              Track commercial deals through 5 pipeline stages: <strong>New Enquiry</strong>, <strong>Qualified</strong>, <strong>Quoted</strong>, <strong>Negotiation</strong>, and <strong>Won / Lost</strong>.
+            </p>
+            <ul class="list-disc list-inside text-slate-400 space-y-1 pt-1">
+              <li>Add deal size (Rs. Lakhs), client name, vertical.</li>
+              <li>Track sales rep assignment and target completion date.</li>
+              <li>Filter pipeline by stage and probability weighting.</li>
+            </ul>
+          </div>
+          <div class="p-4 bg-slate-800/60 rounded-xl border border-slate-700/80 space-y-2">
+            <h4 class="font-bold text-emerald-400 text-sm flex items-center space-x-1.5">
+              <span>📝 Quotations & Senior Approvals</span>
+            </h4>
+            <p class="text-slate-300 leading-relaxed">
+              Structured proposal generation with multi-tier governance rules:
+            </p>
+            <ul class="list-disc list-inside text-slate-400 space-y-1 pt-1">
+              <li><strong>≤15% Discount:</strong> Auto-approved.</li>
+              <li><strong>15.1% - 25% Discount:</strong> Requires Sales Head sign-off.</li>
+              <li><strong>>25% Discount:</strong> Hard escalation to Managing Director.</li>
+              <li>Includes one-click PDF generation and Lead-to-Order conversion.</li>
+            </ul>
+          </div>
+          <div class="p-4 bg-slate-800/60 rounded-xl border border-slate-700/80 space-y-2">
+            <h4 class="font-bold text-emerald-400 text-sm flex items-center space-x-1.5">
+              <span>🧾 Invoices & Compliance</span>
+            </h4>
+            <p class="text-slate-300 leading-relaxed">
+              Tax and Proforma invoicing with strict Director authorization gates:
+            </p>
+            <ul class="list-disc list-inside text-slate-400 space-y-1 pt-1">
+              <li>Automatic 18% GST calculation, HSN/SAC & PAN compliance.</li>
+              <li>Draft & Pending Director Approval statuses prevent unauthorized client dispatches.</li>
+              <li>Seamless sync with AR collection aging.</li>
+            </ul>
+          </div>
+          <div class="p-4 bg-slate-800/60 rounded-xl border border-slate-700/80 space-y-2">
+            <h4 class="font-bold text-emerald-400 text-sm flex items-center space-x-1.5">
+              <span>📦 Orders & Contracts</span>
+            </h4>
+            <p class="text-slate-300 leading-relaxed">
+              Manage won customer contracts, order booking details, execution timeline, and delivery SLAs.
+            </p>
+            <ul class="list-disc list-inside text-slate-400 space-y-1 pt-1">
+              <li>Track equipment vs service vs spares project splits.</li>
+              <li>Monitor contract fulfillment and dispatch status.</li>
+              <li>Log customer purchase orders (PO) and terms.</li>
+            </ul>
+          </div>
+          <div class="p-4 bg-slate-800/60 rounded-xl border border-slate-700/80 space-y-2">
+            <h4 class="font-bold text-emerald-400 text-sm flex items-center space-x-1.5">
+              <span>💳 Payments & AR Write-Offs</span>
+            </h4>
+            <p class="text-slate-300 leading-relaxed">
+              Accounts Receivable (AR) management with milestone invoicing and payment collection logs.
+            </p>
+            <ul class="list-disc list-inside text-slate-400 space-y-1 pt-1">
+              <li>Track advance, dispatch, and commissioning payments.</li>
+              <li>Overdue payment alerts and collection aging analysis.</li>
+              <li><strong>Director Bad Debt Write-Off:</strong> Audited write-off governance with mandatory justification and ledger tracking.</li>
+            </ul>
+          </div>
+          <div class="p-4 bg-slate-800/60 rounded-xl border border-slate-700/80 space-y-2">
+            <h4 class="font-bold text-teal-400 text-sm flex items-center space-x-1.5">
+              <span>📁 Master Data & Bulk Import</span>
+            </h4>
+            <p class="text-slate-300 leading-relaxed">
+              Centralized entity repository and seamless CSV import engine for production cutover:
+            </p>
+            <ul class="list-disc list-inside text-slate-400 space-y-1 pt-1">
+              <li>Clients, Project Master, Employees, and Spare Parts catalog.</li>
+              <li>Pre-formatted CSV template downloads with column validation.</li>
+              <li>Instant merge into local state and Firestore database.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+      
+      <section id="sec-finance" class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4 print-card">
+        <div class="flex items-center space-x-3 pb-3 border-b border-slate-800">
+          <div class="w-8 h-8 rounded-xl bg-indigo-500/20 text-indigo-400 font-black flex items-center justify-center text-sm border border-indigo-500/30">4</div>
+          <div>
+            <h3 class="text-lg font-black text-white">Finance, Payroll & Expense Management</h3>
+            <p class="text-xs text-slate-400">Profit Center, Project Ledger Split, Monthly CTC & Payroll</p>
+          </div>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+          <div class="p-4 bg-slate-800/60 rounded-xl border border-slate-700/80 space-y-2">
+            <h4 class="font-bold text-indigo-300 text-sm flex items-center space-x-1.5">
+              <span>💰 Expenses & Profit Center</span>
+            </h4>
+            <p class="text-slate-300 leading-relaxed">
+              Log project-wise operational expenses, direct material costs, travel claims, and overheads.
+            </p>
+            <ul class="list-disc list-inside text-slate-400 space-y-1 pt-1">
+              <li>Multi-project split allocation and category categorization.</li>
+              <li>Compare total vertical revenue against vertical operating expenses.</li>
+              <li>Track net profit margin % per project and customer account.</li>
+            </ul>
+          </div>
+          <div class="p-4 bg-slate-800/60 rounded-xl border border-slate-700/80 space-y-2">
+            <h4 class="font-bold text-indigo-300 text-sm flex items-center space-x-1.5">
+              <span>💵 Payroll & CTC Administration</span>
+            </h4>
+            <p class="text-slate-300 leading-relaxed">
+              Complete monthly salary ledger, statutory deductions (PF/ESI/TDS), and employee CTC breakdown.
+            </p>
+            <ul class="list-disc list-inside text-slate-400 space-y-1 pt-1">
+              <li>Basic, HRA, Special Allowance, and Performance Incentives breakdown.</li>
+              <li>Disbursement tracking and monthly payroll disbursement logs.</li>
+              <li>Automated salary calculation adjusted for monthly attendance loss-of-pay (LOP).</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+      
+      <section id="sec-hr" class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4 print-card">
+        <div class="flex items-center space-x-3 pb-3 border-b border-slate-800">
+          <div class="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-400 font-black flex items-center justify-center text-sm border border-amber-500/30">5</div>
+          <div>
+            <h3 class="text-lg font-black text-white">People, HR & Attendance Administration</h3>
+            <p class="text-xs text-slate-400">Roster, punch logs, leaves, direct reportees, org hierarchy</p>
+          </div>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+          <div class="p-4 bg-slate-800/60 rounded-xl border border-slate-700/80 space-y-2">
+            <h4 class="font-bold text-amber-300 text-sm">👥 Employee Directory</h4>
+            <p class="text-slate-300">Complete staff roster including role, department, reporting supervisor, contact details, and account active status.</p>
+          </div>
+          <div class="p-4 bg-slate-800/60 rounded-xl border border-slate-700/80 space-y-2">
+            <h4 class="font-bold text-amber-300 text-sm">⏰ Attendance & Leaves</h4>
+            <p class="text-slate-300">Daily punch-in / punch-out time tracking, shift duration calculation, leave requests, and manager approval workflow.</p>
+          </div>
+          <div class="p-4 bg-slate-800/60 rounded-xl border border-slate-700/80 space-y-2">
+            <h4 class="font-bold text-amber-300 text-sm">🏢 My Team Workspace</h4>
+            <p class="text-slate-300">Dedicated manager dashboard showing direct reportees, team attendance summary, and pending review requests.</p>
+          </div>
+        </div>
+      </section>
+      
+      <section id="sec-perf" class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4 print-card">
+        <div class="flex items-center space-x-3 pb-3 border-b border-slate-800">
+          <div class="w-8 h-8 rounded-xl bg-[#982B68]/30 text-[#E283BD] font-black flex items-center justify-center text-sm border border-[#982B68]/50">6</div>
+          <div>
+            <h3 class="text-lg font-black text-white">Performance, Scorecards, DWM & AOP Strategy</h3>
+            <p class="text-xs text-slate-400">Scorecard rating engine, Daily Work Management (DWM), Special Assignments & AOP</p>
+          </div>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+          <div class="p-4 bg-slate-800/60 rounded-xl border border-slate-700/80 space-y-2">
+            <h4 class="font-bold text-[#E283BD] text-sm">🎯 My Scorecard</h4>
+            <p class="text-slate-300">Personal performance hub calculating weighted achievement scores based on active KRAs, target metrics, and quarterly performance ratios.</p>
+          </div>
+          <div class="p-4 bg-slate-800/60 rounded-xl border border-slate-700/80 space-y-2">
+            <h4 class="font-bold text-[#E283BD] text-sm">📅 Daily Work Management (DWM) & Special Logic</h4>
+            <p class="text-slate-300">Daily task logging system with intelligent session detection and custom productivity algorithms:</p>
+            <ul class="list-disc list-inside text-slate-400 space-y-1 pt-1">
+              <li><strong>Auto-Selected User:</strong> Synchronizes directly with logged-in user profile.</li>
+              <li><strong>Special Assignments:</strong> Tasks flagged as special assignments (audit, client visit, emergency support) earn a standardized <strong>100% (480 mins)</strong> full-credit productivity score regardless of baseline task minutes.</li>
+              <li><strong>Manager Ratings:</strong> Direct manager review and verification with feedback notes.</li>
+            </ul>
+          </div>
+          <div class="p-4 bg-slate-800/60 rounded-xl border border-slate-700/80 space-y-2">
+            <h4 class="font-bold text-[#E283BD] text-sm">📊 KRAs & Target Metrics</h4>
+            <p class="text-slate-300">Key Result Area definitions specifying quarterly target values, weightage percentages, measurement units, and employee assignments.</p>
+          </div>
+          <div class="p-4 bg-slate-800/60 rounded-xl border border-slate-700/80 space-y-2">
+            <h4 class="font-bold text-[#E283BD] text-sm">🏆 AOP Targets (Annual Operating Plan)</h4>
+            <p class="text-slate-300">Company-wide strategic revenue targets allocated across Equipment Sales, Automation Services, and Spare Parts verticals per FY.</p>
+          </div>
+        </div>
+      </section>
+      
+      <section id="sec-dashboard" class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4 print-card">
+        <div class="flex items-center space-x-3 pb-3 border-b border-slate-800">
+          <div class="w-8 h-8 rounded-xl bg-rose-500/20 text-rose-400 font-black flex items-center justify-center text-sm border border-rose-500/30">7</div>
+          <div>
+            <h3 class="text-lg font-black text-white">Executive Dashboard & Target Ratio Calculation</h3>
+            <p class="text-xs text-slate-400">Understanding period ratio scaling across Q1-Q4, H1-H2, WTD, MTD & Full Year</p>
+          </div>
+        </div>
+        <div class="text-xs text-slate-300 leading-relaxed space-y-3">
+          <p>
+            When viewing the <strong>Executive RevOps Dashboard</strong>, the selected Period filter dynamically recalculates both <em>Achieved Revenue</em> and <em>Target Benchmarks</em> to display exact apple-to-apple comparisons:
+          </p>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr class="bg-slate-800 text-slate-300 font-bold border-b border-slate-700">
+                  <th class="p-2.5">Period Filter</th>
+                  <th class="p-2.5">Ratio Multiplier</th>
+                  <th class="p-2.5">Target Benchmark Calculation Formula</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-800 text-slate-300">
+                <tr>
+                  <td class="p-2.5 font-bold text-sky-400">Q1, Q2, Q3, Q4 (Quarterly)</td>
+                  <td class="p-2.5 font-bold text-white">25% (0.25)</td>
+                  <td class="p-2.5">Quarter Target = Annual Target × 0.25 (25% of annual goal)</td>
+                </tr>
+                <tr>
+                  <td class="p-2.5 font-bold text-indigo-400">H1, H2 (Half Yearly)</td>
+                  <td class="p-2.5 font-bold text-white">50% (0.50)</td>
+                  <td class="p-2.5">Half-Year Target = Annual Target × 0.50 (50% of annual goal)</td>
+                </tr>
+                <tr>
+                  <td class="p-2.5 font-bold text-emerald-400">MTD (Month to Date)</td>
+                  <td class="p-2.5 font-bold text-white">8.33% (0.0833)</td>
+                  <td class="p-2.5">Monthly Target = Annual Target × (1 / 12)</td>
+                </tr>
+                <tr>
+                  <td class="p-2.5 font-bold text-amber-400">WTD (Week to Date)</td>
+                  <td class="p-2.5 font-bold text-white">1.92% (0.0192)</td>
+                  <td class="p-2.5">Weekly Target = Annual Target × (1 / 52)</td>
+                </tr>
+                <tr>
+                  <td class="p-2.5 font-bold text-purple-400">Full Year</td>
+                  <td class="p-2.5 font-bold text-white">100% (1.00)</td>
+                  <td class="p-2.5">Full Year Target = 100% of Annual KRA / AOP Target</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+      
+      <section id="sec-sop" class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4 print-card">
+        <div class="flex items-center space-x-3 pb-3 border-b border-slate-800">
+          <div class="w-8 h-8 rounded-xl bg-teal-500/20 text-teal-400 font-black flex items-center justify-center text-sm border border-teal-500/30">8</div>
+          <div>
+            <h3 class="text-lg font-black text-white">Standard Operating Procedures (SOP) Routine</h3>
+            <p class="text-xs text-slate-400">Checklists for Sales Reps, Managers, and Managing Director</p>
+          </div>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+          <div class="p-4 bg-slate-800/60 rounded-xl border border-slate-700/80 space-y-2">
+            <h4 class="font-bold text-teal-300 text-sm">☀️ Daily SOP (Every Morning)</h4>
+            <ol class="list-decimal list-inside space-y-1 text-slate-300">
+              <li>Punch-In on <strong>Attendance</strong> module.</li>
+              <li>Log planned daily tasks on <strong>DWM</strong> workspace.</li>
+              <li>Update deal stages & proposal values in <strong>Leads CRM</strong>.</li>
+              <li>Log expense receipts under <strong>Expenses</strong>.</li>
+            </ol>
+          </div>
+          <div class="p-4 bg-slate-800/60 rounded-xl border border-slate-700/80 space-y-2">
+            <h4 class="font-bold text-teal-300 text-sm">📅 Weekly SOP (Every Friday)</h4>
+            <ol class="list-decimal list-inside space-y-1 text-slate-300">
+              <li>Review AR collection milestones in <strong>Payments</strong>.</li>
+              <li>Verify direct reports' task ratings in <strong>My Team</strong>.</li>
+              <li>Inspect quarterly KRA progress on <strong>My Scorecard</strong>.</li>
+              <li>Sync offline updates with <strong>Firebase Cloud</strong>.</li>
+            </ol>
+          </div>
+          <div class="p-4 bg-slate-800/60 rounded-xl border border-slate-700/80 space-y-2">
+            <h4 class="font-bold text-teal-300 text-sm">🏆 Monthly & Quarterly SOP</h4>
+            <ol class="list-decimal list-inside space-y-1 text-slate-300">
+              <li>Run payroll disbursement under <strong>Payroll</strong>.</li>
+              <li>Audit vertical profit margins on <strong>Expenses</strong>.</li>
+              <li>Conduct 360 appraisals under <strong>Performance Reviews</strong>.</li>
+              <li>Review AOP strategy on <strong>Executive Dashboard</strong>.</li>
+            </ol>
+          </div>
+        </div>
+      </section>
+      
+      <section id="sec-data" class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4 print-card">
+        <div class="flex items-center space-x-3 pb-3 border-b border-slate-800">
+          <div class="w-8 h-8 rounded-xl bg-slate-800 text-slate-300 font-black flex items-center justify-center text-sm border border-slate-700">9</div>
+          <div>
+            <h3 class="text-lg font-black text-white">Data Maintenance & Dataset Reloading</h3>
+            <p class="text-xs text-slate-400">LocalStorage storage key structure and dataset reseed</p>
+          </div>
+        </div>
+        <div class="text-xs text-slate-300 leading-relaxed space-y-3">
+          <p>
+            The application maintains a complete 2-year realistic industrial dataset (April 2024 to March 2026). If data ever becomes corrupted or needs a complete reset to default demo benchmarks, click the <strong>"Reload 2-Yr Data"</strong> button in the top navigation bar or drawer.
+          </p>
+          <div class="p-3.5 bg-amber-950/40 border border-amber-800/60 rounded-xl text-amber-200">
+            <strong>⚠️ Reload Notice:</strong> Clicking "Reload 2-Yr Data" re-initializes all collections in LocalStorage (employees, leads, orders, payments, expenses, payroll, attendance, KRAs, reviews, AOP) with calibrated test data while preserving active user login credentials.
+          </div>
+        </div>
+      </section>
+      
+      <section id="sec-200-users" class="bg-slate-900 border border-fuchsia-900/60 rounded-2xl p-6 shadow-xl space-y-4 print-card">
+        <div class="flex items-center space-x-3 pb-3 border-b border-slate-800">
+          <div class="w-8 h-8 rounded-xl bg-fuchsia-500/20 text-fuchsia-400 font-black flex items-center justify-center text-sm border border-fuchsia-500/30">10</div>
+          <div>
+            <h3 class="text-lg font-black text-white flex items-center gap-2">
+              <span>🚀 Commercial Readiness & 200 Daily User Operating SOP</span>
+              <span class="px-2 py-0.5 rounded-full bg-fuchsia-500/20 text-fuchsia-300 text-[10px] uppercase font-bold tracking-wider border border-fuchsia-500/30">Commercial Edition</span>
+            </h3>
+            <p class="text-xs text-slate-400">Guidelines for 200 staff accessing, uploading data, and digitally logging daily activities</p>
+          </div>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+          <div class="p-4 bg-slate-800/60 rounded-xl border border-slate-700/80 space-y-2">
+            <h4 class="font-bold text-fuchsia-300 text-sm flex items-center space-x-1.5">
+              <span>⚡ Step 1: Real-Time Sync & Multi-User DB</span>
+            </h4>
+            <p class="text-slate-300 leading-relaxed">
+              Every employee write action (DWM activities, Attendance punch-in, Lead updates, Expenses) generates a collision-resistant unique ID and immediately syncs across all 200 connected devices via Firestore.
+            </p>
+            <ul class="list-disc list-inside text-slate-400 space-y-1 pt-1">
+              <li>Instant real-time snapshot listeners active across 9 collections.</li>
+              <li>Collision-resistant document IDs prevent data overwrites.</li>
+              <li>Automatic local storage fallback ensures offline work is preserved.</li>
+            </ul>
+          </div>
+          <div class="p-4 bg-slate-800/60 rounded-xl border border-slate-700/80 space-y-2">
+            <h4 class="font-bold text-fuchsia-300 text-sm flex items-center space-x-1.5">
+              <span>🛡️ Step 2: Firestore Security & Access Rules</span>
+            </h4>
+            <p class="text-slate-300 leading-relaxed">
+              Security rules are deployed directly to the production cloud project to protect all 9 RevOps collections against unauthorized access and ensure compliance.
+            </p>
+            <ul class="list-disc list-inside text-slate-400 space-y-1 pt-1">
+              <li>Strict collection-level access rules enabled on Cloud Firestore.</li>
+              <li>Hierarchy permissions enforced for MD, Dept Heads, and Staff.</li>
+              <li>Audit logging for all modifications to financial ledgers.</li>
+            </ul>
+          </div>
+          <div class="p-4 bg-slate-800/60 rounded-xl border border-slate-700/80 space-y-2">
+            <h4 class="font-bold text-fuchsia-300 text-sm flex items-center space-x-1.5">
+              <span>📊 Step 3: Bulk Uploads & Activity Entry SOP</span>
+            </h4>
+            <p class="text-slate-300 leading-relaxed">
+              When 200 staff enter daily work logs or import Excel/CSV files, automatic input sanitization strips invalid script tags and processes records in chunks.
+            </p>
+            <ul class="list-disc list-inside text-slate-400 space-y-1 pt-1">
+              <li>Automatic input sanitization & date format validation.</li>
+              <li>Batch chunking uploads up to 500 records smoothly without timeout.</li>
+              <li>Daily activity submission window: 9:00 AM to 6:30 PM daily.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+      
+      <div class="text-center pt-8 border-t border-slate-800 text-[11px] text-slate-500 space-y-1">
+        <p>Measure DI Technologies RevOps Platform &copy; 2026. Confidential - Internal Business Operations Guide.</p>
+        <p>This user guide is dynamically formatted and compiled directly from live system parameters.</p>
+      </div>
+    </div>
+  </main>
+  <script src="js/user-guide.js"></script>
+</body>
+</html>

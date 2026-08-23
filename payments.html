@@ -1,0 +1,749 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>K-30_ERP - Payments & Collections</title>
+    <link rel="stylesheet" href="/src/index.css">
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="js/firebase-init.js" defer></script>
+    <script src="js/store.js" defer></script>
+    <script src="js/seed-data.js" defer></script>
+    <script src="js/email-service.js" defer></script>
+    <script src="auth-guard.js" defer></script>
+  </head>
+  <body class="bg-slate-50 min-h-screen text-slate-800">
+    
+    <div id="navbar-container"></div>
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+      
+      <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-white p-6 rounded-2xl shadow-xs border border-slate-200">
+        <div>
+          <div class="flex items-center space-x-2">
+            <h1 class="text-2xl font-bold text-slate-900 tracking-tight">Payment Collections & Receivables Management</h1>
+            <span class="px-2.5 py-0.5 rounded-full text-[11px] font-extrabold uppercase bg-emerald-50 text-emerald-700 border border-emerald-200">Finance Integrated</span>
+          </div>
+          <p class="text-sm text-slate-500 mt-1">Filtered Pending Invoices, Cash Receipts, Goodwill Discounts & Director-Approved Write-Offs</p>
+        </div>
+        <div class="flex flex-wrap items-center gap-3">
+          <a href="invoices.html" class="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-colors flex items-center space-x-1.5">
+            <span>🧾 Commercial Invoices</span>
+          </a>
+          <button onclick="downloadPgBgReceivablesCsv()" class="px-4 py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs rounded-xl border border-indigo-200 shadow-xs transition-colors flex items-center space-x-1.5 cursor-pointer" title="Download Performance Guarantee & Retention Receivables List">
+            <span>📥 Export PG/BG Due List</span>
+          </button>
+          <button onclick="openAdjustmentModal()" class="px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center space-x-1.5 cursor-pointer">
+            <span>⚖️ + Request Adjustment / Write-Off</span>
+          </button>
+          <button onclick="openPaymentModal()" class="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center space-x-1.5 cursor-pointer">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+            <span>+ Record Payment Collection</span>
+          </button>
+        </div>
+      </div>
+      
+      <div id="pg-bg-expiry-alert" class="hidden bg-gradient-to-r from-amber-50 via-rose-50 to-amber-50 border-2 border-amber-300 rounded-2xl p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div class="flex items-center space-x-3.5">
+          <div class="w-10 h-10 rounded-xl bg-amber-600 text-white flex items-center justify-center font-black text-xl shadow-xs shrink-0">
+            🔔
+          </div>
+          <div>
+            <h3 class="text-sm font-black text-amber-950 uppercase tracking-wide flex items-center gap-2">
+              <span>Performance Guarantee (PG) / Bank Guarantee Release Alert</span>
+              <span id="pending-pgbg-count" class="px-2 py-0.5 bg-amber-700 text-white rounded-full text-[11px] font-black">0</span>
+            </h3>
+            <p class="text-xs text-amber-900 mt-0.5" id="pending-pgbg-text">Guarantees or retention amounts reached warranty maturity or stipulated collection date in PO entry.</p>
+          </div>
+        </div>
+        <div class="flex items-center space-x-2 shrink-0">
+          <button onclick="downloadPgBgReceivablesCsv()" class="px-3.5 py-2 bg-white hover:bg-amber-100 text-amber-900 text-xs font-bold rounded-xl border border-amber-300 shadow-xs transition-colors cursor-pointer">
+            📥 Download List (CSV)
+          </button>
+          <button onclick="switchPaymentView('pg_bg')" class="px-4 py-2 bg-amber-700 hover:bg-amber-800 text-white text-xs font-bold rounded-xl shadow-xs transition-colors cursor-pointer flex items-center space-x-1.5">
+            <span>View PG/BG Details &rarr;</span>
+          </button>
+        </div>
+      </div>
+      
+      <div id="director-approval-alert" class="hidden bg-gradient-to-r from-purple-50 via-amber-50 to-purple-50 border-2 border-purple-300 rounded-2xl p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div class="flex items-center space-x-3.5">
+          <div class="w-10 h-10 rounded-xl bg-purple-700 text-white flex items-center justify-center font-black text-xl shadow-xs shrink-0">
+            👑
+          </div>
+          <div>
+            <h3 class="text-sm font-black text-purple-950 uppercase tracking-wide flex items-center gap-2">
+              <span>Director AR Authorization Required</span>
+              <span id="pending-director-count" class="px-2 py-0.5 bg-purple-700 text-white rounded-full text-[11px] font-black">0</span>
+            </h3>
+            <p class="text-xs text-purple-900 mt-0.5">Commercial invoice discounts, price goodwill reductions, or bad debt write-offs awaiting mandatory Director sign-off.</p>
+          </div>
+        </div>
+        <button onclick="switchPaymentView('adjustments')" class="px-4 py-2 bg-purple-700 hover:bg-purple-800 text-white text-xs font-bold rounded-xl shadow-xs transition-colors shrink-0 cursor-pointer flex items-center space-x-1.5">
+          <span>Review & Authorize as Director &rarr;</span>
+        </button>
+      </div>
+      
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        <div class="bg-white p-4.5 rounded-2xl shadow-xs border border-slate-200 space-y-1">
+          <span class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Total Billed Revenue</span>
+          <div class="text-xl font-black text-slate-900" id="stat-billed-revenue">Rs.0</div>
+          <p class="text-[10px] text-slate-400">Across Approved Invoices</p>
+        </div>
+        <div class="bg-white p-4.5 rounded-2xl shadow-xs border border-slate-200 space-y-1">
+          <span class="text-[11px] font-bold uppercase tracking-wider text-emerald-600">Realized Collections</span>
+          <div class="text-xl font-black text-emerald-600" id="stat-collected-total">Rs.0</div>
+          <p class="text-[10px] text-slate-400">Accounts Cleared & Bank Verified</p>
+        </div>
+        <div class="bg-white p-4.5 rounded-2xl shadow-xs border border-slate-200 space-y-1">
+          <span class="text-[11px] font-bold uppercase tracking-wider text-amber-600">Outstanding AR</span>
+          <div class="text-xl font-black text-amber-600" id="stat-outstanding-total">Rs.0</div>
+          <p class="text-[10px] text-slate-400">Pending Customer Settlements</p>
+        </div>
+        <div class="bg-white p-4.5 rounded-2xl shadow-xs border border-slate-200 space-y-1">
+          <span class="text-[11px] font-bold uppercase tracking-wider text-rose-600">Overdue (>30d)</span>
+          <div class="text-xl font-black text-rose-600" id="stat-overdue-total">Rs.0</div>
+          <p class="text-[10px] text-slate-400" id="stat-overdue-detail">0 Invoices Pending Recovery</p>
+        </div>
+        <div class="bg-white p-4.5 rounded-2xl shadow-xs border border-slate-200 space-y-1">
+          <span class="text-[11px] font-bold uppercase tracking-wider text-purple-700">Adjustments & Write-Offs</span>
+          <div class="text-xl font-black text-purple-700" id="stat-adjustments-total">Rs.0</div>
+          <p class="text-[10px] text-slate-400">Director Authorized</p>
+        </div>
+      </div>
+      
+      <div class="bg-white rounded-2xl shadow-xs border border-slate-200 overflow-hidden space-y-4">
+        
+        <div class="p-6 border-b border-slate-200 space-y-4">
+          <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+            
+            <div class="flex items-center space-x-1.5 overflow-x-auto pb-1 text-xs" id="payment-view-tabs">
+              <button onclick="switchPaymentView('transactions')" class="view-tab-btn px-4 py-2 font-bold rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 cursor-pointer whitespace-nowrap" data-view="transactions">
+                💳 Payment Receipts & Ledger (<span id="count-view-trans">0</span>)
+              </button>
+              <button onclick="switchPaymentView('client_ar')" class="view-tab-btn px-4 py-2 font-bold rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 cursor-pointer whitespace-nowrap" data-view="client_ar">
+                👥 Client-wise Outstanding & Aging
+              </button>
+              <button onclick="switchPaymentView('project_ar')" class="view-tab-btn px-4 py-2 font-bold rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 cursor-pointer whitespace-nowrap" data-view="project_ar">
+                📦 Project / Order-wise Receivables
+              </button>
+              <button onclick="switchPaymentView('salesrep_ar')" class="view-tab-btn px-4 py-2 font-bold rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 cursor-pointer whitespace-nowrap" data-view="salesrep_ar">
+                🎯 Sales Person Recovery
+              </button>
+              <button onclick="switchPaymentView('pg_bg')" class="view-tab-btn px-4 py-2 font-bold rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 cursor-pointer whitespace-nowrap" data-view="pg_bg">
+                🛡️ PG / BG & Retention (<span id="count-view-pgbg">0</span>)
+              </button>
+              <button onclick="switchPaymentView('adjustments')" class="view-tab-btn px-4 py-2 font-bold rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 cursor-pointer whitespace-nowrap" data-view="adjustments">
+                ⚖️ Adjustments & Write-Offs (<span id="count-view-adj">0</span>)
+              </button>
+            </div>
+            
+            <div class="flex flex-wrap items-center gap-3">
+              <select id="payment-fy-filter" onchange="renderActivePaymentView()" class="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                <option value="2026-27" selected>FY 2026-27 (Current)</option>
+                <option value="2025-26">FY 2025-26</option>
+                <option value="2024-25">FY 2024-25</option>
+                <option value="All">All FYs</option>
+              </select>
+              <div id="payment-filter-wrapper" class="hidden">
+                <select id="payment-emp-filter" onchange="renderActivePaymentView()" class="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                  <option value="All">All Sales Representatives</option>
+                </select>
+              </div>
+              <input type="text" id="payment-search-input" oninput="renderActivePaymentView()" placeholder="Search customer, invoice, UTR, ref..." class="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs w-60 focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+            </div>
+          </div>
+        </div>
+        
+        <div id="view-section-transactions" class="overflow-x-auto">
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="bg-slate-50 border-b border-slate-200 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                <th class="py-3 px-4">Receipt # & Date</th>
+                <th class="py-3 px-4">Customer Name</th>
+                <th class="py-3 px-4">Linked Invoice #</th>
+                <th class="py-3 px-4 text-right">Amount Received</th>
+                <th class="py-3 px-4 text-right">TDS Deducted</th>
+                <th class="py-3 px-4">Mode / UTR #</th>
+                <th class="py-3 px-4 text-center">Status</th>
+                <th class="py-3 px-4 text-center">Receipt Dispatch</th>
+                <th class="py-3 px-4 text-center">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="payments-tbody" class="divide-y divide-slate-100 text-xs">
+              
+            </tbody>
+          </table>
+        </div>
+        
+        <div id="view-section-client_ar" class="hidden overflow-x-auto p-4">
+          <div class="mb-3 flex items-center justify-between text-xs">
+            <span class="font-bold text-slate-700">Aging Schedule Analysis (International Standard Net 30/60/90 Days)</span>
+            <span class="text-[11px] text-slate-400">DSO: Days Sales Outstanding benchmarked to 30 days</span>
+          </div>
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="bg-slate-50 border-b border-slate-200 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                <th class="py-3 px-4">Client / Organization</th>
+                <th class="py-3 px-4 text-right">Total Invoiced</th>
+                <th class="py-3 px-4 text-right">Collected (Cash+TDS)</th>
+                <th class="py-3 px-4 text-right">Outstanding (AR)</th>
+                <th class="py-3 px-4 text-right text-emerald-700">0 - 30 Days</th>
+                <th class="py-3 px-4 text-right text-amber-600">31 - 60 Days</th>
+                <th class="py-3 px-4 text-right text-orange-600">61 - 90 Days</th>
+                <th class="py-3 px-4 text-right text-rose-600">90+ Days (Overdue)</th>
+                <th class="py-3 px-4 text-center">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="client-ar-tbody" class="divide-y divide-slate-100 text-xs">
+              
+            </tbody>
+          </table>
+        </div>
+        
+        <div id="view-section-project_ar" class="hidden overflow-x-auto p-4">
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="bg-slate-50 border-b border-slate-200 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                <th class="py-3 px-4">Project / Order Reference</th>
+                <th class="py-3 px-4">Client Name</th>
+                <th class="py-3 px-4 text-right">Contract Value</th>
+                <th class="py-3 px-4 text-right">Total Invoiced</th>
+                <th class="py-3 px-4 text-right">Realized Cash</th>
+                <th class="py-3 px-4 text-right">Unsettled Balance</th>
+                <th class="py-3 px-4 text-center w-36">Realization %</th>
+                <th class="py-3 px-4 text-center">Invoices</th>
+              </tr>
+            </thead>
+            <tbody id="project-ar-tbody" class="divide-y divide-slate-100 text-xs">
+              
+            </tbody>
+          </table>
+        </div>
+        
+        <div id="view-section-salesrep_ar" class="hidden overflow-x-auto p-4">
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="bg-slate-50 border-b border-slate-200 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                <th class="py-3 px-4">Sales Representative</th>
+                <th class="py-3 px-4 text-center">Invoices Generated</th>
+                <th class="py-3 px-4 text-right">Billed Invoicing Value</th>
+                <th class="py-3 px-4 text-right">Cash Realized</th>
+                <th class="py-3 px-4 text-right">Pending Collections</th>
+                <th class="py-3 px-4 text-center w-40">Recovery Rate (%)</th>
+                <th class="py-3 px-4 text-center">Status</th>
+              </tr>
+            </thead>
+            <tbody id="salesrep-ar-tbody" class="divide-y divide-slate-100 text-xs">
+              
+            </tbody>
+          </table>
+        </div>
+        
+        <div id="view-section-pg_bg" class="hidden overflow-x-auto p-4 space-y-4">
+          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-amber-50/70 p-4 rounded-xl border border-amber-200">
+            <div>
+              <h3 class="text-sm font-black text-amber-950 flex items-center gap-2">
+                <span>🛡️ Bank Guarantee (BG), Performance Guarantee (PG) & Retention Receivables</span>
+                <span class="px-2 py-0.5 bg-amber-200 text-amber-900 rounded text-[10px] font-extrabold uppercase">Warranty / Contract Release</span>
+              </h3>
+              <p class="text-xs text-amber-900 mt-0.5">Tracks financial security deposits, PBGs, and retention amounts tied to order contracts, commissioning sign-offs, and warranty periods.</p>
+            </div>
+            <button onclick="downloadPgBgReceivablesCsv()" class="px-4 py-2 bg-amber-700 hover:bg-amber-800 text-white font-bold text-xs rounded-xl shadow-xs transition-colors shrink-0 cursor-pointer flex items-center space-x-1.5">
+              <span>📥 Download PG/BG Due List (CSV)</span>
+            </button>
+          </div>
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="bg-slate-50 border-b border-slate-200 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                <th class="py-3 px-4">Client Organization</th>
+                <th class="py-3 px-4">PO / Contract Ref</th>
+                <th class="py-3 px-4">Invoice Ref</th>
+                <th class="py-3 px-4">Security Type</th>
+                <th class="py-3 px-4 text-right">Guarantee / Retention (₹)</th>
+                <th class="py-3 px-4">Stipulated Period / Warranty</th>
+                <th class="py-3 px-4">Release Due Date</th>
+                <th class="py-3 px-4 text-center">Alert Status</th>
+                <th class="py-3 px-4 text-center">Action</th>
+              </tr>
+            </thead>
+            <tbody id="pgbg-ar-tbody" class="divide-y divide-slate-100 text-xs">
+              
+            </tbody>
+          </table>
+        </div>
+        
+        <div id="view-section-adjustments" class="hidden overflow-x-auto p-4 space-y-4">
+          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-purple-50/60 p-4 rounded-xl border border-purple-200">
+            <div>
+              <h3 class="text-sm font-black text-purple-950 flex items-center gap-2">
+                <span>👑 Corporate AR Adjustments & Director Bad-Debt Write-Offs</span>
+                <span class="px-2 py-0.5 bg-purple-200 text-purple-900 rounded text-[10px] font-extrabold uppercase">Director Gated</span>
+              </h3>
+              <p class="text-xs text-purple-800 mt-0.5">Captures goodwill commercial discounts, price concessions, and unrecoverable bad-debt write-offs requiring mandatory Director sign-off.</p>
+            </div>
+            <button onclick="openAdjustmentModal()" class="px-4 py-2 bg-purple-700 hover:bg-purple-800 text-white font-bold text-xs rounded-xl shadow-xs transition-colors shrink-0 cursor-pointer">
+              + New Adjustment / Write-Off Request
+            </button>
+          </div>
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="bg-slate-50 border-b border-slate-200 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                <th class="py-3 px-4">Ref # & Date</th>
+                <th class="py-3 px-4">Adjustment Type</th>
+                <th class="py-3 px-4">Client & Invoice Ref</th>
+                <th class="py-3 px-4 text-right">Invoice Value</th>
+                <th class="py-3 px-4 text-right text-purple-700 font-black">Reduction Amount</th>
+                <th class="py-3 px-4">Reason Category & Justification</th>
+                <th class="py-3 px-4 text-center">Status</th>
+                <th class="py-3 px-4">Director Authorization</th>
+                <th class="py-3 px-4 text-center">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="adjustments-tbody" class="divide-y divide-slate-100 text-xs">
+              
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </main>
+    
+    <div id="payment-modal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+      <div class="bg-white w-full max-w-xl rounded-2xl shadow-2xl border border-slate-100 overflow-hidden max-h-[92vh] flex flex-col">
+        <div class="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between shrink-0">
+          <div class="flex items-center space-x-2">
+            <h3 class="text-base font-bold text-slate-900" id="payment-modal-title">Record Payment Collection</h3>
+            <span class="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-emerald-100 text-emerald-800">Pending Invoices Only</span>
+          </div>
+          <button onclick="closePaymentModal()" class="text-slate-400 hover:text-slate-600 text-lg font-bold cursor-pointer">&times;</button>
+        </div>
+        <form onsubmit="handleSavePayment(event)" class="p-6 space-y-4 overflow-y-auto text-xs">
+          <input type="hidden" id="payment-doc-id" />
+          
+          <div class="p-3.5 bg-emerald-50/70 border border-emerald-200 rounded-xl space-y-2">
+            <div class="flex justify-between items-center">
+              <label class="text-[11px] font-black uppercase text-emerald-950">1. Select Client (Pending Invoices Only) *</label>
+              <span class="text-[10px] text-emerald-800 font-semibold" id="client-link-count-hint"></span>
+            </div>
+            <select id="inp-pay-client-select" onchange="onPaymentClientFilterChanged(this.value)" class="w-full px-3 py-2 bg-white border border-emerald-300 rounded-lg text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500">
+              <option value="">-- All Clients with Pending Invoices --</option>
+            </select>
+          </div>
+          
+          <div class="p-3.5 bg-indigo-50/70 border border-indigo-200 rounded-xl space-y-2">
+            <div class="flex justify-between items-center">
+              <label class="text-[11px] font-black uppercase text-indigo-950">2. Select Pending Commercial Invoice *</label>
+              <span class="text-[10px] text-indigo-700 font-semibold" id="inv-link-count-hint"></span>
+            </div>
+            <select id="inp-pay-invoice-select" onchange="onInvoiceSelected(this.value)" required class="w-full px-3 py-2 bg-white border border-indigo-300 rounded-lg text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+              <option value="">-- Select Pending Invoice to Settle --</option>
+            </select>
+            
+            <div id="inv-financial-snapshot" class="hidden space-y-2 pt-1">
+              <div class="grid grid-cols-4 gap-2 text-[11px]">
+                <div class="bg-white p-2 rounded border border-indigo-100">
+                  <span class="text-slate-400 block text-[9px] uppercase">Invoice Total</span>
+                  <span class="font-black text-slate-900" id="snap-inv-total">Rs.0</span>
+                </div>
+                <div class="bg-white p-2 rounded border border-indigo-100">
+                  <span class="text-slate-400 block text-[9px] uppercase">Paid (Cash+TDS)</span>
+                  <span class="font-bold text-emerald-600" id="snap-inv-paid">Rs.0</span>
+                </div>
+                <div class="bg-white p-2 rounded border border-indigo-100">
+                  <span class="text-slate-400 block text-[9px] uppercase">Prior Adjustments</span>
+                  <span class="font-bold text-purple-700" id="snap-inv-adj">Rs.0</span>
+                </div>
+                <div class="bg-white p-2 rounded border border-indigo-100">
+                  <span class="text-slate-400 block text-[9px] uppercase">Current Balance</span>
+                  <span class="font-black text-amber-600" id="snap-inv-bal">Rs.0</span>
+                </div>
+              </div>
+              
+              <div id="snap-po-advance-box" class="hidden p-2.5 bg-amber-50 border border-amber-300 rounded-xl text-xs flex flex-col space-y-1">
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center space-x-2">
+                    <span class="font-extrabold text-amber-900">📌 Agreed PO 1st Advance:</span>
+                    <span class="font-black text-amber-800" id="snap-po-adv-val">₹0</span>
+                    <span class="text-[10px] text-amber-700 font-semibold" id="snap-po-adv-tag">(PO Terms)</span>
+                  </div>
+                  <div class="text-[11px] font-bold text-slate-700" id="snap-po-adv-diff">
+                    Checking...
+                  </div>
+                </div>
+                <div id="snap-po-advance-alert" class="hidden text-[10px] font-bold text-rose-800 bg-rose-100/80 p-1.5 rounded-lg border border-rose-200">
+                  ⚠️ Advance Shortfall / Variance Alert: The collection amount differs from the agreed 1st Advance stipulated in PO. This will be automatically communicated in the client acknowledgement email.
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label class="block font-bold text-slate-700 uppercase tracking-wider mb-1">Customer / Organization Name *</label>
+              <input type="text" id="inp-pay-customer" required placeholder="Select from dropdown above" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+            </div>
+            <div>
+              <label class="block font-bold text-slate-700 uppercase tracking-wider mb-1">Invoice Number (Reference)</label>
+              <input type="text" id="inp-pay-invoice" placeholder="INV/2026-27/001" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+            </div>
+          </div>
+          
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label class="block font-bold text-slate-700 uppercase tracking-wider mb-1">Payment reason *</label>
+              <select id="inp-pay-reason" required onchange="onPaymentReasonChanged(this.value)" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                <option value="Advance">Advance</option>
+                <option value="Part payment">Part payment</option>
+                <option value="Final payment">Final payment</option>
+                <option value="Final payment after write-off">Final payment after write-off</option>
+                <option value="Final payment after goodwill adjustment">Final payment after goodwill adjustment</option>
+              </select>
+            </div>
+            <div>
+              <label class="block font-bold text-slate-700 uppercase tracking-wider mb-1">Payment Date *</label>
+              <input type="text" id="inp-pay-date" required placeholder="DD/MM/YYYY" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+            </div>
+          </div>
+          
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label class="block font-bold text-slate-700 uppercase tracking-wider mb-1">Net Cash Received (Bank Credited) *</label>
+              <input type="number" id="inp-pay-amount" required oninput="calculateRemainingBalancePreview()" placeholder="500000" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-black text-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+            </div>
+            <div>
+              <label class="block font-bold text-slate-700 uppercase tracking-wider mb-1">TDS Deducted (u/s 194C / 194J)</label>
+              <input type="number" id="inp-pay-tds" value="0" oninput="calculateRemainingBalancePreview()" placeholder="0" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+            </div>
+          </div>
+          
+          <div id="payment-preview-banner" class="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-[11px] text-emerald-900 font-semibold flex items-center justify-between">
+            <span>Total Settlement: <strong id="prev-total-settlement">Rs.0</strong></span>
+            <span>New Remaining Balance: <strong id="prev-new-balance">Rs.0</strong></span>
+          </div>
+          
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label class="block font-bold text-slate-700 uppercase tracking-wider mb-1">Payment Mode *</label>
+              <select id="inp-pay-mode" required class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                <option value="NEFT/RTGS">NEFT / RTGS Bank Transfer</option>
+                <option value="Cheque">Bank Cheque / DD</option>
+                <option value="UPI">UPI / IMPS Net Banking</option>
+                <option value="Wire Transfer">International Wire (SWIFT)</option>
+                <option value="Letter of Credit">Letter of Credit (LC)</option>
+                <option value="Cash">Cash (Petty Commercial)</option>
+              </select>
+            </div>
+            <div>
+              <label class="block font-bold text-slate-700 uppercase tracking-wider mb-1">UTR / Cheque / Transaction Ref *</label>
+              <input type="text" id="inp-pay-utr" required placeholder="e.g. UTR192837465 / CHQ-9012" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+            </div>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label class="block font-bold text-slate-700 uppercase tracking-wider mb-1">Company Account Credited</label>
+              <select id="inp-pay-bank" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                <option value="HDFC Bank - 50200049283719 (Guindy Branch)">HDFC Bank - 50200049283719</option>
+                <option value="SBI - 39281726351 (Industrial Branch)">State Bank of India - 39281726351</option>
+              </select>
+            </div>
+            <div>
+              <label class="block font-bold text-slate-700 uppercase tracking-wider mb-1">Validation & Verification Status *</label>
+              <select id="inp-pay-status" required class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                <option value="Cleared">Cleared & Bank Verified (Accounts Approved)</option>
+                <option value="Pending Accounts Verification" selected>Pending Accounts Verification (Recorded by Staff)</option>
+              </select>
+              <p class="text-[10px] text-slate-400 mt-1">Note: Only payments verified & cleared by Finance/Accounts reflect in Revenue Dashboard.</p>
+            </div>
+          </div>
+          <div>
+            <label class="block font-bold text-slate-700 uppercase tracking-wider mb-1">Remarks & Settlement Notes</label>
+            <textarea id="inp-pay-remarks" rows="2" placeholder="TDS challan reference, bank narration, credit memo note..." class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"></textarea>
+          </div>
+          <div class="pt-4 border-t border-slate-100 flex items-center justify-end space-x-3">
+            <button type="button" onclick="closePaymentModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl cursor-pointer">Cancel</button>
+            <button type="submit" class="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-xs transition-colors cursor-pointer">
+              Save Payment & Generate Receipt
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+    
+    <div id="receipt-view-modal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+      <div class="bg-white w-full max-w-3xl rounded-2xl shadow-2xl border border-slate-100 overflow-hidden flex flex-col max-h-[92vh]">
+        <div class="px-6 py-3 bg-slate-900 text-white flex items-center justify-between shrink-0">
+          <div class="flex items-center space-x-3">
+            <span class="text-emerald-400 font-bold text-lg">🧾</span>
+            <span class="text-sm font-bold tracking-wide" id="receipt-modal-title">Payment Settlement Receipt</span>
+          </div>
+          <div class="flex items-center space-x-3">
+            <button onclick="printReceiptDoc()" class="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg shadow-xs cursor-pointer flex items-center space-x-1">
+              <span>🖨️ Print / Save PDF Receipt</span>
+            </button>
+            <button onclick="closeReceiptViewModal()" class="text-slate-400 hover:text-white text-lg font-bold cursor-pointer">&times;</button>
+          </div>
+        </div>
+        <div id="printable-receipt-wrapper" class="p-8 overflow-y-auto bg-white text-slate-900 space-y-6">
+          
+        </div>
+      </div>
+    </div>
+    
+    <div id="send-receipt-modal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+      <div class="bg-white w-full max-w-2xl rounded-2xl shadow-2xl border border-slate-100 overflow-hidden flex flex-col">
+        <div class="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+          <div class="flex items-center space-x-2">
+            <span class="text-lg">✉️</span>
+            <div>
+              <h3 class="text-base font-bold text-slate-900">Send Payment Settlement Receipt to Client</h3>
+              <p class="text-xs text-slate-500">Official email dispatch acknowledging receipt of funds</p>
+            </div>
+          </div>
+          <button onclick="closeSendReceiptModal()" class="text-slate-400 hover:text-slate-600 text-lg font-bold cursor-pointer">&times;</button>
+        </div>
+        <div class="p-6 space-y-4 text-xs overflow-y-auto max-h-[80vh]">
+          <input type="hidden" id="send-rec-pay-id" />
+          <div>
+            <label class="block font-bold text-slate-700 uppercase mb-1">To (Client Email) *</label>
+            <input type="email" id="inp-rec-to" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block font-bold text-slate-700 uppercase mb-1">CC Accounts</label>
+              <input type="text" id="inp-rec-cc" value="measuredichennai@gmail.com" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+            </div>
+            <div>
+              <label class="block font-bold text-slate-700 uppercase mb-1">Voucher Attachment</label>
+              <div class="px-3 py-2 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-xl font-bold flex items-center justify-between">
+                <span id="send-rec-attachment-name">Payment_Receipt.pdf</span>
+                <span class="text-[10px] bg-emerald-200 text-emerald-900 px-1.5 py-0.5 rounded">PDF</span>
+              </div>
+            </div>
+          </div>
+          <div>
+            <label class="block font-bold text-slate-700 uppercase mb-1">Subject</label>
+            <input type="text" id="inp-rec-subject" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+          </div>
+          <div>
+            <label class="block font-bold text-slate-700 uppercase mb-1">Acknowledgement Letter</label>
+            <textarea id="inp-rec-body" rows="7" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono focus:outline-none focus:ring-2 focus:ring-emerald-500"></textarea>
+          </div>
+          <div id="rec-dispatch-history-box" class="hidden p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+            <span class="text-[10px] font-bold uppercase text-slate-500">Dispatch Audit Log</span>
+            <div id="rec-dispatch-history-list" class="text-[11px] space-y-1 text-slate-600 font-mono"></div>
+          </div>
+        </div>
+        <div class="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
+          <button type="button" onclick="openReceiptInMailClient()" class="text-emerald-700 hover:text-emerald-900 text-xs font-bold hover:underline cursor-pointer">
+            Open in Default Mail Client (Mailto)
+          </button>
+          <div class="flex items-center space-x-3">
+            <button type="button" onclick="closeSendReceiptModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl cursor-pointer">Cancel</button>
+            <button type="button" onclick="executeSendReceiptEmail()" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-xs transition-colors cursor-pointer">
+              🚀 Send Receipt Directly
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div id="adjustment-modal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+      <div class="bg-white w-full max-w-2xl rounded-2xl shadow-2xl border border-slate-100 overflow-hidden max-h-[92vh] flex flex-col">
+        <div class="px-6 py-4 bg-purple-50 border-b border-purple-200 flex items-center justify-between shrink-0">
+          <div class="flex items-center space-x-2">
+            <h3 class="text-base font-bold text-purple-950" id="adj-modal-title">Request Payment Adjustment / Write-Off</h3>
+            <span class="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-purple-200 text-purple-900">Director Approval Gate</span>
+          </div>
+          <button onclick="closeAdjustmentModal()" class="text-slate-400 hover:text-slate-600 text-lg font-bold cursor-pointer">&times;</button>
+        </div>
+        <form onsubmit="handleSaveAdjustment(event)" class="p-6 space-y-4 overflow-y-auto text-xs">
+          <input type="hidden" id="adj-doc-id" />
+          
+          <div class="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+            <label class="block font-black text-slate-800 uppercase tracking-wider text-[11px]">Select Adjustment / Settlement Nature *</label>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <label class="flex items-start space-x-2.5 p-3 rounded-xl border border-amber-200 bg-amber-50/50 hover:bg-amber-50 cursor-pointer">
+                <input type="radio" name="adj_type_radio" value="Goodwill Discount / Commercial Adjustment" checked onchange="onAdjustmentTypeChange(this.value)" class="mt-0.5 text-purple-600 focus:ring-purple-500" />
+                <div>
+                  <span class="font-bold text-amber-950 block">🏷️ Goodwill Discount / Price Adjustment</span>
+                  <span class="text-[10px] text-amber-800">Commercial concession, price negotiation, or minor scope reduction from invoice value.</span>
+                </div>
+              </label>
+              <label class="flex items-start space-x-2.5 p-3 rounded-xl border border-rose-200 bg-rose-50/50 hover:bg-rose-50 cursor-pointer">
+                <input type="radio" name="adj_type_radio" value="Bad Debt Write-Off (Unrecoverable AR)" onchange="onAdjustmentTypeChange(this.value)" class="mt-0.5 text-rose-600 focus:ring-rose-500" />
+                <div>
+                  <span class="font-bold text-rose-950 block">🚨 Bad Debt Write-Off</span>
+                  <span class="text-[10px] text-rose-800">Long outstanding unrecoverable payment, client insolvency, or uncollectible receivable.</span>
+                </div>
+              </label>
+            </div>
+          </div>
+          
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label class="block font-bold text-slate-700 uppercase tracking-wider mb-1">Filter Client (Pending AR Only) *</label>
+              <select id="inp-adj-client-select" onchange="onAdjClientFilterChanged(this.value)" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-purple-500">
+                <option value="">-- All Clients with Pending AR --</option>
+              </select>
+            </div>
+            <div>
+              <label class="block font-bold text-slate-700 uppercase tracking-wider mb-1">Select Pending Invoice *</label>
+              <select id="inp-adj-invoice-select" onchange="onAdjInvoiceSelected(this.value)" required class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-purple-500">
+                <option value="">-- Select Pending Invoice --</option>
+              </select>
+            </div>
+          </div>
+          
+          <div id="adj-inv-snapshot" class="hidden grid grid-cols-3 gap-2.5 p-3 bg-purple-50/60 border border-purple-200 rounded-xl text-[11px]">
+            <div class="bg-white p-2 rounded border border-purple-100">
+              <span class="text-slate-400 block text-[9px] uppercase">Invoice Grand Total</span>
+              <span class="font-black text-slate-900" id="adj-snap-total">Rs.0</span>
+            </div>
+            <div class="bg-white p-2 rounded border border-purple-100">
+              <span class="text-slate-400 block text-[9px] uppercase">Cash Realized to Date</span>
+              <span class="font-bold text-emerald-600" id="adj-snap-paid">Rs.0</span>
+            </div>
+            <div class="bg-white p-2 rounded border border-purple-100">
+              <span class="text-slate-400 block text-[9px] uppercase">Current Unsettled Balance</span>
+              <span class="font-black text-amber-600" id="adj-snap-bal">Rs.0</span>
+            </div>
+          </div>
+          
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label class="block font-bold text-slate-700 uppercase tracking-wider mb-1">Adjustment / Write-Off Amount (Rs.) *</label>
+              <input type="number" id="inp-adj-amount" required oninput="calculateAdjBalancePreview()" placeholder="50000" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-black text-purple-800 focus:outline-none focus:ring-2 focus:ring-purple-500" />
+            </div>
+            <div>
+              <label class="block font-bold text-slate-700 uppercase tracking-wider mb-1">Reason Category *</label>
+              <select id="inp-adj-category" required class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-purple-500">
+                
+              </select>
+            </div>
+          </div>
+          
+          <div id="adj-preview-banner" class="p-2.5 bg-purple-50 border border-purple-200 rounded-xl text-[11px] text-purple-900 font-semibold flex items-center justify-between">
+            <span>Invoice Balance After Adjustment: <strong id="adj-prev-balance">Rs.0</strong></span>
+            <span id="adj-prev-status-text" class="text-purple-700 font-bold">Remaining AR will update upon Director Approval</span>
+          </div>
+          
+          <div>
+            <label class="block font-bold text-slate-700 uppercase tracking-wider mb-1">Detailed Commercial Justification & Background *</label>
+            <textarea id="inp-adj-justification" required rows="3" placeholder="Provide full context: client discussions, good-will concession rationale, long-outstanding timeline, or insolvency notification details for Director review..." class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-purple-500"></textarea>
+          </div>
+          
+          <div id="director-direct-sign-panel" class="hidden p-3.5 bg-purple-100/70 border border-purple-300 rounded-xl space-y-2">
+            <label class="flex items-center space-x-2 cursor-pointer">
+              <input type="checkbox" id="inp-adj-direct-sign" class="w-4 h-4 text-purple-700 rounded focus:ring-purple-500" />
+              <span class="font-black text-purple-950 text-xs">👑 Sign & Authorize as Director Immediately (Murugan V - Director)</span>
+            </label>
+            <div>
+              <label class="block font-bold text-purple-900 text-[10px] uppercase mb-1">Director Remarks / Corporate Minutes Note</label>
+              <input type="text" id="inp-adj-director-notes" placeholder="Approved and sanctioned under Corporate Authority & Bad Debt Provisioning policy." class="w-full px-3 py-1.5 bg-white border border-purple-300 rounded-lg text-xs font-medium focus:outline-none focus:ring-2 focus:ring-purple-500" />
+            </div>
+          </div>
+          <div class="pt-4 border-t border-slate-100 flex items-center justify-end space-x-3">
+            <button type="button" onclick="closeAdjustmentModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl cursor-pointer">Cancel</button>
+            <button type="submit" class="px-6 py-2 bg-purple-700 hover:bg-purple-800 text-white font-bold rounded-xl shadow-xs transition-colors cursor-pointer">
+              Submit for Director Approval
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+    
+    <div id="director-approval-modal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+      <div class="bg-white w-full max-w-xl rounded-2xl shadow-2xl border border-slate-100 overflow-hidden max-h-[92vh] flex flex-col">
+        <div class="px-6 py-4 bg-purple-900 text-white flex items-center justify-between shrink-0">
+          <div class="flex items-center space-x-2">
+            <span class="text-xl">👑</span>
+            <div>
+              <h3 class="text-base font-bold">Director AR Authorization Sign-Off</h3>
+              <p class="text-xs text-purple-200" id="dir-modal-ref">Review Adjustment Request</p>
+            </div>
+          </div>
+          <button onclick="closeDirectorApprovalModal()" class="text-purple-300 hover:text-white text-lg font-bold cursor-pointer">&times;</button>
+        </div>
+        <div class="p-6 space-y-4 text-xs overflow-y-auto">
+          <input type="hidden" id="dir-adj-id" />
+          
+          <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2">
+            <div class="flex justify-between">
+              <span class="text-slate-500">Customer Name:</span>
+              <strong class="text-slate-900 font-bold" id="dir-customer-name">--</strong>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-slate-500">Invoice Reference:</span>
+              <strong class="font-mono text-indigo-700" id="dir-invoice-num">--</strong>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-slate-500">Adjustment Type:</span>
+              <strong class="text-purple-800" id="dir-adj-type">--</strong>
+            </div>
+            <div class="flex justify-between border-t border-slate-200 pt-2">
+              <span class="text-slate-500">Requested Reduction Amount:</span>
+              <strong class="text-base font-black text-rose-700" id="dir-adj-amount">Rs.0</strong>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-slate-500">Reason Category:</span>
+              <strong class="text-slate-800" id="dir-adj-category">--</strong>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-slate-500">Requested By:</span>
+              <span class="font-medium text-slate-700" id="dir-adj-requested-by">--</span>
+            </div>
+          </div>
+          
+          <div>
+            <label class="block font-bold text-slate-700 uppercase mb-1">Commercial Justification</label>
+            <div class="p-3 bg-purple-50/60 border border-purple-200 rounded-xl text-slate-800 font-medium whitespace-pre-wrap" id="dir-adj-justification">
+              --
+            </div>
+          </div>
+          
+          <div>
+            <label class="block font-bold text-purple-950 uppercase mb-1">Director Authorization Remarks *</label>
+            <textarea id="dir-adj-remarks" rows="2" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-purple-500" placeholder="Approved and ratified by Director of Measure DI Technologies Private Limited."></textarea>
+          </div>
+        </div>
+        <div class="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
+          <button type="button" onclick="closeDirectorApprovalModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl cursor-pointer">Cancel</button>
+          <div class="flex items-center space-x-2">
+            <button type="button" onclick="executeDirectorDecision('Rejected')" class="px-4 py-2 bg-rose-100 hover:bg-rose-200 text-rose-800 text-xs font-bold rounded-xl transition-colors cursor-pointer">
+              ❌ Reject Request
+            </button>
+            <button type="button" onclick="executeDirectorDecision('Approved')" class="px-5 py-2 bg-purple-700 hover:bg-purple-800 text-white text-xs font-bold rounded-xl shadow-xs transition-colors cursor-pointer">
+              👑 Authorize & Sanction
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div id="adj-voucher-modal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+      <div class="bg-white w-full max-w-3xl rounded-2xl shadow-2xl border border-slate-100 overflow-hidden flex flex-col max-h-[92vh]">
+        <div class="px-6 py-3 bg-purple-950 text-white flex items-center justify-between shrink-0">
+          <div class="flex items-center space-x-3">
+            <span class="text-amber-400 font-bold text-lg">⚖️</span>
+            <span class="text-sm font-bold tracking-wide" id="adj-voucher-title">Director Authorization Certificate</span>
+          </div>
+          <div class="flex items-center space-x-3">
+            <button onclick="printAdjVoucherDoc()" class="px-3 py-1 bg-purple-700 hover:bg-purple-600 text-white text-xs font-bold rounded-lg shadow-xs cursor-pointer flex items-center space-x-1">
+              <span>🖨️ Print / Save PDF</span>
+            </button>
+            <button onclick="closeAdjVoucherModal()" class="text-slate-400 hover:text-white text-lg font-bold cursor-pointer">&times;</button>
+          </div>
+        </div>
+        <div id="printable-adj-wrapper" class="p-8 overflow-y-auto bg-white text-slate-900 space-y-6">
+          
+        </div>
+      </div>
+    </div>
+    
+    
+  
+    <script src="js/payments-adjustments.js"></script>
+  <script src="js/payments-collections.js"></script>
+</body>
+</html>

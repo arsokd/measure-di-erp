@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>K-30_ERP - Attendance & Punch</title>
+    <link rel="stylesheet" href="/src/index.css">
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="js/firebase-init.js" defer></script>
+    <script src="js/store.js" defer></script>
+    <script src="js/seed-data.js" defer></script>
+    <script src="auth-guard.js" defer></script>
+  </head>
+  <body class="bg-slate-50 min-h-screen text-slate-800">
+    
+    <!-- Navbar Container -->
+    <div id="navbar-container"></div>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+      
+      <!-- Top Title & Current Date/Status Banner -->
+      <div class="bg-white p-6 rounded-2xl shadow-xs border border-slate-200 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
+          <span class="text-xs font-bold uppercase tracking-widest text-indigo-600">Daily Attendance Control</span>
+          <h1 class="text-3xl font-black text-slate-900 tracking-tight mt-1" id="today-date-display">01/08/2026</h1>
+          <p class="text-sm font-semibold text-slate-500 mt-1" id="current-attendance-status-text">Status: Checking status...</p>
+        </div>
+
+        <div id="att-filter-container" class="hidden flex items-center space-x-2 bg-slate-50 p-3 rounded-xl border border-slate-200">
+          <label class="text-xs font-bold text-slate-600 uppercase tracking-wider">View History For:</label>
+          <select id="att-filter-emp" onchange="onAttFilterChange()" class="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            <!-- Populated dynamically -->
+          </select>
+        </div>
+      </div>
+
+      <!-- Punch Actions Card (Self Only) -->
+      <div id="punch-actions-card" class="bg-white p-8 rounded-2xl shadow-xs border border-slate-200 space-y-6">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-slate-100 pb-3 gap-2">
+          <h2 class="text-lg font-bold text-slate-900">Punch Actions & DWM Compliance Gate</h2>
+          <div class="flex items-center space-x-2 text-xs font-semibold text-emerald-800 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-200">
+            <span class="relative flex h-2.5 w-2.5">
+              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+            </span>
+            <span>📍 Mandatory Live GPS Location Enforced</span>
+          </div>
+        </div>
+
+        <!-- GPS Location Error / Warning Alert Box -->
+        <div id="gps-error-alert" class="hidden p-4 bg-rose-50 border-2 border-rose-300 rounded-2xl text-rose-900 space-y-2 shadow-xs">
+          <div class="flex items-start space-x-3">
+            <div class="p-2 bg-rose-100 rounded-xl text-rose-600 font-bold text-xl flex-shrink-0">📍</div>
+            <div class="flex-1 space-y-1">
+              <h4 class="font-black text-xs uppercase tracking-wider text-rose-900">Attendance Blocked — Live GPS Location Required</h4>
+              <p class="text-xs font-semibold leading-relaxed text-rose-800" id="gps-error-message">
+                GPS is turned off or location access was denied. Attendance cannot be marked without capturing your live location. Please turn on GPS on your device and grant location access.
+              </p>
+              <div class="pt-2 flex flex-wrap items-center gap-3">
+                <button onclick="retryGpsCheck()" class="px-3.5 py-1.5 bg-rose-700 hover:bg-rose-800 text-white font-bold text-xs rounded-lg shadow-xs transition-colors cursor-pointer flex items-center space-x-1.5">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                  <span>Test GPS Readiness</span>
+                </button>
+                <span class="text-[11px] text-rose-700 font-medium">Mandatory RevOps audit control rule</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          
+          <!-- Punch In Column -->
+          <div class="bg-emerald-50/60 p-6 rounded-2xl border border-emerald-100 flex flex-col justify-between space-y-4">
+            <div>
+              <div class="flex items-center space-x-2 text-emerald-800 font-bold text-base mb-1">
+                <svg class="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"/></svg>
+                <span>Morning Punch In</span>
+              </div>
+              <p class="text-xs text-emerald-700">Requires at least 1 planned DWM activity + Active GPS Location.</p>
+            </div>
+
+            <div id="punch-in-warning-box" class="hidden p-3 bg-amber-50 rounded-xl border border-amber-200 text-xs text-amber-800 space-y-2">
+              <div class="flex items-center space-x-1 font-semibold">
+                <span>⚠️ Please plan today's DWM activities first.</span>
+              </div>
+              <a href="dwm.html" class="inline-block px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white font-bold text-[11px] rounded-lg transition-colors">
+                Go to DWM Plan &rarr;
+              </a>
+            </div>
+
+            <button id="punch-in-btn" onclick="executePunchIn()" class="w-full py-4 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-200 disabled:text-slate-400 text-white font-bold text-sm rounded-xl shadow-md transition-all flex items-center justify-center space-x-2 cursor-pointer">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+              <span>Punch In Now (GPS Required)</span>
+            </button>
+          </div>
+
+          <!-- Punch Out Column -->
+          <div class="bg-rose-50/60 p-6 rounded-2xl border border-rose-100 flex flex-col justify-between space-y-4">
+            <div>
+              <div class="flex items-center space-x-2 text-rose-800 font-bold text-base mb-1">
+                <svg class="w-5 h-5 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+                <span>Evening Punch Out</span>
+              </div>
+              <p class="text-xs text-rose-700">Requires all today's DWM activities updated + Active GPS Location.</p>
+            </div>
+
+            <div id="punch-out-warning-box" class="hidden p-3 bg-amber-50 rounded-xl border border-amber-200 text-xs text-amber-800 space-y-2">
+              <div class="flex items-center space-x-1 font-semibold" id="pending-dwm-msg">
+                <span>⚠️ Please update accomplishment for all today's DWM activities first.</span>
+              </div>
+              <a href="dwm.html" class="inline-block px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white font-bold text-[11px] rounded-lg transition-colors">
+                Go to DWM Accomplishment &rarr;
+              </a>
+            </div>
+
+            <button id="punch-out-btn" onclick="executePunchOut()" class="w-full py-4 bg-rose-600 hover:bg-rose-700 disabled:bg-slate-200 disabled:text-slate-400 text-white font-bold text-sm rounded-xl shadow-md transition-all flex items-center justify-center space-x-2 cursor-pointer">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+              <span>Punch Out Now (GPS Required)</span>
+            </button>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Attendance History Table -->
+      <div class="bg-white rounded-2xl shadow-xs border border-slate-200 overflow-hidden space-y-4">
+        <div class="p-6 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h2 class="text-lg font-bold text-slate-900">Attendance History</h2>
+            <p class="text-xs text-slate-500" id="att-history-subtitle">Showing attendance records, timestamps, live GPS capture & DWM compliance snapshots</p>
+          </div>
+          <div class="flex items-center space-x-2">
+            <label class="text-xs font-bold text-slate-600 uppercase tracking-wider">Filter Period:</label>
+            <select id="att-period-filter" onchange="renderAttendanceUI(viewingAttEmpId)" class="px-3 py-1.5 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg text-xs font-bold focus:outline-none">
+              <option value="2026-27" selected>FY 2026-27 (Current)</option>
+              <option value="2025-26">FY 2025-26</option>
+              <option value="2024-25">FY 2024-25</option>
+              <option value="All">All 24 Months</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="bg-slate-50 border-b border-slate-200 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                <th class="py-3 px-4">Date</th>
+                <th class="py-3 px-4">Punch In (Time & Location)</th>
+                <th class="py-3 px-4">Punch Out (Time & Location)</th>
+                <th class="py-3 px-4 text-center">Worked Hours</th>
+                <th class="py-3 px-4 text-center">DWM Compliance</th>
+                <th class="py-3 px-4 text-center">Status</th>
+              </tr>
+            </thead>
+            <tbody id="att-history-tbody" class="divide-y divide-slate-100 text-xs">
+              <!-- Rendered dynamically -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </main>
+
+    <script src="js/attendance.js"></script>
+  </body>
+</html>
