@@ -755,16 +755,16 @@ Mobile: +91 98406 29928 | Email: measuredichennai@gmail.com`;
         }
 
         try {
-          var res = null;
-          if (window.BrevoMailer && typeof window.BrevoMailer.sendEmail === 'function') {
-            res = await window.BrevoMailer.sendEmail({
-              to: toEmail,
-              toName: p.customerName,
-              cc: ccEmail,
-              subject: subject,
-              textContent: body
-            });
+          if (!window.BrevoMailer || typeof window.BrevoMailer.sendEmail !== 'function') {
+            throw new Error('Email service failed to load. Please refresh the page and try again.');
           }
+          var res = await window.BrevoMailer.sendEmail({
+            to: toEmail,
+            toName: p.customerName,
+            cc: ccEmail,
+            subject: subject,
+            textContent: body
+          });
 
           var history = p.receiptDispatchHistory || [];
           history.push({

@@ -1547,15 +1547,15 @@ var currentEditingQuoteId = null;
         var timestampStr = getFormattedToday() + ' ' + new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
 
         try {
-          var res = null;
-          if (window.BrevoMailer && typeof window.BrevoMailer.sendQuotationEmail === 'function') {
-            res = await window.BrevoMailer.sendQuotationEmail(q, {
-              to: toEmail,
-              cc: ccEmail,
-              subject: subject,
-              body: body
-            });
+          if (!window.BrevoMailer || typeof window.BrevoMailer.sendQuotationEmail !== 'function') {
+            throw new Error('Email service failed to load. Please refresh the page and try again.');
           }
+          var res = await window.BrevoMailer.sendQuotationEmail(q, {
+            to: toEmail,
+            cc: ccEmail,
+            subject: subject,
+            body: body
+          });
 
           var dispatchRecord = {
             timestamp: timestampStr,

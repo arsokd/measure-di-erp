@@ -87,6 +87,35 @@ function escapeHtml(str) {
 }
 window.escapeHtml = escapeHtml;
 
+// Self-healing guard against a desynced session: the app's own "logged in"
+// state lives in localStorage, but every server-side action (Firestore rules,
+// the email-sending function) requires a real, live Firebase Authentication
+// session. If localStorage still claims a user is logged in but Firebase
+// Auth reports nobody is signed in (e.g. the session expired, was revoked,
+// or predates a backend migration), clear the stale local flags and send the
+// user back to a real login instead of leaving them in a broken half-logged-in
+// state where pages render but every server call silently fails.
+(function watchForAuthDesync() {
+  if (window.location.pathname.indexOf('login.html') !== -1) return;
+  if (typeof firebase === 'undefined' || !firebase.auth) return;
+  try {
+    firebase.auth().onAuthStateChanged(function(user) {
+      if (!user && localStorage.getItem('userRole')) {
+        console.warn("Firebase Auth session missing while app session flags are set — signing out.");
+        localStorage.removeItem('userRole');
+        localStorage.removeItem('userName');
+        localStorage.removeItem('userEmail');
+        localStorage.removeItem('employeeId');
+        if (window.location.pathname.indexOf('login.html') === -1) {
+          window.location.href = 'login.html';
+        }
+      }
+    });
+  } catch (eWatch) {
+    console.warn("Auth desync watcher failed to attach:", eWatch);
+  }
+})();
+
 function checkAuth(allowedRoles) {
   try {
     // Ensure seed data is initialized if store exists

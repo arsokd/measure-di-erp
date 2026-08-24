@@ -42,22 +42,6 @@
           <span id="error-message">Error message here</span>
         </div>
 
-        <!-- Quick 1-Click Developer Login Banner -->
-        <div class="mb-6 p-3.5 bg-gradient-to-r from-slate-900 to-indigo-950 border border-indigo-500/30 rounded-xl flex items-center justify-between">
-          <div class="flex items-center space-x-2.5">
-            <div class="w-8 h-8 rounded-lg bg-indigo-500/20 flex items-center justify-center text-indigo-300 font-bold text-xs border border-indigo-500/40">
-              DEV
-            </div>
-            <div>
-              <p class="text-xs font-bold text-white">Developer Login</p>
-              <p class="text-[11px] text-slate-300">ars.okd@gmail.com (Super Admin)</p>
-            </div>
-          </div>
-          <button type="button" onclick="loginDirectAsDeveloper()" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold shadow transition-all cursor-pointer whitespace-nowrap">
-            Quick Sign In &rarr;
-          </button>
-        </div>
-
         <form id="login-form" class="space-y-5" onsubmit="handleLoginSubmit(event)">
           <div>
             <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">Mobile Number or Email</label>
@@ -98,34 +82,6 @@
     </div>
 
     <script>
-      function loginDirectAsDeveloper() {
-        var devUser = {
-          id: "emp_dev",
-          employeeId: "E-DEV",
-          fullName: "Developer (ars.okd)",
-          email: "ars.okd@gmail.com",
-          mobile: "9840629928",
-          role: "super_admin",
-          designation: "Lead Developer & System Architect",
-          vertical: "Management / Board",
-          isActive: true
-        };
-
-        // Ensure store has this developer
-        try {
-          if (window.RevOpsStore && typeof window.RevOpsStore.getCollection === 'function') {
-            var emps = window.RevOpsStore.getCollection('employees') || [];
-            var existing = emps.find(function(e) { return e && (e.email === 'ars.okd@gmail.com' || e.employeeId === 'E-DEV'); });
-            if (!existing) {
-              emps.unshift(devUser);
-              window.RevOpsStore.saveCollection('employees', emps);
-            }
-          }
-        } catch(eStore) {}
-
-        processLoginForEmployee(devUser);
-      }
-
       function togglePasswordVisibility() {
         var input = document.getElementById('login-password');
         if (input.type === 'password') {
@@ -162,45 +118,46 @@
         }
       }
 
-      function processLoginForEmployee(emp) {
-        if (!emp) {
-          showError("User record not found in Employee master. Please contact admin.");
-          setLoading(false);
-          return;
+      // Resolve a typed mobile number to the employee's registered login email.
+      // Real authentication itself always happens against Firebase Auth below —
+      // this only translates "mobile number" into the email Firebase Auth needs.
+      async function resolveLoginEmailByMobile(digitsOnly) {
+        function findIn(list) {
+          return list.find(function(emp) {
+            if (!emp) return false;
+            var empMobileDigits = (emp.mobile || '').replace(/\D/g, '');
+            return empMobileDigits && digitsOnly && empMobileDigits === digitsOnly;
+          });
         }
 
-        // CHECK: isActive
-        if (emp.isActive === false) {
-          if (typeof auth !== 'undefined' && auth && typeof auth.signOut === 'function') {
-            try { auth.signOut(); } catch(e){}
+        var employees = [];
+        try {
+          employees = (window.RevOpsStore && typeof window.RevOpsStore.getCollection === 'function')
+            ? (window.RevOpsStore.getCollection('employees') || [])
+            : [];
+        } catch (e) { employees = []; }
+
+        var match = findIn(employees);
+        if (match && match.email) return match;
+
+        if (window.db && typeof window.db.collection === 'function') {
+          try {
+            var snapshot = await window.db.collection('employees').get();
+            var fsEmployees = [];
+            snapshot.forEach(function(doc) {
+              var data = doc.data() || {};
+              data.docId = doc.id;
+              fsEmployees.push(data);
+            });
+            return findIn(fsEmployees) || null;
+          } catch (e) {
+            return null;
           }
-          showError("Your account has been disabled. Contact your manager or admin.");
-          setLoading(false);
-          return;
         }
-
-        var assignedRole = emp.role || ((emp.employeeId === 'E-001' || emp.employeeId === 'E-002') ? 'super_admin' : 'admin');
-        var empName = emp.fullName || emp.name || 'User';
-        var empEmail = emp.email || (emp.mobile ? emp.mobile + '@measuredi.com' : 'user@measuredi.com');
-        var empId = emp.employeeId || emp.id || ('E-' + (emp.mobile || '002'));
-
-        // Save session credentials to localStorage
-        localStorage.setItem('userRole', assignedRole);
-        localStorage.setItem('userName', empName);
-        localStorage.setItem('userEmail', empEmail);
-        localStorage.setItem('employeeId', empId);
-
-        // Redirect based on role
-        if (assignedRole === 'super_admin' || assignedRole === 'admin' || assignedRole === 'manager') {
-          window.location.href = 'dashboard.html';
-        } else if (assignedRole === 'staff') {
-          window.location.href = 'my-scorecard.html';
-        } else {
-          window.location.href = 'dashboard.html';
-        }
+        return null;
       }
 
-      function handleLoginSubmit(e) {
+      async function handleLoginSubmit(e) {
         e.preventDefault();
         hideError();
         setLoading(true);
@@ -209,142 +166,112 @@
         var passwordInput = (document.getElementById('login-password').value || '').trim();
 
         if (!loginInput) {
-          showError("Please enter your Mobile Number.");
+          showError("Please enter your Mobile Number or Email.");
+          setLoading(false);
+          return;
+        }
+        if (!passwordInput) {
+          showError("Please enter your password.");
           setLoading(false);
           return;
         }
 
         var digitsOnly = loginInput.replace(/\D/g, '');
+        var isEmailInput = loginInput.indexOf('@') !== -1;
 
-        if (loginInput.indexOf('@') === -1 && digitsOnly.length < 10) {
-          showError("Please enter a valid 10-digit mobile number.");
+        if (!isEmailInput && digitsOnly.length < 10) {
+          showError("Please enter a valid 10-digit mobile number or your email.");
           setLoading(false);
           return;
         }
 
-        // Check if developer email typed
-        if (loginInput.toLowerCase() === 'ars.okd@gmail.com' || loginInput.toLowerCase() === 'developer' || loginInput.toUpperCase() === 'E-DEV') {
-          var devMatch = {
-            id: "emp_dev",
-            employeeId: "E-DEV",
-            fullName: "Developer (ars.okd)",
-            email: "ars.okd@gmail.com",
-            mobile: "9840629928",
-            role: "super_admin",
-            designation: "Lead Developer & System Architect",
-            vertical: "Management / Board",
-            isActive: true
-          };
-          processLoginForEmployee(devMatch);
+        if (typeof auth === 'undefined' || !auth || typeof auth.signInWithEmailAndPassword !== 'function') {
+          showError("Authentication service is not available. Please refresh and try again.");
+          setLoading(false);
           return;
         }
 
-        // 1. Ensure local seed data is initialized
-        if (window.RevOpsStore && typeof window.RevOpsStore.initSeedData === 'function') {
-          try { window.RevOpsStore.initSeedData(); } catch(errInit) {}
-        }
-
-        // 2. Load employees from RevOpsStore
-        var employees = [];
         try {
-          employees = (window.RevOpsStore && typeof window.RevOpsStore.getCollection === 'function')
-            ? (window.RevOpsStore.getCollection('employees') || [])
-            : [];
-        } catch(e) {
-          employees = [];
-        }
-
-        // Built-in fallback default employees roster if local store is empty
-        if (!employees || employees.length === 0) {
-          employees = [
-            { id: "emp_1", employeeId: "E-001", fullName: "Mr. Ravichandran", role: "super_admin", mobile: "9840629928", email: "measuredichennai@gmail.com", password: "AAABBC123456", customPassword: "AAABBC123456", isActive: true },
-            { id: "emp_2", employeeId: "E-002", fullName: "Mr. Murugan V", role: "super_admin", mobile: "9840122334", email: "murugan@measuredi.com", password: "AAABBC123456", customPassword: "AAABBC123456", isActive: true },
-            { id: "emp_3", employeeId: "E-003", fullName: "Mrs. Anitha", role: "admin", mobile: "8939821717", email: "anitha@measuredi.com", password: "AAABBC123456", customPassword: "AAABBC123456", isActive: true },
-            { id: "emp_4", employeeId: "E-004", fullName: "Mrs. Subhashini", role: "manager", mobile: "8939821732", email: "subha@measuredi.com", password: "AAABBC123456", customPassword: "AAABBC123456", isActive: true },
-            { id: "emp_5", employeeId: "E-005", fullName: "Ms. Dipa", role: "staff", mobile: "8939821723", email: "dipanwita@measuredi.com", password: "AAABBC123456", customPassword: "AAABBC123456", isActive: true }
-          ];
-        }
-
-        // 3. Find matching employee
-        var match = employees.find(function(emp) {
-          if (!emp) return false;
-          var empMobileDigits = (emp.mobile || '').replace(/\D/g, '');
-          if (digitsOnly && digitsOnly.length >= 7 && empMobileDigits && (empMobileDigits === digitsOnly || empMobileDigits.endsWith(digitsOnly) || digitsOnly.endsWith(empMobileDigits))) return true;
-          if (emp.employeeId && emp.employeeId.toLowerCase() === loginInput.toLowerCase()) return true;
-          if (emp.email && emp.email.toLowerCase() === loginInput.toLowerCase()) return true;
-          return false;
-        });
-
-        if (match) {
-          var expectedPass = match.customPassword || match.password || 'AAABBC123456';
-          // If matching password or master password or length >= 4
-          if (passwordInput === expectedPass || passwordInput === 'AAABBC123456' || passwordInput.length >= 4) {
-            match.customPassword = passwordInput;
-            match.password = passwordInput;
-            if (window.RevOpsStore && typeof window.RevOpsStore.updateItem === 'function' && (match.id || match.docId)) {
-              try { window.RevOpsStore.updateItem('employees', match.id || match.docId, match); } catch(eUpd) {}
-            }
-            processLoginForEmployee(match);
-            return;
+          if (window.RevOpsStore && typeof window.RevOpsStore.initSeedData === 'function') {
+            try { window.RevOpsStore.initSeedData(); } catch (errInit) {}
           }
-        }
 
-        // 4. Fallback search in Firestore if available
-        if (window.db && typeof window.db.collection === 'function') {
-          window.db.collection('employees').get().then(function(snapshot) {
-            var firestoreEmployees = [];
-            snapshot.forEach(function(doc) {
-              var data = doc.data() || {};
-              data.docId = doc.id;
-              firestoreEmployees.push(data);
-            });
-
-            var fsMatch = firestoreEmployees.find(function(emp) {
-              var empMobileDigits = (emp.mobile || '').replace(/\D/g, '');
-              return digitsOnly && empMobileDigits && (empMobileDigits.indexOf(digitsOnly) !== -1 || digitsOnly.indexOf(empMobileDigits) !== -1);
-            });
-
-            if (fsMatch) {
-              fsMatch.customPassword = passwordInput;
-              fsMatch.password = passwordInput;
-              processLoginForEmployee(fsMatch);
+          var loginEmail = loginInput;
+          if (!isEmailInput) {
+            var mobileMatch = await resolveLoginEmailByMobile(digitsOnly);
+            if (!mobileMatch || !mobileMatch.email) {
+              showError("This mobile number is not registered. Please contact your Admin.");
+              setLoading(false);
               return;
             }
+            loginEmail = mobileMatch.email;
+          }
 
-            // Synthesize user record for mobile ID
-            var synthUser = {
-              id: 'emp_' + digitsOnly,
-              employeeId: 'E-' + digitsOnly.slice(-3),
-              fullName: digitsOnly === '9840122334' ? 'Mr. Murugan V' : ('Employee ' + digitsOnly),
-              mobile: digitsOnly,
-              email: digitsOnly + '@measuredi.com',
-              role: (digitsOnly === '9840122334' || digitsOnly === '9840629928' || digitsOnly === '8939821717') ? 'admin' : 'staff',
-              isActive: true
-            };
-            processLoginForEmployee(synthUser);
-          }).catch(function(err) {
-            var synthUser = {
-              id: 'emp_' + digitsOnly,
-              employeeId: 'E-' + digitsOnly.slice(-3),
-              fullName: digitsOnly === '9840122334' ? 'Mr. Murugan V' : ('Employee ' + digitsOnly),
-              mobile: digitsOnly,
-              email: digitsOnly + '@measuredi.com',
-              role: (digitsOnly === '9840122334' || digitsOnly === '9840629928' || digitsOnly === '8939821717') ? 'admin' : 'staff',
-              isActive: true
-            };
-            processLoginForEmployee(synthUser);
-          });
-        } else {
-          var synthUser = {
-            id: 'emp_' + digitsOnly,
-            employeeId: 'E-' + digitsOnly.slice(-3),
-            fullName: digitsOnly === '9840122334' ? 'Mr. Murugan V' : ('Employee ' + digitsOnly),
-            mobile: digitsOnly,
-            email: digitsOnly + '@measuredi.com',
-            role: (digitsOnly === '9840122334' || digitsOnly === '9840629928' || digitsOnly === '8939821717') ? 'admin' : 'staff',
-            isActive: true
-          };
-          processLoginForEmployee(synthUser);
+          // Real, verified sign-in — this is the only path that grants access.
+          var cred = await auth.signInWithEmailAndPassword(loginEmail, passwordInput);
+          var uid = cred.user.uid;
+
+          // Resolve role/employee identity from the authoritative server-side records.
+          var role = null;
+          var employeeId = '';
+          try {
+            if (window.db) {
+              var userDoc = await window.db.collection('users').doc(uid).get();
+              if (userDoc.exists) {
+                var userData = userDoc.data() || {};
+                role = userData.role || role;
+                employeeId = userData.employeeId || employeeId;
+              }
+            }
+          } catch (eUserDoc) {
+            console.warn("Could not load users/ role doc:", eUserDoc);
+          }
+
+          var employees = (window.RevOpsStore && typeof window.RevOpsStore.getCollection === 'function')
+            ? (window.RevOpsStore.getCollection('employees') || [])
+            : [];
+          var employeeRecord = employees.find(function(emp) {
+            return emp && (emp.uid === uid || (employeeId && emp.employeeId === employeeId) || (emp.email || '').toLowerCase() === loginEmail.toLowerCase());
+          }) || null;
+
+          if (employeeRecord && employeeRecord.isActive === false) {
+            try { await auth.signOut(); } catch (eSignOut) {}
+            showError("Your account has been disabled. Contact your manager or admin.");
+            setLoading(false);
+            return;
+          }
+
+          if (!role) role = (employeeRecord && employeeRecord.role) || 'staff';
+          if (!employeeId) employeeId = (employeeRecord && (employeeRecord.employeeId || employeeRecord.id)) || uid;
+          var empName = (employeeRecord && (employeeRecord.fullName || employeeRecord.name)) || cred.user.displayName || 'User';
+
+          localStorage.setItem('userRole', role);
+          localStorage.setItem('userName', empName);
+          localStorage.setItem('userEmail', loginEmail);
+          localStorage.setItem('employeeId', employeeId);
+
+          if (role === 'super_admin' || role === 'admin' || role === 'manager') {
+            window.location.href = 'dashboard.html';
+          } else if (role === 'staff') {
+            window.location.href = 'my-scorecard.html';
+          } else {
+            window.location.href = 'dashboard.html';
+          }
+        } catch (err) {
+          console.error("Login error:", err);
+          var code = err && err.code;
+          if (code === 'auth/wrong-password' || code === 'auth/invalid-credential' || code === 'auth/invalid-login-credentials') {
+            showError("Incorrect password. Please try again.");
+          } else if (code === 'auth/user-not-found') {
+            showError("No login has been set up for this account yet. Please contact your Admin.");
+          } else if (code === 'auth/too-many-requests') {
+            showError("Too many failed attempts. Please wait a few minutes and try again.");
+          } else if (code === 'auth/user-disabled') {
+            showError("Your account has been disabled. Contact your manager or admin.");
+          } else {
+            showError("Sign-in failed: " + (err.message || "Please try again or contact your Admin."));
+          }
+          setLoading(false);
         }
       }
 

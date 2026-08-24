@@ -6,7 +6,9 @@ service cloud.firestore {
     function signedIn() { return request.auth != null; }
 
     function myUserData() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data
+        : {};
     }
 
     function myRole() { return signedIn() ? myUserData().role : null; }

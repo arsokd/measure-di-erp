@@ -1050,15 +1050,15 @@ Mobile: +91 98406 29928 | Web: www.measuredi.com`;
         }
 
         try {
-          var res = null;
-          if (window.BrevoMailer && typeof window.BrevoMailer.sendInvoiceEmail === 'function') {
-            res = await window.BrevoMailer.sendInvoiceEmail(inv, {
-              to: toEmail,
-              cc: ccEmail,
-              subject: subject,
-              body: body
-            });
+          if (!window.BrevoMailer || typeof window.BrevoMailer.sendInvoiceEmail !== 'function') {
+            throw new Error('Email service failed to load. Please refresh the page and try again.');
           }
+          var res = await window.BrevoMailer.sendInvoiceEmail(inv, {
+            to: toEmail,
+            cc: ccEmail,
+            subject: subject,
+            body: body
+          });
 
           var history = inv.emailDispatchHistory || [];
           history.push({

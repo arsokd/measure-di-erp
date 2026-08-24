@@ -378,13 +378,18 @@ var currentViewMode = 'table';
         }
       }
 
-      // TASK 6: ATTACHMENT IN TICKET RAISING (PDF, ZIP, IMAGES - MAX 10 FILES, 100MB)
+      // TASK 6: ATTACHMENT IN TICKET RAISING (PDF, ZIP, IMAGES - MAX 10 FILES)
+      // Attachments are embedded as base64 directly on the ticket record, which is
+      // written to both a Firestore document (hard 1 MiB per-document limit) and the
+      // browser's localStorage (shared ~5-10 MB quota across the whole app). Base64
+      // inflates raw file size by ~37%, so the aggregate raw-byte cap here is kept
+      // well under those limits — a higher cap silently breaks saving the ticket.
       function handleTicketPhotosSelect(e) {
         var files = Array.from(e.target.files || []);
         if (files.length === 0) return;
 
         var maxFiles = 10;
-        var maxBytes = 100 * 1024 * 1024; // 100 MB
+        var maxBytes = 600 * 1024; // 600 KB raw (~820 KB base64) — stays safely under Firestore's 1 MiB document limit
 
         var currentBytes = ticketRaisePhotos.reduce(function(acc, item) {
           return acc + (item.rawBytes || 0);
@@ -397,7 +402,7 @@ var currentViewMode = 'table';
 
         files.forEach(function(file) {
           if (currentBytes + file.size > maxBytes) {
-            alert("File '" + file.name + "' exceeds aggregate 100 MB limit.");
+            alert("File '" + file.name + "' would exceed the 600 KB total attachment limit for a single ticket (files are stored inline and must fit within the database's per-record size limit). For larger files, share a link instead.");
             return;
           }
           currentBytes += file.size;
@@ -464,20 +469,35 @@ var currentViewMode = 'table';
       }
 
       // TASK 7: SIGNED SERVICE REPORT IMAGES (MAX 5)
+      // Same inline-storage constraint as ticket attachments above — capped in
+      // aggregate raw bytes to stay under Firestore's 1 MiB document limit.
       function handleSignedReportImagesSelect(e) {
         var files = Array.from(e.target.files || []);
         if (files.length === 0) return;
+
+        var maxSignedReportBytes = 300 * 1024; // 300 KB raw (~410 KB base64)
 
         if (signedReportPhotos.length + files.length > 5) {
           alert("Maximum 5 signed service report images allowed per ticket.");
         }
 
+        var currentBytes = signedReportPhotos.reduce(function(acc, item) {
+          return acc + (item.rawBytes || 0);
+        }, 0);
+
         var availableSlots = 5 - signedReportPhotos.length;
         files.slice(0, availableSlots).forEach(function(file) {
+          if (currentBytes + file.size > maxSignedReportBytes) {
+            alert("File '" + file.name + "' would exceed the 300 KB total limit for signed report images on a single ticket. Please compress the image and try again.");
+            return;
+          }
+          currentBytes += file.size;
+
           var reader = new FileReader();
           reader.onload = function(evt) {
             signedReportPhotos.push({
               name: file.name,
+              rawBytes: file.size,
               dataUrl: evt.target.result,
               uploadedAt: new Date().toISOString()
             });
@@ -1509,18 +1529,17 @@ Service & Quality Assurance Division`;
         var ticket = pendingCreatedTicket || activeEditTicket || {};
 
         try {
-          if (window.BrevoMailer && typeof window.BrevoMailer.sendTicketEmail === 'function') {
-            var res = await window.BrevoMailer.sendTicketEmail(ticket, {
-              to: to,
-              cc: cc,
-              subject: subj,
-              body: body,
-              attachments: ticket.attachments || []
-            });
-            alert(`✅ EMAIL DISPATCHED TO CLIENT!\n\nDelivered directly to: ${to}\nSender: Measure DI Systems (measuredichennai@gmail.com)\n\nService Ticket: ${ticket.ticketNumber || 'Confirmed'}\nMessage ID: ${res.messageId || 'Delivered'}\n\nThe record has been synchronized in the company communication registry.`);
-          } else {
-            alert(`🚀 Email queued to ${to}!`);
+          if (!window.BrevoMailer || typeof window.BrevoMailer.sendTicketEmail !== 'function') {
+            throw new Error('Email service failed to load. Please refresh the page and try again.');
           }
+          var res = await window.BrevoMailer.sendTicketEmail(ticket, {
+            to: to,
+            cc: cc,
+            subject: subj,
+            body: body,
+            attachments: ticket.attachments || []
+          });
+          alert(`✅ EMAIL DISPATCHED TO CLIENT!\n\nDelivered directly to: ${to}\nSender: Measure DI Systems (measuredichennai@gmail.com)\n\nService Ticket: ${ticket.ticketNumber || 'Confirmed'}\nMessage ID: ${res.messageId || 'Delivered'}\n\nThe record has been synchronized in the company communication registry.`);
           closeSendTicketEmailModal();
         } catch (err) {
           console.error('Email dispatch error:', err);
