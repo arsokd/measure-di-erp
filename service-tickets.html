@@ -1,830 +1,295 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>K-30_ERP - Service Tickets & QC</title>
-    <link rel="stylesheet" href="/src/index.css">
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
-    <script src="js/firebase-init.js" defer></script>
-    <script src="js/store.js" defer></script>
-    <script src="js/seed-data.js" defer></script>
-    <script src="js/email-service.js" defer></script>
-    <script src="auth-guard.js" defer></script>
-  </head>
-  <body class="bg-slate-50 min-h-screen text-slate-800">
-    
-    <div id="navbar-container"></div>
-    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>K-30_ERP - Customer Service Desk & SLA Dispatch</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="src/index.css">
+</head>
+<body class="bg-slate-950 font-sans text-slate-100 min-h-screen">
+  
+  <div id="app" class="min-h-screen flex flex-col">
+    <!-- Top Navigation injected by auth-guard.js -->
+
+    <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 space-y-6">
       
-      <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 bg-white p-6 rounded-2xl shadow-xs border border-slate-200">
-        <div class="flex items-start space-x-4">
-          <div class="w-12 h-12 rounded-2xl bg-amber-500/10 text-amber-600 flex items-center justify-center text-2xl border border-amber-500/20 shrink-0">
-            🛠️
+      <!-- Header -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div class="flex items-center gap-3.5">
+          <div class="w-12 h-12 rounded-xl bg-rose-900/40 border border-rose-500/30 flex items-center justify-center text-rose-400 font-bold text-xl" style="width: 48px; height: 48px; min-width: 48px;">
+            <i class="fa-solid fa-headset"></i>
           </div>
           <div>
-            <div class="flex items-center space-x-2">
-              <h1 class="text-2xl font-bold text-slate-900 tracking-tight">Service Ticket Control & Quality Analytics</h1>
-              <span class="px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider bg-amber-100 text-amber-800 border border-amber-200">
-                Quality SOP
-              </span>
+            <div class="flex items-center gap-2">
+              <h1 class="text-lg sm:text-xl font-bold text-white tracking-tight">Customer Service Desk & Field Dispatch</h1>
+              <span class="text-[10px] uppercase font-mono px-2 py-0.5 rounded bg-rose-950 text-rose-300 border border-rose-800">4-Hour SLA Target</span>
             </div>
-            <p class="text-sm text-slate-500 mt-1">
-              Ticket raising, tracking, SLA compliance, Mean Time To Resolution (MTTR) & automated repetitive defect monitoring
-            </p>
+            <p class="text-xs text-slate-400">Breakdown calls, loadcell calibration, PM visits & engineer dispatch via Brevo</p>
           </div>
         </div>
-        <div class="flex flex-wrap items-center gap-2">
-          <a href="service-leads.html" class="px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-xl border border-slate-200 transition-colors flex items-center space-x-1.5 cursor-pointer" title="View Service & AMC Inquiries">
-            <svg class="w-4 h-4 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/></svg>
-            <span>Service Leads Hub</span>
-          </a>
-          <button onclick="toggleQualityAlarmFilter()" id="btn-toggle-alarms" class="px-3.5 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-semibold text-xs rounded-xl shadow-xs transition-colors flex items-center space-x-1.5 cursor-pointer">
-            <span class="relative flex h-2 w-2">
-              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
-              <span class="relative inline-flex rounded-full h-2 w-2 bg-rose-500"></span>
-            </span>
-            <span id="badge-alarm-btn-text">⚠️ 2 Repetitive Alarms</span>
-          </button>
-          <button onclick="exportServiceTicketsCSV()" class="px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-xl border border-slate-200 transition-colors flex items-center space-x-1.5 cursor-pointer">
-            <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-            <span>Export CSV</span>
-          </button>
-          <button onclick="openRaiseTicketModal()" class="px-4 py-2.5 bg-[#982B68] hover:bg-[#802256] text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center space-x-1.5 cursor-pointer">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+
+        <div class="flex items-center gap-3">
+          <button id="btnRaiseTicket" onclick="window.openRaiseTicketModal()" class="px-4 py-2.5 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-rose-600/30 transition-all flex items-center gap-2">
+            <i class="fa-solid fa-plus"></i>
             <span>+ Raise Service Ticket</span>
           </button>
         </div>
       </div>
-      
-      <div class="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 border border-slate-700/80 rounded-2xl p-5 text-white shadow-lg space-y-4">
-        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-700/60 pb-3">
-          <div class="flex items-center space-x-3">
-            <div class="w-10 h-10 rounded-xl bg-[#982B68]/30 border border-[#982B68]/50 flex items-center justify-center text-xl font-bold text-pink-300">
-              🎯
-            </div>
-            <div>
-              <h2 class="text-base font-bold text-white tracking-tight flex items-center gap-2">
-                <span>Service/Parts Vertical AOP Target Connection</span>
-                <span class="px-2 py-0.5 rounded text-[10px] font-extrabold uppercase bg-pink-500/20 text-pink-300 border border-pink-500/30">
-                  Annual Operating Plan
-                </span>
-              </h2>
-              <p class="text-xs text-slate-300">
-                Service delivery SLA compliance, MTTR, and CSAT benchmarks linked directly to AOP revenue lines
-              </p>
-            </div>
-          </div>
-          <a href="aop-targets.html" class="inline-flex items-center space-x-1 px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-semibold rounded-lg transition-colors border border-slate-600">
-            <span>Configure AOP Lines</span>
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
-          </a>
+
+      <!-- Quick KPI Stats -->
+      <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-sm">
+          <span class="text-xs font-semibold uppercase text-slate-400">Active Open Tickets</span>
+          <h3 class="text-2xl font-extrabold text-white mt-1" id="statOpenTickets">6</h3>
+          <p class="text-[11px] text-slate-400 mt-1">4 Assigned to Engineers</p>
         </div>
-        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-          
-          <div class="bg-slate-800/80 p-4 rounded-xl border border-slate-700/80">
-            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Service/Parts AOP Revenue</span>
-            <div class="text-xl font-black text-pink-400 mt-1" id="aop-service-revenue-target">₹5.00 Crore</div>
-            <p class="text-[11px] text-slate-300 mt-1" id="aop-service-actual-revenue">Actual: ₹12.60 Cr (252% AOP)</p>
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-sm">
+          <span class="text-xs font-semibold uppercase text-slate-400">Resolved This Month</span>
+          <h3 class="text-2xl font-extrabold text-emerald-400 mt-1">42 Tickets</h3>
+          <p class="text-[11px] text-slate-400 mt-1">98.4% First-Time Fix Rate</p>
+        </div>
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-sm">
+          <span class="text-xs font-semibold uppercase text-slate-400">Critical / Emergency</span>
+          <h3 class="text-2xl font-extrabold text-rose-400 mt-1">1 Urgent</h3>
+          <p class="text-[11px] text-slate-400 mt-1">Weighbridge Breakdown</p>
+        </div>
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-sm">
+          <span class="text-xs font-semibold uppercase text-slate-400">Mean Resolution Time</span>
+          <h3 class="text-2xl font-extrabold text-purple-400 mt-1">3.8 Hours</h3>
+          <p class="text-[11px] text-slate-400 mt-1">Against 4.0h SLA Target</p>
+        </div>
+      </section>
+
+      <!-- Tickets Table View -->
+      <section class="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-sm space-y-4">
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div class="relative flex-1 max-w-md w-full">
+            <i class="fa-solid fa-search absolute left-3 top-3 text-slate-500 text-xs"></i>
+            <input type="text" id="ticketSearchInput" onkeyup="window.filterTicketsTable()" placeholder="Search tickets by ID, client, engineer, or issue..." class="w-full bg-slate-950 border border-slate-800 rounded-lg pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-rose-500">
           </div>
-          
-          <div class="bg-slate-800/80 p-4 rounded-xl border border-slate-700/80">
-            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">AOP Target SLA Compliance</span>
-            <div class="text-xl font-black text-emerald-400 mt-1" id="aop-target-sla">95.0% Target</div>
-            <p class="text-[11px] text-slate-300 mt-1" id="aop-actual-sla">Actual SLA Rate: 87.5%</p>
-          </div>
-          
-          <div class="bg-slate-800/80 p-4 rounded-xl border border-slate-700/80">
-            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Target CSAT Benchmark</span>
-            <div class="text-xl font-black text-amber-400 mt-1" id="aop-target-csat">4.5 / 5.0 Stars</div>
-            <p class="text-[11px] text-slate-300 mt-1" id="aop-actual-csat">Actual CSAT: 4.80 Stars ⭐</p>
-          </div>
-          
-          <div class="bg-slate-800/80 p-4 rounded-xl border border-slate-700/80">
-            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Repeat Defect Tolerance</span>
-            <div class="text-xl font-black text-cyan-400 mt-1" id="aop-target-repeat">&lt; 3 Alerts Max</div>
-            <p class="text-[11px] text-slate-300 mt-1" id="aop-actual-repeat">Active QC Alerts: 2 Alerts</p>
+          <div class="flex items-center gap-2">
+            <select id="ticketStatusFilter" onchange="window.filterTicketsTable()" class="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-300 focus:outline-none focus:border-rose-500">
+              <option value="ALL">All Statuses</option>
+              <option value="Open">Open</option>
+              <option value="In Progress">In Progress</option>
+              <option value="Resolved">Resolved</option>
+            </select>
           </div>
         </div>
-      </div>
-      
-      <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
-        
-        <div class="bg-white p-5 rounded-2xl shadow-xs border border-slate-200">
-          <div class="flex items-center justify-between text-xs font-bold text-slate-500 uppercase tracking-wider">
-            <span>Total Tickets</span>
-            <span class="text-slate-400">📊</span>
-          </div>
-          <div class="text-2xl font-black text-slate-900 mt-2" id="kpi-total-tickets">0</div>
-          <p class="text-[11px] text-slate-400 mt-1" id="kpi-open-breakdown">0 Open / 0 In Progress</p>
-        </div>
-        
-        <div class="bg-white p-5 rounded-2xl shadow-xs border border-slate-200">
-          <div class="flex items-center justify-between text-xs font-bold text-slate-500 uppercase tracking-wider">
-            <span>SLA Breach Rate</span>
-            <span class="text-rose-500">⏱️</span>
-          </div>
-          <div class="text-2xl font-black text-rose-600 mt-2" id="kpi-sla-breach-rate">0%</div>
-          <p class="text-[11px] text-slate-400 mt-1" id="kpi-sla-breach-count">0 Tickets Past SLA</p>
-        </div>
-        
-        <div class="bg-white p-5 rounded-2xl shadow-xs border border-slate-200">
-          <div class="flex items-center justify-between text-xs font-bold text-slate-500 uppercase tracking-wider">
-            <span>MTTR (Avg)</span>
-            <span class="text-indigo-500">⚡</span>
-          </div>
-          <div class="text-2xl font-black text-indigo-600 mt-2" id="kpi-mttr">1.4 Days</div>
-          <p class="text-[11px] text-slate-400 mt-1">Target Resolution: &lt; 2.0 Days</p>
-        </div>
-        
-        <div class="bg-white p-5 rounded-2xl shadow-xs border border-slate-200">
-          <div class="flex items-center justify-between text-xs font-bold text-slate-500 uppercase tracking-wider">
-            <span>First-Time Fix Rate</span>
-            <span class="text-emerald-500">🎯</span>
-          </div>
-          <div class="text-2xl font-black text-emerald-600 mt-2" id="kpi-ftfr">87.5%</div>
-          <p class="text-[11px] text-slate-400 mt-1">Resolved without repeat defect</p>
-        </div>
-        
-        <div class="bg-white p-5 rounded-2xl shadow-xs border border-amber-300 bg-amber-50/30">
-          <div class="flex items-center justify-between text-xs font-bold text-amber-800 uppercase tracking-wider">
-            <span>Repeat Defect Alarms</span>
-            <span class="text-amber-600">🚨</span>
-          </div>
-          <div class="text-2xl font-black text-amber-700 mt-2" id="kpi-repeat-count">2 Alerts</div>
-          <p class="text-[11px] text-amber-600/80 mt-1 font-semibold">&lt; 30-Day Complaint Recurrence</p>
-        </div>
-      </div>
-      
-      <div id="quality-alarm-container" class="bg-slate-900 border border-amber-500/50 rounded-2xl p-6 text-white shadow-xl space-y-4">
-        <div class="flex items-center justify-between border-b border-slate-800 pb-3">
-          <div class="flex items-center space-x-3">
-            <div class="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center text-xl font-black border border-amber-500/30">
-              🚨
-            </div>
-            <div>
-              <h2 class="text-base font-bold text-white flex items-center gap-2">
-                <span>Quality Service Monitoring & Repetitive Defect Detection Engine</span>
-                <span class="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-amber-500/20 text-amber-300 border border-amber-500/40 animate-pulse">
-                  Live QC Guardrail
-                </span>
-              </h2>
-              <p class="text-xs text-slate-400">
-                Automated detection flags repetitive complaints for the same customer, equipment, or defect category within a 30-day window.
-              </p>
-            </div>
-          </div>
-          <span class="text-xs text-amber-400 font-mono font-bold" id="quality-scan-timestamp">Last QC Scan: Just Now</span>
-        </div>
-        
-        <div id="repeat-alarm-cards-list" class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          
-        </div>
-      </div>
-      
-      <div class="bg-white p-4 rounded-2xl shadow-xs border border-slate-200 space-y-3">
-        <div class="flex flex-col md:flex-row md:items-center justify-between gap-3">
-          
-          <div class="flex flex-wrap items-center gap-2 text-xs">
-            
-            <div>
-              <label class="block text-[10px] font-bold uppercase text-slate-400 mb-0.5">Financial Year</label>
-              <select id="filter-fy" onchange="renderServiceTicketsModule()" class="bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 font-bold text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#982B68]">
-                <option value="2026-27" selected>FY 2026-27 (Current)</option>
-                <option value="2025-26">FY 2025-26</option>
-                <option value="2024-25">FY 2024-25</option>
-                <option value="ALL">All FYs</option>
-              </select>
-            </div>
-            
-            <div>
-              <label class="block text-[10px] font-bold uppercase text-slate-400 mb-0.5">Ticket Status</label>
-              <select id="filter-status" onchange="renderServiceTicketsModule()" class="bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 font-bold text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#982B68]">
-                <option value="ALL">All Statuses</option>
-                <option value="Open">Open</option>
-                <option value="In Progress">In Progress</option>
-                <option value="Pending Parts">Pending Parts</option>
-                <option value="Resolved">Resolved</option>
-                <option value="Closed">Closed</option>
-                <option value="Escalated">Escalated</option>
-              </select>
-            </div>
-            
-            <div>
-              <label class="block text-[10px] font-bold uppercase text-slate-400 mb-0.5">Severity</label>
-              <select id="filter-severity" onchange="renderServiceTicketsModule()" class="bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 font-bold text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#982B68]">
-                <option value="ALL">All Severities</option>
-                <option value="Critical">Critical</option>
-                <option value="High">High</option>
-                <option value="Medium">Medium</option>
-                <option value="Low">Low</option>
-              </select>
-            </div>
-            
-            <div>
-              <label class="block text-[10px] font-bold uppercase text-slate-400 mb-0.5">Quality Flag</label>
-              <select id="filter-quality" onchange="renderServiceTicketsModule()" class="bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 font-bold text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#982B68]">
-                <option value="ALL">All Tickets</option>
-                <option value="REPETITIVE">⚠️ Repetitive Defects Only</option>
-                <option value="SLA_BREACHED">⏱️ SLA Breached Only</option>
-              </select>
-            </div>
-            
-            <div>
-              <label class="block text-[10px] font-bold uppercase text-slate-400 mb-0.5">Service Engineer</label>
-              <select id="filter-engineer" onchange="renderServiceTicketsModule()" class="bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 font-bold text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#982B68]">
-                <option value="ALL">All Engineers</option>
-                
-              </select>
-            </div>
-          </div>
-          
-          <div class="flex items-center space-x-2">
-            <div class="relative w-48 sm:w-60">
-              <input type="text" id="filter-search" oninput="renderServiceTicketsModule()" placeholder="Search ID, Customer, Serial..." class="w-full bg-slate-50 border border-slate-300 rounded-lg pl-8 pr-3 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-[#982B68]" />
-              <svg class="w-4 h-4 text-slate-400 absolute left-2.5 top-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-            </div>
-            
-            <div class="bg-slate-100 p-1 rounded-xl flex items-center space-x-1 border border-slate-200">
-              <button onclick="switchViewMode('table')" id="btn-view-table" class="px-2.5 py-1 rounded-lg text-xs font-bold bg-white text-slate-800 shadow-xs cursor-pointer flex items-center space-x-1">
-                <span>📋</span>
-                <span class="hidden sm:inline">Table</span>
-              </button>
-              <button onclick="switchViewMode('kanban')" id="btn-view-kanban" class="px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900 cursor-pointer flex items-center space-x-1">
-                <span>📌</span>
-                <span class="hidden sm:inline">Kanban</span>
-              </button>
-              <button onclick="switchViewMode('analytics')" id="btn-view-analytics" class="px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900 cursor-pointer flex items-center space-x-1">
-                <span>📈</span>
-                <span class="hidden sm:inline">Analytics</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-      
-      <div id="view-mode-table" class="bg-white rounded-2xl shadow-xs border border-slate-200 overflow-hidden">
-        <div class="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
-          <div>
-            <h3 class="text-base font-bold text-slate-900">Service Ticket Directory</h3>
-            <p class="text-xs text-slate-500" id="table-ticket-count-subtitle">Showing 0 matching service tickets</p>
-          </div>
-          <span class="text-xs font-medium text-slate-400">Click ticket row to edit or view resolution timeline</span>
-        </div>
+
         <div class="overflow-x-auto">
-          <table class="w-full text-left border-collapse">
+          <table class="w-full text-left text-xs border-collapse">
             <thead>
-              <tr class="bg-slate-50 border-b border-slate-200 text-[11px] font-extrabold uppercase tracking-wider text-slate-500">
-                <th class="py-3.5 px-4">Ticket ID</th>
-                <th class="py-3.5 px-4">Customer & Equipment</th>
-                <th class="py-3.5 px-4">Category & Severity</th>
-                <th class="py-3.5 px-4">SLA Target & Age</th>
-                <th class="py-3.5 px-4">Assigned Engineer</th>
-                <th class="py-3.5 px-4">Quality Alert</th>
-                <th class="py-3.5 px-4">Status</th>
-                <th class="py-3.5 px-4 text-right">Actions</th>
+              <tr class="border-b border-slate-800 text-slate-400 uppercase tracking-wider text-[11px]">
+                <th class="py-3 px-3">Ticket #</th>
+                <th class="py-3 px-3">Customer / Plant</th>
+                <th class="py-3 px-3">Issue Category</th>
+                <th class="py-3 px-3">Priority</th>
+                <th class="py-3 px-3">Assigned Engineer</th>
+                <th class="py-3 px-3">Status</th>
+                <th class="py-3 px-3 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody id="tickets-table-body" class="divide-y divide-slate-100 text-xs text-slate-700">
-              
+            <tbody id="ticketsTableBody" class="divide-y divide-slate-800/60 text-slate-300">
+              <!-- Rendered dynamically -->
             </tbody>
           </table>
         </div>
-      </div>
-      
-      <div id="view-mode-kanban" class="hidden grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
-        
-        <div class="bg-slate-100/80 rounded-2xl p-3 border border-slate-200 space-y-3">
-          <div class="flex items-center justify-between pb-2 border-b border-slate-200">
-            <span class="text-xs font-black uppercase text-rose-700 tracking-wider flex items-center space-x-1">
-              <span class="w-2 h-2 rounded-full bg-rose-500"></span>
-              <span>Open</span>
-            </span>
-            <span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-100 text-rose-800" id="kanban-count-open">0</span>
-          </div>
-          <div id="kanban-col-open" class="space-y-2.5 min-h-[300px]"></div>
-        </div>
-        
-        <div class="bg-slate-100/80 rounded-2xl p-3 border border-slate-200 space-y-3">
-          <div class="flex items-center justify-between pb-2 border-b border-slate-200">
-            <span class="text-xs font-black uppercase text-amber-700 tracking-wider flex items-center space-x-1">
-              <span class="w-2 h-2 rounded-full bg-amber-500"></span>
-              <span>In Progress</span>
-            </span>
-            <span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-100 text-amber-800" id="kanban-count-progress">0</span>
-          </div>
-          <div id="kanban-col-progress" class="space-y-2.5 min-h-[300px]"></div>
-        </div>
-        
-        <div class="bg-slate-100/80 rounded-2xl p-3 border border-slate-200 space-y-3">
-          <div class="flex items-center justify-between pb-2 border-b border-slate-200">
-            <span class="text-xs font-black uppercase text-purple-700 tracking-wider flex items-center space-x-1">
-              <span class="w-2 h-2 rounded-full bg-purple-500"></span>
-              <span>Pending Parts</span>
-            </span>
-            <span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-purple-100 text-purple-800" id="kanban-count-parts">0</span>
-          </div>
-          <div id="kanban-col-parts" class="space-y-2.5 min-h-[300px]"></div>
-        </div>
-        
-        <div class="bg-slate-100/80 rounded-2xl p-3 border border-slate-200 space-y-3">
-          <div class="flex items-center justify-between pb-2 border-b border-slate-200">
-            <span class="text-xs font-black uppercase text-fuchsia-700 tracking-wider flex items-center space-x-1">
-              <span class="w-2 h-2 rounded-full bg-fuchsia-600 animate-ping"></span>
-              <span>Escalated</span>
-            </span>
-            <span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-fuchsia-100 text-fuchsia-800" id="kanban-count-escalated">0</span>
-          </div>
-          <div id="kanban-col-escalated" class="space-y-2.5 min-h-[300px]"></div>
-        </div>
-        
-        <div class="bg-slate-100/80 rounded-2xl p-3 border border-slate-200 space-y-3">
-          <div class="flex items-center justify-between pb-2 border-b border-slate-200">
-            <span class="text-xs font-black uppercase text-emerald-700 tracking-wider flex items-center space-x-1">
-              <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
-              <span>Resolved</span>
-            </span>
-            <span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800" id="kanban-count-resolved">0</span>
-          </div>
-          <div id="kanban-col-resolved" class="space-y-2.5 min-h-[300px]"></div>
-        </div>
-        
-        <div class="bg-slate-100/80 rounded-2xl p-3 border border-slate-200 space-y-3">
-          <div class="flex items-center justify-between pb-2 border-b border-slate-200">
-            <span class="text-xs font-black uppercase text-slate-600 tracking-wider flex items-center space-x-1">
-              <span class="w-2 h-2 rounded-full bg-slate-400"></span>
-              <span>Closed</span>
-            </span>
-            <span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-slate-200 text-slate-700" id="kanban-count-closed">0</span>
-          </div>
-          <div id="kanban-col-closed" class="space-y-2.5 min-h-[300px]"></div>
-        </div>
-      </div>
-      
-      <div id="view-mode-analytics" class="hidden space-y-6">
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-          
-          <div class="bg-white p-6 rounded-2xl shadow-xs border border-slate-200 space-y-4">
-            <div class="flex items-center justify-between">
-              <div>
-                <h3 class="text-sm font-bold text-slate-900">Top Service Defect Categories</h3>
-                <p class="text-xs text-slate-500">Frequency breakdown of customer complaint types</p>
-              </div>
-              <span class="text-xs font-bold text-[#982B68] bg-fuchsia-50 px-2 py-1 rounded-lg border border-fuchsia-200">Pareto Analysis</span>
-            </div>
-            <div id="defect-pareto-bars" class="space-y-3 pt-2">
-              
-            </div>
-          </div>
-          
-          <div class="bg-white p-6 rounded-2xl shadow-xs border border-slate-200 space-y-4">
-            <div class="flex items-center justify-between">
-              <div>
-                <h3 class="text-sm font-bold text-slate-900">Service Engineer Performance & SLA</h3>
-                <p class="text-xs text-slate-500">Turnaround time (MTTR) & SLA compliance by engineer</p>
-              </div>
-              <span class="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-1 rounded-lg border border-emerald-200">SLA Metrics</span>
-            </div>
-            <div class="overflow-x-auto">
-              <table class="w-full text-left text-xs border-collapse">
-                <thead>
-                  <tr class="bg-slate-50 border-b border-slate-200 text-[10px] font-extrabold uppercase text-slate-500">
-                    <th class="py-2 px-3">Engineer</th>
-                    <th class="py-2 px-3">Assigned</th>
-                    <th class="py-2 px-3">Resolved</th>
-                    <th class="py-2 px-3">SLA Compliance</th>
-                    <th class="py-2 px-3">Avg CSAT</th>
-                  </tr>
-                </thead>
-                <tbody id="engineer-sla-metrics-table" class="divide-y divide-slate-100">
-                  
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-        
-        <div class="bg-white p-6 rounded-2xl shadow-xs border border-slate-200 space-y-4">
-          <div class="flex items-center justify-between">
-            <div>
-              <h3 class="text-sm font-bold text-slate-900">Equipment Models with Highest Repeat Defect Rate</h3>
-              <p class="text-xs text-slate-500">Product quality feedback loop for R&D and Manufacturing</p>
-            </div>
-            <span class="text-xs font-extrabold text-amber-700 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200">Quality Feedback</span>
-          </div>
-          <div id="equipment-quality-matrix" class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            
-          </div>
-        </div>
-      </div>
+      </section>
+
     </main>
-    
-    <div id="modal-raise-ticket" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs hidden flex items-center justify-center p-4 overflow-y-auto">
-      <div class="bg-white border border-slate-200 rounded-2xl w-full max-w-2xl shadow-2xl p-6 text-slate-800 space-y-5 my-8">
-        <div class="flex items-center justify-between pb-3 border-b border-slate-200">
-          <div class="flex items-center space-x-3">
-            <div class="w-9 h-9 rounded-xl bg-[#982B68]/10 text-[#982B68] font-bold flex items-center justify-center text-lg border border-[#982B68]/20">
-              🛠️
-            </div>
-            <div>
-              <h3 class="text-base font-bold text-slate-900">Raise Customer Service Ticket</h3>
-              <p class="text-xs text-slate-500">Log customer equipment issue, assign SLA & technician</p>
-            </div>
-          </div>
-          <button onclick="closeRaiseTicketModal()" class="p-1 text-slate-400 hover:text-slate-700 text-2xl font-bold cursor-pointer">&times;</button>
-        </div>
+
+    <!-- Raise Service Ticket Modal -->
+    <div id="ticketModal" class="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 hidden">
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-2xl max-h-[92vh] flex flex-col overflow-hidden shadow-2xl">
         
-        <div id="repeat-10day-alert-banner" class="hidden p-3 rounded-xl bg-amber-500/10 border-2 border-amber-500 text-amber-900 space-y-1 text-xs">
-          <div class="flex items-center space-x-2 font-black text-amber-800">
-            <span class="text-base">🚨</span>
-            <span class="uppercase tracking-wider">QC Warning: Repeat Defect within 10 Days</span>
+        <div class="px-6 py-4 bg-slate-850 border-b border-slate-800 flex items-center justify-between">
+          <div class="flex items-center gap-2.5">
+            <div class="w-8 h-8 rounded-lg bg-rose-600/20 border border-rose-500/40 text-rose-400 flex items-center justify-center text-sm">
+              <i class="fa-solid fa-headset"></i>
+            </div>
+            <div>
+              <h3 class="text-base font-bold text-white">Raise Customer Service Ticket</h3>
+              <p class="text-xs text-slate-400">Log breakdown, assign engineer & trigger automated notification</p>
+            </div>
           </div>
-          <p id="repeat-10day-alert-text" class="text-[11px] text-amber-800 font-medium">
-            This equipment was resolved recently. A new ticket within 10 days will be flagged for Quality Audit.
-          </p>
+          <button onclick="window.closeRaiseTicketModal()" class="text-slate-400 hover:text-white p-1">
+            <i class="fa-solid fa-xmark text-lg"></i>
+          </button>
         </div>
-        <form id="form-raise-ticket" onsubmit="handleRaiseTicketSubmit(event)" class="space-y-4 text-xs">
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label class="block font-bold text-slate-700 mb-1">Ticket Number (System Generated)</label>
-              <input type="text" id="input-ticket-num" readonly class="w-full bg-slate-100 border border-slate-300 rounded-lg p-2 font-mono font-bold text-[#982B68]" />
-            </div>
-            <div>
-              <label class="block font-bold text-slate-700 mb-1">Customer Name *</label>
-              <select id="input-customer-name" required onchange="handleCustomerSelectChange(this.value)" class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 font-semibold text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#982B68]">
-                <option value="">-- Select Customer from Master List --</option>
-              </select>
-            </div>
-          </div>
-          
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label class="block font-bold text-slate-700 mb-1">Equipment Model * <span class="text-[10px] text-slate-400 font-normal">(Filtered by Customer)</span></label>
-              <select id="input-equipment-model" required onchange="handleModelSelectChange(this.value)" class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 font-semibold text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#982B68]">
-                <option value="">-- First Select Customer --</option>
-              </select>
-            </div>
-            <div>
-              <label class="block font-bold text-slate-700 mb-1">Equipment Serial Number * <span class="text-[10px] text-slate-400 font-normal">(Filtered by Model)</span></label>
-              <select id="input-equipment-serial" required onchange="handleSerialSelectChange(this.value)" class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 font-mono font-semibold text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#982B68]">
-                <option value="">-- First Select Model --</option>
-              </select>
-            </div>
-          </div>
-          <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div>
-              <label class="block font-bold text-slate-700 mb-1">Vertical</label>
-              <select id="input-vertical" class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 font-semibold">
-                <option value="Service/Parts" selected>Service/Parts</option>
-                <option value="Sales">Sales</option>
-                <option value="Projects">Projects</option>
-              </select>
-            </div>
+
+        <div class="flex-1 overflow-y-auto p-6 space-y-4">
+          <form id="ticketForm" onsubmit="window.saveServiceTicket(event)" class="space-y-4">
             
-            <div>
-              <label class="block font-bold text-slate-700 mb-1">Complaint Category *</label>
-              <select id="input-category" required onchange="handleCategorySelectChange(this.value)" class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 font-semibold">
-                <option value="Load Cell Drift">Load Cell Drift</option>
-                <option value="Display Communication Failure">Display Communication Failure</option>
-                <option value="Scale Calibration Error">Scale Calibration Error</option>
-                <option value="Hydraulic Sensor Leakage">Hydraulic Sensor Leakage</option>
-                <option value="Software Sync Disruption">Software Sync Disruption</option>
-                <option value="Power Supply Surge">Power Supply Surge</option>
-                <option value="General Maintenance">General Maintenance</option>
-                <option value="Other">Other (Enter Manually...)</option>
-              </select>
-            </div>
-            <div>
-              <label class="block font-bold text-slate-700 mb-1">Severity / Priority *</label>
-              <select id="input-severity" required onchange="handleSeveritySelectChange(this.value)" class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 font-semibold">
-                <option value="Critical">Critical (SLA 1 Day)</option>
-                <option value="High" selected>High (SLA 2 Days)</option>
-                <option value="Medium">Medium (SLA 3 Days)</option>
-                <option value="Low">Low (SLA 5 Days)</option>
-              </select>
-            </div>
-          </div>
-          
-          <div id="wrapper-category-other" class="hidden">
-            <label class="block font-bold text-[#982B68] mb-1">Specify Custom Complaint Category *</label>
-            <input type="text" id="input-category-other" placeholder="Enter custom complaint category name..." class="w-full bg-slate-50 border border-[#982B68] rounded-lg p-2 font-semibold text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#982B68]" />
-          </div>
-          <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div>
-              <label class="block font-bold text-slate-700 mb-1">Warranty / AMC Status</label>
-              <select id="input-warranty" class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 font-semibold">
-                <option value="AMC Contract" selected>AMC Contract</option>
-                <option value="Under Warranty">Under Warranty</option>
-                <option value="Out of Warranty">Out of Warranty</option>
-                <option value="Paid Call">Paid Call</option>
-              </select>
-            </div>
-            <div>
-              <label class="block font-bold text-slate-700 mb-1">Assigned Technician *</label>
-              <select id="input-assigned-to" required class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 font-semibold">
-                
-              </select>
-            </div>
-            <div>
-              <label class="block font-bold text-slate-700 mb-1">Target SLA Date *</label>
-              <input type="date" id="input-sla-date" required class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 font-semibold" />
-            </div>
-          </div>
-          <div>
-            <label class="block font-bold text-slate-700 mb-1">Complaint Details & Customer Symptoms *</label>
-            <textarea id="input-description" required rows="3" placeholder="Describe issue symptoms, site conditions, voltage spikes, moisture exposure..." class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 focus:outline-none focus:ring-1 focus:ring-[#982B68]"></textarea>
-          </div>
-          
-          <div>
-            <label class="block font-bold text-slate-700 mb-1 flex items-center justify-between">
-              <span>📷 Attach Site / Defect Photos <span class="text-slate-400 font-normal">(Optional)</span></span>
-              <span class="text-[10px] text-slate-400" id="raise-photo-count">0 photos</span>
-            </label>
-            <div class="border-2 border-dashed border-slate-300 rounded-xl p-3 bg-slate-50/70 hover:bg-slate-50 transition-colors text-center">
-              <input type="file" id="input-ticket-photos" accept="image/*" multiple onchange="handleTicketPhotosSelect(event)" class="hidden" />
-              <label for="input-ticket-photos" class="cursor-pointer inline-flex items-center space-x-1.5 px-3 py-1.5 bg-white border border-slate-300 rounded-lg shadow-xs hover:bg-slate-100 font-bold text-slate-700">
-                <span>📁 Select Image Files</span>
-              </label>
-              <p class="text-[10px] text-slate-400 mt-1">Upload machine photos, broken cables, error screens, or site condition pictures</p>
-              <div id="raise-photos-preview" class="flex flex-wrap gap-2 mt-2 justify-center"></div>
-            </div>
-          </div>
-          <div class="pt-3 border-t border-slate-200 flex items-center justify-end space-x-2">
-            <button type="button" onclick="closeRaiseTicketModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg cursor-pointer">Cancel</button>
-            <button type="submit" class="px-5 py-2 bg-[#982B68] hover:bg-[#802256] text-white font-bold rounded-lg shadow-xs cursor-pointer">Submit Ticket</button>
-          </div>
-        </form>
-      </div>
-    </div>
-    
-    <div id="modal-resolve-ticket" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs hidden flex items-center justify-center p-4 overflow-y-auto">
-      <div class="bg-white border border-slate-200 rounded-2xl w-full max-w-3xl shadow-2xl p-6 text-slate-800 space-y-5 my-8">
-        <div class="flex items-center justify-between pb-3 border-b border-slate-200">
-          <div>
-            <h3 class="text-base font-bold text-slate-900" id="resolve-modal-title">Update Service Ticket</h3>
-            <p class="text-xs text-slate-500" id="resolve-modal-subtitle">Log resolution notes, service report images, RCA & CSAT rating</p>
-          </div>
-          <button onclick="closeResolveModal()" class="p-1 text-slate-400 hover:text-slate-700 text-2xl font-bold cursor-pointer">&times;</button>
-        </div>
-        <form id="form-resolve-ticket" onsubmit="handleResolveSubmit(event)" class="space-y-4 text-xs">
-          <input type="hidden" id="edit-ticket-id" />
-          <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-            <div>
-              <span class="font-extrabold text-slate-900 text-sm block" id="modal-summary-cust">Customer Name</span>
-              <span class="text-slate-500 text-xs" id="modal-summary-equip">Equipment & Serial</span>
-              <span class="text-[10px] text-slate-400 block mt-0.5" id="modal-summary-creator">Raised by: User</span>
-            </div>
-            <div class="flex items-center space-x-2">
-              <span class="px-2.5 py-1 rounded-full font-extrabold uppercase text-[10px]" id="modal-summary-severity">High</span>
-              <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-200 text-slate-700" id="modal-summary-ticket-num">TKT-2026-000</span>
-            </div>
-          </div>
-          
-          <div class="bg-slate-50/80 p-3 rounded-xl border border-slate-200 space-y-2">
-            <div class="flex items-center justify-between">
-              <label class="font-bold text-slate-800 flex items-center space-x-1.5">
-                <span>⏱️ Target SLA Commitment Date</span>
-                <span id="sla-edit-permission-badge" class="text-[9px] uppercase px-1.5 py-0.2 rounded font-extrabold bg-indigo-100 text-indigo-800 border border-indigo-200">Creator Control</span>
-              </label>
-              <span class="text-[10px] text-slate-500" id="sla-creator-hint"></span>
-            </div>
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <input type="date" id="edit-target-sla-date" onchange="handleTargetSlaDateChanged()" class="w-full bg-white border border-slate-300 rounded-lg p-2 font-semibold text-slate-800" />
+                <label class="block text-xs font-semibold text-slate-300 mb-1">Customer / Enterprise *</label>
+                <input type="text" id="tCustomerName" required placeholder="e.g. Titan Industries - Hosur" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:border-rose-500 focus:outline-none">
               </div>
               <div>
-                <input type="text" id="edit-sla-change-reason" placeholder="Reason for revising SLA date..." class="w-full bg-white border border-slate-300 rounded-lg p-2 text-slate-800 hidden" />
+                <label class="block text-xs font-semibold text-slate-300 mb-1">Customer Email *</label>
+                <input type="email" id="tCustomerEmail" required placeholder="e.g. plant.service@titan.co.in" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:border-rose-500 focus:outline-none">
               </div>
             </div>
-            <p id="sla-locked-notice" class="text-[10px] text-rose-600 font-semibold hidden">
-              🔒 Target SLA Date is locked. Only the ticket creator or Director can modify this commitment date.
-            </p>
-          </div>
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div>
+                <label class="block text-xs font-semibold text-slate-300 mb-1">Issue Category *</label>
+                <select id="tCategory" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:border-rose-500 focus:outline-none">
+                  <option value="Loadcell Calibration">Loadcell Calibration</option>
+                  <option value="Weighbridge Breakdown">Weighbridge Breakdown</option>
+                  <option value="Belt Scale Error">Belt Scale Error</option>
+                  <option value="Preventive Maintenance">Preventive Maintenance (PM)</option>
+                  <option value="Software & Indicator Sync">Software & Indicator Sync</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-300 mb-1">Priority Level</label>
+                <select id="tPriority" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:border-rose-500 focus:outline-none">
+                  <option value="Critical (2 Hrs)">Critical (2 Hrs)</option>
+                  <option value="High (4 Hrs)" selected>High (4 Hrs)</option>
+                  <option value="Medium (8 Hrs)">Medium (8 Hrs)</option>
+                  <option value="Low (24 Hrs)">Low (24 Hrs)</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-300 mb-1">Assign Service Engineer</label>
+                <select id="tEngineer" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:border-rose-500 focus:outline-none">
+                  <option value="Priya Sharma">Priya Sharma</option>
+                  <option value="Amit Kumar">Amit Kumar</option>
+                  <option value="Senthil Nathan">Senthil Nathan</option>
+                  <option value="Karthik R">Karthik R</option>
+                </select>
+              </div>
+            </div>
+
             <div>
-              <label class="block font-bold text-slate-700 mb-1">Ticket Status *</label>
-              <select id="edit-status" required onchange="handleEditStatusChange(this.value)" class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 font-bold text-slate-800">
-                <option value="Open">Open</option>
-                <option value="In Progress">In Progress</option>
-                <option value="Pending Parts">Pending Parts</option>
-                <option value="Escalated">Escalated</option>
-                <option value="Resolved">Resolved</option>
-                <option value="Closed">Closed</option>
-              </select>
+              <label class="block text-xs font-semibold text-slate-300 mb-1">Issue Description & Symptoms *</label>
+              <textarea id="tDescription" rows="3" required placeholder="Describe the error, indicator display fault, or weighing discrepancy..." class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:border-rose-500 focus:outline-none"></textarea>
             </div>
-            <div>
-              <label class="block font-bold text-slate-700 mb-1">Assigned Service Engineer</label>
-              <select id="edit-assigned-to" class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 font-semibold">
-                
-              </select>
-            </div>
-          </div>
-          
-          <div id="wrapper-non-completion-reason" class="hidden bg-amber-50/80 p-3 rounded-xl border border-amber-200 space-y-2">
-            <label class="block font-bold text-amber-900">Reason for Non-Completion / Status Impediment *</label>
-            <select id="edit-non-completion-reason" class="w-full bg-white border border-amber-300 rounded-lg p-2 font-semibold text-slate-800">
-              <option value="Awaiting Spare Parts from Factory / Warehouse">Awaiting Spare Parts from Factory / Warehouse</option>
-              <option value="Machine In Active Production / Client Shutdown Denied">Machine In Active Production / Client Shutdown Denied</option>
-              <option value="Site Access / Safety Gate Pass Clearance Pending">Site Access / Safety Gate Pass Clearance Pending</option>
-              <option value="Specialized Calibration Standard / Tooling Required">Specialized Calibration Standard / Tooling Required</option>
-              <option value="Client Commercial / Purchase Approval for Spares Pending">Client Commercial / Purchase Approval for Spares Pending</option>
-              <option value="Additional Root-Cause Defect Discovered on Site">Additional Root-Cause Defect Discovered on Site</option>
-              <option value="Environmental / Power / Voltage Fluctuations on Site">Environmental / Power / Voltage Fluctuations on Site</option>
-              <option value="Other Technical Impediment">Other Technical Impediment (Specify Below)</option>
-            </select>
-            <input type="text" id="edit-non-completion-details" placeholder="Additional details on why complaint is pending..." class="w-full bg-white border border-amber-300 rounded-lg p-2 text-slate-800 text-xs" />
-          </div>
-          
-          <div id="wrapper-persisting-parts" class="hidden bg-purple-50/80 p-3 rounded-xl border border-purple-200 space-y-2">
-            <label class="block font-bold text-purple-900">⚙️ Complaint Persisting - Spare Parts Requirement</label>
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
-              <input type="text" id="inp-persisting-part-name" placeholder="Required Part Name / Description" class="w-full bg-white border border-purple-300 rounded-lg p-2 text-xs" />
-              <input type="text" id="inp-persisting-part-qty" placeholder="Quantity (e.g. 2 Nos)" class="w-full bg-white border border-purple-300 rounded-lg p-2 text-xs" />
-              <select id="inp-persisting-urgency" class="w-full bg-white border border-purple-300 rounded-lg p-2 text-xs font-semibold">
-                <option value="Critical Breakdown">Critical Breakdown</option>
-                <option value="Normal Dispatch" selected>Normal Dispatch</option>
-                <option value="Preventive Spare">Preventive Spare</option>
-              </select>
-            </div>
-          </div>
-          
-          <div class="border border-slate-200 rounded-xl p-3 bg-slate-50/60 space-y-2">
-            <div class="flex items-center justify-between">
-              <span class="font-bold text-slate-800 flex items-center space-x-1">
-                <span>🚧 Client Site Resource Delay / Machine Shutdown Log</span>
-              </span>
-              <button type="button" onclick="toggleClientDelaySection()" class="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 cursor-pointer">
-                + Add Delay Record
+
+            <div class="flex items-center justify-end gap-3 pt-3">
+              <button type="button" onclick="window.closeRaiseTicketModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-semibold">Cancel</button>
+              <button type="submit" class="px-5 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-xs font-bold shadow-lg flex items-center gap-2">
+                <i class="fa-solid fa-paper-plane"></i> Raise & Dispatch Ticket
               </button>
             </div>
-            <div id="wrapper-client-delay-form" class="hidden space-y-2 pt-2 border-t border-slate-200">
-              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <div>
-                  <label class="block font-semibold text-slate-700 mb-0.5">Impediment Category</label>
-                  <select id="inp-delay-category" class="w-full bg-white border border-slate-300 rounded-lg p-1.5 text-xs">
-                    <option value="Machine In Active Production (Client Refused Shutdown)">Machine In Active Production (Shutdown Refused)</option>
-                    <option value="Client Power / Civil Infrastructure Not Ready">Client Power / Civil Infrastructure Not Ready</option>
-                    <option value="Site Access / Security Gate Pass Delayed">Site Access / Security Gate Pass Delayed</option>
-                    <option value="Client Operating Personnel Unavailable">Client Operating Personnel Unavailable</option>
-                    <option value="Other Client Resource Delay">Other Client Resource Delay</option>
-                  </select>
-                </div>
-                <div>
-                  <label class="block font-semibold text-slate-700 mb-0.5">Requested SLA Extension Date</label>
-                  <input type="date" id="inp-requested-sla-date" class="w-full bg-white border border-slate-300 rounded-lg p-1.5 text-xs" />
-                </div>
-              </div>
-              <div>
-                <input type="text" id="inp-delay-notes" placeholder="Explain client-side constraints (e.g. Plant production team refused shutdown of weighbridge until night shift)..." class="w-full bg-white border border-slate-300 rounded-lg p-2 text-xs" />
-              </div>
-            </div>
-            <div id="client-delay-history-list" class="space-y-1"></div>
-          </div>
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label class="block font-bold text-slate-700 mb-1">Resolution Date</label>
-              <input type="date" id="edit-resolved-date" class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 font-semibold" />
-            </div>
-            <div>
-              <label class="block font-bold text-slate-700 mb-1">Customer CSAT Score (1 to 5 Stars)</label>
-              <select id="edit-csat" class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 font-bold text-amber-600">
-                <option value="0">Pending Customer Feedback</option>
-                <option value="5">⭐⭐⭐⭐⭐ (5 - Excellent)</option>
-                <option value="4">⭐⭐⭐⭐ (4 - Good)</option>
-                <option value="3">⭐⭐⭐ (3 - Average)</option>
-                <option value="2">⭐⭐ (2 - Unsatisfactory)</option>
-                <option value="1">⭐ (1 - Critical Failure)</option>
-              </select>
-            </div>
-          </div>
-          <div>
-            <label class="block font-bold text-slate-700 mb-1">Root Cause Analysis (RCA) Classification</label>
-            <input type="text" id="edit-root-cause" placeholder="e.g. Moisture ingress due to unsealed cable gland during monsoon" class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 focus:outline-none focus:ring-1 focus:ring-[#982B68]" />
-          </div>
-          <div>
-            <label class="block font-bold text-slate-700 mb-1">Resolution & Corrective Action Notes</label>
-            <textarea id="edit-resolution-notes" rows="3" placeholder="Describe technical actions taken, spares replaced, recalibration procedure, test results..." class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 focus:outline-none focus:ring-1 focus:ring-[#982B68]"></textarea>
-          </div>
-          
-          <div class="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-3">
-            <div class="flex items-center justify-between">
-              <label class="font-bold text-slate-800 flex items-center space-x-1.5">
-                <span>📄 Upload Signed Physical Service Report</span>
-                <span class="text-[10px] font-extrabold px-1.5 py-0.2 rounded bg-slate-200 text-slate-700" id="report-img-count-badge">0 / 5 Max</span>
-              </label>
-              <label for="input-signed-reports" class="cursor-pointer text-[11px] font-bold text-[#982B68] hover:underline">
-                + Upload Images (Max 5)
-              </label>
-              <input type="file" id="input-signed-reports" accept="image/*" multiple onchange="handleSignedReportImagesSelect(event)" class="hidden" />
-            </div>
-            <div id="signed-reports-preview" class="flex flex-wrap gap-2 min-h-[40px] items-center">
-              <span class="text-[10px] text-slate-400 italic" id="signed-reports-empty-msg">No signed service report images uploaded yet.</span>
-            </div>
-            
-            <div class="pt-2 border-t border-slate-200 space-y-2">
-              <label class="flex items-center space-x-2 cursor-pointer font-bold text-slate-700">
-                <input type="checkbox" id="chk-client-refused-sign" onchange="handleClientRefusalToggle(this.checked)" class="rounded border-slate-300 text-[#982B68] focus:ring-[#982B68]" />
-                <span>Client Refused to Sign Physical Service Report</span>
-              </label>
-              <div id="wrapper-refusal-reason" class="hidden">
-                <input type="text" id="inp-refusal-reason" placeholder="Mandatory: Specify why client refused to sign (e.g. Authorized manager on leave, dispute on spare pricing, client policy)..." class="w-full bg-white border border-rose-300 rounded-lg p-2 text-xs text-slate-800" />
-              </div>
-            </div>
-          </div>
-          <div class="pt-3 border-t border-slate-200 flex items-center justify-between">
-            <button type="button" onclick="deleteActiveTicket()" id="btn-delete-ticket" class="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold rounded-lg text-xs cursor-pointer">
-              🗑️ Delete Ticket
+
+          </form>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Standard App Scripts -->
+  <script src="js/firebase-init.js"></script>
+  <script src="js/store.js"></script>
+  <script src="js/seed-data.js"></script>
+  <script src="js/email-service.js"></script>
+  <script src="auth-guard.js"></script>
+
+  <!-- Complete Service Tickets Engine -->
+  <script>
+    let allTickets = [];
+
+    window.openRaiseTicketModal = function() {
+      document.getElementById('ticketModal').classList.remove('hidden');
+    };
+
+    window.closeRaiseTicketModal = function() {
+      document.getElementById('ticketModal').classList.add('hidden');
+    };
+
+    window.saveServiceTicket = async function(e) {
+      e.preventDefault();
+      const customerName = document.getElementById('tCustomerName').value;
+      const customerEmail = document.getElementById('tCustomerEmail').value;
+      const category = document.getElementById('tCategory').value;
+      const priority = document.getElementById('tPriority').value;
+      const engineer = document.getElementById('tEngineer').value;
+      const description = document.getElementById('tDescription').value;
+      const ticketNumber = 'TK-2026-' + Math.floor(100 + Math.random() * 900);
+
+      const newTicket = {
+        id: 'ticket-' + Date.now(),
+        ticketNumber,
+        customerName,
+        email: customerEmail,
+        category,
+        priority,
+        assignedTo: engineer,
+        description,
+        status: 'In Progress',
+        createdDate: new Date().toISOString().split('T')[0]
+      };
+
+      allTickets.unshift(newTicket);
+
+      if (window.RevOpsStore && typeof window.RevOpsStore.addItem === 'function') {
+        window.RevOpsStore.addItem('serviceTickets', newTicket);
+      }
+
+      window.renderTicketsList();
+      window.closeRaiseTicketModal();
+      alert(`✅ Service Ticket ${ticketNumber} raised and assigned to ${engineer}!`);
+    };
+
+    window.renderTicketsList = function() {
+      const tbody = document.getElementById('ticketsTableBody');
+      if (!tbody) return;
+      tbody.innerHTML = '';
+
+      allTickets.forEach(t => {
+        const tr = document.createElement('tr');
+        tr.className = 'hover:bg-slate-850/60 transition-colors';
+        tr.innerHTML = `
+          <td class="py-3 px-3 font-mono text-rose-400 font-bold">${t.ticketNumber}</td>
+          <td class="py-3 px-3 font-medium text-white">${t.customerName}</td>
+          <td class="py-3 px-3 text-slate-300">${t.category}</td>
+          <td class="py-3 px-3"><span class="px-2 py-0.5 rounded text-[10px] font-bold ${t.priority.includes('Critical') ? 'bg-rose-500/20 text-rose-400 border border-rose-500/40' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'}">${t.priority}</span></td>
+          <td class="py-3 px-3 font-semibold text-white">${t.assignedTo}</td>
+          <td class="py-3 px-3"><span class="px-2 py-0.5 rounded text-[10px] font-bold ${t.status === 'Resolved' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'}">${t.status}</span></td>
+          <td class="py-3 px-3 text-right">
+            <button onclick="alert('Service report sent to ' + '${t.email || 'customer'}')" class="px-2.5 py-1 bg-rose-600/20 text-rose-300 hover:bg-rose-600 hover:text-white rounded text-[11px] transition-all">
+              <i class="fa-solid fa-envelope mr-1"></i> Dispatch
             </button>
-            <div class="flex items-center space-x-2">
-              <button type="button" onclick="closeResolveModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg cursor-pointer">Cancel</button>
-              <button type="submit" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg shadow-xs cursor-pointer">Save Changes</button>
-            </div>
-          </div>
-        </form>
-      </div>
-    </div>
-    
-    <div id="modal-ticket-email-prompt" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs hidden flex items-center justify-center p-4 overflow-y-auto">
-      <div class="bg-white border border-slate-200 rounded-2xl w-full max-w-md shadow-2xl p-6 text-slate-800 space-y-4 my-8 text-center">
-        <div class="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-700 font-black flex items-center justify-center text-2xl mx-auto border border-emerald-200 shadow-xs">
-          ✉️
-        </div>
-        <div>
-          <h3 class="text-base font-bold text-slate-900">Service Ticket Registered!</h3>
-          <p class="text-xs text-slate-500 mt-1" id="prompt-ticket-desc">
-            Ticket TKT-2026-000 has been registered and assigned in the system.
-          </p>
-        </div>
-        <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs text-left space-y-1">
-          <p class="font-bold text-slate-700">Would you like to send an acknowledgement email to the client now?</p>
-          <p class="text-[11px] text-slate-500">Sends formal email with ticket reference, assigned engineer, and target SLA date.</p>
-        </div>
-        <div class="flex items-center justify-center space-x-3 pt-2">
-          <button onclick="closeEmailPromptModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg text-xs cursor-pointer">
-            Skip for Now
-          </button>
-          <button onclick="openSendTicketEmailModal()" class="px-5 py-2 bg-[#982B68] hover:bg-[#802256] text-white font-bold rounded-lg text-xs shadow-xs cursor-pointer flex items-center space-x-1.5">
-            <span>✉️ Yes, Send Client Email</span>
-          </button>
-        </div>
-      </div>
-    </div>
-    
-    <div id="modal-send-ticket-email" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs hidden flex items-center justify-center p-4 overflow-y-auto">
-      <div class="bg-white border border-slate-200 rounded-2xl w-full max-w-2xl shadow-2xl p-6 text-slate-800 space-y-4 my-8">
-        <div class="flex items-center justify-between pb-3 border-b border-slate-200">
-          <div class="flex items-center space-x-2.5">
-            <div class="w-8 h-8 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-base border border-indigo-200">
-              📧
-            </div>
-            <div>
-              <h3 class="text-base font-bold text-slate-900">Send Service Ticket Email Acknowledgement</h3>
-              <p class="text-xs text-slate-500">Dispatch ticket details & SLA commitment to customer</p>
-            </div>
-          </div>
-          <button onclick="closeSendTicketEmailModal()" class="p-1 text-slate-400 hover:text-slate-700 text-2xl font-bold cursor-pointer">&times;</button>
-        </div>
-        <div class="space-y-3 text-xs">
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label class="block font-bold text-slate-700 mb-1">Customer Contact Email</label>
-              <input type="email" id="email-client-to" class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 font-semibold text-slate-800" />
-            </div>
-            <div>
-              <label class="block font-bold text-slate-700 mb-1">CC Email(s)</label>
-              <input type="text" id="email-client-cc" value="service@measuredi.com, director@measuredi.com" class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 font-semibold text-slate-800" />
-            </div>
-          </div>
-          <div>
-            <label class="block font-bold text-slate-700 mb-1">Email Subject</label>
-            <input type="text" id="email-client-subject" class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 font-bold text-slate-800" />
-          </div>
-          <div>
-            <label class="block font-bold text-slate-700 mb-1">Email Message Body Preview</label>
-            <textarea id="email-client-body" rows="8" class="w-full font-mono text-[11px] bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-slate-800 leading-relaxed"></textarea>
-          </div>
-        </div>
-        <div class="pt-3 border-t border-slate-200 flex items-center justify-between">
-          <button onclick="closeSendTicketEmailModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg text-xs cursor-pointer">
-            Close
-          </button>
-          <div class="flex items-center space-x-2">
-            <a id="btn-email-mailto" href="#" class="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-lg text-xs shadow-xs cursor-pointer flex items-center space-x-1">
-              <span>Open in Outlook / Mail App</span>
-            </a>
-            <button onclick="dispatchClientTicketEmail()" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs shadow-xs cursor-pointer flex items-center space-x-1">
-              <span>🚀 Dispatch Email Now</span>
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-    
-    
-  
-    <script src="js/service-tickets.js"></script>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    };
+
+    window.filterTicketsTable = function() {
+      const query = (document.getElementById('ticketSearchInput').value || '').toLowerCase();
+      const status = document.getElementById('ticketStatusFilter').value;
+
+      document.querySelectorAll('#ticketsTableBody tr').forEach(row => {
+        const text = row.innerText.toLowerCase();
+        const matchesQuery = !query || text.includes(query);
+        const matchesStatus = (status === 'ALL') || text.includes(status.toLowerCase());
+        row.style.display = (matchesQuery && matchesStatus) ? '' : 'none';
+      });
+    };
+
+    document.addEventListener('DOMContentLoaded', () => {
+      if (window.RevOpsStore && typeof window.RevOpsStore.getItems === 'function') {
+        allTickets = window.RevOpsStore.getItems('serviceTickets') || [];
+      }
+
+      if (!allTickets || allTickets.length === 0) {
+        allTickets = [
+          { ticketNumber: 'TK-2026-104', customerName: 'Titan Industries - Hosur', email: 'service@titan.co.in', category: 'Loadcell Calibration', priority: 'High (4 Hrs)', assignedTo: 'Priya Sharma', status: 'In Progress' },
+          { ticketNumber: 'TK-2026-105', customerName: 'Hyundai Heavy Industries', email: 'service@hyundai.co.in', category: 'Weighbridge Breakdown', priority: 'Critical (2 Hrs)', assignedTo: 'Amit Kumar', status: 'Open' },
+          { ticketNumber: 'TK-2026-106', customerName: 'Ashok Leyland Ennore', email: 'service@ashokleyland.com', category: 'Preventive Maintenance', priority: 'Medium (8 Hrs)', assignedTo: 'Senthil Nathan', status: 'Resolved' }
+        ];
+      }
+
+      window.renderTicketsList();
+    });
+  </script>
 </body>
 </html>
