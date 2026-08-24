@@ -1,59 +1,54 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <script src="https://cdn.tailwindcss.com"></script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>K-30_ERP - Executive Revenue Operations Dashboard</title>
+  <title>K-30_ERP - Executive Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link rel="stylesheet" href="src/index.css">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body class="bg-slate-950 font-sans text-slate-100 min-h-screen">
   
-  <!-- Global App Shell (Navigation & Header dynamically mounted by auth-guard.js) -->
-  <div id="app-container" class="min-h-screen flex flex-col">
-    
-    <!-- Fallback Top Bar / Breadcrumb Container -->
-    <header class="bg-slate-900 border-b border-slate-800 sticky top-0 z-30 px-4 py-3">
-      <div class="max-w-7xl mx-auto flex items-center justify-between">
-        <div class="flex items-center space-x-3">
-          <div class="w-9 h-9 rounded-xl bg-purple-600/20 border border-purple-500/30 flex items-center justify-center text-purple-400 font-bold text-lg" style="width: 36px; height: 36px; max-width: 36px; max-height: 36px;">
-            <svg style="width: 20px; height: 20px; max-width: 20px; max-height: 20px; display: block;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
-            </svg>
-          </div>
-          <div>
-            <h1 class="text-sm sm:text-base font-bold text-white tracking-tight flex items-center gap-2">
-              <span>Measure DI &bull; Executive Command Center</span>
-              <span class="text-[10px] uppercase font-mono px-2 py-0.5 rounded bg-purple-950 text-purple-300 border border-purple-800">FY 2026-27</span>
-            </h1>
-            <p class="text-[11px] text-slate-400">Holistic Multi-Module Revenue Operations & SLA Monitoring</p>
-          </div>
-        </div>
+  <div id="app" class="min-h-screen flex flex-col">
+    <!-- Top Navigation dynamically injected by auth-guard.js -->
 
-        <!-- Quick Action / Date Badge -->
-        <div class="flex items-center gap-3">
-          <div class="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-xs text-slate-300">
-            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-            <span id="currentDateDisplay">Aug 2026</span>
-          </div>
-          <button onclick="location.reload()" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-all text-xs flex items-center gap-1.5">
-            <i class="fa-solid fa-arrows-rotate"></i>
-            <span class="hidden md:inline">Refresh Data</span>
-          </button>
-        </div>
-      </div>
-    </header>
-
-    <!-- Main Content Canvas -->
+    <!-- Main Content -->
     <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 space-y-6">
       
-      <!-- Top Level Performance Metric Grid -->
+      <!-- Operational Header -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div class="flex items-center gap-3.5">
+          <div class="w-12 h-12 rounded-xl bg-purple-900/40 border border-purple-500/30 flex items-center justify-center text-purple-400 font-bold text-xl" style="width: 48px; height: 48px; min-width: 48px;">
+            <i class="fa-solid fa-chart-pie"></i>
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <h1 class="text-lg sm:text-xl font-bold text-white tracking-tight">Executive Command & RevOps Center</h1>
+              <span class="text-[10px] uppercase font-mono px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-800">Live Enterprise</span>
+            </div>
+            <p class="text-xs text-slate-400">Holistic Revenue Operations, Service SLA & Engineering Performance</p>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2.5 flex-wrap">
+          <a href="service-tickets.html" class="px-3.5 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-semibold shadow transition-all flex items-center gap-1.5">
+            <i class="fa-solid fa-headset"></i> Service Desk
+          </a>
+          <a href="quotations.html" class="px-3.5 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-semibold shadow transition-all flex items-center gap-1.5">
+            <i class="fa-solid fa-file-invoice"></i> Quotations
+          </a>
+          <a href="amc-contracts.html" class="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold shadow transition-all flex items-center gap-1.5">
+            <i class="fa-solid fa-handshake"></i> AMC Contracts
+          </a>
+        </div>
+      </div>
+
+      <!-- Quick 4-Metric Grid -->
       <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         
-        <!-- Metric Card 1: Total AOP Revenue -->
-        <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-4 shadow-sm relative overflow-hidden">
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-sm">
           <div class="flex items-center justify-between mb-2">
             <span class="text-xs font-semibold uppercase text-slate-400">Total Revenue Run-Rate</span>
             <span class="w-7 h-7 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center text-xs">
@@ -61,14 +56,13 @@
             </span>
           </div>
           <div class="flex items-baseline gap-2">
-            <h3 class="text-2xl font-extrabold text-white" id="dashTotalRevenue">₹3.82 Cr</h3>
+            <h3 class="text-2xl font-extrabold text-white">₹3.82 Cr</h3>
             <span class="text-xs text-emerald-400 font-semibold flex items-center gap-0.5"><i class="fa-solid fa-arrow-trend-up"></i> +14.2%</span>
           </div>
           <p class="text-[11px] text-slate-400 mt-1">Vs ₹3.34 Cr in previous period</p>
         </div>
 
-        <!-- Metric Card 2: Active Pipeline & Orders -->
-        <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-4 shadow-sm relative overflow-hidden">
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-sm">
           <div class="flex items-center justify-between mb-2">
             <span class="text-xs font-semibold uppercase text-slate-400">Active Pipeline (Quotes)</span>
             <span class="w-7 h-7 rounded-lg bg-purple-500/10 text-purple-400 flex items-center justify-center text-xs">
@@ -76,38 +70,36 @@
             </span>
           </div>
           <div class="flex items-baseline gap-2">
-            <h3 class="text-2xl font-extrabold text-white" id="dashPipelineValue">₹1.48 Cr</h3>
+            <h3 class="text-2xl font-extrabold text-white">₹1.48 Cr</h3>
             <span class="text-xs text-purple-400 font-semibold">24 Proposals</span>
           </div>
           <p class="text-[11px] text-slate-400 mt-1">Avg Deal Size: ₹6.16 Lakhs</p>
         </div>
 
-        <!-- Metric Card 3: Active AMC Contracts -->
-        <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-4 shadow-sm relative overflow-hidden">
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-sm">
           <div class="flex items-center justify-between mb-2">
-            <span class="text-xs font-semibold uppercase text-slate-400">AMC Contracts Under Care</span>
+            <span class="text-xs font-semibold uppercase text-slate-400">AMC Units Under Care</span>
             <span class="w-7 h-7 rounded-lg bg-indigo-500/10 text-indigo-400 flex items-center justify-center text-xs">
               <i class="fa-solid fa-handshake"></i>
             </span>
           </div>
           <div class="flex items-baseline gap-2">
-            <h3 class="text-2xl font-extrabold text-white" id="dashActiveAmc">48 Units</h3>
+            <h3 class="text-2xl font-extrabold text-white">48 Units</h3>
             <span class="text-xs text-indigo-400 font-semibold">97.8% SLA</span>
           </div>
           <p class="text-[11px] text-slate-400 mt-1">₹42.5L Annual Recurring Revenue</p>
         </div>
 
-        <!-- Metric Card 4: Service Desk Health -->
-        <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-4 shadow-sm relative overflow-hidden">
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-sm">
           <div class="flex items-center justify-between mb-2">
-            <span class="text-xs font-semibold uppercase text-slate-400">Service Ticket Health</span>
+            <span class="text-xs font-semibold uppercase text-slate-400">Service Desk Health</span>
             <span class="w-7 h-7 rounded-lg bg-rose-500/10 text-rose-400 flex items-center justify-center text-xs">
               <i class="fa-solid fa-headset"></i>
             </span>
           </div>
           <div class="flex items-baseline gap-2">
-            <h3 class="text-2xl font-extrabold text-white" id="dashOpenTickets">6 Open</h3>
-            <span class="text-xs text-emerald-400 font-semibold">0 Critical Breaches</span>
+            <h3 class="text-2xl font-extrabold text-white">6 Open</h3>
+            <span class="text-xs text-emerald-400 font-semibold">0 SLA Breaches</span>
           </div>
           <p class="text-[11px] text-slate-400 mt-1">Mean Time to Resolve: 3.8 Hrs</p>
         </div>
@@ -117,7 +109,7 @@
       <!-- Revenue Performance Charts & Operational Feeds -->
       <section class="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
-        <!-- Left: Sales vs Target Trend Chart (2 cols) -->
+        <!-- Left: Sales vs Target Trend Chart -->
         <div class="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-sm space-y-4">
           <div class="flex items-center justify-between">
             <div>
@@ -138,66 +130,41 @@
           </div>
         </div>
 
-        <!-- Right: Module Quick Dispatch & Shortcuts (1 col) -->
-        <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-sm space-y-4">
-          <div class="flex items-center justify-between">
-            <h2 class="text-sm font-bold text-white">Revenue Operations Hub</h2>
-            <span class="text-[10px] text-purple-300 bg-purple-950 border border-purple-800 px-2 py-0.5 rounded font-mono">31 Modules</span>
-          </div>
+        <!-- Right: Direct Module Links -->
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-sm space-y-3">
+          <h2 class="text-sm font-bold text-white mb-2">Fast Navigation Hub</h2>
           
-          <div class="space-y-2">
-            <a href="service-tickets.html" class="p-3 bg-slate-950 hover:bg-slate-800/80 border border-slate-800 rounded-lg flex items-center justify-between transition-all group">
-              <div class="flex items-center gap-3">
-                <div class="w-8 h-8 rounded-lg bg-rose-500/10 text-rose-400 flex items-center justify-center text-xs">
-                  <i class="fa-solid fa-ticket"></i>
-                </div>
-                <div>
-                  <h4 class="text-xs font-semibold text-white group-hover:text-purple-300">Service Desk & Dispatch</h4>
-                  <p class="text-[11px] text-slate-400">Auto-email dispatch enabled</p>
-                </div>
-              </div>
-              <i class="fa-solid fa-arrow-right text-xs text-slate-500 group-hover:text-white transition-all"></i>
-            </a>
+          <a href="leads.html" class="p-3 bg-slate-950 hover:bg-slate-800/80 border border-slate-800 rounded-lg flex items-center justify-between transition-all group">
+            <div class="flex items-center gap-3">
+              <i class="fa-solid fa-filter text-purple-400"></i>
+              <span class="text-xs font-semibold text-white group-hover:text-purple-300">Leads CRM</span>
+            </div>
+            <i class="fa-solid fa-arrow-right text-xs text-slate-500"></i>
+          </a>
 
-            <a href="quotations.html" class="p-3 bg-slate-950 hover:bg-slate-800/80 border border-slate-800 rounded-lg flex items-center justify-between transition-all group">
-              <div class="flex items-center gap-3">
-                <div class="w-8 h-8 rounded-lg bg-purple-500/10 text-purple-400 flex items-center justify-center text-xs">
-                  <i class="fa-solid fa-file-invoice"></i>
-                </div>
-                <div>
-                  <h4 class="text-xs font-semibold text-white group-hover:text-purple-300">Quotation Engine</h4>
-                  <p class="text-[11px] text-slate-400">Generate GST proposals</p>
-                </div>
-              </div>
-              <i class="fa-solid fa-arrow-right text-xs text-slate-500 group-hover:text-white transition-all"></i>
-            </a>
+          <a href="invoices.html" class="p-3 bg-slate-950 hover:bg-slate-800/80 border border-slate-800 rounded-lg flex items-center justify-between transition-all group">
+            <div class="flex items-center gap-3">
+              <i class="fa-solid fa-file-invoice-dollar text-emerald-400"></i>
+              <span class="text-xs font-semibold text-white group-hover:text-purple-300">Tax Invoices</span>
+            </div>
+            <i class="fa-solid fa-arrow-right text-xs text-slate-500"></i>
+          </a>
 
-            <a href="amc-contracts.html" class="p-3 bg-slate-950 hover:bg-slate-800/80 border border-slate-800 rounded-lg flex items-center justify-between transition-all group">
-              <div class="flex items-center gap-3">
-                <div class="w-8 h-8 rounded-lg bg-indigo-500/10 text-indigo-400 flex items-center justify-center text-xs">
-                  <i class="fa-solid fa-handshake"></i>
-                </div>
-                <div>
-                  <h4 class="text-xs font-semibold text-white group-hover:text-purple-300">AMC & Warranty Contracts</h4>
-                  <p class="text-[11px] text-slate-400">Renewals & PM Visits</p>
-                </div>
-              </div>
-              <i class="fa-solid fa-arrow-right text-xs text-slate-500 group-hover:text-white transition-all"></i>
-            </a>
+          <a href="dwm.html" class="p-3 bg-slate-950 hover:bg-slate-800/80 border border-slate-800 rounded-lg flex items-center justify-between transition-all group">
+            <div class="flex items-center gap-3">
+              <i class="fa-solid fa-calendar-check text-cyan-400"></i>
+              <span class="text-xs font-semibold text-white group-hover:text-purple-300">Daily Work Management (DWM)</span>
+            </div>
+            <i class="fa-solid fa-arrow-right text-xs text-slate-500"></i>
+          </a>
 
-            <a href="dwm.html" class="p-3 bg-slate-950 hover:bg-slate-800/80 border border-slate-800 rounded-lg flex items-center justify-between transition-all group">
-              <div class="flex items-center gap-3">
-                <div class="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center text-xs">
-                  <i class="fa-solid fa-calendar-check"></i>
-                </div>
-                <div>
-                  <h4 class="text-xs font-semibold text-white group-hover:text-purple-300">Daily Work Management</h4>
-                  <p class="text-[11px] text-slate-400">Plan vs Actual employee logs</p>
-                </div>
-              </div>
-              <i class="fa-solid fa-arrow-right text-xs text-slate-500 group-hover:text-white transition-all"></i>
-            </a>
-          </div>
+          <a href="employees.html" class="p-3 bg-slate-950 hover:bg-slate-800/80 border border-slate-800 rounded-lg flex items-center justify-between transition-all group">
+            <div class="flex items-center gap-3">
+              <i class="fa-solid fa-users text-amber-400"></i>
+              <span class="text-xs font-semibold text-white group-hover:text-purple-300">Employee Directory & HR</span>
+            </div>
+            <i class="fa-solid fa-arrow-right text-xs text-slate-500"></i>
+          </a>
         </div>
 
       </section>
@@ -207,9 +174,9 @@
         <div class="flex items-center justify-between">
           <h2 class="text-sm font-bold text-white flex items-center gap-2">
             <i class="fa-solid fa-bolt text-yellow-400"></i>
-            <span>Real-Time Transactional Activity & Logs</span>
+            <span>Real-Time Activity Logs</span>
           </h2>
-          <a href="audit-logs.html" class="text-xs text-purple-400 hover:text-purple-300 transition-colors">View Master Audit Logs &rarr;</a>
+          <a href="audit-logs.html" class="text-xs text-purple-400 hover:text-purple-300 transition-colors">Master Audit Logs &rarr;</a>
         </div>
 
         <div class="overflow-x-auto">
@@ -258,7 +225,6 @@
 
   </div>
 
-  <!-- Standard App Initializers -->
   <script src="js/firebase-init.js"></script>
   <script src="js/store.js"></script>
   <script src="js/seed-data.js"></script>
@@ -267,12 +233,10 @@
 
   <script>
     document.addEventListener('DOMContentLoaded', () => {
-      // Initialize seed data store
       if (typeof initStore === 'function') {
         initStore();
       }
 
-      // Render chart
       const ctx = document.getElementById('revenueTrendChart');
       if (ctx) {
         new Chart(ctx, {
