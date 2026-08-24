@@ -83,8 +83,10 @@ export async function handler(event) {
   }
 
   const idToken = authHeader.split('Bearer ')[1];
+  let senderEmail = null;
   try {
-    await admin.auth().verifyIdToken(idToken);
+    const decodedToken = await admin.auth().verifyIdToken(idToken);
+    senderEmail = decodedToken.email || null;
   } catch (err) {
     return {
       statusCode: 401,
@@ -159,6 +161,18 @@ export async function handler(event) {
     ccList = cc.split(',').map(em => em.trim()).filter(Boolean).map(em => ({ email: em }));
   }
 
+  // Always CC the sender on their own outgoing mail, using their verified
+  // login email — not something the client can override. Skip if they're
+  // already a recipient or already in the CC list.
+  if (senderEmail) {
+    const alreadyIncluded =
+      recipients.some(r => r.email.toLowerCase() === senderEmail.toLowerCase()) ||
+      ccList.some(c => c.email.toLowerCase() === senderEmail.toLowerCase());
+    if (!alreadyIncluded) {
+      ccList.push({ email: senderEmail });
+    }
+  }
+
   // Parse BCC list
   let bccList = [];
   if (Array.isArray(bcc)) {
@@ -177,7 +191,10 @@ export async function handler(event) {
     subject: subject,
     htmlContent: htmlContent || `<div style="font-family: Arial, sans-serif; font-size: 14px; line-height: 1.6; color: #1e293b;"><pre style="white-space: pre-wrap; font-family: inherit;">${textContent || ''}</pre></div>`,
     replyTo: {
-      email: replyTo || DEFAULT_SENDER_EMAIL,
+      // Always the sender's own verified login email, so the client's
+      // reply reaches them directly — not something the client can
+      // override via the request body.
+      email: senderEmail || replyTo || DEFAULT_SENDER_EMAIL,
       name: DEFAULT_SENDER_NAME
     }
   };
