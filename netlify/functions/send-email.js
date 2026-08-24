@@ -1,11 +1,36 @@
 /**
  * Netlify Function / API Proxy to securely dispatch emails via Brevo API
  * Endpoint: POST /.netlify/functions/send-email or /api/send-email
+ *
+ * Requires a valid Firebase ID token (Authorization: Bearer <token>) from a
+ * signed-in app user. The Brevo API key lives only in this function's
+ * environment — it is never embedded in client code.
  */
 
-const K1 = 'xkeysib-1ccbb5d7be8aaf1314418dc5e7c92a1202db98617dd2a443fad90f0d57dce476';
-const K2 = 'cFWjbji3Y0K8FwQe';
-const BREVO_API_KEY = process.env.BREVO_API_KEY || [K1, K2].join('-');
+import admin from 'firebase-admin';
+
+function initFirebaseAdmin() {
+  if (admin.apps.length > 0) {
+    return admin.apps[0];
+  }
+
+  const saEnv = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
+  if (!saEnv) {
+    throw new Error('FIREBASE_SERVICE_ACCOUNT_KEY environment variable is missing.');
+  }
+
+  let serviceAccount;
+  try {
+    serviceAccount = typeof saEnv === 'string' ? JSON.parse(saEnv) : saEnv;
+  } catch (err) {
+    throw new Error('Failed to parse FIREBASE_SERVICE_ACCOUNT_KEY JSON string: ' + err.message);
+  }
+
+  return admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount)
+  });
+}
+
 const DEFAULT_SENDER_EMAIL = process.env.BREVO_SENDER_EMAIL || 'measuredichennai@gmail.com';
 const DEFAULT_SENDER_NAME = 'Measure DI Systems & Services';
 
@@ -26,6 +51,45 @@ export async function handler(event) {
       statusCode: 405,
       headers,
       body: JSON.stringify({ success: false, error: 'Method Not Allowed. Use POST.' })
+    };
+  }
+
+  if (!process.env.BREVO_API_KEY) {
+    return {
+      statusCode: 500,
+      headers,
+      body: JSON.stringify({ success: false, error: 'Email service is not configured.' })
+    };
+  }
+  const BREVO_API_KEY = process.env.BREVO_API_KEY;
+
+  try {
+    initFirebaseAdmin();
+  } catch (err) {
+    return {
+      statusCode: 500,
+      headers,
+      body: JSON.stringify({ success: false, error: err.message || 'Firebase Admin initialization failed.' })
+    };
+  }
+
+  const authHeader = event.headers.authorization || event.headers.Authorization || '';
+  if (!authHeader.startsWith('Bearer ')) {
+    return {
+      statusCode: 401,
+      headers,
+      body: JSON.stringify({ success: false, error: 'Unauthorized. Missing or invalid Bearer token.' })
+    };
+  }
+
+  const idToken = authHeader.split('Bearer ')[1];
+  try {
+    await admin.auth().verifyIdToken(idToken);
+  } catch (err) {
+    return {
+      statusCode: 401,
+      headers,
+      body: JSON.stringify({ success: false, error: 'Unauthorized. Invalid or expired Firebase ID token: ' + (err.message || err) })
     };
   }
 

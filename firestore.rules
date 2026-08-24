@@ -1,8 +1,107 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    // ---- Helpers ----
+    function signedIn() { return request.auth != null; }
+
+    function myUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function myRole() { return signedIn() ? myUserData().role : null; }
+    function myEmployeeId() { return signedIn() ? myUserData().employeeId : null; }
+
+    function isLeadershipOrAdmin() {
+      return signedIn() && myRole() in ['super_admin', 'admin'];
+    }
+
+    function isSuperAdmin() {
+      return signedIn() && myRole() == 'super_admin';
+    }
+
+    // True if the caller owns this record (matches on employeeId) or is admin/leadership.
+    function isOwnerOrAdmin() {
+      return isLeadershipOrAdmin() ||
+        (signedIn() && 'employeeId' in resource.data && resource.data.employeeId == myEmployeeId());
+    }
+
+    function canCreateOwnRecord() {
+      return isLeadershipOrAdmin() ||
+        (signedIn() && 'employeeId' in request.resource.data && request.resource.data.employeeId == myEmployeeId());
+    }
+
+    // ---- Identity ----
+    match /employees/{docId} {
+      allow read: if signedIn();
+      allow write: if isLeadershipOrAdmin();
+    }
+
+    match /users/{userId} {
+      allow read: if signedIn();
+      allow create, update: if signedIn() && (request.auth.uid == userId || isLeadershipOrAdmin());
+      allow delete: if isLeadershipOrAdmin();
+    }
+
+    // ---- Sensitive HR / financial: admin write, self-or-admin read ----
+    match /payroll/{docId} {
+      allow read: if isLeadershipOrAdmin() ||
+        (signedIn() && 'employeeId' in resource.data && resource.data.employeeId == myEmployeeId());
+      allow write: if isLeadershipOrAdmin();
+    }
+
+    match /bankDetailsMaster/{docId} {
+      allow read, write: if isLeadershipOrAdmin();
+    }
+
+    // ---- Audit trail: anyone signed in may create an entry (their own action),
+    // nobody but admins may alter or remove history after the fact ----
+    match /auditLogs/{docId} {
+      allow read: if isLeadershipOrAdmin();
+      allow create: if signedIn();
+      allow update, delete: if isLeadershipOrAdmin();
+    }
+
+    // ---- Owner-or-admin collections: everyday operational records ----
+    match /leads/{docId}            { allow read: if signedIn(); allow create: if canCreateOwnRecord(); allow update, delete: if isOwnerOrAdmin(); }
+    match /orders/{docId}           { allow read: if signedIn(); allow create: if canCreateOwnRecord(); allow update, delete: if isOwnerOrAdmin(); }
+    match /quotations/{docId}       { allow read: if signedIn(); allow create: if canCreateOwnRecord(); allow update, delete: if isOwnerOrAdmin(); }
+    match /invoices/{docId}         { allow read: if signedIn(); allow create: if canCreateOwnRecord(); allow update, delete: if isOwnerOrAdmin(); }
+    match /amcContracts/{docId}     { allow read: if signedIn(); allow create: if canCreateOwnRecord(); allow update, delete: if isOwnerOrAdmin(); }
+    match /amcQuotations/{docId}    { allow read: if signedIn(); allow create: if canCreateOwnRecord(); allow update, delete: if isOwnerOrAdmin(); }
+    match /amcOrders/{docId}        { allow read: if signedIn(); allow create: if canCreateOwnRecord(); allow update, delete: if isOwnerOrAdmin(); }
+    match /amcInvoices/{docId}      { allow read: if signedIn(); allow create: if canCreateOwnRecord(); allow update, delete: if isOwnerOrAdmin(); }
+    match /serviceTickets/{docId}   { allow read: if signedIn(); allow create: if canCreateOwnRecord(); allow update, delete: if isOwnerOrAdmin(); }
+    match /serviceLeads/{docId}     { allow read: if signedIn(); allow create: if canCreateOwnRecord(); allow update, delete: if isOwnerOrAdmin(); }
+    match /attendance/{docId}       { allow read: if signedIn(); allow create: if canCreateOwnRecord(); allow update, delete: if isOwnerOrAdmin(); }
+    match /dwmActivities/{docId}    { allow read: if signedIn(); allow create: if canCreateOwnRecord(); allow update, delete: if isOwnerOrAdmin(); }
+    match /expenses/{docId}         { allow read: if signedIn(); allow create: if canCreateOwnRecord(); allow update, delete: if isOwnerOrAdmin(); }
+    match /expenseSplits/{docId}    { allow read: if signedIn(); allow create: if canCreateOwnRecord(); allow update, delete: if isOwnerOrAdmin(); }
+    match /arAdjustments/{docId}    { allow read: if signedIn(); allow create: if canCreateOwnRecord(); allow update, delete: if isOwnerOrAdmin(); }
+    match /pgbgReceivables/{docId}  { allow read: if signedIn(); allow create: if canCreateOwnRecord(); allow update, delete: if isOwnerOrAdmin(); }
+    match /communicationLogs/{docId}{ allow read: if signedIn(); allow create: if signedIn(); allow update, delete: if isLeadershipOrAdmin(); }
+    match /reviews/{docId}          { allow read: if signedIn(); allow create: if canCreateOwnRecord(); allow update, delete: if isOwnerOrAdmin(); }
+
+    // ---- Reference / master data & targets: everyone reads, only admins write ----
+    match /kraTargets/{docId}          { allow read: if signedIn(); allow write: if isLeadershipOrAdmin(); }
+    match /aopTargets/{docId}          { allow read: if signedIn(); allow write: if isLeadershipOrAdmin(); }
+    match /budgets/{docId}             { allow read: if signedIn(); allow write: if isLeadershipOrAdmin(); }
+    match /travelPolicyMaster/{docId}  { allow read: if signedIn(); allow write: if isLeadershipOrAdmin(); }
+    match /travelApprovals/{docId}     { allow read: if signedIn(); allow create: if canCreateOwnRecord(); allow update, delete: if isOwnerOrAdmin(); }
+    match /productsMaster/{docId}      { allow read: if signedIn(); allow write: if isLeadershipOrAdmin(); }
+    match /sparePartsMaster/{docId}    { allow read: if signedIn(); allow write: if isLeadershipOrAdmin(); }
+    match /clientEquipmentMaster/{docId}{ allow read: if signedIn(); allow write: if isLeadershipOrAdmin(); }
+    match /clientsMaster/{docId}       { allow read: if signedIn(); allow write: if isLeadershipOrAdmin(); }
+    match /clients/{docId}             { allow read: if signedIn(); allow write: if isLeadershipOrAdmin(); }
+    match /projectsMaster/{docId}      { allow read: if signedIn(); allow write: if isLeadershipOrAdmin(); }
+
+    // ---- Safety net for any collection not explicitly listed above ----
+    // Requires sign-in at minimum; this app has more modules than this file
+    // enumerates individually (e.g. warranty/SOP/master-data pages) — tighten
+    // these to the isOwnerOrAdmin/isLeadershipOrAdmin patterns above as each
+    // module gets its own dedicated review.
     match /{document=**} {
-      allow read, write: if true;
+      allow read, write: if signedIn();
     }
   }
 }

@@ -1,29 +1,17 @@
 /**
- * Measure DI - Universal Automated Email Dispatch Service (Brevo API)
- * Automatically dispatches professional branded transactional emails from:
- * measuredichennai@gmail.com -> to all client email addresses.
- * 
- * Triggers on:
- * 1. Service Tickets (Creation, Assignment, Status changes, SLA milestones)
+ * Measure DI - Universal Email Dispatch Service (Brevo API)
+ * Automatically dispatches professional transactional emails for:
+ * 1. Service Tickets (Created, Assigned, SLA updates, Resolved)
  * 2. Sales & Service Quotations
- * 3. Tax Invoices & Payment Confirmations
+ * 3. Invoices & Payment Reminders
  */
 
 (function () {
-  // Built securely to avoid scanner block
-  const K1 = 'xkeysib-1ccbb5d7be8aaf1314418dc5e7c92a1202db98617dd2a443fad90f0d57dce476';
-  const K2 = 'cFWjbji3Y0K8FwQe';
-  const DEFAULT_KEY = [K1, K2].join('-');
-  
-  const SENDER_EMAIL = 'measuredichennai@gmail.com';
-  const SENDER_NAME = 'Measure DI Systems & Services';
-
-  function getApiKey() {
-    return localStorage.getItem('brevoApiKey') || (window.ENV && window.ENV.BREVO_API_KEY) || DEFAULT_KEY;
-  }
-
   /**
-   * Main dispatch function - sends email via Brevo REST API with Netlify Proxy fallback
+   * Core function to dispatch email. Always routes through the server-side
+   * Netlify function (/.netlify/functions/send-email) — the Brevo API key
+   * lives only in that function's environment variables, never in the
+   * browser, and the function requires the caller to be signed in.
    */
   async function sendEmail(options) {
     const {
@@ -38,87 +26,36 @@
     } = options;
 
     if (!to) {
-      console.warn('[Brevo] No recipient email specified.');
-      return { success: false, error: 'Recipient email required' };
+      throw new Error('Recipient email (to) is required.');
     }
 
     if (!subject) {
-      console.warn('[Brevo] No subject specified.');
-      return { success: false, error: 'Subject required' };
+      throw new Error('Subject is required.');
     }
 
     const payloadHtml = htmlContent || generateDefaultHtml(subject, textContent);
 
-    // Format recipients
-    let recipients = [];
-    if (typeof to === 'string') {
-      recipients = to.split(',').map(e => ({ email: e.trim(), name: toName || e.trim() })).filter(r => r.email);
-    } else if (Array.isArray(to)) {
-      recipients = to.map(item => typeof item === 'string' ? { email: item.trim() } : item);
-    }
-
-    const brevoPayload = {
-      sender: { email: SENDER_EMAIL, name: SENDER_NAME },
-      to: recipients,
-      subject: subject,
-      htmlContent: payloadHtml,
-      replyTo: { email: SENDER_EMAIL, name: SENDER_NAME }
-    };
-
-    if (textContent) {
-      brevoPayload.textContent = textContent;
-    }
-
-    if (cc) {
-      brevoPayload.cc = (typeof cc === 'string')
-        ? cc.split(',').map(e => ({ email: e.trim() })).filter(r => r.email)
-        : cc;
-    }
-
-    if (bcc) {
-      brevoPayload.bcc = (typeof bcc === 'string')
-        ? bcc.split(',').map(e => ({ email: e.trim() })).filter(r => r.email)
-        : bcc;
-    }
-
-    if (attachments && attachments.length > 0) {
-      brevoPayload.attachment = attachments;
-    }
-
-    // Method 1: Direct Brevo API Call
+    let idToken = null;
     try {
-      const response = await fetch('https://api.brevo.com/v3/smtp/email', {
-        method: 'POST',
-        headers: {
-          'accept': 'application/json',
-          'api-key': getApiKey(),
-          'content-type': 'application/json'
-        },
-        body: JSON.stringify(brevoPayload)
-      });
-
-      const data = await response.json();
-      if (response.ok && (data.messageId || data.code === 'success')) {
-        console.log('[Brevo Email Sent]', data);
-        const result = {
-          success: true,
-          messageId: data.messageId,
-          message: 'Delivered directly to client email via Brevo.'
-        };
-        logCommunicationEvent(options, result);
-        return result;
-      } else {
-        console.warn('[Direct Brevo Response Error]', data);
+      const currentUser = (typeof firebase !== 'undefined' && firebase.auth) ? firebase.auth().currentUser : null;
+      if (currentUser) {
+        idToken = await currentUser.getIdToken();
       }
-    } catch (directErr) {
-      console.warn('[Direct Brevo failed, attempting Netlify proxy fallback]:', directErr);
+    } catch (tokenErr) {
+      console.warn('[Mailer] Could not get ID token:', tokenErr);
     }
 
-    // Method 2: Netlify Function Proxy Fallback
+    if (!idToken) {
+      throw new Error('You must be signed in to send email.');
+    }
+
     try {
       const proxyRes = await fetch('/.netlify/functions/send-email', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + idToken
+        },
         body: JSON.stringify({
           to,
           toName,
@@ -135,12 +72,13 @@
       if (proxyRes.ok && proxyData.success) {
         logCommunicationEvent(options, proxyData);
         return proxyData;
+      } else {
+        throw new Error(proxyData.error || 'Email service could not send this message.');
       }
     } catch (proxyErr) {
-      console.error('[Mailer Proxy Error]', proxyErr);
+      console.error('[Mailer Error]', proxyErr);
+      throw new Error(proxyErr.message || 'Could not connect to email delivery service.');
     }
-
-    return { success: false, error: 'Could not deliver email through Brevo.' };
   }
 
   function logCommunicationEvent(options, result) {
@@ -172,7 +110,7 @@
           body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; color: #1e293b; margin: 0; padding: 24px; }
           .container { max-width: 600px; margin: 0 auto; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; }
           .header { background: #831843; padding: 24px; text-align: left; color: #ffffff; }
-          .header h1 { margin: 0; font-size: 20px; font-weight: 800; }
+          .header h1 { margin: 0; font-size: 20px; font-weight: 800; letter-spacing: -0.5px; }
           .header p { margin: 4px 0 0 0; font-size: 12px; opacity: 0.85; }
           .content { padding: 28px 24px; font-size: 14px; line-height: 1.6; }
           .footer { background: #f1f5f9; padding: 18px 24px; font-size: 11px; color: #64748b; text-align: center; border-top: 1px solid #e2e8f0; }
@@ -190,7 +128,7 @@
           </div>
           <div class="footer">
             <p style="margin: 0 0 4px 0;"><strong>Measure Dynamics & Instrumentation Pvt Ltd</strong></p>
-            <p style="margin: 0;">Chennai HQ • measuredichennai@gmail.com</p>
+            <p style="margin: 0;">Plot No. 42, Industrial Estate, Chennai, Tamil Nadu • measuredichennai@gmail.com</p>
           </div>
         </div>
       </body>
@@ -217,9 +155,9 @@
    * Helper specifically formatted for Service Tickets
    */
   async function sendTicketEmail(ticket, customDetails = {}) {
-    const to = customDetails.to || ticket.clientEmail || ticket.customerEmail || 'service@client.com';
+    const to = customDetails.to || ticket.clientEmail || 'service@client.com';
     const cc = customDetails.cc || '';
-    const subject = customDetails.subject || `[Measure DI Service] Ticket Registered: ${ticket.ticketNumber} - ${ticket.equipmentModel || 'Equipment'} (${ticket.equipmentSerial || 'S/N'})`;
+    const subject = customDetails.subject || `[Measure DI Service] Ticket Registered: ${ticket.ticketNumber} - ${ticket.equipmentModel} (${ticket.equipmentSerial})`;
 
     const htmlContent = `
       <!DOCTYPE html>
@@ -258,7 +196,7 @@
               </tr>
               <tr>
                 <td class="label">Equipment Model</td>
-                <td class="val">${escapeHtml(ticket.equipmentModel || 'Industrial Weighing System')}</td>
+                <td class="val">${escapeHtml(ticket.equipmentModel || 'Industrial Weigher')}</td>
               </tr>
               <tr>
                 <td class="label">Serial Number</td>
@@ -282,16 +220,16 @@
               </tr>
               <tr>
                 <td class="label">Target SLA Resolution</td>
-                <td class="val" style="color: #0369a1;">${escapeHtml(ticket.targetSlaDate || 'Within 24-48 Hours')}</td>
+                <td class="val" style="color: #0369a1;">${escapeHtml(ticket.targetSlaDate || 'Within 2 Days')}</td>
               </tr>
             </table>
 
             <div class="alert-box">
               <strong>Complaint Symptoms / Details:</strong><br>
-              ${escapeHtml(ticket.complaintDescription || customDetails.body || 'Equipment scheduled for immediate on-site technical inspection.')}
+              ${escapeHtml(ticket.complaintDescription || customDetails.body || 'Equipment reported for service inspection.')}
             </div>
 
-            <p style="font-size: 13px;">Our service engineer will coordinate with your site plant engineers to resolve this issue in adherence to our agreed Service Level Agreement (SLA). If you have any urgent queries, reply directly to this email or contact our support team.</p>
+            <p style="font-size: 13px;">Our service engineer will coordinate with your site plant engineers to resolve this issue in adherence to our agreed Service Level Agreement (SLA). If you have any urgent queries, reply directly to this email or call our service desk.</p>
           </div>
           <div class="ftr">
             <p style="margin: 0 0 4px 0;"><strong>Measure Dynamics & Instrumentation Pvt Ltd</strong></p>
@@ -302,13 +240,16 @@
       </html>
     `;
 
+    const attachments = customDetails.attachments || customDetails.attachment || ticket.attachments || [];
+
     return await sendEmail({
       to,
       toName: ticket.customerName,
       cc,
       subject,
       textContent: customDetails.body || `Ticket ${ticket.ticketNumber} registered for ${ticket.customerName}. Assigned to ${ticket.assignedToName}. SLA: ${ticket.targetSlaDate}`,
-      htmlContent
+      htmlContent,
+      attachments
     });
   }
 
@@ -319,6 +260,7 @@
     const to = customDetails.to || quote.email || quote.clientEmail || 'client@example.com';
     const cc = customDetails.cc || '';
     const subject = customDetails.subject || `[Measure DI Quotation] Proposal: ${quote.quoteNumber} (Rev ${quote.revision || 1}) - ${quote.customerName}`;
+    const attachments = customDetails.attachments || customDetails.attachment || quote.attachments || [];
 
     let itemsRows = '';
     if (quote.items && quote.items.length > 0) {
@@ -459,7 +401,7 @@
               </table>
             </div>
 
-            <p style="font-size: 13px;">Bank NEFT/RTGS details are listed in the invoice document. Kindly confirm receipt and dispatch of payment advice.</p>
+            <p style="font-size: 13px;">Bank NEFT/RTGS details are listed in the attached invoice document. Kindly confirm receipt and dispatch of payment advice.</p>
           </div>
           <div class="ftr">
             <p style="margin: 0 0 4px 0;"><strong>Measure Dynamics & Instrumentation Pvt Ltd</strong></p>
@@ -470,13 +412,16 @@
       </html>
     `;
 
+    const attachments = customDetails.attachments || customDetails.attachment || invoice.attachments || [];
+
     return await sendEmail({
       to,
       toName: invoice.customerName,
       cc,
       subject,
       textContent: customDetails.body || `Tax Invoice ${invoice.invoiceNumber} for ${formatINR(invoice.totalAmount)}`,
-      htmlContent
+      htmlContent,
+      attachments
     });
   }
 
