@@ -1,195 +1,262 @@
-// auth-guard.js - Measure DI RevOps Auth Guard & Global UI Header Renderer
+/**
+ * Universal Authentication & Role-Based Access Control Guard
+ * Handles authentication checks, dynamic top-nav rendering, role filtering, and user session management.
+ */
 
-// Global Currency Formatter Helper
-function formatINR(val) {
-  var num = Number(val) || 0;
-  if (Math.abs(num) >= 10000000) {
-    return '₹' + (num / 10000000).toFixed(2) + ' Cr';
-  } else if (Math.abs(num) >= 100000) {
-    return '₹' + (num / 100000).toFixed(2) + ' L';
+// Role definitions & module access permissions
+const ROLE_PERMISSIONS = {
+  director: {
+    label: 'Director / Super Admin',
+    badgeClass: 'bg-purple-900/60 text-purple-300 border border-purple-500/40',
+    allowedModules: ['*']
+  },
+  sales_manager: {
+    label: 'Sales Manager',
+    badgeClass: 'bg-blue-900/60 text-blue-300 border border-blue-500/40',
+    allowedModules: [
+      'dashboard', 'leads', 'quotations', 'orders', 'invoices', 'payments',
+      'dwm', 'attendance', 'aop-targets', 'kra-targets', 'my-scorecard', 'my-team', 'reports'
+    ]
+  },
+  service_manager: {
+    label: 'Service Manager',
+    badgeClass: 'bg-rose-900/60 text-rose-300 border border-rose-500/40',
+    allowedModules: [
+      'dashboard', 'service-tickets', 'service-leads', 'amc-contracts', 'amc-quotes', 'amc-orders',
+      'amc-invoices', 'parts-sales', 'warranty-management', 'dwm', 'attendance', 'kra-targets', 'my-scorecard', 'reports'
+    ]
+  },
+  sales_executive: {
+    label: 'Sales Executive',
+    badgeClass: 'bg-cyan-900/60 text-cyan-300 border border-cyan-500/40',
+    allowedModules: [
+      'dashboard', 'leads', 'quotations', 'orders', 'dwm', 'attendance', 'my-scorecard', 'expenses'
+    ]
+  },
+  service_engineer: {
+    label: 'Service Engineer',
+    badgeClass: 'bg-amber-900/60 text-amber-300 border border-amber-500/40',
+    allowedModules: [
+      'dashboard', 'service-tickets', 'parts-sales', 'dwm', 'attendance', 'my-scorecard', 'expenses'
+    ]
+  },
+  finance_officer: {
+    label: 'Finance & Accounts',
+    badgeClass: 'bg-emerald-900/60 text-emerald-300 border border-emerald-500/40',
+    allowedModules: [
+      'dashboard', 'invoices', 'payments', 'expenses', 'payroll', 'amc-invoices', 'reports'
+    ]
+  },
+  hr_operations: {
+    label: 'HR & Operations',
+    badgeClass: 'bg-teal-900/60 text-teal-300 border border-teal-500/40',
+    allowedModules: [
+      'dashboard', 'employees', 'attendance', 'payroll', 'reviews', 'sop', 'reports'
+    ]
   }
-  return '₹' + num.toLocaleString('en-IN');
+};
+
+// All 31 ERP modules organized by category
+const MODULE_REGISTRY = [
+  {
+    category: 'Sales Pipeline & Revenue',
+    icon: 'fa-funnel-dollar',
+    color: 'text-purple-400',
+    items: [
+      { id: 'leads', name: 'Leads & Enquiries CRM', url: 'leads.html', icon: 'fa-filter' },
+      { id: 'quotations', name: 'Quotations & Proposals', url: 'quotations.html', icon: 'fa-file-invoice' },
+      { id: 'orders', name: 'Sales Orders & Purchase Orders', url: 'orders.html', icon: 'fa-cart-shopping' },
+      { id: 'invoices', name: 'Sales Invoices (Tax GST)', url: 'invoices.html', icon: 'fa-file-invoice-dollar' },
+      { id: 'payments', name: 'Payment Collections & NEFT/RTGS', url: 'payments.html', icon: 'fa-money-bill-wave' }
+    ]
+  },
+  {
+    category: 'Customer Service & AMC Support',
+    icon: 'fa-headset',
+    color: 'text-rose-400',
+    items: [
+      { id: 'service-tickets', name: 'Customer Service Tickets & SLA', url: 'service-tickets.html', icon: 'fa-ticket' },
+      { id: 'service-leads', name: 'Service & Maintenance Leads', url: 'service-leads.html', icon: 'fa-wrench' },
+      { id: 'amc-contracts', name: 'AMC Contract Management', url: 'amc-contracts.html', icon: 'fa-handshake' },
+      { id: 'amc-quotes', name: 'AMC Quotations & Proposals', url: 'amc-quotes.html', icon: 'fa-file-signature' },
+      { id: 'amc-orders', name: 'AMC Orders & Renewal Agreements', url: 'amc-orders.html', icon: 'fa-file-contract' },
+      { id: 'amc-invoices', name: 'AMC Invoices & Milestones', url: 'amc-invoices.html', icon: 'fa-receipt' },
+      { id: 'parts-sales', name: 'Spare Parts Sales & Dispatch', url: 'parts-sales.html', icon: 'fa-gears' },
+      { id: 'warranty-management', name: 'Warranty Tracking & Expiry', url: 'warranty-management.html', icon: 'fa-shield-halved' }
+    ]
+  },
+  {
+    category: 'Operations, DWM & Daily Execution',
+    icon: 'fa-calendar-check',
+    color: 'text-cyan-400',
+    items: [
+      { id: 'dashboard', name: 'Executive Revenue Dashboard', url: 'dashboard.html', icon: 'fa-chart-pie' },
+      { id: 'dwm', name: 'Daily Work Management (DWM)', url: 'dwm.html', icon: 'fa-calendar-days' },
+      { id: 'attendance', name: 'Daily Attendance & Site Tracking', url: 'attendance.html', icon: 'fa-user-clock' },
+      { id: 'expenses', name: 'Travel & Field Expenses', url: 'expenses.html', icon: 'fa-receipt' }
+    ]
+  },
+  {
+    category: 'Performance, Strategy & Planning',
+    icon: 'fa-bullseye',
+    color: 'text-amber-400',
+    items: [
+      { id: 'aop-targets', name: 'Annual Operating Plan (AOP)', url: 'aop-targets.html', icon: 'fa-crosshairs' },
+      { id: 'kra-targets', name: 'Quarterly KRA Targets & KPIs', url: 'kra-targets.html', icon: 'fa-chart-line' },
+      { id: 'my-scorecard', name: 'Individual Performance Scorecard', url: 'my-scorecard.html', icon: 'fa-award' },
+      { id: 'my-team', name: 'Department Team Performance', url: 'my-team.html', icon: 'fa-users-gear' },
+      { id: 'reviews', name: 'Performance Appraisals & Reviews', url: 'reviews.html', icon: 'fa-star' }
+    ]
+  },
+  {
+    category: 'Human Resources & Governance',
+    icon: 'fa-users',
+    color: 'text-teal-400',
+    items: [
+      { id: 'employees', name: 'Employee Directory & Hierarchy', url: 'employees.html', icon: 'fa-id-card' },
+      { id: 'payroll', name: 'Payroll, Allowances & PF/ESI', url: 'payroll.html', icon: 'fa-calculator' },
+      { id: 'sop', name: 'Standard Operating Procedures', url: 'sop.html', icon: 'fa-book' },
+      { id: 'reports', name: 'Management Information Reports', url: 'reports.html', icon: 'fa-chart-simple' },
+      { id: 'audit-logs', name: 'Master System Audit Trail', url: 'audit-logs.html', icon: 'fa-clock-rotate-left' },
+      { id: 'master-data', name: 'Master System Configuration', url: 'master-data.html', icon: 'fa-sliders' },
+      { id: 'user-guide', name: 'Complete ERP User Manual', url: 'user-guide.html', icon: 'fa-circle-question' }
+    ]
+  }
+];
+
+function getCurrentUser() {
+  try {
+    const raw = localStorage.getItem('currentUser') || sessionStorage.getItem('currentUser');
+    if (raw) return JSON.parse(raw);
+  } catch (e) {
+    console.error('Failed to parse currentUser', e);
+  }
+  return null;
 }
 
-// Global Financial Year Helper
-function getFinancialYear(dateStr, invoiceNumber) {
-  if (dateStr && typeof dateStr === 'string' && dateStr.trim()) {
-    var trimmed = dateStr.trim();
-    if (/^\d{4}-\d{2}$/.test(trimmed)) return trimmed;
-    if (/^\d{4}-\d{4}$/.test(trimmed)) {
-      return trimmed.substring(0, 5) + trimmed.substring(7);
-    }
-    var d = null;
-    if (trimmed.indexOf('/') !== -1) {
-      var parts = trimmed.split('/');
-      if (parts.length >= 3) {
-        var day = parseInt(parts[0], 10);
-        var month = parseInt(parts[1], 10) - 1;
-        var year = parseInt(parts[2], 10);
-        if (year < 100) year += 2000;
-        d = new Date(year, month, day);
-      }
-    } else if (trimmed.indexOf('-') !== -1) {
-      var parts = trimmed.split('T')[0].split('-');
-      if (parts.length >= 3) {
-        var year = parseInt(parts[0], 10);
-        var month = parseInt(parts[1], 10) - 1;
-        var day = parseInt(parts[2], 10);
-        d = new Date(year, month, day);
-      }
-    }
-    if (!d || isNaN(d.getTime())) d = new Date(trimmed);
-    if (d && !isNaN(d.getTime())) {
-      var year = d.getFullYear();
-      var month = d.getMonth() + 1; // 1 to 12
-      if (month >= 4) {
-        var nextY = (year + 1) % 100;
-        return year + '-' + (nextY < 10 ? '0' + nextY : nextY);
-      } else {
-        var prevY = year - 1;
-        var curY = year % 100;
-        return prevY + '-' + (curY < 10 ? '0' + curY : curY);
-      }
-    }
+function checkAuth() {
+  const user = getCurrentUser();
+  const isLoginPage = window.location.pathname.endsWith('login.html') || window.location.pathname.endsWith('login');
+
+  if (!user && !isLoginPage) {
+    window.location.replace('login.html');
+    return null;
   }
 
-  if (invoiceNumber && typeof invoiceNumber === 'string') {
-    if (invoiceNumber.indexOf('2026-27') !== -1) return '2026-27';
-    if (invoiceNumber.indexOf('2025-26') !== -1) return '2025-26';
-    if (invoiceNumber.indexOf('2024-25') !== -1) return '2024-25';
+  if (user && isLoginPage) {
+    window.location.replace('dashboard.html');
+    return user;
   }
 
-  return '2026-27';
+  return user;
+}
+function hasModuleAccess(moduleName, role) {
+  if (!role || role === 'director') return true;
+  const config = ROLE_PERMISSIONS[role];
+  if (!config) return true;
+  if (config.allowedModules.includes('*')) return true;
+  return config.allowedModules.includes(moduleName);
 }
 
-function getCurrentFinancialYear() {
-  var d = new Date();
-  var year = d.getFullYear();
-  var month = d.getMonth() + 1; // 1 to 12
-  if (month >= 4) {
-    var nextY = (year + 1) % 100;
-    return year + '-' + (nextY < 10 ? '0' + nextY : nextY);
+function renderGlobalNav() {
+  const user = getCurrentUser();
+  if (!user) return;
+
+  const roleConfig = ROLE_PERMISSIONS[user.role] || ROLE_PERMISSIONS.director;
+  const currentPath = window.location.pathname.split('/').pop() || 'dashboard.html';
+
+  let navHtml = `
+    <nav class="bg-slate-900 border-b border-slate-800 text-slate-200 sticky top-0 z-50 shadow-md">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex items-center justify-between h-16">
+          
+          <!-- Brand Logo & Home -->
+          <div class="flex items-center space-x-3">
+            <a href="dashboard.html" class="flex items-center space-x-2.5">
+              <div class="w-9 h-9 rounded-xl bg-purple-600/20 border border-purple-500/40 flex items-center justify-center text-purple-400 font-black text-lg">
+                <i class="fa-solid fa-gauge-high"></i>
+              </div>
+              <span class="font-bold text-white text-base tracking-tight hidden sm:inline">Measure DI <span class="text-purple-400 text-xs px-1.5 py-0.5 rounded bg-purple-950/80 border border-purple-800">ERP</span></span>
+            </a>
+          </div>
+
+          <!-- Desktop Navigation Dropdown Menus -->
+          <div class="hidden lg:flex items-center space-x-1">
+  `;
+
+  MODULE_REGISTRY.forEach((cat, idx) => {
+    const accessibleItems = cat.items.filter(item => hasModuleAccess(item.id, user.role));
+    if (accessibleItems.length === 0) return;
+
+    navHtml += `
+      <div class="relative group" style="position: relative;">
+        <button class="px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800 transition-colors flex items-center space-x-1.5 focus:outline-none">
+          <i class="fa-solid ${cat.icon} ${cat.color}"></i>
+          <span>${cat.category.split(' ')[0]}</span>
+          <i class="fa-solid fa-chevron-down text-[10px] text-slate-400 group-hover:rotate-180 transition-transform"></i>
+        </button>
+
+        <div class="absolute left-0 mt-1 w-64 rounded-xl bg-slate-900 border border-slate-800 shadow-2xl py-2 hidden group-hover:block z-50">
+          <div class="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-800/80 mb-1">
+            ${cat.category}
+          </div>
+    `;
+
+    accessibleItems.forEach(item => {
+      const isActive = currentPath === item.url;
+      navHtml += `
+        <a href="${item.url}" class="flex items-center space-x-2.5 px-3 py-2 text-xs text-slate-300 hover:bg-slate-800 hover:text-purple-300 transition-colors ${isActive ? 'bg-purple-900/30 text-purple-300 font-semibold border-l-2 border-purple-500' : ''}">
+          <i class="fa-solid ${item.icon} w-4 text-slate-400"></i>
+          <span>${item.name}</span>
+        </a>
+      `;
+    });
+
+    navHtml += `
+        </div>
+      </div>
+    `;
+  });
+
+  navHtml += `
+          </div>
+
+          <!-- User Profile Switcher & Sign Out -->
+          <div class="flex items-center space-x-3">
+            <div class="hidden md:flex flex-col text-right">
+              <span class="text-xs font-semibold text-white">${user.name || 'Admin User'}</span>
+              <span class="text-[10px] text-purple-300 font-medium">${roleConfig.label}</span>
+            </div>
+
+            <button onclick="handleLogout()" title="Sign Out" class="p-2 rounded-lg bg-slate-800 hover:bg-rose-900/40 text-slate-400 hover:text-rose-300 border border-slate-700/60 transition-all text-xs flex items-center space-x-1">
+              <i class="fa-solid fa-right-from-bracket"></i>
+              <span class="hidden sm:inline">Logout</span>
+            </button>
+          </div>
+
+        </div>
+      </div>
+    </nav>
+  `;
+
+  const existingNav = document.querySelector('nav');
+  if (existingNav) {
+    existingNav.outerHTML = navHtml;
   } else {
-    var prevY = year - 1;
-    var curY = year % 100;
-    return prevY + '-' + (curY < 10 ? '0' + curY : curY);
+    document.body.insertAdjacentHTML('afterbegin', navHtml);
   }
 }
 
-function escapeHtml(str) {
-  if (str === null || str === undefined) return '';
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-window.escapeHtml = escapeHtml;
-
-function checkAuth(allowedRoles) {
-  try {
-    // Ensure seed data is initialized if store exists
-    if (typeof window.RevOpsStore !== 'undefined' && window.RevOpsStore.initSeedData) {
-      window.RevOpsStore.initSeedData();
-    }
-  } catch(errSeed) {
-    console.warn("Seed init warning in checkAuth:", errSeed);
-  }
-
-  var userRole = localStorage.getItem('userRole');
-  var userEmail = localStorage.getItem('userEmail');
-  var userName = localStorage.getItem('userName') || 'User';
-  var employeeId = localStorage.getItem('employeeId');
-
-  // Clean string 'null' or 'undefined'
-  if (userRole === 'null' || userRole === 'undefined') userRole = null;
-  if (employeeId === 'null' || employeeId === 'undefined') employeeId = null;
-  if (userEmail === 'null' || userEmail === 'undefined') userEmail = null;
-
-  if (!userRole || !employeeId || !userEmail) {
-    if (window.location.pathname.indexOf('login.html') === -1) {
-      window.location.href = 'login.html';
-    }
-    return false;
-  }
-
-  var employees = [];
-  try {
-    employees = (window.RevOpsStore && typeof window.RevOpsStore.getCollection === 'function') 
-      ? (window.RevOpsStore.getCollection('employees') || []) 
-      : [];
-  } catch(eEmps) {
-    console.warn("Could not fetch employees collection:", eEmps);
-  }
-
-  var currentEmp = employees.find(function(e) {
-    return e && (e.employeeId === employeeId || e.email === userEmail);
-  });
-
-  if (currentEmp) {
-    var empUpdated = false;
-    if (currentEmp.employeeId === 'E-001' && currentEmp.role !== 'super_admin') {
-      currentEmp.role = 'super_admin';
-      empUpdated = true;
-    } else if (currentEmp.employeeId === 'E-002' && currentEmp.role !== 'super_admin') {
-      currentEmp.role = 'super_admin';
-      empUpdated = true;
-    }
-
-    // Keep active session role, name, email and ID synchronized
-    if (currentEmp.role && localStorage.getItem('userRole') !== currentEmp.role) {
-      localStorage.setItem('userRole', currentEmp.role);
-      userRole = currentEmp.role;
-    }
-    if (currentEmp.fullName && localStorage.getItem('userName') !== currentEmp.fullName) {
-      localStorage.setItem('userName', currentEmp.fullName);
-    }
-    if (currentEmp.email && localStorage.getItem('userEmail') !== currentEmp.email) {
-      localStorage.setItem('userEmail', currentEmp.email);
-    }
-
-    if (empUpdated && window.RevOpsStore && window.RevOpsStore.saveCollection) {
-      try {
-        window.RevOpsStore.saveCollection('employees', employees);
-      } catch(eSave) {}
-    }
-  }
-
-  if (currentEmp && currentEmp.isActive === false) {
-    if (typeof auth !== 'undefined' && auth && auth.signOut) {
-      auth.signOut();
-    }
-    localStorage.clear();
-    alert("Your account has been disabled. Contact your manager or admin.");
-    window.location.href = 'login.html';
-    return false;
-  }
-
-  // Check role authorization (super_admin has universal access)
-  if (userRole === 'super_admin') {
-    // Exempted from restrictions
-  } else if (allowedRoles && allowedRoles.length > 0) {
-    var hasAccess = allowedRoles.includes(userRole) || 
-      (allowedRoles.includes('admin') && (userRole === 'super_admin' || userRole === 'admin'));
-    if (!hasAccess) {
-      alert("Unauthorized access. Redirecting to your default workspace.");
-      if (userRole === 'staff') {
-        window.location.href = 'my-scorecard.html';
-      } else {
-        window.location.href = 'dashboard.html';
-      }
-      return false;
-    }
-  }
-
-  // Check if user has direct reports
-  var hasDirectReports = employees.some(function(e) {
-    return e && e.reportsTo === employeeId;
-  });
-
-  // Render standard Navbar
-  renderRevOpsNavbar(userName, userRole, hasDirectReports);
-  return true;
+function handleLogout() {
+  localStorage.removeItem('currentUser');
+  sessionStorage.removeItem('currentUser');
+  window.location.replace('login.html');
 }
 
+// Auto-run on DOM ready
+document.addEventListener('DOMContentLoaded', () => {
+  const user = checkAuth();
+  if (user) {
+    renderGlobalNav();
+  }
+});
