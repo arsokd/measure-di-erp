@@ -13,7 +13,7 @@
 <body class="bg-slate-950 font-sans text-slate-100 min-h-screen">
   
   <div id="app" class="min-h-screen flex flex-col">
-    <!-- Top Navigation injected by auth-guard.js -->
+    <!-- Top Navigation dynamically rendered by auth-guard.js -->
 
     <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 space-y-6">
       
@@ -25,10 +25,10 @@
           </div>
           <div>
             <div class="flex items-center gap-2">
-              <h1 class="text-lg sm:text-xl font-bold text-white tracking-tight">Quotations & Commercial Proposals</h1>
-              <span class="text-[10px] uppercase font-mono px-2 py-0.5 rounded bg-purple-950 text-purple-300 border border-purple-800">GST 18% Compliant</span>
+              <h1 class="text-lg sm:text-xl font-bold text-white tracking-tight">Commercial Quotations & Proposals</h1>
+              <span class="text-[10px] uppercase font-mono px-2 py-0.5 rounded bg-purple-950 text-purple-300 border border-purple-800">Linked to Leads CRM</span>
             </div>
-            <p class="text-xs text-slate-400">Multi-item quotations, discount approval thresholds & auto-email dispatch via Brevo</p>
+            <p class="text-xs text-slate-400">Integrated CRM leads, automated discount approval matrix & Brevo transactional dispatch</p>
           </div>
         </div>
 
@@ -40,36 +40,36 @@
         </div>
       </div>
 
-      <!-- Quick Stats -->
+      <!-- Quick KPI Stats -->
       <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-sm">
-          <span class="text-xs font-semibold uppercase text-slate-400">Total Active Proposals</span>
-          <h3 class="text-2xl font-extrabold text-white mt-1" id="statTotalQuotes">24</h3>
-          <p class="text-[11px] text-slate-400 mt-1">₹1.48 Cr Pipeline Value</p>
+          <span class="text-xs font-semibold uppercase text-slate-400">Total Proposals</span>
+          <h3 class="text-2xl font-extrabold text-white mt-1" id="statTotalQuotes">0</h3>
+          <p class="text-[11px] text-slate-400 mt-1" id="statTotalPipeline">₹0 Pipeline Value</p>
         </div>
         <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-sm">
           <span class="text-xs font-semibold uppercase text-slate-400">Approved & Ready</span>
-          <h3 class="text-2xl font-extrabold text-emerald-400 mt-1" id="statApprovedQuotes">18</h3>
+          <h3 class="text-2xl font-extrabold text-emerald-400 mt-1" id="statApprovedQuotes">0</h3>
           <p class="text-[11px] text-slate-400 mt-1">Ready for PO conversion</p>
         </div>
         <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-sm">
-          <span class="text-xs font-semibold uppercase text-slate-400">Pending Approvals</span>
-          <h3 class="text-2xl font-extrabold text-amber-400 mt-1" id="statPendingQuotes">4</h3>
-          <p class="text-[11px] text-slate-400 mt-1">>15% Discount requires review</p>
+          <span class="text-xs font-semibold uppercase text-slate-400">Pending Approvals (>15%)</span>
+          <h3 class="text-2xl font-extrabold text-amber-400 mt-1" id="statPendingQuotes">0</h3>
+          <p class="text-[11px] text-slate-400 mt-1">Requires Management review</p>
         </div>
         <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-sm">
-          <span class="text-xs font-semibold uppercase text-slate-400">Avg Deal Size</span>
-          <h3 class="text-2xl font-extrabold text-purple-400 mt-1">₹6.16 Lakhs</h3>
-          <p class="text-[11px] text-slate-400 mt-1">Industrial weighing systems</p>
+          <span class="text-xs font-semibold uppercase text-slate-400">Avg Quotation Deal Size</span>
+          <h3 class="text-2xl font-extrabold text-purple-400 mt-1" id="statAvgDeal">₹0</h3>
+          <p class="text-[11px] text-slate-400 mt-1">Industrial instrumentation</p>
         </div>
       </section>
 
-      <!-- Quotations Table -->
+      <!-- Quotations Table View -->
       <section class="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-sm space-y-4">
         <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div class="relative flex-1 max-w-md w-full">
             <i class="fa-solid fa-search absolute left-3 top-3 text-slate-500 text-xs"></i>
-            <input type="text" id="quoteSearchInput" onkeyup="window.filterQuotesTable()" placeholder="Search quotes by number, client, or equipment..." class="w-full bg-slate-950 border border-slate-800 rounded-lg pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500">
+            <input type="text" id="quoteSearchInput" onkeyup="window.filterQuotesTable()" placeholder="Search quotes by number, client, lead, or equipment..." class="w-full bg-slate-950 border border-slate-800 rounded-lg pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500">
           </div>
           <div class="flex items-center gap-2">
             <select id="quoteStatusFilter" onchange="window.filterQuotesTable()" class="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-300 focus:outline-none focus:border-purple-500">
@@ -86,9 +86,9 @@
             <thead>
               <tr class="border-b border-slate-800 text-slate-400 uppercase tracking-wider text-[11px]">
                 <th class="py-3 px-3">Quote #</th>
-                <th class="py-3 px-3">Customer Name</th>
-                <th class="py-3 px-3">Items / Equipment</th>
-                <th class="py-3 px-3">Total Value</th>
+                <th class="py-3 px-3">Customer / Enterprise</th>
+                <th class="py-3 px-3">Linked Lead</th>
+                <th class="py-3 px-3">Total Value (GST)</th>
                 <th class="py-3 px-3">Discount</th>
                 <th class="py-3 px-3">Status</th>
                 <th class="py-3 px-3 text-right">Actions</th>
@@ -103,14 +103,14 @@
 
     </main>
 
-    <!-- Create / Edit Quotation Modal -->
+    <!-- Create / Edit Quotation Modal with Lead Linkage -->
     <div id="quoteModal" class="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 hidden">
-      <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden shadow-2xl">
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-3xl max-h-[92vh] flex flex-col overflow-hidden shadow-2xl">
         
         <div class="px-6 py-4 bg-slate-850 border-b border-slate-800 flex items-center justify-between">
           <div>
             <h3 class="text-base font-bold text-white" id="modalTitle">Create New Commercial Quotation</h3>
-            <p class="text-xs text-slate-400">Add client details, solution line items, taxes & discounts</p>
+            <p class="text-xs text-slate-400">Select a CRM lead or enter new customer specifications</p>
           </div>
           <button onclick="window.closeQuoteModal()" class="text-slate-400 hover:text-white p-1">
             <i class="fa-solid fa-xmark text-lg"></i>
@@ -120,6 +120,18 @@
         <div class="flex-1 overflow-y-auto p-6 space-y-4">
           <form id="quoteForm" onsubmit="window.saveQuotation(event)" class="space-y-4">
             
+            <!-- Lead Selection Dropdown -->
+            <div class="bg-purple-950/20 border border-purple-900/50 rounded-xl p-3.5">
+              <label class="block text-xs font-bold text-purple-300 mb-1 flex items-center gap-1.5">
+                <i class="fa-solid fa-link"></i>
+                <span>Link CRM Lead (Auto-Populate Details)</span>
+              </label>
+              <select id="qLeadSelect" onchange="window.onLeadSelectChanged()" class="w-full bg-slate-950 border border-purple-800/50 rounded-lg px-3 py-2 text-xs text-white focus:border-purple-500 focus:outline-none">
+                <option value="">-- Choose Existing Lead / Inquiry (Optional) --</option>
+              </select>
+            </div>
+
+            <!-- Customer & Contact Info -->
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label class="block text-xs font-semibold text-slate-300 mb-1">Customer / Enterprise Name *</label>
@@ -134,7 +146,7 @@
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
                 <label class="block text-xs font-semibold text-slate-300 mb-1">Contact Person</label>
-                <input type="text" id="qContactPerson" placeholder="e.g. Ramesh Kumar" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:border-purple-500 focus:outline-none">
+                <input type="text" id="qContactPerson" placeholder="e.g. Rajesh Kumar" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:border-purple-500 focus:outline-none">
               </div>
               <div>
                 <label class="block text-xs font-semibold text-slate-300 mb-1">Contact Phone</label>
@@ -146,7 +158,7 @@
               </div>
             </div>
 
-            <!-- Line Items -->
+            <!-- Line Items Area -->
             <div class="border border-slate-800 rounded-xl p-4 bg-slate-950 space-y-3">
               <div class="flex items-center justify-between">
                 <span class="text-xs font-bold uppercase text-slate-300">Solution Items / Line Items</span>
@@ -156,11 +168,11 @@
               </div>
 
               <div id="quoteItemsContainer" class="space-y-2">
-                <!-- Item row rendered dynamically -->
+                <!-- Rows injected dynamically -->
               </div>
             </div>
 
-            <!-- Totals & Discounts -->
+            <!-- Totals & Discounts Calculation -->
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-950 border border-slate-800 rounded-xl p-4">
               <div>
                 <label class="block text-xs font-semibold text-slate-300 mb-1">Discount (%)</label>
@@ -183,11 +195,11 @@
               </div>
             </div>
 
-            <!-- Modal Action Buttons -->
+            <!-- Action Buttons -->
             <div class="flex items-center justify-end gap-3 pt-3">
               <button type="button" onclick="window.closeQuoteModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-semibold">Cancel</button>
               <button type="submit" class="px-5 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-xs font-bold shadow-lg flex items-center gap-2">
-                <i class="fa-solid fa-paper-plane"></i> Save & Dispatch Proposal
+                <i class="fa-solid fa-paper-plane"></i> Save & Dispatch via Brevo
               </button>
             </div>
 
@@ -206,11 +218,63 @@
   <script src="js/email-service.js"></script>
   <script src="auth-guard.js"></script>
 
-  <!-- Embedded Global Modal Logic -->
+  <!-- Complete Quotation Engine & CRM Lead Linker -->
   <script>
-    let currentQuotes = [];
+    let allQuotes = [];
+    let allLeads = [];
+
+    window.loadLeadsIntoDropdown = function() {
+      const select = document.getElementById('qLeadSelect');
+      if (!select) return;
+
+      // Pull leads directly from the RevOps store
+      if (window.RevOpsStore && typeof window.RevOpsStore.getItems === 'function') {
+        allLeads = window.RevOpsStore.getItems('leads') || [];
+      }
+      
+      // Fallback sample leads if store was not seeded yet
+      if (!allLeads || allLeads.length === 0) {
+        allLeads = [
+          { id: 'lead-1', leadNumber: 'LD-2026-001', customerName: 'Tata Motors - Pune Plant', email: 'purchase@tatamotors.com', contactPerson: 'Arun Kumar', phone: '+91 98401 23456', equipmentModel: 'Pitless Weighbridge 80T', estimatedValue: 850000 },
+          { id: 'lead-2', leadNumber: 'LD-2026-002', customerName: 'Titan Industries - Hosur', email: 'service@titan.co.in', contactPerson: 'Suresh Babu', phone: '+91 98412 34567', equipmentModel: 'Dynamic Belt Scale & Batching', estimatedValue: 620000 },
+          { id: 'lead-3', leadNumber: 'LD-2026-003', customerName: 'Hyundai Heavy Industries', email: 'accounts@hyundai.co.in', contactPerson: 'Manikandan V', phone: '+91 98423 45678', equipmentModel: 'Multi-Deck Checkweigher', estimatedValue: 1200000 },
+          { id: 'lead-4', leadNumber: 'LD-2026-004', customerName: 'Ashok Leyland Ennore', email: 'procurement@ashokleyland.com', contactPerson: 'Dinesh S', phone: '+91 98434 56789', equipmentModel: 'Industrial Weighing Terminal', estimatedValue: 340000 }
+        ];
+      }
+
+      select.innerHTML = '<option value="">-- Choose Existing Lead / Inquiry (Optional) --</option>';
+      allLeads.forEach(l => {
+        const opt = document.createElement('option');
+        opt.value = l.id || l.leadNumber;
+        opt.innerText = `${l.leadNumber || 'LEAD'} - ${l.customerName} (${l.equipmentModel || 'Equipment'})`;
+        select.appendChild(opt);
+      });
+    };
+
+    window.onLeadSelectChanged = function() {
+      const selectedId = document.getElementById('qLeadSelect').value;
+      if (!selectedId) return;
+
+      const lead = allLeads.find(l => (l.id === selectedId || l.leadNumber === selectedId));
+      if (!lead) return;
+
+      document.getElementById('qCustomerName').value = lead.customerName || '';
+      document.getElementById('qCustomerEmail').value = lead.email || '';
+      document.getElementById('qContactPerson').value = lead.contactPerson || '';
+      document.getElementById('qContactPhone').value = lead.phone || '';
+
+      // Reset and add lead's specific equipment item
+      const container = document.getElementById('quoteItemsContainer');
+      container.innerHTML = '';
+      window.addQuoteItemRow(
+        lead.equipmentModel || 'Industrial Weighing System',
+        1,
+        lead.estimatedValue || 350000
+      );
+    };
 
     window.openCreateQuoteModal = function() {
+      window.loadLeadsIntoDropdown();
       document.getElementById('quoteModal').classList.remove('hidden');
       if (document.getElementById('quoteItemsContainer').children.length === 0) {
         window.addQuoteItemRow();
@@ -258,12 +322,13 @@
       e.preventDefault();
       const customerName = document.getElementById('qCustomerName').value;
       const customerEmail = document.getElementById('qCustomerEmail').value;
+      const linkedLeadId = document.getElementById('qLeadSelect').value;
       const quoteNumber = 'QT-2026-' + Math.floor(100 + Math.random() * 900);
 
       const items = [];
       document.querySelectorAll('.quote-item-row').forEach(row => {
         items.push({
-          description: row.querySelector('.item-desc').value || 'Equipment Item',
+          description: row.querySelector('.item-desc').value || 'Industrial Solution',
           qty: Number(row.querySelector('.item-qty').value) || 1,
           unitPrice: Number(row.querySelector('.item-price').value) || 0
         });
@@ -276,9 +341,11 @@
       const grandTotal = discountedSubtotal * 1.18;
 
       const newQuote = {
+        id: 'quote-' + Date.now(),
         quoteNumber,
         customerName,
         email: customerEmail,
+        linkedLead: linkedLeadId || 'Direct Inquiry',
         items,
         subTotal: discountedSubtotal,
         taxTotal: discountedSubtotal * 0.18,
@@ -288,11 +355,16 @@
         createdDate: new Date().toISOString().split('T')[0]
       };
 
-      currentQuotes.unshift(newQuote);
+      allQuotes.unshift(newQuote);
+
+      if (window.RevOpsStore && typeof window.RevOpsStore.addItem === 'function') {
+        window.RevOpsStore.addItem('quotations', newQuote);
+      }
+
       window.renderQuotesList();
       window.closeQuoteModal();
 
-      // Trigger automatic Brevo Email Dispatch
+      // Automatic Brevo Dispatch
       if (window.BrevoMailer && typeof window.BrevoMailer.sendQuotationEmail === 'function') {
         window.BrevoMailer.sendQuotationEmail(newQuote);
       }
@@ -303,40 +375,74 @@
       if (!tbody) return;
       tbody.innerHTML = '';
 
-      currentQuotes.forEach(q => {
+      let totalVal = 0;
+      let approvedCount = 0;
+      let pendingCount = 0;
+
+      allQuotes.forEach(q => {
+        totalVal += (q.grandTotal || 0);
+        if (q.status === 'Approved') approvedCount++;
+        if (q.status === 'Under Review') pendingCount++;
+
         const tr = document.createElement('tr');
         tr.className = 'hover:bg-slate-850/60 transition-colors';
         tr.innerHTML = `
           <td class="py-3 px-3 font-mono text-purple-400 font-bold">${q.quoteNumber}</td>
           <td class="py-3 px-3 font-medium text-white">${q.customerName}</td>
-          <td class="py-3 px-3 text-slate-400">${q.items ? q.items.length : 1} item(s)</td>
+          <td class="py-3 px-3"><span class="px-2 py-0.5 rounded bg-slate-800 text-[11px] text-slate-300 font-mono">${q.linkedLead || 'Direct'}</span></td>
           <td class="py-3 px-3 font-semibold text-emerald-400">₹${Math.round(q.grandTotal).toLocaleString('en-IN')}</td>
-          <td class="py-3 px-3">${q.discountPct}%</td>
+          <td class="py-3 px-3">${q.discountPct || 0}%</td>
           <td class="py-3 px-3"><span class="px-2 py-0.5 rounded text-[10px] font-bold ${q.status === 'Approved' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'}">${q.status}</span></td>
           <td class="py-3 px-3 text-right">
             <button onclick="window.sendEmailPrompt('${q.quoteNumber}')" class="px-2.5 py-1 bg-purple-600/20 text-purple-300 hover:bg-purple-600 hover:text-white rounded text-[11px] transition-all">
-              <i class="fa-solid fa-envelope mr-1"></i> Email
+              <i class="fa-solid fa-envelope mr-1"></i> Dispatch
             </button>
           </td>
         `;
         tbody.appendChild(tr);
       });
+
+      // Update KPI numbers
+      document.getElementById('statTotalQuotes').innerText = allQuotes.length;
+      document.getElementById('statTotalPipeline').innerText = '₹' + (totalVal / 100000).toFixed(1) + ' Lakhs Value';
+      document.getElementById('statApprovedQuotes').innerText = approvedCount;
+      document.getElementById('statPendingQuotes').innerText = pendingCount;
+      document.getElementById('statAvgDeal').innerText = allQuotes.length ? '₹' + Math.round(totalVal / allQuotes.length).toLocaleString('en-IN') : '₹0';
     };
 
     window.sendEmailPrompt = function(qNum) {
-      const q = currentQuotes.find(item => item.quoteNumber === qNum);
+      const q = allQuotes.find(item => item.quoteNumber === qNum);
       if (q && window.BrevoMailer) {
         window.BrevoMailer.sendQuotationEmail(q);
-        alert('Quotation email dispatched to ' + (q.email || 'client'));
+        alert('Proposal email dispatched to: ' + (q.email || 'client'));
       }
     };
 
+    window.filterQuotesTable = function() {
+      const query = (document.getElementById('quoteSearchInput').value || '').toLowerCase();
+      const status = document.getElementById('quoteStatusFilter').value;
+
+      document.querySelectorAll('#quotesTableBody tr').forEach(row => {
+        const text = row.innerText.toLowerCase();
+        const matchesQuery = !query || text.includes(query);
+        const matchesStatus = (status === 'ALL') || text.includes(status.toLowerCase());
+        row.style.display = (matchesQuery && matchesStatus) ? '' : 'none';
+      });
+    };
+
     document.addEventListener('DOMContentLoaded', () => {
-      // Seed default quotes
-      currentQuotes = [
-        { quoteNumber: 'QT-2026-089', customerName: 'Hyundai Heavy Industries', email: 'purchase@hyundai.co.in', items: [{ description: 'Heavy Weighbridge 80T', qty: 1, unitPrice: 845000 }], grandTotal: 845000, discountPct: 5, status: 'Approved' },
-        { quoteNumber: 'QT-2026-092', customerName: 'Tata Motors - Pune', email: 'service@tatamotors.com', items: [{ description: 'Belt Scale Automation', qty: 2, unitPrice: 320000 }], grandTotal: 640000, discountPct: 18, status: 'Under Review' }
-      ];
+      if (window.RevOpsStore && typeof window.RevOpsStore.getItems === 'function') {
+        allQuotes = window.RevOpsStore.getItems('quotations') || [];
+      }
+
+      if (!allQuotes || allQuotes.length === 0) {
+        allQuotes = [
+          { quoteNumber: 'QT-2026-089', customerName: 'Hyundai Heavy Industries', email: 'purchase@hyundai.co.in', linkedLead: 'LD-2026-003', items: [{ description: 'Heavy Weighbridge 80T', qty: 1, unitPrice: 845000 }], grandTotal: 845000, discountPct: 5, status: 'Approved' },
+          { quoteNumber: 'QT-2026-092', customerName: 'Tata Motors - Pune', email: 'service@tatamotors.com', linkedLead: 'LD-2026-001', items: [{ description: 'Belt Scale Automation', qty: 2, unitPrice: 320000 }], grandTotal: 640000, discountPct: 18, status: 'Under Review' },
+          { quoteNumber: 'QT-2026-095', customerName: 'Titan Industries - Hosur', email: 'service@titan.co.in', linkedLead: 'LD-2026-002', items: [{ description: 'Loadcell Calibration & Batching System', qty: 1, unitPrice: 480000 }], grandTotal: 480000, discountPct: 8, status: 'Approved' }
+        ];
+      }
+
       window.renderQuotesList();
     });
   </script>
