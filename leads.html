@@ -10,14 +10,13 @@
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
-    <script src="js/firebase-init.js" defer></script>
-    <script src="js/store.js" defer></script>
-    <script src="js/seed-data.js" defer></script>
-    <script src="auth-guard.js" defer></script>
+    <script src="js/firebase-init.js"></script>
+    <script src="js/store.js"></script>
+    <script src="js/seed-data.js"></script>
+    <script src="auth-guard.js"></script>
   </head>
   <body class="bg-slate-900 min-h-screen text-slate-100 font-sans antialiased">
     
-    <!-- Navbar Container -->
     <div id="navbar-container"></div>
 
     <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
@@ -39,122 +38,55 @@
         </div>
 
         <div class="flex items-center gap-3">
-          <button onclick="openLeadModal()" class="px-4 py-2.5 bg-[#982B68] hover:bg-[#802256] text-white font-bold text-xs rounded-xl shadow-lg shadow-[#982B68]/30 transition-all flex items-center space-x-2 cursor-pointer">
+          <button onclick="window.openLeadModal()" class="px-4 py-2.5 bg-[#982B68] hover:bg-[#802256] text-white font-bold text-xs rounded-xl shadow-lg shadow-[#982B68]/30 transition-all flex items-center space-x-2 cursor-pointer">
             <i class="fa-solid fa-plus text-xs"></i>
             <span>+ Add Equipment Lead</span>
           </button>
         </div>
       </div>
 
-      <!-- 8-Stage Funnel Pipeline Visual Summary -->
-      <div class="bg-slate-850 p-5 rounded-2xl border border-slate-800 shadow-xl space-y-3">
-        <div class="flex items-center justify-between">
-          <span class="text-xs font-extrabold uppercase tracking-wider text-slate-400 flex items-center gap-2">
-            <i class="fa-solid fa-filter text-emerald-400"></i>
-            <span>8-Stage Live Lead Progression Funnel</span>
-          </span>
-          <span class="text-[11px] text-slate-400" id="funnel-total-caption">Total Pipeline Inquiries</span>
-        </div>
-        <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2" id="funnel-stages-bar">
-          <!-- Populated dynamically via JS -->
-        </div>
-      </div>
-
-      <!-- KPI Summary Cards -->
+      <!-- Quick KPI Stats -->
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div class="bg-slate-850 p-5 rounded-2xl border border-slate-800 shadow-md">
-          <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Active Pipeline Leads</span>
+        <div class="bg-slate-850 p-4 rounded-xl border border-slate-800">
+          <span class="text-[11px] font-bold uppercase text-slate-400">Total Leads Pipeline</span>
           <div class="text-2xl font-black text-white mt-1" id="stat-lead-count">0</div>
-          <p class="text-[11px] text-slate-400 mt-1">All Open Opportunities</p>
         </div>
-
-        <div class="bg-slate-850 p-5 rounded-2xl border border-slate-800 shadow-md">
-          <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Total Pipeline Value</span>
-          <div class="text-2xl font-black text-indigo-400 mt-1" id="stat-lead-value">₹0</div>
-          <p class="text-[11px] text-slate-400 mt-1">Weighted Estimated Revenue</p>
+        <div class="bg-slate-850 p-4 rounded-xl border border-slate-800">
+          <span class="text-[11px] font-bold uppercase text-slate-400">Pipeline Value</span>
+          <div class="text-2xl font-black text-emerald-400 mt-1" id="stat-lead-value">₹0</div>
         </div>
-
-        <div class="bg-slate-850 p-5 rounded-2xl border border-slate-800 shadow-md">
-          <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Qualified Opportunities</span>
-          <div class="text-2xl font-black text-emerald-400 mt-1" id="stat-lead-qualified">0</div>
-          <p class="text-[11px] text-slate-400 mt-1">Pre-Qual / Lead Qualified (High Win Prob)</p>
+        <div class="bg-slate-850 p-4 rounded-xl border border-slate-800">
+          <span class="text-[11px] font-bold uppercase text-slate-400">Qualified Opportunities</span>
+          <div class="text-2xl font-black text-purple-400 mt-1" id="stat-lead-qualified">0</div>
         </div>
-
-        <div class="bg-slate-850 p-5 rounded-2xl border border-slate-800 shadow-md">
-          <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Order Confirmed (Won)</span>
-          <div class="text-2xl font-black text-purple-400 mt-1" id="stat-lead-won">0</div>
-          <p class="text-[11px] text-slate-400 mt-1">Ready for Order Booking</p>
+        <div class="bg-slate-850 p-4 rounded-xl border border-slate-800">
+          <span class="text-[11px] font-bold uppercase text-slate-400">Orders Won</span>
+          <div class="text-2xl font-black text-cyan-400 mt-1" id="stat-lead-won">0</div>
         </div>
       </div>
 
-      <!-- Leads Registry Table Container -->
-      <div class="bg-slate-850 rounded-2xl border border-slate-800 shadow-xl overflow-hidden space-y-4">
-        <div class="p-5 border-b border-slate-800 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div>
-            <h2 class="text-base font-bold text-white flex items-center gap-2">
-              <span>Lead Registry & Opportunity Tracker</span>
-              <span id="filtered-lead-count-badge" class="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-slate-700 text-slate-300">0</span>
-            </h2>
-            <p class="text-xs text-slate-400 mt-0.5">Filter by Vertical, Stage, Lead Source, or Owner</p>
-          </div>
-          
-          <div class="flex flex-wrap items-center gap-2.5">
-            <select id="lead-vertical-filter" onchange="renderLeadsTable()" class="px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-xl text-xs font-semibold text-slate-200 focus:outline-none focus:border-indigo-500">
-              <option value="All">All Equipment Verticals</option>
-              <option value="Projects">Projects (Weighbridges & Industrial)</option>
-              <option value="Onboard">Onboard (Tipper, Dumper, Loader)</option>
-              <option value="Crane">Crane (Wireless & Overhead Crane Scales)</option>
-            </select>
-
-            <select id="lead-stage-filter" onchange="renderLeadsTable()" class="px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-xl text-xs font-semibold text-slate-200 focus:outline-none focus:border-indigo-500">
-              <option value="All">All Funnel Stages</option>
-              <option value="Customer Contacted / Contact Attempted">1. Customer Contacted / Attempted</option>
-              <option value="Follow-Up Scheduled">2. Follow-Up Scheduled</option>
-              <option value="Site Visit Completed">3. Site Visit Completed</option>
-              <option value="Technical Evaluation in Progress">4. Technical Evaluation</option>
-              <option value="Commercial Offer Submitted">5. Commercial Offer Submitted</option>
-              <option value="Pre-Qualification Completed">6. Pre-Qualification Completed</option>
-              <option value="Lead Qualified">7. Lead Qualified</option>
-              <option value="Order Confirmed">8. Order Confirmed</option>
-              <option value="Lost / Dropped">Lost / Dropped</option>
-            </select>
-
-            <select id="lead-fy-filter" onchange="renderLeadsTable()" class="px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-xl text-xs font-semibold text-slate-200 focus:outline-none focus:border-indigo-500">
-              <option value="2026-27" selected>FY 2026-27</option>
-              <option value="2025-26">FY 2025-26</option>
-              <option value="2024-25">FY 2024-25</option>
-              <option value="All">All FYs</option>
-            </select>
-
-            <div id="lead-filter-wrapper" class="hidden">
-              <select id="lead-emp-filter" onchange="renderLeadsTable()" class="px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-xl text-xs font-semibold text-slate-200 focus:outline-none focus:border-indigo-500">
-                <!-- Populated dynamically -->
-              </select>
-            </div>
-
-            <div class="relative w-48 sm:w-60">
-              <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs"></i>
-              <input type="text" id="lead-search-input" oninput="renderLeadsTable()" placeholder="Search client, product, spec..." class="w-full pl-8 pr-3 py-1.5 bg-slate-900 border border-slate-700 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-indigo-500" />
-            </div>
-          </div>
+      <!-- Leads Table -->
+      <div class="bg-slate-850 rounded-2xl border border-slate-800 shadow-xl overflow-hidden">
+        <div class="p-4 border-b border-slate-800 flex items-center justify-between">
+          <h2 class="text-sm font-bold text-white">Commercial Leads Register</h2>
+          <span class="text-xs text-slate-400" id="filtered-lead-count-badge">Loading leads...</span>
         </div>
-
         <div class="overflow-x-auto">
-          <table class="w-full text-left border-collapse">
+          <table class="w-full text-left text-xs border-collapse">
             <thead>
-              <tr class="bg-slate-900/80 border-b border-slate-800 text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                <th class="py-3 px-4">Lead ID & Date</th>
-                <th class="py-3 px-4">Customer & Industry</th>
-                <th class="py-3 px-4">Vertical & Products / Specs</th>
-                <th class="py-3 px-4">Contacts & Auto-CC</th>
-                <th class="py-3 px-4 text-right">Currency & Est. Value</th>
-                <th class="py-3 px-4 text-center">8-Stage Funnel Status</th>
-                <th class="py-3 px-4">Lead Owner</th>
+              <tr class="border-b border-slate-800 text-slate-400 uppercase tracking-wider text-[10px]">
+                <th class="py-3 px-4">Lead #</th>
+                <th class="py-3 px-4">Customer</th>
+                <th class="py-3 px-4">Vertical & Product</th>
+                <th class="py-3 px-4">Contact</th>
+                <th class="py-3 px-4 text-right">Value</th>
+                <th class="py-3 px-4 text-center">Stage</th>
+                <th class="py-3 px-4">Owner</th>
                 <th class="py-3 px-4 text-center">Actions</th>
               </tr>
             </thead>
-            <tbody id="leads-tbody" class="divide-y divide-slate-800/60 text-xs">
-              <!-- Rendered dynamically -->
+            <tbody id="leads-tbody" class="divide-y divide-slate-800/60 text-slate-300">
+              <!-- Rendered via js/leads.js -->
             </tbody>
           </table>
         </div>
@@ -162,187 +94,66 @@
 
     </main>
 
-    <!-- Modal: Add / Edit Commercial Lead -->
-    <div id="lead-modal" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-      <div class="bg-slate-900 w-full max-w-3xl rounded-2xl shadow-2xl border border-slate-700 overflow-hidden my-8 max-h-[90vh] flex flex-col">
-        <div class="px-6 py-4 bg-slate-850 border-b border-slate-800 flex items-center justify-between shrink-0">
-          <div>
-            <h3 class="text-base font-bold text-white flex items-center gap-2" id="lead-modal-title">
-              <i class="fa-solid fa-file-signature text-[#E283BD]"></i>
-              <span>Add New Commercial Lead</span>
-            </h3>
-            <p class="text-xs text-slate-400">Specify industry, cascading product specs, multi-contact stakeholders & funnel stage</p>
-          </div>
-          <button onclick="closeLeadModal()" class="text-slate-400 hover:text-white text-xl font-bold p-1">&times;</button>
+    <!-- Create / Edit Lead Modal -->
+    <div id="lead-modal" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden shadow-2xl">
+        <div class="px-6 py-4 bg-slate-850 border-b border-slate-800 flex items-center justify-between">
+          <h3 class="text-sm font-bold text-white" id="lead-modal-title">
+            <i class="fa-solid fa-plus text-[#E283BD]"></i> <span>Add New Equipment Lead</span>
+          </h3>
+          <button onclick="window.closeLeadModal()" class="text-slate-400 hover:text-white text-lg font-bold">&times;</button>
         </div>
 
-        <form id="lead-form" onsubmit="handleSaveLead(event)" class="p-6 space-y-5 overflow-y-auto flex-1">
-          <input type="hidden" id="lead-doc-id" />
+        <form id="lead-form" onsubmit="window.saveLeadForm(event)" class="p-6 space-y-4 overflow-y-auto">
+          <input type="hidden" id="lead-doc-id" value="">
 
-          <!-- Section 1: Customer & Industry -->
-          <div class="bg-slate-800/50 p-4 rounded-xl border border-slate-750 space-y-3">
-            <div class="text-xs font-black uppercase text-indigo-400 tracking-wider flex items-center gap-2">
-              <i class="fa-solid fa-building"></i>
-              <span>Customer Organization & Industry Origin</span>
-            </div>
-
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">Customer / Organization Name *</label>
-                <input type="text" id="inp-lead-customer" required placeholder="e.g. JSW Steel Limited / Tata Steel" class="w-full px-3 py-2 bg-slate-950 border border-slate-750 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500" />
-              </div>
-
-              <div>
-                <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">Lead Source (10 Standard Channels) *</label>
-                <select id="inp-lead-source" required class="w-full px-3 py-2 bg-slate-950 border border-slate-750 rounded-xl text-xs font-semibold text-white focus:outline-none focus:border-indigo-500">
-                  <option value="India Mart">1. India Mart</option>
-                  <option value="Tender / E-Procurement Portal">2. Tender / E-Procurement Portal</option>
-                  <option value="SEO">3. SEO</option>
-                  <option value="Existing Client">4. Existing Client</option>
-                  <option value="Customer Reference">5. Customer Reference</option>
-                  <option value="Ariba">6. Ariba</option>
-                  <option value="OEM">7. OEM</option>
-                  <option value="Mail Marketing / Digital Marketing">8. Mail Marketing / Digital Marketing</option>
-                  <option value="Direct Customer Approach">9. Direct Customer Approach</option>
-                  <option value="Exhibition / Trade Fair">10. Exhibition / Trade Fair</option>
-                </select>
-              </div>
-            </div>
-
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">Industry Vertical *</label>
-                <select id="inp-lead-industry" onchange="handleIndustryChange()" required class="w-full px-3 py-2 bg-slate-950 border border-slate-750 rounded-xl text-xs font-semibold text-white focus:outline-none focus:border-indigo-500">
-                  <option value="Project">Project</option>
-                  <option value="Onboard">Onboard</option>
-                  <option value="Crane">Crane</option>
-                </select>
-              </div>
-
-              <div id="project-sector-box">
-                <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">Project Sector / Origin *</label>
-                <select id="inp-project-sector" onchange="handleProjectSectorChange()" class="w-full px-3 py-2 bg-slate-950 border border-slate-750 rounded-xl text-xs font-semibold text-white focus:outline-none focus:border-indigo-500">
-                  <option value="Steel">Steel</option>
-                  <option value="Cement">Cement</option>
-                  <option value="Power Plant">Power Plant</option>
-                  <option value="Infrastructure (Roads & Highways)">Infrastructure (Roads & Highways)</option>
-                  <option value="Mining">Mining</option>
-                  <option value="Other Industries">Other Industries</option>
-                </select>
-                <input type="text" id="inp-other-sector" placeholder="Specify sector name..." class="hidden mt-2 w-full px-3 py-1.5 bg-slate-950 border border-slate-750 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500" />
-              </div>
-            </div>
-          </div>
-
-          <!-- Section 2: Vertical, Products & Technical Specification Details -->
-          <div class="bg-slate-800/50 p-4 rounded-xl border border-slate-750 space-y-3">
-            <div class="flex items-center justify-between">
-              <div class="text-xs font-black uppercase text-emerald-400 tracking-wider flex items-center gap-2">
-                <i class="fa-solid fa-microchip"></i>
-                <span>Vertical & Equipment Line Items (Multi-Product)</span>
-              </div>
-              <button type="button" onclick="addProductRow()" class="px-2.5 py-1 bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-300 border border-emerald-500/40 rounded-lg text-[11px] font-bold flex items-center gap-1 cursor-pointer">
-                <i class="fa-solid fa-plus"></i>
-                <span>+ Add Product</span>
-              </button>
-            </div>
-
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">Vertical Classification *</label>
-              <select id="inp-lead-vertical" onchange="handleVerticalChange()" required class="w-full px-3 py-2 bg-slate-950 border border-slate-750 rounded-xl text-xs font-semibold text-white focus:outline-none focus:border-indigo-500">
-                <option value="Projects">Projects (Weighbridges & Heavy Industrial)</option>
-                <option value="Onboard">Onboard (Tipper, Dumper, Loader Scales)</option>
-                <option value="Crane">Crane (Wireless & Overhead Crane Scales)</option>
+              <label class="block text-[11px] font-bold uppercase text-slate-400 mb-1">Customer / Plant Name *</label>
+              <input type="text" id="inp-lead-customer" required placeholder="e.g. Tata Steel Jamshedpur" class="w-full bg-slate-950 border border-slate-750 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500">
+            </div>
+            <div>
+              <label class="block text-[11px] font-bold uppercase text-slate-400 mb-1">Vertical *</label>
+              <select id="inp-lead-vertical" onchange="handleVerticalChange()" class="w-full bg-slate-950 border border-slate-750 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500">
+                <option value="Projects" selected>Projects (Dynamic In-Motion & Slag Yard)</option>
+                <option value="Onboard">Onboard (Tipper & Loader Payload)</option>
+                <option value="Crane">Crane (Wireless & Overhead EOT)</option>
               </select>
-              <p class="text-[10px] text-slate-400 mt-1">Products dropdown will dynamically filter equipment matching this vertical.</p>
-            </div>
-
-            <!-- Multi-Product Line Items Container -->
-            <div id="lead-products-container" class="space-y-3">
-              <!-- Dynamically populated product cards -->
             </div>
           </div>
 
-          <!-- Section 3: Commercial Terms, Currency & Valuation -->
-          <div class="bg-slate-800/50 p-4 rounded-xl border border-slate-750 space-y-3">
-            <div class="text-xs font-black uppercase text-amber-400 tracking-wider flex items-center gap-2">
-              <i class="fa-solid fa-coins"></i>
-              <span>Commercial Currency & Estimated Value</span>
-            </div>
-
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div>
-                <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">Currency *</label>
-                <select id="inp-lead-currency" class="w-full px-3 py-2 bg-slate-950 border border-slate-750 rounded-xl text-xs font-semibold text-white focus:outline-none focus:border-indigo-500">
-                  <option value="INR" selected>INR - Indian Rupee (₹)</option>
-                  <option value="USD">USD - US Dollar ($)</option>
-                  <option value="EUR">EUR - Euro (€)</option>
-                </select>
-              </div>
-
-              <div>
-                <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">Estimated Deal Value *</label>
-                <input type="number" id="inp-lead-value" required min="1" placeholder="4500000" class="w-full px-3 py-2 bg-slate-950 border border-slate-750 rounded-xl text-xs font-bold text-white focus:outline-none focus:border-indigo-500" />
-              </div>
-
-              <div>
-                <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">Target Closing Date</label>
-                <input type="date" id="inp-lead-target-date" class="w-full px-3 py-2 bg-slate-950 border border-slate-750 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500" />
-              </div>
-            </div>
-          </div>
-
-          <!-- Section 4: 8-Stage Funnel Status -->
-          <div class="bg-slate-800/50 p-4 rounded-xl border border-slate-750 space-y-3">
-            <div class="text-xs font-black uppercase text-purple-400 tracking-wider flex items-center gap-2">
-              <i class="fa-solid fa-chart-line"></i>
-              <span>8-Stage Funnel Progression Status *</span>
-            </div>
-
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
-              <select id="inp-lead-stage" required class="w-full px-3 py-2.5 bg-slate-950 border border-slate-750 rounded-xl text-xs font-bold text-white focus:outline-none focus:border-indigo-500">
-                <option value="Customer Contacted / Contact Attempted">Stage 1: Customer Contacted / Contact Attempted</option>
+              <label class="block text-[11px] font-bold uppercase text-slate-400 mb-1">Estimated Value (₹) *</label>
+              <input type="number" id="inp-lead-value" required placeholder="2500000" class="w-full bg-slate-950 border border-slate-750 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500">
+            </div>
+            <div>
+              <label class="block text-[11px] font-bold uppercase text-slate-400 mb-1">Target Close Date</label>
+              <input type="date" id="inp-lead-target-date" class="w-full bg-slate-950 border border-slate-750 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500">
+            </div>
+            <div>
+              <label class="block text-[11px] font-bold uppercase text-slate-400 mb-1">Initial Funnel Stage</label>
+              <select id="inp-lead-stage" class="w-full bg-slate-950 border border-slate-750 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500">
+                <option value="Customer Contacted / Contact Attempted">Stage 1: Contacted</option>
                 <option value="Follow-Up Scheduled">Stage 2: Follow-Up Scheduled</option>
-                <option value="Site Visit Completed">Stage 3: Site Visit Completed</option>
-                <option value="Technical Evaluation in Progress">Stage 4: Technical Evaluation in Progress</option>
-                <option value="Commercial Offer Submitted">Stage 5: Commercial Offer Submitted</option>
-                <option value="Pre-Qualification Completed">Stage 6: Pre-Qualification Completed (Customer & project eligibility verified)</option>
-                <option value="Lead Qualified">Stage 7: Lead Qualified (Genuine confirmed opportunity with high order probability)</option>
-                <option value="Order Confirmed">Stage 8: Order Confirmed (Won - Ready for PO / Order Booking)</option>
-                <option value="Lost / Dropped">Lost / Dropped (Closed without order)</option>
+                <option value="Site Visit Completed">Stage 3: Site Visit</option>
+                <option value="Technical Evaluation in Progress">Stage 4: Technical Evaluation</option>
+                <option value="Commercial Offer Submitted">Stage 5: Offer Submitted</option>
+                <option value="Lead Qualified">Stage 7: Lead Qualified</option>
+                <option value="Order Confirmed">Stage 8: Order Confirmed</option>
               </select>
             </div>
           </div>
 
-          <!-- Section 5: Multiple Contact Persons (Up to 5) with Auto-CC -->
-          <div class="bg-slate-800/50 p-4 rounded-xl border border-slate-750 space-y-3">
-            <div class="flex items-center justify-between">
-              <div class="text-xs font-black uppercase text-sky-400 tracking-wider flex items-center gap-2">
-                <i class="fa-solid fa-users"></i>
-                <span>Customer Contact Persons (Up to 5) & Auto-CC</span>
-              </div>
-              <button type="button" onclick="addContactRow()" class="px-2.5 py-1 bg-sky-600/30 hover:bg-sky-600/50 text-sky-300 border border-sky-500/40 rounded-lg text-[11px] font-bold flex items-center gap-1 cursor-pointer">
-                <i class="fa-solid fa-user-plus"></i>
-                <span>+ Add Contact</span>
-              </button>
-            </div>
-
-            <div id="contacts-container" class="space-y-2.5">
-              <!-- Dynamically populated up to 5 contacts -->
-            </div>
-          </div>
-
-          <!-- Section 6: Notes / Requirements -->
           <div>
-            <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">Requirement Notes & Special Client Conditions</label>
-            <textarea id="inp-lead-notes" rows="2" placeholder="Site location, operating environment, integration with SAP / ERP, delivery deadlines..." class="w-full px-3 py-2 bg-slate-950 border border-slate-750 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500"></textarea>
+            <label class="block text-[11px] font-bold uppercase text-slate-400 mb-1">Client Contact & Requirements</label>
+            <textarea id="inp-lead-notes" rows="2" placeholder="Contact person, phone, email & technical specs..." class="w-full bg-slate-950 border border-slate-750 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"></textarea>
           </div>
 
-          <div class="pt-4 border-t border-slate-800 flex items-center justify-end space-x-3 shrink-0">
-            <button type="button" onclick="closeLeadModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl cursor-pointer">Cancel</button>
-            <button type="submit" class="px-5 py-2 bg-[#982B68] hover:bg-[#802256] text-white text-xs font-bold rounded-xl shadow-lg shadow-[#982B68]/30 transition-all cursor-pointer flex items-center gap-2">
-              <i class="fa-solid fa-check"></i>
-              <span>Save Commercial Lead</span>
+          <div class="flex items-center justify-end space-x-3 pt-3 border-t border-slate-800">
+            <button type="button" onclick="window.closeLeadModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-lg">Cancel</button>
+            <button type="submit" class="px-5 py-2 bg-[#982B68] hover:bg-[#802256] text-white text-xs font-bold rounded-lg shadow-lg flex items-center gap-1.5">
+              <i class="fa-solid fa-check"></i> Save Commercial Lead
             </button>
           </div>
         </form>
@@ -350,5 +161,39 @@
     </div>
 
     <script src="js/leads.js"></script>
+    <script>
+      window.saveLeadForm = function(e) {
+        e.preventDefault();
+        var customer = document.getElementById('inp-lead-customer').value;
+        var vertical = document.getElementById('inp-lead-vertical').value;
+        var value = Number(document.getElementById('inp-lead-value').value) || 0;
+        var stage = document.getElementById('inp-lead-stage').value;
+        var notes = document.getElementById('inp-lead-notes').value;
+        var leadNum = 'LD-2026-' + Math.floor(100 + Math.random() * 900);
+
+        var newLead = {
+          id: 'lead_' + Date.now(),
+          leadNumber: leadNum,
+          customerName: customer,
+          vertical: vertical,
+          estimatedValue: value,
+          expectedValue: value,
+          stage: stage,
+          status: stage,
+          notes: notes,
+          employeeName: localStorage.getItem('userName') || 'Staff',
+          employeeId: localStorage.getItem('employeeId') || 'E-002',
+          createdDate: new Date().toISOString().split('T')[0]
+        };
+
+        if (window.RevOpsStore && typeof window.RevOpsStore.saveRecord === 'function') {
+          window.RevOpsStore.saveRecord('leads', newLead);
+        }
+
+        window.closeLeadModal();
+        alert('✅ Lead ' + leadNum + ' saved successfully!');
+        if (typeof renderLeadsTable === 'function') renderLeadsTable();
+      };
+    </script>
   </body>
 </html>
