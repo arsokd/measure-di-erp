@@ -1,443 +1,313 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>K-30_ERP - Executive Dashboard</title>
-    <link rel="stylesheet" href="/src/index.css">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
-    <script src="js/firebase-init.js" defer></script>
-    <script src="js/store.js" defer></script>
-    <script src="js/seed-data.js" defer></script>
-    <script src="auth-guard.js" defer></script>
-    <style>
-      .sticky-header {
-        position: sticky;
-        top: 3.5rem;
-        z-index: 30;
-        backdrop-filter: blur(12px);
-        background-color: rgba(15, 23, 42, 0.95);
-      }
-      .preset-btn.active {
-        background-color: #4f46e5 !important;
-        color: #ffffff !important;
-        border-color: #6366f1 !important;
-        box-shadow: 0 2px 4px rgba(79, 70, 229, 0.4);
-      }
-      .no-scrollbar::-webkit-scrollbar {
-        display: none;
-      }
-      .no-scrollbar {
-        -ms-overflow-style: none;
-        scrollbar-width: none;
-      }
-    </style>
-  </head>
-  <body class="bg-slate-50 min-h-screen text-slate-800">
+<head>
+    <script src="https://cdn.tailwindcss.com"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>K-30_ERP - Executive Revenue Operations Dashboard</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="src/index.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="bg-slate-950 font-sans text-slate-100 min-h-screen">
+  
+  <!-- Global App Shell (Navigation & Header dynamically mounted by auth-guard.js) -->
+  <div id="app-container" class="min-h-screen flex flex-col">
     
-    <!-- Navigation Bar Container -->
-    <div id="navbar-container"></div>
+    <!-- Fallback Top Bar / Breadcrumb Container -->
+    <header class="bg-slate-900 border-b border-slate-800 sticky top-0 z-30 px-4 py-3">
+      <div class="max-w-7xl mx-auto flex items-center justify-between">
+        <div class="flex items-center space-x-3">
+          <div class="w-9 h-9 rounded-xl bg-purple-600/20 border border-purple-500/30 flex items-center justify-center text-purple-400 font-bold text-lg" style="width: 36px; height: 36px; max-width: 36px; max-height: 36px;">
+            <svg style="width: 20px; height: 20px; max-width: 20px; max-height: 20px; display: block;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+            </svg>
+          </div>
+          <div>
+            <h1 class="text-sm sm:text-base font-bold text-white tracking-tight flex items-center gap-2">
+              <span>Measure DI &bull; Executive Command Center</span>
+              <span class="text-[10px] uppercase font-mono px-2 py-0.5 rounded bg-purple-950 text-purple-300 border border-purple-800">FY 2026-27</span>
+            </h1>
+            <p class="text-[11px] text-slate-400">Holistic Multi-Module Revenue Operations & SLA Monitoring</p>
+          </div>
+        </div>
 
-    <!-- FROZEN / STICKY TOP EXECUTIVE CONTROL BAR -->
-    <div class="sticky-header border-b border-slate-800 text-white py-2.5 px-3 sm:px-6 lg:px-8 shadow-xl">
-      <div class="max-w-7xl mx-auto space-y-2">
+        <!-- Quick Action / Date Badge -->
+        <div class="flex items-center gap-3">
+          <div class="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-xs text-slate-300">
+            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span id="currentDateDisplay">Aug 2026</span>
+          </div>
+          <button onclick="location.reload()" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-all text-xs flex items-center gap-1.5">
+            <i class="fa-solid fa-arrows-rotate"></i>
+            <span class="hidden md:inline">Refresh Data</span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Content Canvas -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 space-y-6">
+      
+      <!-- Top Level Performance Metric Grid -->
+      <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         
-        <!-- Header Row 1: Executive Title & Mobile Filter Toggle -->
-        <div class="flex items-center justify-between gap-2">
-          <div class="flex items-center space-x-2.5 min-w-0">
-            <div class="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-indigo-600/30 border border-indigo-400/40 flex items-center justify-center text-indigo-400 font-black text-base sm:text-lg flex-shrink-0">
-              <svg class="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
-            </div>
-            <div class="truncate">
-              <div class="flex items-center space-x-1.5 flex-wrap">
-                <h1 class="text-sm sm:text-base font-bold text-white tracking-tight truncate">Executive RevOps Dashboard</h1>
-                <span class="px-1.5 py-0.5 rounded text-[9px] sm:text-[10px] font-extrabold uppercase bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">MD View</span>
-              </div>
-              <p class="text-[10px] text-slate-400 hidden sm:block">K-30_ERP &bull; Real-Time Performance & Trend Analytics</p>
-            </div>
-          </div>
-
-          <!-- Mobile Filter Toggle Button -->
-          <div class="flex items-center space-x-2 lg:hidden flex-shrink-0">
-            <button onclick="toggleDashboardMobileFilters()" id="btn-toggle-filters" class="flex items-center space-x-1.5 px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl border border-indigo-400 shadow-sm transition-all cursor-pointer">
-              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/></svg>
-              <span>Filter Options</span>
-              <svg id="filter-toggle-icon" class="w-3.5 h-3.5 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-            </button>
-          </div>
-        </div>
-
-        <!-- Collapsible Filters Container (Hidden by default on mobile, always visible on desktop) -->
-        <div id="dashboard-filter-panel" class="hidden lg:block space-y-2.5 pt-2 lg:pt-0 border-t border-slate-800/80 lg:border-t-0">
-          
-          <!-- Quick Time Presets (Horizontally Scrollable) -->
-          <div class="flex items-center gap-1.5 overflow-x-auto whitespace-nowrap pb-1 no-scrollbar">
-            <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mr-1 hidden xl:inline flex-shrink-0">Period:</span>
-            <button onclick="applyPreset('WTD')" id="btn-preset-WTD" class="preset-btn px-2.5 py-1 text-[11px] font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded-lg transition-all cursor-pointer flex-shrink-0">WTD</button>
-            <button onclick="applyPreset('MTD')" id="btn-preset-MTD" class="preset-btn px-2.5 py-1 text-[11px] font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded-lg transition-all cursor-pointer flex-shrink-0">MTD</button>
-            <button onclick="applyPreset('QTD')" id="btn-preset-QTD" class="preset-btn px-2.5 py-1 text-[11px] font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded-lg transition-all cursor-pointer flex-shrink-0">QTD</button>
-            <button onclick="applyPreset('Q1')" id="btn-preset-Q1" class="preset-btn px-2.5 py-1 text-[11px] font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded-lg transition-all cursor-pointer flex-shrink-0">Q1</button>
-            <button onclick="applyPreset('Q2')" id="btn-preset-Q2" class="preset-btn px-2.5 py-1 text-[11px] font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded-lg transition-all cursor-pointer flex-shrink-0">Q2</button>
-            <button onclick="applyPreset('Q3')" id="btn-preset-Q3" class="preset-btn px-2.5 py-1 text-[11px] font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded-lg transition-all cursor-pointer flex-shrink-0">Q3</button>
-            <button onclick="applyPreset('Q4')" id="btn-preset-Q4" class="preset-btn px-2.5 py-1 text-[11px] font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded-lg transition-all cursor-pointer flex-shrink-0">Q4</button>
-            <button onclick="applyPreset('H1')" id="btn-preset-H1" class="preset-btn px-2.5 py-1 text-[11px] font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded-lg transition-all cursor-pointer flex-shrink-0">H1</button>
-            <button onclick="applyPreset('H2')" id="btn-preset-H2" class="preset-btn px-2.5 py-1 text-[11px] font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded-lg transition-all cursor-pointer flex-shrink-0">H2</button>
-            <button onclick="applyPreset('Full')" id="btn-preset-Full" class="preset-btn active px-2.5 py-1 text-[11px] font-bold bg-indigo-600 text-white border border-indigo-500 rounded-lg transition-all cursor-pointer flex-shrink-0">Full Year</button>
-            <a href="audit-logs.html" class="px-2.5 py-1 text-[11px] font-bold bg-slate-800 hover:bg-slate-700 text-fuchsia-300 border border-fuchsia-500/40 rounded-lg transition-all flex items-center space-x-1 cursor-pointer ml-1 shadow-sm flex-shrink-0" title="Universal Audit Trail (Director & Super Admin)">
-              <span>🛡️ Activity & Audit Trail</span>
-            </a>
-            <a href="Measure_DI_RevOps_Client_Demo_Guide.pdf" download="Measure_DI_RevOps_Client_Demo_Guide.pdf" onclick="downloadClientDemoGuidePDF(event)" target="_blank" class="px-2.5 py-1 text-[11px] font-black bg-sky-600 hover:bg-sky-500 text-white border border-sky-400 rounded-lg transition-all flex items-center space-x-1 cursor-pointer ml-1 shadow-sm flex-shrink-0">
-              <span>📊 Demo Guide (PDF)</span>
-            </a>
-          </div>
-
-          <!-- Dropdown Filters Grid -->
-          <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 pt-1">
-            
-            <!-- Financial Year Filter -->
-            <div>
-              <label class="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">Financial Year</label>
-              <select id="dash-fy-select" onchange="onFilterChange()" class="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer">
-                <option value="2026-27" selected>FY 2026-27 (Current)</option>
-                <option value="2025-26">FY 2025-26</option>
-                <option value="2024-25">FY 2024-25</option>
-                <option value="All">All Time Combined</option>
-              </select>
-            </div>
-
-            <!-- Vertical Filter -->
-            <div>
-              <label class="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">Vertical</label>
-              <select id="dash-vertical-select" onchange="onFilterChange()" class="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer">
-                <option value="All">All Verticals</option>
-                <option value="Sales">Equipment Sales</option>
-                <option value="Service/Parts">Service & Spares</option>
-                <option value="Projects">Steel Plant Projects</option>
-              </select>
-            </div>
-
-            <!-- Employee Filter -->
-            <div>
-              <label class="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">Employee</label>
-              <select id="dash-employee-select" onchange="onFilterChange()" class="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer">
-                <option value="All">All Team Members</option>
-                <!-- Populated dynamically -->
-              </select>
-            </div>
-
-            <!-- From Date -->
-            <div>
-              <label class="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">From Date</label>
-              <input type="date" id="dash-start-date" onchange="onCustomDateChange()" class="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-indigo-500" />
-            </div>
-
-            <!-- To Date -->
-            <div>
-              <label class="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">To Date</label>
-              <input type="date" id="dash-end-date" onchange="onCustomDateChange()" class="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-indigo-500" />
-            </div>
-
-            <!-- Refresh & Reset Button -->
-            <div class="flex items-end space-x-1.5">
-              <button onclick="resetAllDashboardFilters()" class="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs py-1.5 px-2 rounded-lg border border-slate-700 transition-colors cursor-pointer text-center">
-                Reset
-              </button>
-              <button onclick="renderDashboardData(); if(window.innerWidth < 1024) toggleDashboardMobileFilters();" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs py-1.5 px-3 rounded-lg border border-indigo-500 transition-colors flex items-center justify-center space-x-1 cursor-pointer">
-                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
-                <span>Apply</span>
-              </button>
-            </div>
-
-          </div>
-
-        </div>
-
-        <!-- Active Filter Bar Summary -->
-        <div id="active-filter-summary" class="text-[10px] sm:text-[11px] text-indigo-300 font-medium flex items-center justify-between border-t border-slate-800/80 pt-1.5">
-          <span class="truncate pr-2">Active: <strong class="text-white font-bold" id="summary-filter-text">FY 2026-27 &bull; Full Year</strong></span>
-          <span id="comparison-benchmark-label" class="text-slate-400 text-[10px] hidden sm:inline flex-shrink-0">vs Previous Period</span>
-        </div>
-
-      </div>
-    </div>
-
-    <!-- MAIN DASHBOARD CONTENT -->
-    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-8">
-
-      <!-- KPI SCORECARDS WITH TREND COMPARISON -->
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5" id="kpi-scorecards-grid">
-        <!-- Rendered dynamically -->
-      </div>
-
-      <!-- CHARTS SECTION: TIMELINE TRAJECTORY & VERTICAL CONTRIBUTION -->
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
-        <!-- Chart 1: Revenue Performance Timeline & Trajectory (2 Cols) -->
-        <div class="lg:col-span-2 bg-white p-6 rounded-2xl shadow-xs border border-slate-200 space-y-4">
-          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-slate-100 pb-4">
-            <div>
-              <h2 class="text-base font-bold text-slate-900 flex items-center space-x-2">
-                <svg class="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
-                <span>Revenue Performance Trajectory & Monthly Trend</span>
-              </h2>
-              <p class="text-xs text-slate-500">Month-by-month revenue booked vs projected target trajectory</p>
-            </div>
-            <div id="timeline-stat-badge" class="px-3 py-1 bg-indigo-50 text-indigo-700 rounded-xl text-xs font-bold border border-indigo-100 self-start sm:self-auto">
-              <!-- Dynamically populated -->
-            </div>
-          </div>
-          <div class="relative h-72 w-full">
-            <canvas id="timelineChart"></canvas>
-          </div>
-        </div>
-
-        <!-- Chart 2: Vertical Revenue Share (1 Col) -->
-        <div class="bg-white p-6 rounded-2xl shadow-xs border border-slate-200 space-y-4 flex flex-col justify-between">
-          <div class="border-b border-slate-100 pb-4">
-            <h2 class="text-base font-bold text-slate-900 flex items-center space-x-2">
-              <svg class="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z"/></svg>
-              <span>Vertical Contribution Share</span>
-            </h2>
-            <p class="text-xs text-slate-500">Equipment Sales vs Service vs Steel Projects</p>
-          </div>
-          <div class="relative h-60 w-full flex items-center justify-center">
-            <canvas id="verticalDonutChart"></canvas>
-          </div>
-          <div id="vertical-share-legend" class="grid grid-cols-3 gap-2 text-center text-[11px] pt-2 border-t border-slate-100">
-            <!-- Populated dynamically -->
-          </div>
-        </div>
-
-      </div>
-
-      <!-- CHARTS SECTION: PIPELINE STAGE FUNNEL & CONVERSION ANALYTICS -->
-      <div class="space-y-6">
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          
-          <!-- Widget 1: Live Sales Pipeline -->
-          <div class="bg-white p-6 rounded-2xl shadow-xs border border-slate-200 space-y-4">
-            <div class="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-3 gap-2">
-              <div>
-                <h2 class="text-base font-bold text-slate-900 flex items-center space-x-2">
-                  <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/></svg>
-                  <span>Live Sales Pipeline</span>
-                  
-                  <!-- Info Icon Button with Tooltip -->
-                  <div class="relative inline-block group">
-                    <button class="text-slate-400 hover:text-indigo-600 transition-colors p-0.5 focus:outline-none" title="Pipeline Info">
-                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                    </button>
-                    <div class="absolute left-0 top-full mt-2 hidden group-hover:block z-50 w-80 p-3 bg-slate-900 text-white text-xs rounded-xl shadow-2xl border border-slate-700 leading-relaxed pointer-events-none">
-                      This funnel represents the current distribution of active opportunities for the selected reporting period. It is not a conversion funnel.
-                    </div>
-                  </div>
-                </h2>
-                <p class="text-xs text-indigo-700 font-bold mt-1 bg-indigo-50 px-2.5 py-1 rounded-md inline-block border border-indigo-100/80" id="pipeline-selected-period-display">
-                  Selected Period: FY 2026-27
-                </p>
-              </div>
-              <a href="leads.html" class="text-xs font-semibold text-indigo-600 hover:underline shrink-0 self-start sm:self-auto">Manage Pipeline &rarr;</a>
-            </div>
-
-            <!-- Interactive Stage Filter Pills & Vertical Filter Row -->
-            <div class="flex flex-wrap items-center justify-between gap-2 bg-slate-50 p-2.5 rounded-xl border border-slate-200">
-              <div class="flex flex-wrap items-center gap-1.5" id="funnel-stage-pills">
-                <button onclick="selectFunnelStagePill(null)" id="pill-stage-all" class="px-2.5 py-1 rounded-lg text-xs font-bold transition-all bg-indigo-600 text-white shadow-2xs">All Stages</button>
-                <button onclick="selectFunnelStagePill(0)" id="pill-stage-0" class="px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-200 bg-white border border-slate-200">1. Enquiry</button>
-                <button onclick="selectFunnelStagePill(1)" id="pill-stage-1" class="px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-200 bg-white border border-slate-200">2. Qualified</button>
-                <button onclick="selectFunnelStagePill(2)" id="pill-stage-2" class="px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-200 bg-white border border-slate-200">3. Quoted</button>
-                <button onclick="selectFunnelStagePill(3)" id="pill-stage-3" class="px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-200 bg-white border border-slate-200">4. Negotiation</button>
-                <button onclick="selectFunnelStagePill(4)" id="pill-stage-4" class="px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-200 bg-white border border-slate-200">5. Won</button>
-              </div>
-
-              <!-- In-Funnel View Vertical Filter -->
-              <div class="flex items-center space-x-1.5 bg-white border border-slate-200 px-2.5 py-1 rounded-lg shadow-2xs shrink-0">
-                <svg class="w-3.5 h-3.5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/></svg>
-                <span class="text-[11px] font-bold text-slate-600">Vertical:</span>
-                <select id="funnel-vertical-select" onchange="onFunnelVerticalChange()" class="bg-transparent text-xs font-extrabold text-indigo-700 focus:outline-none cursor-pointer">
-                  <option value="ALL">All Verticals</option>
-                  <option value="Sales">Sales</option>
-                  <option value="Service/Parts">Service & Parts</option>
-                  <option value="Projects">Projects</option>
-                </select>
-              </div>
-            </div>
-
-            <!-- Real Funnel Container -->
-            <div id="pipelineFunnelContainer" class="relative min-h-[380px] w-full flex flex-col justify-center items-center py-2">
-              <!-- Dynamically rendered SVG + HTML Funnel -->
-            </div>
-
-            <!-- Funnel Summary Metrics Row -->
-            <div id="funnel-stats-row" class="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-3 border-t border-slate-100 text-center">
-              <!-- Dynamically populated -->
-            </div>
-
-            <!-- Interactive Stage Leads Drilldown Box -->
-            <div id="funnel-drilldown-box" class="hidden pt-3 border-t border-slate-100 transition-all duration-300">
-              <!-- Populated when user clicks a funnel stage -->
-            </div>
-          </div>
-
-          <!-- Widget 2: Sales Conversion Funnel -->
-          <div class="bg-white p-6 rounded-2xl shadow-xs border border-slate-200 space-y-4 flex flex-col justify-between">
-            <div>
-              <div class="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-3 gap-2">
-                <div>
-                  <h2 class="text-base font-bold text-slate-900 flex items-center space-x-2">
-                    <svg class="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
-                    <span>Sales Conversion Funnel</span>
-                  </h2>
-                  <p class="text-xs text-slate-500 mt-1">
-                    Stage-to-stage conversion & drop-off rates for deals created in period
-                  </p>
-                </div>
-                <span class="text-[11px] font-bold text-slate-600 bg-slate-100 px-2.5 py-1 rounded-lg shrink-0 self-start sm:self-auto border border-slate-200">
-                  Cohort Analysis
-                </span>
-              </div>
-
-              <!-- Container for Sales Conversion Funnel Widget 2 -->
-              <div id="salesConversionFunnelContainer" class="pt-2 space-y-3">
-                <!-- Dynamically populated conversion metrics & step cards -->
-              </div>
-            </div>
-          </div>
-
-        </div>
-
-        <!-- Chart 4: Team Member Contribution & Target vs Achieved -->
-        <div class="bg-white p-6 rounded-2xl shadow-xs border border-slate-200 space-y-4">
-          <div class="flex items-center justify-between border-b border-slate-100 pb-4">
-            <div>
-              <h2 class="text-base font-bold text-slate-900 flex items-center space-x-2">
-                <svg class="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
-                <span>Team Contribution Comparison</span>
-              </h2>
-              <p class="text-xs text-slate-500">Achieved weighted revenue vs target per team member</p>
-            </div>
-            <a href="my-team.html" class="text-xs font-semibold text-indigo-600 hover:underline">Team Hierarchy &rarr;</a>
-          </div>
-          <div class="relative h-64 w-full">
-            <canvas id="teamContributionChart"></canvas>
-          </div>
-        </div>
-
-      </div>
-
-      <!-- VERTICAL BREAKDOWN & PENDING FOLLOW-UPS -->
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
-        <!-- Target vs Achieved by Vertical Progress Cards -->
-        <div class="lg:col-span-2 bg-white p-6 rounded-2xl shadow-xs border border-slate-200 space-y-6">
-          <div class="flex items-center justify-between border-b border-slate-100 pb-3">
-            <div>
-              <h2 class="text-base font-bold text-slate-900">Vertical Performance Deep-Dive</h2>
-              <p class="text-xs text-slate-500">Contribution-weighted revenue vs AOP Targets</p>
-            </div>
-            <span id="vertical-runrate-tag" class="text-xs font-bold text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-lg border border-indigo-100">
-              Run Rate Active
+        <!-- Metric Card 1: Total AOP Revenue -->
+        <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-4 shadow-sm relative overflow-hidden">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-semibold uppercase text-slate-400">Total Revenue Run-Rate</span>
+            <span class="w-7 h-7 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center text-xs">
+              <i class="fa-solid fa-indian-rupee-sign"></i>
             </span>
           </div>
+          <div class="flex items-baseline gap-2">
+            <h3 class="text-2xl font-extrabold text-white" id="dashTotalRevenue">₹3.82 Cr</h3>
+            <span class="text-xs text-emerald-400 font-semibold flex items-center gap-0.5"><i class="fa-solid fa-arrow-trend-up"></i> +14.2%</span>
+          </div>
+          <p class="text-[11px] text-slate-400 mt-1">Vs ₹3.34 Cr in previous period</p>
+        </div>
 
-          <div id="vertical-progress-bars" class="space-y-6">
-            <!-- Rendered dynamically -->
+        <!-- Metric Card 2: Active Pipeline & Orders -->
+        <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-4 shadow-sm relative overflow-hidden">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-semibold uppercase text-slate-400">Active Pipeline (Quotes)</span>
+            <span class="w-7 h-7 rounded-lg bg-purple-500/10 text-purple-400 flex items-center justify-center text-xs">
+              <i class="fa-solid fa-file-invoice-dollar"></i>
+            </span>
+          </div>
+          <div class="flex items-baseline gap-2">
+            <h3 class="text-2xl font-extrabold text-white" id="dashPipelineValue">₹1.48 Cr</h3>
+            <span class="text-xs text-purple-400 font-semibold">24 Proposals</span>
+          </div>
+          <p class="text-[11px] text-slate-400 mt-1">Avg Deal Size: ₹6.16 Lakhs</p>
+        </div>
+
+        <!-- Metric Card 3: Active AMC Contracts -->
+        <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-4 shadow-sm relative overflow-hidden">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-semibold uppercase text-slate-400">AMC Contracts Under Care</span>
+            <span class="w-7 h-7 rounded-lg bg-indigo-500/10 text-indigo-400 flex items-center justify-center text-xs">
+              <i class="fa-solid fa-handshake"></i>
+            </span>
+          </div>
+          <div class="flex items-baseline gap-2">
+            <h3 class="text-2xl font-extrabold text-white" id="dashActiveAmc">48 Units</h3>
+            <span class="text-xs text-indigo-400 font-semibold">97.8% SLA</span>
+          </div>
+          <p class="text-[11px] text-slate-400 mt-1">₹42.5L Annual Recurring Revenue</p>
+        </div>
+
+        <!-- Metric Card 4: Service Desk Health -->
+        <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-4 shadow-sm relative overflow-hidden">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-semibold uppercase text-slate-400">Service Ticket Health</span>
+            <span class="w-7 h-7 rounded-lg bg-rose-500/10 text-rose-400 flex items-center justify-center text-xs">
+              <i class="fa-solid fa-headset"></i>
+            </span>
+          </div>
+          <div class="flex items-baseline gap-2">
+            <h3 class="text-2xl font-extrabold text-white" id="dashOpenTickets">6 Open</h3>
+            <span class="text-xs text-emerald-400 font-semibold">0 Critical Breaches</span>
+          </div>
+          <p class="text-[11px] text-slate-400 mt-1">Mean Time to Resolve: 3.8 Hrs</p>
+        </div>
+
+      </section>
+
+      <!-- Revenue Performance Charts & Operational Feeds -->
+      <section class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        <!-- Left: Sales vs Target Trend Chart (2 cols) -->
+        <div class="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-sm space-y-4">
+          <div class="flex items-center justify-between">
+            <div>
+              <h2 class="text-sm font-bold text-white">AOP Revenue vs Actual Achievements</h2>
+              <p class="text-xs text-slate-400">Monthly breakdown for Equipment Sales, AMC & Spare Parts</p>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="inline-flex items-center gap-1.5 text-xs text-slate-300">
+                <span class="w-3 h-3 rounded-full bg-purple-500"></span> Actuals
+              </span>
+              <span class="inline-flex items-center gap-1.5 text-xs text-slate-400 ml-2">
+                <span class="w-3 h-3 rounded-full bg-slate-600"></span> AOP Target
+              </span>
+            </div>
+          </div>
+          <div class="h-64 sm:h-72 w-full">
+            <canvas id="revenueTrendChart"></canvas>
           </div>
         </div>
 
-        <!-- Today's Pending Follow-ups -->
-        <div class="bg-white p-6 rounded-2xl shadow-xs border border-slate-200 space-y-4">
-          <div class="flex items-center justify-between border-b border-slate-100 pb-3">
-            <h2 class="text-base font-bold text-slate-900 flex items-center space-x-2">
-              <span class="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse"></span>
-              <span>Pending Action Leads</span>
-            </h2>
-            <a href="leads.html" class="text-xs font-semibold text-indigo-600 hover:underline">View All &rarr;</a>
+        <!-- Right: Module Quick Dispatch & Shortcuts (1 col) -->
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-sm space-y-4">
+          <div class="flex items-center justify-between">
+            <h2 class="text-sm font-bold text-white">Revenue Operations Hub</h2>
+            <span class="text-[10px] text-purple-300 bg-purple-950 border border-purple-800 px-2 py-0.5 rounded font-mono">31 Modules</span>
           </div>
-          <div id="pending-followups-list" class="space-y-3 max-h-80 overflow-y-auto">
-            <!-- Rendered dynamically -->
+          
+          <div class="space-y-2">
+            <a href="service-tickets.html" class="p-3 bg-slate-950 hover:bg-slate-800/80 border border-slate-800 rounded-lg flex items-center justify-between transition-all group">
+              <div class="flex items-center gap-3">
+                <div class="w-8 h-8 rounded-lg bg-rose-500/10 text-rose-400 flex items-center justify-center text-xs">
+                  <i class="fa-solid fa-ticket"></i>
+                </div>
+                <div>
+                  <h4 class="text-xs font-semibold text-white group-hover:text-purple-300">Service Desk & Dispatch</h4>
+                  <p class="text-[11px] text-slate-400">Auto-email dispatch enabled</p>
+                </div>
+              </div>
+              <i class="fa-solid fa-arrow-right text-xs text-slate-500 group-hover:text-white transition-all"></i>
+            </a>
+
+            <a href="quotations.html" class="p-3 bg-slate-950 hover:bg-slate-800/80 border border-slate-800 rounded-lg flex items-center justify-between transition-all group">
+              <div class="flex items-center gap-3">
+                <div class="w-8 h-8 rounded-lg bg-purple-500/10 text-purple-400 flex items-center justify-center text-xs">
+                  <i class="fa-solid fa-file-invoice"></i>
+                </div>
+                <div>
+                  <h4 class="text-xs font-semibold text-white group-hover:text-purple-300">Quotation Engine</h4>
+                  <p class="text-[11px] text-slate-400">Generate GST proposals</p>
+                </div>
+              </div>
+              <i class="fa-solid fa-arrow-right text-xs text-slate-500 group-hover:text-white transition-all"></i>
+            </a>
+
+            <a href="amc-contracts.html" class="p-3 bg-slate-950 hover:bg-slate-800/80 border border-slate-800 rounded-lg flex items-center justify-between transition-all group">
+              <div class="flex items-center gap-3">
+                <div class="w-8 h-8 rounded-lg bg-indigo-500/10 text-indigo-400 flex items-center justify-center text-xs">
+                  <i class="fa-solid fa-handshake"></i>
+                </div>
+                <div>
+                  <h4 class="text-xs font-semibold text-white group-hover:text-purple-300">AMC & Warranty Contracts</h4>
+                  <p class="text-[11px] text-slate-400">Renewals & PM Visits</p>
+                </div>
+              </div>
+              <i class="fa-solid fa-arrow-right text-xs text-slate-500 group-hover:text-white transition-all"></i>
+            </a>
+
+            <a href="dwm.html" class="p-3 bg-slate-950 hover:bg-slate-800/80 border border-slate-800 rounded-lg flex items-center justify-between transition-all group">
+              <div class="flex items-center gap-3">
+                <div class="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center text-xs">
+                  <i class="fa-solid fa-calendar-check"></i>
+                </div>
+                <div>
+                  <h4 class="text-xs font-semibold text-white group-hover:text-purple-300">Daily Work Management</h4>
+                  <p class="text-[11px] text-slate-400">Plan vs Actual employee logs</p>
+                </div>
+              </div>
+              <i class="fa-solid fa-arrow-right text-xs text-slate-500 group-hover:text-white transition-all"></i>
+            </a>
           </div>
         </div>
 
-      </div>
+      </section>
 
-      <!-- TEAM LEADERBOARD TABLE -->
-      <div class="bg-white rounded-2xl shadow-xs border border-slate-200 overflow-hidden">
-        <div class="p-6 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-slate-50/50">
-          <div>
-            <h2 class="text-lg font-bold text-slate-900">Team Leaderboard & Individual Contribution</h2>
-            <p class="text-xs text-slate-500">Contribution-weighted revenue against individual targets (Excluding MD)</p>
-          </div>
-          <div class="flex items-center space-x-2">
-            <input type="text" id="leaderboard-search" oninput="filterLeaderboard()" placeholder="Search team member..." class="px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs w-52 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-          </div>
+      <!-- Recent Operational Activity Table -->
+      <section class="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-sm space-y-4">
+        <div class="flex items-center justify-between">
+          <h2 class="text-sm font-bold text-white flex items-center gap-2">
+            <i class="fa-solid fa-bolt text-yellow-400"></i>
+            <span>Real-Time Transactional Activity & Logs</span>
+          </h2>
+          <a href="audit-logs.html" class="text-xs text-purple-400 hover:text-purple-300 transition-colors">View Master Audit Logs &rarr;</a>
         </div>
 
         <div class="overflow-x-auto">
-          <table class="w-full text-left border-collapse">
+          <table class="w-full text-left text-xs border-collapse">
             <thead>
-              <tr class="bg-slate-100/80 border-b border-slate-200 text-[11px] font-bold uppercase tracking-wider text-slate-600">
-                <th class="py-3 px-4">Employee</th>
-                <th class="py-3 px-4">Designation & Vertical</th>
-                <th id="th-leaderboard-target" class="py-3 px-4 text-right">Period Target</th>
-                <th class="py-3 px-4 text-right">Achieved Revenue</th>
-                <th class="py-3 px-4 text-right">% Achieved</th>
-                <th class="py-3 px-4 text-center">Status</th>
-                <th class="py-3 px-4 text-center">Action</th>
+              <tr class="border-b border-slate-800 text-slate-400 uppercase tracking-wider text-[11px]">
+                <th class="py-2.5 px-3">Reference / ID</th>
+                <th class="py-2.5 px-3">Customer / Client</th>
+                <th class="py-2.5 px-3">Module</th>
+                <th class="py-2.5 px-3">Amount / Metric</th>
+                <th class="py-2.5 px-3">Status</th>
+                <th class="py-2.5 px-3">Responsible</th>
               </tr>
             </thead>
-            <tbody id="leaderboard-tbody" class="divide-y divide-slate-100 text-xs">
-              <!-- Rendered dynamically -->
+            <tbody id="recentActivityBody" class="divide-y divide-slate-800/60 text-slate-300">
+              <tr>
+                <td class="py-3 px-3 font-mono text-purple-400 font-semibold">TK-2026-104</td>
+                <td class="py-3 px-3 font-medium text-white">Titan Industries - Hosur</td>
+                <td class="py-3 px-3"><span class="px-2 py-0.5 rounded bg-slate-800 text-slate-300">Service Ticket</span></td>
+                <td class="py-3 px-3">Loadcell Calibration</td>
+                <td class="py-3 px-3"><span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20">In Progress</span></td>
+                <td class="py-3 px-3">Priya Sharma</td>
+              </tr>
+              <tr>
+                <td class="py-3 px-3 font-mono text-purple-400 font-semibold">QT-2026-089</td>
+                <td class="py-3 px-3 font-medium text-white">Hyundai Heavy Industries</td>
+                <td class="py-3 px-3"><span class="px-2 py-0.5 rounded bg-slate-800 text-slate-300">Quotation</span></td>
+                <td class="py-3 px-3 font-semibold text-emerald-400">₹8,45,000</td>
+                <td class="py-3 px-3"><span class="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20">Under Review</span></td>
+                <td class="py-3 px-3">Rajesh V</td>
+              </tr>
+              <tr>
+                <td class="py-3 px-3 font-mono text-purple-400 font-semibold">AMC-2026-042</td>
+                <td class="py-3 px-3 font-medium text-white">Ashok Leyland Ennore</td>
+                <td class="py-3 px-3"><span class="px-2 py-0.5 rounded bg-slate-800 text-slate-300">AMC Contract</span></td>
+                <td class="py-3 px-3 font-semibold text-emerald-400">₹3,20,000/yr</td>
+                <td class="py-3 px-3"><span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Active</span></td>
+                <td class="py-3 px-3">Amit Kumar</td>
+              </tr>
             </tbody>
           </table>
         </div>
-      </div>
-
-      <!-- LIVE MULTI-USER TEAM ACTIVITY & FIRESTORE AUDIT STREAM (FEATURE 4) -->
-      <div class="bg-slate-900 text-slate-100 p-6 rounded-2xl shadow-xl border border-slate-800 space-y-4">
-        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-800 pb-4">
-          <div class="flex items-center space-x-3">
-            <div class="w-10 h-10 rounded-xl bg-fuchsia-600/30 text-fuchsia-400 border border-fuchsia-500/40 font-bold flex items-center justify-center text-lg">
-              ⚡
-            </div>
-            <div>
-              <h2 class="text-base font-bold text-white flex items-center gap-2">
-                <span>Live Multi-User Activity & Audit Stream</span>
-                <span class="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-extrabold border border-emerald-500/30 flex items-center space-x-1">
-                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
-                  <span>200 Users Live</span>
-                </span>
-              </h2>
-              <p class="text-xs text-slate-400">Real-time team logs, DWM task completions, sales orders, and AR payment updates</p>
-            </div>
-          </div>
-          
-          <div class="flex items-center space-x-2">
-            <select id="activity-type-filter" onchange="renderLiveActivityStream()" class="bg-slate-800 text-slate-200 border border-slate-700 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-fuchsia-500 cursor-pointer">
-              <option value="All">All Module Actions</option>
-              <option value="DWM">DWM Work Logs</option>
-              <option value="Orders">Sales Orders</option>
-              <option value="Payments">AR Payments</option>
-              <option value="Attendance">Attendance Logs</option>
-            </select>
-            <button onclick="renderLiveActivityStream()" class="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg border border-slate-700 transition-colors cursor-pointer" title="Refresh Live Stream">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
-            </button>
-          </div>
-        </div>
-
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4" id="live-activity-stream-list">
-          <!-- Populated dynamically via JS -->
-        </div>
-      </div>
+      </section>
 
     </main>
 
-    
-  
-    <script src="js/dashboard.js"></script>
+  </div>
+
+  <!-- Standard App Initializers -->
+  <script src="js/firebase-init.js"></script>
+  <script src="js/store.js"></script>
+  <script src="js/seed-data.js"></script>
+  <script src="js/email-service.js"></script>
+  <script src="auth-guard.js"></script>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      // Initialize seed data store
+      if (typeof initStore === 'function') {
+        initStore();
+      }
+
+      // Render chart
+      const ctx = document.getElementById('revenueTrendChart');
+      if (ctx) {
+        new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels: ['Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep (Est)'],
+            datasets: [
+              {
+                label: 'Actual Revenue (₹ Lakhs)',
+                data: [52, 68, 74, 85, 91, 95],
+                backgroundColor: '#9333ea',
+                borderRadius: 6
+              },
+              {
+                label: 'AOP Target (₹ Lakhs)',
+                data: [60, 65, 70, 80, 85, 90],
+                backgroundColor: '#334155',
+                borderRadius: 6
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { display: false }
+            },
+            scales: {
+              x: { grid: { display: false }, ticks: { color: '#94a3b8' } },
+              y: { grid: { color: '#1e293b' }, ticks: { color: '#94a3b8' } }
+            }
+          }
+        });
+      }
+    });
+  </script>
 </body>
 </html>
