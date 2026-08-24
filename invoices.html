@@ -1,407 +1,587 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>K-30_ERP - Tax Invoices & Billing</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  <link rel="stylesheet" href="src/index.css">
-</head>
-<body class="bg-slate-950 font-sans text-slate-100 min-h-screen">
-  
-  <div id="app" class="min-h-screen flex flex-col">
-    <!-- Top Navigation injected by auth-guard.js -->
+  <head>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>K-30_ERP - Commercial Invoices</title>
+    <link rel="stylesheet" href="/src/index.css">
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="js/firebase-init.js"></script>
+    <script src="js/store.js"></script>
+    <script src="js/seed-data.js"></script>
+    <script src="js/email-service.js"></script>
+    <script src="auth-guard.js"></script>
+  </head>
+  <body class="bg-slate-50 min-h-screen text-slate-800">
+    
+    <!-- Navbar Container -->
+    <div id="navbar-container"></div>
 
-    <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 space-y-6">
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
       
       <!-- Header -->
-      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div class="flex items-center gap-3.5">
-          <div class="w-12 h-12 rounded-xl bg-emerald-900/40 border border-emerald-500/30 flex items-center justify-center text-emerald-400 font-bold text-xl" style="width: 48px; height: 48px; min-width: 48px;">
-            <i class="fa-solid fa-file-invoice-dollar"></i>
+      <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-white p-6 rounded-2xl shadow-xs border border-slate-200">
+        <div>
+          <div class="flex items-center space-x-2">
+            <h1 class="text-2xl font-bold text-slate-900 tracking-tight">Commercial Invoices & Billing Operations</h1>
+            <span class="px-2.5 py-0.5 rounded-full text-[11px] font-extrabold uppercase bg-indigo-50 text-indigo-700 border border-indigo-200">GST Compliance</span>
+            <span class="px-2.5 py-0.5 rounded-full text-[11px] font-extrabold uppercase bg-emerald-50 text-emerald-700 border border-emerald-200">Finance & Accounts</span>
           </div>
-          <div>
-            <div class="flex items-center gap-2">
-              <h1 class="text-lg sm:text-xl font-bold text-white tracking-tight">GST Tax Invoices & Billing Engine</h1>
-              <span class="text-[10px] uppercase font-mono px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-800">Commercial Billing</span>
-            </div>
-            <p class="text-xs text-slate-400">Generate GST 18% Invoices, link approved quotations & dispatch receipts via Brevo</p>
-          </div>
+          <p class="text-sm text-slate-500 mt-1">Tax & Proforma Invoices, Auto-PO Import, Senior Approval Gate, Client Dispatch & AR Settlement Linkage</p>
         </div>
 
-        <div class="flex items-center gap-3">
-          <button id="btnCreateInvoice" onclick="window.openCreateInvoiceModal()" class="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-emerald-600/30 transition-all flex items-center gap-2">
-            <i class="fa-solid fa-plus"></i>
-            <span>+ Raise New Tax Invoice</span>
+        <div class="flex items-center space-x-3">
+          <a href="payments.html" class="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-colors flex items-center space-x-1.5">
+            <span>💳 Payment Collections & Receipts</span>
+          </a>
+          <button id="btn-raise-invoice" onclick="openInvoiceModal()" class="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center space-x-1.5 cursor-pointer">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+            <span>+ Raise New Invoice</span>
           </button>
         </div>
       </div>
 
-      <!-- Quick KPI Stats -->
-      <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-sm">
-          <span class="text-xs font-semibold uppercase text-slate-400">Total Invoiced</span>
-          <h3 class="text-2xl font-extrabold text-white mt-1" id="statTotalInvAmount">₹28.45 Lakhs</h3>
-          <p class="text-[11px] text-slate-400 mt-1">12 Invoices Billed</p>
-        </div>
-        <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-sm">
-          <span class="text-xs font-semibold uppercase text-slate-400">Collections Received</span>
-          <h3 class="text-2xl font-extrabold text-emerald-400 mt-1" id="statPaidAmount">₹22.10 Lakhs</h3>
-          <p class="text-[11px] text-slate-400 mt-1">NEFT / RTGS Reconciled</p>
-        </div>
-        <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-sm">
-          <span class="text-xs font-semibold uppercase text-slate-400">Outstanding Receivables</span>
-          <h3 class="text-2xl font-extrabold text-amber-400 mt-1" id="statPendingAmount">₹6.35 Lakhs</h3>
-          <p class="text-[11px] text-slate-400 mt-1">Due within 30-60 days</p>
-        </div>
-        <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-sm">
-          <span class="text-xs font-semibold uppercase text-slate-400">GST Collected (18%)</span>
-          <h3 class="text-2xl font-extrabold text-purple-400 mt-1" id="statGstAmount">₹4.34 Lakhs</h3>
-          <p class="text-[11px] text-slate-400 mt-1">Ready for GSTR-1 filing</p>
-        </div>
-      </section>
-
-      <!-- Invoices Table View -->
-      <section class="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-sm space-y-4">
-        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-          <div class="relative flex-1 max-w-md w-full">
-            <i class="fa-solid fa-search absolute left-3 top-3 text-slate-500 text-xs"></i>
-            <input type="text" id="invoiceSearchInput" onkeyup="window.filterInvoicesTable()" placeholder="Search invoices by number, client, or GSTIN..." class="w-full bg-slate-950 border border-slate-800 rounded-lg pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500">
+      <!-- Finance Department Exclusive Access Notice (Shown to Sales/Staff users) -->
+      <div id="finance-role-notice" class="hidden bg-linear-to-r from-blue-500/10 via-blue-50 to-indigo-500/10 border-2 border-indigo-300 rounded-2xl p-5 shadow-xs flex items-center justify-between gap-4">
+        <div class="flex items-center space-x-3.5">
+          <div class="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-black text-lg shadow-xs shrink-0">
+            🔒
           </div>
-          <div class="flex items-center gap-2">
-            <select id="invoiceStatusFilter" onchange="window.filterInvoicesTable()" class="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-300 focus:outline-none focus:border-emerald-500">
-              <option value="ALL">All Payment Statuses</option>
-              <option value="Paid">Paid</option>
-              <option value="Partial">Partially Paid</option>
-              <option value="Unpaid">Unpaid / Due</option>
-            </select>
+          <div>
+            <h3 class="text-xs font-black text-indigo-950 uppercase tracking-wide">Commercial Invoicing Governance: Accounts & Finance Department Only</h3>
+            <p class="text-xs text-indigo-900 mt-0.5">Commercial & GST Tax Invoices are raised strictly by the Finance Department. Sales executives should ensure all Lead details, Quotation lines, and Client Purchase Orders are up-to-date.</p>
           </div>
         </div>
+        <span class="px-3 py-1 bg-indigo-100 text-indigo-800 rounded-lg text-xs font-bold shrink-0">Read Only View</span>
+      </div>
 
+      <!-- Senior Approval Action Banner (Shown when pending approvals exist for Admins) -->
+      <div id="senior-approval-alert" class="hidden bg-linear-to-r from-amber-500/10 via-amber-50 to-amber-500/10 border-2 border-amber-400/80 rounded-2xl p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div class="flex items-center space-x-4">
+          <div class="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center font-black text-xl shadow-xs shrink-0">
+            ⚠️
+          </div>
+          <div>
+            <h3 class="text-sm font-black text-amber-950 uppercase tracking-wide flex items-center gap-2">
+              <span>Senior Invoicing Authorization Required</span>
+              <span id="pending-approval-count" class="px-2 py-0.5 bg-amber-600 text-white rounded-full text-[11px] font-black">0</span>
+            </h3>
+            <p class="text-xs text-amber-900 mt-0.5">Commercial invoices raised by team members awaiting mandatory Senior / Director sign-off before client dispatch.</p>
+          </div>
+        </div>
+        <button onclick="filterByTab('Pending Senior Approval')" class="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl shadow-xs transition-colors shrink-0 cursor-pointer">
+          Review Pending Invoices &rarr;
+        </button>
+      </div>
+
+      <!-- 4 Financial Summary KPI Cards -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+        <div class="bg-white p-5 rounded-2xl shadow-xs border border-slate-200 space-y-1">
+          <span class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Total Invoiced (Billed)</span>
+          <div class="text-2xl font-black text-slate-900" id="stat-total-invoiced">Rs.0</div>
+          <p class="text-[11px] text-slate-400">Taxable + GST Across Registry</p>
+        </div>
+
+        <div class="bg-white p-5 rounded-2xl shadow-xs border border-slate-200 space-y-1">
+          <span class="text-[11px] font-bold uppercase tracking-wider text-emerald-600">Total Realized Cash (Paid)</span>
+          <div class="text-2xl font-black text-emerald-600" id="stat-total-collected">Rs.0</div>
+          <p class="text-[11px] text-slate-400">Cleared Cash + TDS Deducted</p>
+        </div>
+
+        <div class="bg-white p-5 rounded-2xl shadow-xs border border-slate-200 space-y-1">
+          <span class="text-[11px] font-bold uppercase tracking-wider text-amber-600">Outstanding Receivables (AR)</span>
+          <div class="text-2xl font-black text-amber-600" id="stat-total-outstanding">Rs.0</div>
+          <p class="text-[11px] text-slate-400">Pending Customer Settlement</p>
+        </div>
+
+        <div class="bg-white p-5 rounded-2xl shadow-xs border border-slate-200 space-y-1">
+          <span class="text-[11px] font-bold uppercase tracking-wider text-rose-600">Overdue Invoices (>30 Days)</span>
+          <div class="text-2xl font-black text-rose-600" id="stat-total-overdue">Rs.0</div>
+          <p class="text-[11px] text-slate-400" id="stat-overdue-count">0 Invoices Passed Due Date</p>
+        </div>
+      </div>
+
+      <!-- Invoices Workbench Container -->
+      <div class="bg-white rounded-2xl shadow-xs border border-slate-200 overflow-hidden space-y-4">
+        
+        <!-- Controls & Tabs Bar -->
+        <div class="p-6 border-b border-slate-200 space-y-4">
+          <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+            
+            <!-- Filter Tabs -->
+            <div class="flex items-center space-x-1.5 overflow-x-auto pb-1 text-xs" id="invoice-tabs">
+              <button onclick="filterByTab('All')" class="tab-btn px-3.5 py-1.5 font-bold rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-200" data-tab="All">All Invoices (<span id="count-tab-all">0</span>)</button>
+              <button onclick="filterByTab('Proforma Invoice')" class="tab-btn px-3.5 py-1.5 font-bold rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200" data-tab="Proforma Invoice">Proforma Invoices (<span id="count-tab-proforma">0</span>)</button>
+              <button onclick="filterByTab('Pending Senior Approval')" class="tab-btn px-3.5 py-1.5 font-bold rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200" data-tab="Pending Senior Approval">Pending Approval (<span id="count-tab-pending">0</span>)</button>
+              <button onclick="filterByTab('Approved')" class="tab-btn px-3.5 py-1.5 font-bold rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200" data-tab="Approved">Approved / Issued (<span id="count-tab-approved">0</span>)</button>
+              <button onclick="filterByTab('Partially Paid')" class="tab-btn px-3.5 py-1.5 font-bold rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200" data-tab="Partially Paid">Partially Paid (<span id="count-tab-partial">0</span>)</button>
+              <button onclick="filterByTab('Fully Paid')" class="tab-btn px-3.5 py-1.5 font-bold rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200" data-tab="Fully Paid">Fully Settled (<span id="count-tab-paid">0</span>)</button>
+              <button onclick="filterByTab('Overdue')" class="tab-btn px-3.5 py-1.5 font-bold rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200" data-tab="Overdue">Overdue (<span id="count-tab-overdue">0</span>)</button>
+            </div>
+
+            <!-- Filters -->
+            <div class="flex flex-wrap items-center gap-3">
+              <select id="invoice-fy-filter" onchange="renderInvoicesTable()" class="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                <option value="2026-27" selected>FY 2026-27</option>
+                <option value="2025-26">FY 2025-26</option>
+                <option value="2024-25">FY 2024-25</option>
+                <option value="All">All FYs</option>
+              </select>
+
+              <select id="invoice-type-filter" onchange="renderInvoicesTable()" class="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                <option value="All">All Types</option>
+                <option value="Tax Invoice">Tax Invoice</option>
+                <option value="Proforma Invoice">Proforma Invoice</option>
+              </select>
+
+              <div id="invoice-emp-filter-wrapper" class="hidden">
+                <select id="invoice-emp-filter" onchange="renderInvoicesTable()" class="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                  <option value="All">All Sales Representatives</option>
+                </select>
+              </div>
+
+              <input type="text" id="invoice-search-input" oninput="renderInvoicesTable()" placeholder="Search invoice #, client, GSTIN, PO ref..." class="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs w-60 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            </div>
+          </div>
+        </div>
+
+        <!-- Invoices Table -->
         <div class="overflow-x-auto">
-          <table class="w-full text-left text-xs border-collapse">
+          <table class="w-full text-left border-collapse">
             <thead>
-              <tr class="border-b border-slate-800 text-slate-400 uppercase tracking-wider text-[11px]">
-                <th class="py-3 px-3">Invoice #</th>
-                <th class="py-3 px-3">Customer / Enterprise</th>
-                <th class="py-3 px-3">Date</th>
-                <th class="py-3 px-3">Total Amount (GST)</th>
-                <th class="py-3 px-3">Paid Amount</th>
-                <th class="py-3 px-3">Status</th>
-                <th class="py-3 px-3 text-right">Actions</th>
+              <tr class="bg-slate-50 border-b border-slate-200 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                <th class="py-3 px-4">Invoice # & Type</th>
+                <th class="py-3 px-4">Client & Project</th>
+                <th class="py-3 px-4 text-right">Invoice Value</th>
+                <th class="py-3 px-4 text-right">Paid / TDS</th>
+                <th class="py-3 px-4 text-right">Balance Due</th>
+                <th class="py-3 px-4 text-center">Due Date</th>
+                <th class="py-3 px-4 text-center">Status</th>
+                <th class="py-3 px-4 text-center">Senior Approval</th>
+                <th class="py-3 px-4 text-center">Actions</th>
               </tr>
             </thead>
-            <tbody id="invoicesTableBody" class="divide-y divide-slate-800/60 text-slate-300">
-              <!-- Rendered dynamically -->
+            <tbody id="invoices-tbody" class="divide-y divide-slate-100 text-xs">
+              <!-- Populated dynamically -->
             </tbody>
           </table>
         </div>
-      </section>
+
+      </div>
 
     </main>
 
-    <!-- Create / Raise Tax Invoice Modal -->
-    <div id="invoiceModal" class="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 hidden">
-      <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-3xl max-h-[92vh] flex flex-col overflow-hidden shadow-2xl">
-        
-        <div class="px-6 py-4 bg-slate-850 border-b border-slate-800 flex items-center justify-between">
-          <div class="flex items-center gap-2.5">
-            <div class="w-8 h-8 rounded-lg bg-emerald-600/20 border border-emerald-500/40 text-emerald-400 flex items-center justify-center text-sm">
-              <i class="fa-solid fa-file-invoice-dollar"></i>
-            </div>
-            <div>
-              <h3 class="text-base font-bold text-white">Raise New GST Tax Invoice</h3>
-              <p class="text-xs text-slate-400">Link an approved quotation or generate a direct commercial invoice</p>
-            </div>
+    <!-- MODAL 1: Create / Edit Invoice (with Quote/Order Auto-populate) -->
+    <div id="invoice-modal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+      <div class="bg-white w-full max-w-4xl rounded-2xl shadow-2xl border border-slate-100 overflow-hidden max-h-[92vh] flex flex-col">
+        <div class="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between shrink-0">
+          <div class="flex items-center space-x-2">
+            <h3 class="text-base font-bold text-slate-900" id="invoice-modal-title">Raise Commercial Invoice</h3>
+            <span id="inv-modal-badge" class="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-indigo-100 text-indigo-800">GST Tax Invoice</span>
           </div>
-          <button onclick="window.closeInvoiceModal()" class="text-slate-400 hover:text-white p-1">
-            <i class="fa-solid fa-xmark text-lg"></i>
-          </button>
+          <button onclick="closeInvoiceModal()" class="text-slate-400 hover:text-slate-600 text-lg font-bold cursor-pointer">&times;</button>
         </div>
 
-        <div class="flex-1 overflow-y-auto p-6 space-y-4">
-          <form id="invoiceForm" onsubmit="window.saveInvoice(event)" class="space-y-4">
-            
-            <!-- Link Approved Quotation -->
-            <div class="bg-emerald-950/20 border border-emerald-900/50 rounded-xl p-3.5">
-              <label class="block text-xs font-bold text-emerald-300 mb-1 flex items-center gap-1.5">
-                <i class="fa-solid fa-link"></i>
-                <span>Link Approved Quotation (Auto-Populate Items)</span>
-              </label>
-              <select id="invQuoteSelect" onchange="window.onQuoteSelectChanged()" class="w-full bg-slate-950 border border-emerald-800/50 rounded-lg px-3 py-2 text-xs text-white focus:border-emerald-500 focus:outline-none">
-                <option value="">-- Choose Approved Quotation (Optional) --</option>
+        <form onsubmit="handleSaveInvoice(event)" class="p-6 space-y-5 overflow-y-auto">
+          <input type="hidden" id="inv-doc-id" />
+
+          <!-- Source Selector Banner: Raise from Approved Quotation or Sales Order -->
+          <div class="p-4 bg-indigo-50/80 border border-indigo-200 rounded-xl space-y-2.5">
+            <div class="flex items-center justify-between">
+              <span class="text-[11px] font-black uppercase tracking-wider text-indigo-900 flex items-center gap-1.5">
+                <span>⚡ Auto-Populate Commercial Invoice from PO or Quote</span>
+              </span>
+              <span class="text-[10px] text-indigo-700 font-semibold" id="pending-po-count-label">Showing pending un-invoiced POs</span>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Select Commercial Purchase Order (Un-Invoiced Only)</label>
+                <select id="inp-inv-order-source" onchange="autoPopulateFromOrder(this.value)" class="w-full px-2.5 py-1.5 bg-white border border-indigo-300 rounded-lg text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-xs">
+                  <option value="">-- Select Pending Purchase Order --</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Or Select Approved Quotation</label>
+                <select id="inp-inv-quote-source" onchange="autoPopulateFromQuote(this.value)" class="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-indigo-500">
+                  <option value="">-- Custom Invoice (No Quote) --</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Basic Invoice Details -->
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Invoice Number *</label>
+              <input type="text" id="inp-inv-number" required placeholder="e.g. INV/2026-27/001" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Invoice Type *</label>
+              <select id="inp-inv-type" onchange="updateInvoiceTypeUI()" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                <option value="Tax Invoice">Tax Invoice (Final Commercial)</option>
+                <option value="Proforma Invoice">Proforma Invoice (PI - Advance)</option>
               </select>
             </div>
 
-            <!-- Customer Details -->
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Vertical *</label>
+              <select id="inp-inv-vertical" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                <option value="Sales">Sales (Equipment/Products)</option>
+                <option value="Projects">Projects (Turnkey / Automation)</option>
+                <option value="Service/Parts">Service & Spares</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Customer & Contact Info -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Customer / Client Name *</label>
+              <input type="text" id="inp-inv-customer" required placeholder="e.g. JSW Steel Limited" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Customer GSTIN</label>
+              <input type="text" id="inp-inv-gstin" placeholder="e.g. 19AAACJ1011A1Z2" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono uppercase focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Client Email (For Dispatch) *</label>
+              <input type="email" id="inp-inv-email" required placeholder="procurement@client.com" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Contact Person & Phone</label>
+              <input type="text" id="inp-inv-contact" placeholder="Mr. Rajesh / +91 98401..." class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Customer PO Ref & Date</label>
+              <input type="text" id="inp-inv-poref" placeholder="PO-8812 dt. 10/08/2026" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            </div>
+          </div>
+
+          <!-- Dates & Milestone -->
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Invoice Date *</label>
+              <input type="text" id="inp-inv-date" required placeholder="DD/MM/YYYY" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Payment Due Date *</label>
+              <input type="text" id="inp-inv-duedate" required placeholder="DD/MM/YYYY" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Milestone Tagging</label>
+              <input type="text" id="inp-inv-milestone" placeholder="e.g. 30% Advance with PO / Final 20%" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            </div>
+          </div>
+
+          <!-- Performance Guarantee (PG) & Retention Terms Card -->
+          <div class="p-4 bg-amber-50/70 border border-amber-200 rounded-xl space-y-3">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-bold uppercase tracking-wide text-amber-900 flex items-center gap-1.5">
+                <i class="fa-solid fa-shield-halved text-amber-600"></i>
+                <span>Performance Guarantee (PG / BG) & Retention Clauses</span>
+              </span>
+              <span class="text-[10px] text-amber-800 font-semibold">Statutory Contract Safeguards</span>
+            </div>
+
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label class="block text-xs font-semibold text-slate-300 mb-1">Customer / Enterprise Name *</label>
-                <input type="text" id="invCustomerName" required placeholder="e.g. Titan Industries Ltd" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:border-emerald-500 focus:outline-none">
+              <!-- PG / BG -->
+              <div class="space-y-2 bg-white/80 p-3 rounded-lg border border-amber-200/80">
+                <div class="flex items-center justify-between">
+                  <label class="text-[11px] font-bold text-slate-800">Bank Guarantee (BG) Required?</label>
+                  <select id="inp-inv-bgreq" onchange="toggleInvoiceBgFields()" class="px-2 py-1 bg-slate-50 border border-slate-300 rounded text-xs font-bold">
+                    <option value="No">No</option>
+                    <option value="Yes">Yes (PG Required)</option>
+                  </select>
+                </div>
+                <div id="inv-bg-fields" class="hidden space-y-2 pt-1 border-t border-amber-100">
+                  <div>
+                    <label class="block text-[10px] font-bold text-slate-600 uppercase mb-0.5">PG / BG Amount (₹)</label>
+                    <input type="number" id="inp-inv-bgamt" placeholder="e.g. 150000" class="w-full px-2.5 py-1 bg-white border border-slate-200 rounded text-xs font-mono" />
+                  </div>
+                  <div>
+                    <label class="block text-[10px] font-bold text-slate-600 uppercase mb-0.5">BG Expiry / Validity Date</label>
+                    <input type="text" id="inp-inv-bgdate" placeholder="DD/MM/YYYY" class="w-full px-2.5 py-1 bg-white border border-slate-200 rounded text-xs font-mono" />
+                  </div>
+                </div>
               </div>
-              <div>
-                <label class="block text-xs font-semibold text-slate-300 mb-1">Customer Email (For Billing Dispatch) *</label>
-                <input type="email" id="invCustomerEmail" required placeholder="e.g. accounts@titan.co.in" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:border-emerald-500 focus:outline-none">
+
+              <!-- Retention -->
+              <div class="space-y-2 bg-white/80 p-3 rounded-lg border border-amber-200/80">
+                <div class="flex items-center justify-between">
+                  <label class="text-[11px] font-bold text-slate-800">Retention Clause Applicable?</label>
+                  <select id="inp-inv-retreq" onchange="toggleInvoiceRetFields()" class="px-2 py-1 bg-slate-50 border border-slate-300 rounded text-xs font-bold">
+                    <option value="No">No</option>
+                    <option value="Yes">Yes (Retention)</option>
+                  </select>
+                </div>
+                <div id="inv-ret-fields" class="hidden space-y-2 pt-1 border-t border-amber-100">
+                  <div>
+                    <label class="block text-[10px] font-bold text-slate-600 uppercase mb-0.5">Retention Amount (₹)</label>
+                    <input type="number" id="inp-inv-retamt" placeholder="e.g. 100000" class="w-full px-2.5 py-1 bg-white border border-slate-200 rounded text-xs font-mono" />
+                  </div>
+                  <div>
+                    <label class="block text-[10px] font-bold text-slate-600 uppercase mb-0.5">Retention Release Condition / Period</label>
+                    <input type="text" id="inp-inv-retperiod" placeholder="e.g. Upon completion of 12 months warranty" class="w-full px-2.5 py-1 bg-white border border-slate-200 rounded text-xs" />
+                  </div>
+                </div>
               </div>
             </div>
+          </div>
 
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div>
-                <label class="block text-xs font-semibold text-slate-300 mb-1">Customer GSTIN</label>
-                <input type="text" id="invGstin" placeholder="33AAAAA0000A1Z5" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:border-emerald-500 focus:outline-none">
-              </div>
-              <div>
-                <label class="block text-xs font-semibold text-slate-300 mb-1">PO / Work Order Ref</label>
-                <input type="text" id="invPoRef" placeholder="e.g. PO/2026/092" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:border-emerald-500 focus:outline-none">
-              </div>
-              <div>
-                <label class="block text-xs font-semibold text-slate-300 mb-1">Payment Terms</label>
-                <input type="text" id="invPaymentTerms" value="30 Days Net" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:border-emerald-500 focus:outline-none">
-              </div>
+          <!-- Line Items Table -->
+          <div class="space-y-2">
+            <div class="flex items-center justify-between">
+              <label class="text-xs font-bold text-slate-700 uppercase tracking-wider">Itemized Breakdown & HSN Codes</label>
+              <button type="button" onclick="addInvoiceLineItem()" class="text-xs font-bold text-indigo-600 hover:text-indigo-800 cursor-pointer">+ Add Line Item</button>
             </div>
 
-            <!-- Line Items Area -->
-            <div class="border border-slate-800 rounded-xl p-4 bg-slate-950 space-y-3">
-              <div class="flex items-center justify-between">
-                <span class="text-xs font-bold uppercase text-slate-300">Invoice Items / Bill of Quantities</span>
-                <button type="button" onclick="window.addInvoiceItemRow()" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-emerald-300 rounded text-xs font-semibold flex items-center gap-1">
-                  <i class="fa-solid fa-plus text-[10px]"></i> Add Item
-                </button>
-              </div>
+            <div class="border border-slate-200 rounded-xl overflow-x-auto bg-slate-50/50">
+              <table class="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr class="bg-slate-100 border-b border-slate-200 text-[10px] font-bold uppercase text-slate-600">
+                    <th class="p-2">Description</th>
+                    <th class="p-2 w-24">HSN/SAC</th>
+                    <th class="p-2 w-16 text-right">Qty</th>
+                    <th class="p-2 w-28 text-right">Unit Rate (Rs.)</th>
+                    <th class="p-2 w-20 text-right">Disc %</th>
+                    <th class="p-2 w-20 text-right">GST %</th>
+                    <th class="p-2 w-28 text-right">Taxable</th>
+                    <th class="p-2 w-28 text-right">Total</th>
+                    <th class="p-2 w-8"></th>
+                  </tr>
+                </thead>
+                <tbody id="invoice-items-tbody" class="divide-y divide-slate-200">
+                  <!-- Line item rows dynamically rendered -->
+                </tbody>
+              </table>
+            </div>
+          </div>
 
-              <div id="invoiceItemsContainer" class="space-y-2">
-                <!-- Rows injected dynamically -->
-              </div>
+          <!-- Taxes and Totals Calculation -->
+          <div class="p-4 bg-slate-50 border border-slate-200 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div class="flex items-center space-x-4">
+              <label class="flex items-center space-x-2 text-xs font-bold text-slate-700 cursor-pointer">
+                <input type="checkbox" id="inp-inv-interstate" onchange="calculateInvoiceTotals()" class="rounded text-indigo-600 focus:ring-indigo-500">
+                <span>Inter-State Supply (IGST instead of CGST+SGST)</span>
+              </label>
             </div>
 
-            <!-- Totals Calculation -->
-            <div class="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-1 text-right text-xs">
-              <div class="flex justify-between text-slate-400">
+            <div class="space-y-1 text-xs text-right sm:min-w-64">
+              <div class="flex justify-between text-slate-600">
                 <span>Taxable Subtotal:</span>
-                <span id="lblInvSubtotal">₹0</span>
+                <span class="font-bold text-slate-900" id="calc-taxable-val">Rs.0</span>
               </div>
-              <div class="flex justify-between text-slate-400">
-                <span>GST (18%):</span>
-                <span id="lblInvTax">₹0</span>
+              <div class="flex justify-between text-slate-600">
+                <span id="label-tax-breakdown">GST (CGST 9% + SGST 9%):</span>
+                <span class="font-bold text-indigo-600" id="calc-tax-val">Rs.0</span>
               </div>
-              <div class="flex justify-between text-base font-extrabold text-emerald-400 pt-2 border-t border-slate-800">
-                <span>Total Invoice Amount:</span>
-                <span id="lblInvGrandTotal">₹0</span>
+              <div class="flex justify-between text-sm font-black text-slate-900 border-t border-slate-200 pt-1.5">
+                <span>Grand Total (Payable):</span>
+                <span class="text-indigo-600" id="calc-grand-total">Rs.0</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Payment Terms and Bank Selection -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <div class="flex items-center justify-between mb-1">
+                <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider">Company Bank Account (Bank Master)</label>
+                <a href="master-data.html" target="_blank" class="text-[10px] font-bold text-indigo-600 hover:underline">Manage Banks &rarr;</a>
+              </div>
+              <select id="inp-inv-bank" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                <!-- Dynamically populated from bankDetailsMaster -->
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Payment & Commercial Terms</label>
+              <input type="text" id="inp-inv-terms" value="Payment within 30 days of invoice date. 18% p.a. interest applicable on delayed payments." class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            </div>
+          </div>
+
+          <!-- Commercial Document Attachments & Client PO Copy Manager (Max 10 files, 100 MB Limit) -->
+          <div class="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+            <div class="flex items-center justify-between">
+              <div>
+                <span class="text-xs font-bold uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
+                  <i class="fa-solid fa-paperclip text-indigo-600"></i>
+                  <span>Commercial Attachments & PO Copy</span>
+                </span>
+                <p class="text-[10px] text-slate-500">Attach Client PO scan, Delivery Challan, Quality Reports (Max 10 files, 100 MB aggregate)</p>
+              </div>
+              <div class="text-[11px] font-mono font-bold text-slate-600" id="inv-attachments-count-badge">
+                0 / 10 Files (0 MB)
               </div>
             </div>
 
-            <!-- Action Buttons -->
-            <div class="flex items-center justify-end gap-3 pt-3">
-              <button type="button" onclick="window.closeInvoiceModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-semibold">Cancel</button>
-              <button type="submit" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold shadow-lg flex items-center gap-2">
-                <i class="fa-solid fa-paper-plane"></i> Save & Issue Invoice
-              </button>
+            <!-- Upload drop area -->
+            <div class="flex items-center gap-3">
+              <label class="px-3.5 py-2 bg-white hover:bg-slate-100 text-indigo-600 border border-indigo-300 rounded-xl text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5 shadow-xs">
+                <i class="fa-solid fa-cloud-arrow-up text-sm"></i>
+                <span>+ Upload Supporting Files</span>
+                <input type="file" id="inp-inv-file-upload" multiple onchange="handleInvoiceFileUpload(event)" accept="image/*,.pdf,.zip,.rar,.7z,.doc,.docx,.xls,.xlsx" class="hidden" />
+              </label>
+              <span class="text-[10px] text-slate-400">PDF, JPG, PNG, DOC, XLS up to 100MB</span>
             </div>
 
-          </form>
-        </div>
+            <!-- Attached Files Grid -->
+            <div id="inv-attachments-container" class="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+              <!-- Rendered dynamically -->
+            </div>
+          </div>
 
+          <!-- Modal Action Buttons -->
+          <div class="pt-4 border-t border-slate-100 flex items-center justify-end space-x-3">
+            <button type="button" onclick="closeInvoiceModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl cursor-pointer">Cancel</button>
+            <button type="submit" class="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-xs transition-colors cursor-pointer">
+              Save & Submit Invoice
+            </button>
+          </div>
+        </form>
       </div>
     </div>
 
-  </div>
+    <!-- MODAL 2: Senior Authorization & Review Modal -->
+    <div id="senior-review-modal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+      <div class="bg-white w-full max-w-xl rounded-2xl shadow-2xl border border-slate-100 overflow-hidden space-y-4 p-6">
+        <div class="flex items-center justify-between pb-3 border-b border-slate-200">
+          <div class="flex items-center space-x-2">
+            <span class="text-xl">🛡️</span>
+            <div>
+              <h3 class="text-base font-bold text-slate-900">Senior Invoicing Approval Gate</h3>
+              <p class="text-xs text-slate-500">Executive Commercial Review before Client Dispatch</p>
+            </div>
+          </div>
+          <button onclick="closeSeniorReviewModal()" class="text-slate-400 hover:text-slate-600 text-lg font-bold cursor-pointer">&times;</button>
+        </div>
 
-  <!-- Standard App Scripts -->
-  <script src="js/firebase-init.js"></script>
-  <script src="js/store.js"></script>
-  <script src="js/seed-data.js"></script>
-  <script src="js/email-service.js"></script>
-  <script src="auth-guard.js"></script>
+        <div id="senior-review-content" class="text-xs space-y-3 bg-slate-50 p-4 rounded-xl border border-slate-200">
+          <!-- Populated dynamically -->
+        </div>
 
-  <!-- Complete Invoice Engine & Quote Linker -->
-  <script>
-    let allInvoices = [];
-    let availableQuotes = [];
+        <div>
+          <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Senior Sign-off Remarks *</label>
+          <textarea id="inp-senior-remarks" rows="2" placeholder="e.g. Commercial terms, GSTIN and milestone pricing verified. Approved for issue to client." class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"></textarea>
+        </div>
 
-    window.loadApprovedQuotes = function() {
-      const select = document.getElementById('invQuoteSelect');
-      if (!select) return;
+        <div class="flex items-center justify-end space-x-3 pt-2">
+          <button onclick="executeSeniorApproval('Rejected')" class="px-4 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold rounded-xl cursor-pointer">
+            ❌ Reject Invoice
+          </button>
+          <button onclick="executeSeniorApproval('Approved')" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-xs transition-colors cursor-pointer">
+            ✅ Approve Invoice
+          </button>
+        </div>
+      </div>
+    </div>
 
-      if (window.RevOpsStore && typeof window.RevOpsStore.getItems === 'function') {
-        availableQuotes = window.RevOpsStore.getItems('quotations') || [];
-      }
-      
-      if (!availableQuotes || availableQuotes.length === 0) {
-        availableQuotes = [
-          { quoteNumber: 'QT-2026-089', customerName: 'Hyundai Heavy Industries', email: 'purchase@hyundai.co.in', items: [{ description: 'Heavy Weighbridge 80T', qty: 1, unitPrice: 845000 }], grandTotal: 845000 },
-          { quoteNumber: 'QT-2026-092', customerName: 'Tata Motors - Pune', email: 'service@tatamotors.com', items: [{ description: 'Belt Scale Automation', qty: 2, unitPrice: 320000 }], grandTotal: 640000 },
-          { quoteNumber: 'QT-2026-095', customerName: 'Titan Industries - Hosur', email: 'service@titan.co.in', items: [{ description: 'Loadcell Calibration & Batching System', qty: 1, unitPrice: 480000 }], grandTotal: 480000 }
-        ];
-      }
+    <!-- MODAL 3: Direct Email Client Dispatch Modal -->
+    <div id="send-invoice-modal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+      <div class="bg-white w-full max-w-2xl rounded-2xl shadow-2xl border border-slate-100 overflow-hidden flex flex-col">
+        <div class="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+          <div class="flex items-center space-x-2">
+            <span class="text-lg">✉️</span>
+            <div>
+              <h3 class="text-base font-bold text-slate-900">Direct Client Invoice Email Dispatch</h3>
+              <p class="text-xs text-slate-500">Official dispatch engine with PDF attachment & audit tracking</p>
+            </div>
+          </div>
+          <button onclick="closeSendInvoiceModal()" class="text-slate-400 hover:text-slate-600 text-lg font-bold cursor-pointer">&times;</button>
+        </div>
 
-      select.innerHTML = '<option value="">-- Choose Approved Quotation (Optional) --</option>';
-      availableQuotes.forEach(q => {
-        const opt = document.createElement('option');
-        opt.value = q.quoteNumber;
-        opt.innerText = `${q.quoteNumber} - ${q.customerName} (₹${Math.round(q.grandTotal).toLocaleString('en-IN')})`;
-        select.appendChild(opt);
-      });
-    };
+        <div class="p-6 space-y-4 text-xs overflow-y-auto max-h-[80vh]">
+          <input type="hidden" id="send-inv-id" />
 
-    window.onQuoteSelectChanged = function() {
-      const qNum = document.getElementById('invQuoteSelect').value;
-      if (!qNum) return;
+          <div>
+            <label class="block font-bold text-slate-700 uppercase mb-1">To (Client Email) *</label>
+            <input type="email" id="inp-send-to" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          </div>
 
-      const quote = availableQuotes.find(q => q.quoteNumber === qNum);
-      if (!quote) return;
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block font-bold text-slate-700 uppercase mb-1">CC Accounts & Finance</label>
+              <input type="text" id="inp-send-cc" value="measuredichennai@gmail.com" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            </div>
+            <div>
+              <label class="block font-bold text-slate-700 uppercase mb-1">Attached Files For Dispatch</label>
+              <div id="send-attachments-list" class="space-y-1 bg-slate-50 p-2 rounded-xl border border-slate-200">
+                <div class="px-2.5 py-1.5 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg font-bold flex items-center justify-between">
+                  <span id="send-attachment-name" class="truncate">Tax_Invoice.pdf</span>
+                  <span class="text-[10px] bg-indigo-200 text-indigo-900 px-1.5 py-0.5 rounded font-black">SYSTEM PDF</span>
+                </div>
+              </div>
+            </div>
+          </div>
 
-      document.getElementById('invCustomerName').value = quote.customerName || '';
-      document.getElementById('invCustomerEmail').value = quote.email || '';
+          <div>
+            <label class="block font-bold text-slate-700 uppercase mb-1">Subject</label>
+            <input type="text" id="inp-send-subject" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          </div>
 
-      const container = document.getElementById('invoiceItemsContainer');
-      container.innerHTML = '';
-      if (quote.items && quote.items.length > 0) {
-        quote.items.forEach(it => {
-          window.addInvoiceItemRow(it.description, it.qty, it.unitPrice);
-        });
-      } else {
-        window.addInvoiceItemRow('Industrial Instrumentation Equipment', 1, quote.grandTotal / 1.18);
-      }
-    };
+          <div>
+            <label class="block font-bold text-slate-700 uppercase mb-1">Email Body / Cover Letter</label>
+            <textarea id="inp-send-body" rows="6" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500"></textarea>
+          </div>
 
-    window.openCreateInvoiceModal = function() {
-      window.loadApprovedQuotes();
-      document.getElementById('invoiceModal').classList.remove('hidden');
-      if (document.getElementById('invoiceItemsContainer').children.length === 0) {
-        window.addInvoiceItemRow();
-      }
-      window.calcInvoiceTotals();
-    };
+          <!-- Dispatch History -->
+          <div id="inv-dispatch-history-box" class="hidden p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+            <span class="text-[10px] font-bold uppercase text-slate-500">Previous Dispatch History</span>
+            <div id="inv-dispatch-history-list" class="text-[11px] space-y-1 text-slate-600 font-mono"></div>
+          </div>
+        </div>
 
-    window.closeInvoiceModal = function() {
-      document.getElementById('invoiceModal').classList.add('hidden');
-    };
-
-    window.addInvoiceItemRow = function(desc = '', qty = 1, price = 250000) {
-      const container = document.getElementById('invoiceItemsContainer');
-      const row = document.createElement('div');
-      row.className = 'grid grid-cols-12 gap-2 items-center invoice-item-row';
-      row.innerHTML = `
-        <input type="text" placeholder="Item description" value="${desc}" class="col-span-6 bg-slate-900 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-white inv-desc">
-        <input type="number" placeholder="Qty" value="${qty}" min="1" onchange="window.calcInvoiceTotals()" class="col-span-2 bg-slate-900 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-white inv-qty">
-        <input type="number" placeholder="Unit Price" value="${price}" onchange="window.calcInvoiceTotals()" class="col-span-3 bg-slate-900 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-white inv-price">
-        <button type="button" onclick="this.parentElement.remove(); window.calcInvoiceTotals();" class="col-span-1 text-slate-500 hover:text-rose-400 text-center"><i class="fa-solid fa-trash"></i></button>
-      `;
-      container.appendChild(row);
-      window.calcInvoiceTotals();
-    };
-
-    window.calcInvoiceTotals = function() {
-      let subtotal = 0;
-      document.querySelectorAll('.invoice-item-row').forEach(row => {
-        const qty = Number(row.querySelector('.inv-qty').value) || 0;
-        const price = Number(row.querySelector('.inv-price').value) || 0;
-        subtotal += qty * price;
-      });
-
-      const tax = subtotal * 0.18;
-      const grandTotal = subtotal + tax;
-
-      document.getElementById('lblInvSubtotal').innerText = '₹' + Math.round(subtotal).toLocaleString('en-IN');
-      document.getElementById('lblInvTax').innerText = '₹' + Math.round(tax).toLocaleString('en-IN');
-      document.getElementById('lblInvGrandTotal').innerText = '₹' + Math.round(grandTotal).toLocaleString('en-IN');
-    };
-
-    window.saveInvoice = async function(e) {
-      e.preventDefault();
-      const customerName = document.getElementById('invCustomerName').value;
-      const customerEmail = document.getElementById('invCustomerEmail').value;
-      const invoiceNumber = 'INV-2026-' + Math.floor(100 + Math.random() * 900);
-
-      const items = [];
-      document.querySelectorAll('.invoice-item-row').forEach(row => {
-        items.push({
-          description: row.querySelector('.inv-desc').value || 'Equipment Item',
-          qty: Number(row.querySelector('.inv-qty').value) || 1,
-          unitPrice: Number(row.querySelector('.inv-price').value) || 0
-        });
-      });
-
-      let subtotal = 0;
-      items.forEach(i => subtotal += (i.qty * i.unitPrice));
-      const grandTotal = subtotal * 1.18;
-
-      const newInv = {
-        id: 'inv-' + Date.now(),
-        invoiceNumber,
-        customerName,
-        email: customerEmail,
-        items,
-        amount: grandTotal,
-        paidAmount: 0,
-        status: 'Unpaid',
-        date: new Date().toISOString().split('T')[0]
-      };
-
-      allInvoices.unshift(newInv);
-
-      if (window.RevOpsStore && typeof window.RevOpsStore.addItem === 'function') {
-        window.RevOpsStore.addItem('invoices', newInv);
-      }
-
-      window.renderInvoicesList();
-      window.closeInvoiceModal();
-      alert(`✅ Tax Invoice ${invoiceNumber} issued successfully!`);
-    };
-
-    window.renderInvoicesList = function() {
-      const tbody = document.getElementById('invoicesTableBody');
-      if (!tbody) return;
-      tbody.innerHTML = '';
-
-      allInvoices.forEach(inv => {
-        const tr = document.createElement('tr');
-        tr.className = 'hover:bg-slate-850/60 transition-colors';
-        tr.innerHTML = `
-          <td class="py-3 px-3 font-mono text-emerald-400 font-bold">${inv.invoiceNumber}</td>
-          <td class="py-3 px-3 font-medium text-white">${inv.customerName}</td>
-          <td class="py-3 px-3 text-slate-400">${inv.date || '2026-08-24'}</td>
-          <td class="py-3 px-3 font-semibold text-white">₹${Math.round(inv.amount).toLocaleString('en-IN')}</td>
-          <td class="py-3 px-3 font-semibold text-emerald-400">₹${Math.round(inv.paidAmount || 0).toLocaleString('en-IN')}</td>
-          <td class="py-3 px-3"><span class="px-2 py-0.5 rounded text-[10px] font-bold ${inv.status === 'Paid' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'}">${inv.status}</span></td>
-          <td class="py-3 px-3 text-right">
-            <button onclick="alert('Receipt sent to ' + '${inv.email || 'customer'}')" class="px-2.5 py-1 bg-emerald-600/20 text-emerald-300 hover:bg-emerald-600 hover:text-white rounded text-[11px] transition-all">
-              <i class="fa-solid fa-paper-plane mr-1"></i> Send Invoice
+        <div class="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
+          <button type="button" onclick="openInvoiceInMailClient()" class="text-indigo-600 hover:text-indigo-800 text-xs font-bold hover:underline cursor-pointer">
+            Open in Default Mail Client (Mailto)
+          </button>
+          <div class="flex items-center space-x-3">
+            <button type="button" onclick="closeSendInvoiceModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl cursor-pointer">Cancel</button>
+            <button type="button" onclick="executeSendInvoiceEmail()" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-xs transition-colors cursor-pointer">
+              🚀 Send Invoice Directly
             </button>
-          </td>
-        `;
-        tbody.appendChild(tr);
-      });
-    };
+          </div>
+        </div>
+      </div>
+    </div>
 
-    window.filterInvoicesTable = function() {
-      const query = (document.getElementById('invoiceSearchInput').value || '').toLowerCase();
-      const status = document.getElementById('invoiceStatusFilter').value;
+    <!-- MODAL 4: Official Printable PDF Tax Invoice Preview -->
+    <div id="invoice-view-modal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+      <div class="bg-white w-full max-w-4xl rounded-2xl shadow-2xl border border-slate-100 overflow-hidden flex flex-col max-h-[92vh]">
+        <div class="px-6 py-3 bg-slate-900 text-white flex items-center justify-between shrink-0">
+          <div class="flex items-center space-x-3">
+            <span class="text-emerald-400 font-bold text-lg">📄</span>
+            <span class="text-sm font-bold tracking-wide" id="view-modal-title">Tax Invoice Document</span>
+          </div>
+          <div class="flex items-center space-x-3">
+            <button onclick="printInvoiceDoc()" class="px-3 py-1 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-lg shadow-xs cursor-pointer flex items-center space-x-1">
+              <span>🖨️ Print / Save PDF</span>
+            </button>
+            <button onclick="closeInvoiceViewModal()" class="text-slate-400 hover:text-white text-lg font-bold cursor-pointer">&times;</button>
+          </div>
+        </div>
 
-      document.querySelectorAll('#invoicesTableBody tr').forEach(row => {
-        const text = row.innerText.toLowerCase();
-        const matchesQuery = !query || text.includes(query);
-        const matchesStatus = (status === 'ALL') || text.includes(status.toLowerCase());
-        row.style.display = (matchesQuery && matchesStatus) ? '' : 'none';
-      });
-    };
+        <div id="printable-invoice-wrapper" class="p-8 overflow-y-auto bg-white text-slate-900 space-y-6">
+          <!-- Rendered dynamically matching international GST standard -->
+        </div>
+      </div>
+    </div>
 
-    document.addEventListener('DOMContentLoaded', () => {
-      if (window.RevOpsStore && typeof window.RevOpsStore.getItems === 'function') {
-        allInvoices = window.RevOpsStore.getItems('invoices') || [];
-      }
-
-      if (!allInvoices || allInvoices.length === 0) {
-        allInvoices = [
-          { invoiceNumber: 'INV-2026-101', customerName: 'Hyundai Heavy Industries', email: 'purchase@hyundai.co.in', amount: 845000, paidAmount: 845000, status: 'Paid', date: '2026-08-20' },
-          { invoiceNumber: 'INV-2026-102', customerName: 'Titan Industries - Hosur', email: 'service@titan.co.in', amount: 480000, paidAmount: 240000, status: 'Partial', date: '2026-08-22' },
-          { invoiceNumber: 'INV-2026-103', customerName: 'Tata Motors - Pune', email: 'service@tatamotors.com', amount: 640000, paidAmount: 0, status: 'Unpaid', date: '2026-08-23' }
-        ];
-      }
-
-      window.renderInvoicesList();
-    });
-  </script>
+    <!-- Script Implementation -->
+    
+  
+    <script src="js/invoices.js"></script>
 </body>
 </html>
