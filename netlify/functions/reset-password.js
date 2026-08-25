@@ -1,8 +1,15 @@
-import admin from 'firebase-admin';
+// See send-email.js for why this uses firebase-admin's modular subpath
+// imports instead of `import admin from 'firebase-admin'` — the classic
+// default import breaks under Netlify's esbuild-bundled ESM functions,
+// crashing every invocation with "Cannot read properties of undefined
+// (reading 'length')" at admin.apps.length before any real logic runs.
+import { initializeApp, cert, getApps } from 'firebase-admin/app';
+import { getAuth } from 'firebase-admin/auth';
+import { getFirestore } from 'firebase-admin/firestore';
 
 function initFirebaseAdmin() {
-  if (admin.apps.length > 0) {
-    return admin.apps[0];
+  if (getApps().length > 0) {
+    return getApps()[0];
   }
 
   const saEnv = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
@@ -17,8 +24,8 @@ function initFirebaseAdmin() {
     throw new Error('Failed to parse FIREBASE_SERVICE_ACCOUNT_KEY JSON string: ' + err.message);
   }
 
-  return admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount)
+  return initializeApp({
+    credential: cert(serviceAccount)
   });
 }
 
@@ -64,7 +71,7 @@ export async function handler(event) {
   const idToken = authHeader.split('Bearer ')[1];
   let decodedToken;
   try {
-    decodedToken = await admin.auth().verifyIdToken(idToken);
+    decodedToken = await getAuth().verifyIdToken(idToken);
   } catch (err) {
     return {
       statusCode: 401,
@@ -76,7 +83,7 @@ export async function handler(event) {
   const callerUid = decodedToken.uid;
 
   try {
-    const userDoc = await admin.firestore().collection('users').doc(callerUid).get();
+    const userDoc = await getFirestore().collection('users').doc(callerUid).get();
     const userData = userDoc.exists ? userDoc.data() : null;
     const callerRole = userData ? userData.role : null;
 
@@ -125,7 +132,7 @@ export async function handler(event) {
   }
 
   try {
-    await admin.auth().updateUser(targetUid, { password: newPassword });
+    await getAuth().updateUser(targetUid, { password: newPassword });
     return {
       statusCode: 200,
       headers,

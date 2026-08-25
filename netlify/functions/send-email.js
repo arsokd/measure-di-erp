@@ -7,11 +7,21 @@
  * environment — it is never embedded in client code.
  */
 
-import admin from 'firebase-admin';
+// Use firebase-admin's modular subpath imports (firebase-admin/app, /auth),
+// not the classic `import admin from 'firebase-admin'` default import. The
+// classic default import goes through a CJS/ESM interop layer that breaks
+// under Netlify's esbuild-bundled ESM functions — `admin` resolves to
+// something that isn't the real namespace object, so `admin.apps` is
+// undefined and every invocation crashes immediately with
+// "Cannot read properties of undefined (reading 'length')" before the
+// function ever reaches Brevo. The modular imports below don't go through
+// that interop path.
+import { initializeApp, cert, getApps } from 'firebase-admin/app';
+import { getAuth } from 'firebase-admin/auth';
 
 function initFirebaseAdmin() {
-  if (admin.apps.length > 0) {
-    return admin.apps[0];
+  if (getApps().length > 0) {
+    return getApps()[0];
   }
 
   const saEnv = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
@@ -26,8 +36,8 @@ function initFirebaseAdmin() {
     throw new Error('Failed to parse FIREBASE_SERVICE_ACCOUNT_KEY JSON string: ' + err.message);
   }
 
-  return admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount)
+  return initializeApp({
+    credential: cert(serviceAccount)
   });
 }
 
@@ -85,7 +95,7 @@ export async function handler(event) {
   const idToken = authHeader.split('Bearer ')[1];
   let senderEmail = null;
   try {
-    const decodedToken = await admin.auth().verifyIdToken(idToken);
+    const decodedToken = await getAuth().verifyIdToken(idToken);
     senderEmail = decodedToken.email || null;
   } catch (err) {
     return {
