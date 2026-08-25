@@ -325,7 +325,7 @@ var currentPaymentView = 'transactions';
         });
 
         arAdjustments.forEach(function(adj) {
-          if (adj.approvalStatus === 'Approved') {
+          if (adj.status === 'Approved') {
             totalAdjustments += (Number(adj.adjustmentAmount) || 0);
           }
         });
@@ -337,14 +337,20 @@ var currentPaymentView = 'transactions';
         document.getElementById('stat-overdue-detail').innerText = `${overdueInvoicesCount} Overdue Invoices Requiring Follow-up`;
         document.getElementById('stat-adjustments-total').innerText = formatINR(totalAdjustments);
 
-        // Director AR Authorization Alert Banner check
+        // AR Adjustment Authorization Alert Banner — shown to whichever of the
+        // three named approvers still owes a sign-off on at least one request.
         var pendingApprovals = typeof window.RevOpsStore.getPendingDirectorApprovals === 'function' ? window.RevOpsStore.getPendingDirectorApprovals() : [];
+        var myOutstandingSignoffs = pendingApprovals.filter(function(adj) {
+          return (localStorage.getItem('isPrimaryApprover') === 'true' && !adj.primaryApproverSignoff) ||
+                 (localStorage.getItem('isFinanceHead') === 'true' && !adj.financeHeadSignoff) ||
+                 (localStorage.getItem('isDirector') === 'true' && !adj.directorSignoff);
+        });
         var alertBanner = document.getElementById('director-approval-alert');
         var countBadge = document.getElementById('pending-director-count');
         if (alertBanner && countBadge) {
-          if (pendingApprovals.length > 0 && (userRole === 'admin' || userRole === 'super_admin' || userRole === 'manager')) {
+          if (myOutstandingSignoffs.length > 0) {
             alertBanner.classList.remove('hidden');
-            countBadge.innerText = pendingApprovals.length;
+            countBadge.innerText = myOutstandingSignoffs.length;
           } else {
             alertBanner.classList.add('hidden');
           }
@@ -527,11 +533,11 @@ var currentPaymentView = 'transactions';
       function renderAdjustmentsView(arAdjustments, invoices, selectedFy, userRole, myEmpId, searchQuery) {
         var filtered = arAdjustments.filter(function(adj) {
           if (selectedFy !== 'All') {
-            var adjFy = typeof getFinancialYear === 'function' ? getFinancialYear(adj.requestDate, adj.invoiceNumber) : '2026-27';
+            var adjFy = typeof getFinancialYear === 'function' ? getFinancialYear(adj.requestedDate, adj.invoiceNumber) : '2026-27';
             if (adjFy !== selectedFy) return false;
           }
 
-          var textMatch = (adj.adjustmentRef || '').toLowerCase().includes(searchQuery) ||
+          var textMatch = (adj.adjustmentNumber || adj.refNumber || '').toLowerCase().includes(searchQuery) ||
                           (adj.customerName || '').toLowerCase().includes(searchQuery) ||
                           (adj.invoiceNumber || '').toLowerCase().includes(searchQuery) ||
                           (adj.adjustmentType || '').toLowerCase().includes(searchQuery) ||
@@ -554,35 +560,37 @@ var currentPaymentView = 'transactions';
           var typePill = adj.adjustmentType === 'Bad Debt Write-Off (Unrecoverable AR)' ? 'bg-rose-100 text-rose-800 font-black border border-rose-200' : 'bg-amber-100 text-amber-800 font-bold border border-amber-200';
           
           var statusPill = 'bg-slate-100 text-slate-700';
-          if (adj.approvalStatus === 'Approved') statusPill = 'bg-purple-100 text-purple-900 font-black border border-purple-300';
-          else if (adj.approvalStatus === 'Pending Director Approval') statusPill = 'bg-amber-100 text-amber-900 font-bold animate-pulse border border-amber-300';
-          else if (adj.approvalStatus === 'Rejected') statusPill = 'bg-rose-100 text-rose-800 font-bold';
+          if (adj.status === 'Approved') statusPill = 'bg-purple-100 text-purple-900 font-black border border-purple-300';
+          else if (adj.status === 'Pending Director Approval') statusPill = 'bg-amber-100 text-amber-900 font-bold animate-pulse border border-amber-300';
+          else if (adj.status === 'Rejected') statusPill = 'bg-rose-100 text-rose-800 font-bold';
 
-          var directorInfo = `<span class="text-slate-400 text-[11px]">--</span>`;
-          if (adj.approvalStatus === 'Approved') {
-            directorInfo = `
-              <div class="text-[11px] font-bold text-purple-950">👑 ${escapeHtml(adj.approvedBy || 'Murugan V (Director)')}</div>
-              <div class="text-[9px] text-slate-400 font-mono">${escapeHtml(adj.approvalDate || '--')}</div>
-              ${adj.directorRemarks ? `<div class="text-[10px] text-slate-600 italic max-w-xs truncate" title="${escapeHtml(adj.directorRemarks)}">"${escapeHtml(adj.directorRemarks)}"</div>` : ''}
-            `;
-          } else if (adj.approvalStatus === 'Pending Director Approval') {
-            if (userRole === 'admin' || userRole === 'super_admin' || userRole === 'manager') {
-              directorInfo = `
-                <button onclick="openDirectorApprovalModal('${escapeHtml(adj.id)}')" class="px-2.5 py-1 bg-purple-700 hover:bg-purple-800 text-white rounded-lg text-[10px] font-black shadow-xs cursor-pointer flex items-center space-x-1">
-                  <span>👑 Director Review</span>
-                </button>
-              `;
-            } else {
-              directorInfo = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">Awaiting Director</span>`;
+          // Three-way sign-off status: show each of the three named
+          // authorities' signature, and a Sign button for whichever of them
+          // the current viewer is and hasn't signed yet.
+          var directorInfo = '';
+          [
+            { key: 'primaryApproverSignoff', flag: 'isPrimaryApprover', label: 'Primary Approver', icon: '✅' },
+            { key: 'financeHeadSignoff', flag: 'isFinanceHead', label: 'Finance Head', icon: '💰' },
+            { key: 'directorSignoff', flag: 'isDirector', label: '👑 Director' }
+          ].forEach(function(role) {
+            var so = adj[role.key];
+            if (so) {
+              var icon = so.decision === 'Approved' ? '✅' : '❌';
+              directorInfo += `<div class="text-[10px] font-semibold ${so.decision === 'Approved' ? 'text-emerald-700' : 'text-rose-700'}">${icon} ${escapeHtml(role.label)}: ${escapeHtml(so.signedBy || '')}</div>`;
+            } else if (adj.status === 'Pending Director Approval' && localStorage.getItem(role.flag) === 'true') {
+              directorInfo += `<button onclick="openDirectorApprovalModal('${escapeHtml(adj.id)}', '${role.key}')" class="mt-0.5 px-2 py-0.5 bg-purple-700 hover:bg-purple-800 text-white rounded text-[9px] font-black cursor-pointer">Sign as ${escapeHtml(role.label)}</button>`;
+            } else if (adj.status === 'Pending Director Approval') {
+              directorInfo += `<div class="text-[9px] text-amber-600 font-semibold">Awaiting ${escapeHtml(role.label)}</div>`;
             }
-          }
+          });
+          if (!directorInfo) directorInfo = `<span class="text-slate-400 text-[11px]">--</span>`;
 
           var tr = document.createElement('tr');
           tr.className = "hover:bg-slate-50 transition-colors";
           tr.innerHTML = `
             <td class="py-3 px-4">
-              <div class="font-bold text-slate-900 font-mono text-[11px]">${escapeHtml(adj.adjustmentRef || 'ADJ-REQ')}</div>
-              <div class="text-[10px] text-slate-400 font-mono">${escapeHtml(adj.requestDate)}</div>
+              <div class="font-bold text-slate-900 font-mono text-[11px]">${escapeHtml(adj.adjustmentNumber || adj.refNumber || 'ADJ-REQ')}</div>
+              <div class="text-[10px] text-slate-400 font-mono">${escapeHtml(adj.requestedDate)}</div>
             </td>
             <td class="py-3 px-4">
               <span class="px-2 py-0.5 rounded text-[10px] uppercase ${typePill}">
@@ -601,19 +609,19 @@ var currentPaymentView = 'transactions';
             </td>
             <td class="py-3 px-4 max-w-xs">
               <div class="font-bold text-slate-800 text-[11px]">${escapeHtml(adj.reasonCategory)}</div>
-              <div class="text-[10px] text-slate-500 truncate mt-0.5" title="${escapeHtml(adj.commercialJustification)}">${escapeHtml(adj.commercialJustification)}</div>
+              <div class="text-[10px] text-slate-500 truncate mt-0.5" title="${escapeHtml(adj.detailedJustification)}">${escapeHtml(adj.detailedJustification)}</div>
             </td>
             <td class="py-3 px-4 text-center">
               <span class="px-2.5 py-0.5 rounded-full text-[10px] ${statusPill}">
-                ${escapeHtml(adj.approvalStatus)}
+                ${escapeHtml(adj.status)}
               </span>
             </td>
             <td class="py-3 px-4">
               ${directorInfo}
             </td>
             <td class="py-3 px-4 text-center space-x-1.5 whitespace-nowrap">
-              <button onclick="viewPrintableAdjVoucher('${escapeHtml(adj.id)}')" class="p-1 bg-purple-50 hover:bg-purple-100 text-purple-800 border border-purple-200 rounded text-[11px] font-bold cursor-pointer" title="View Director Authorization Certificate">⚖️ Voucher</button>
-              ${adj.approvalStatus !== 'Approved' ? `<button onclick="deleteArAdjustment('${escapeHtml(adj.id)}')" class="text-rose-600 hover:text-rose-800 font-bold hover:underline">Delete</button>` : ''}
+              <button onclick="viewPrintableAdjVoucher('${escapeHtml(adj.id)}')" class="p-1 bg-purple-50 hover:bg-purple-100 text-purple-800 border border-purple-200 rounded text-[11px] font-bold cursor-pointer" title="View Authorization Certificate">⚖️ Voucher</button>
+              ${adj.status !== 'Approved' ? `<button onclick="deleteArAdjustment('${escapeHtml(adj.id)}')" class="text-rose-600 hover:text-rose-800 font-bold hover:underline">Delete</button>` : ''}
             </td>
           `;
           tbody.appendChild(tr);
@@ -631,16 +639,6 @@ var currentPaymentView = 'transactions';
 
         document.getElementById('inp-adj-amount').value = "";
         document.getElementById('inp-adj-justification').value = "";
-        document.getElementById('inp-adj-direct-sign').checked = false;
-        document.getElementById('inp-adj-director-notes').value = "Approved and sanctioned under Corporate Authority & Bad Debt Provisioning policy.";
-
-        var userRole = localStorage.getItem('userRole');
-        var directSignPanel = document.getElementById('director-direct-sign-panel');
-        if (userRole === 'admin' || userRole === 'super_admin') {
-          directSignPanel.classList.remove('hidden');
-        } else {
-          directSignPanel.classList.add('hidden');
-        }
 
         if (prefillInvoiceId) {
           var select = document.getElementById('inp-adj-invoice-select');
@@ -792,14 +790,10 @@ var currentPaymentView = 'transactions';
         var newBal = Math.max(0, curBalance - adjAmt);
 
         document.getElementById('adj-prev-balance').innerText = formatINR(newBal);
-        
+
         var statusHint = document.getElementById('adj-prev-status-text');
-        var isDirectSign = document.getElementById('inp-adj-direct-sign') && document.getElementById('inp-adj-direct-sign').checked;
-        if (isDirectSign) {
-          statusHint.innerText = "👑 Will be Immediately Sanctioned by Director";
-          statusHint.className = "text-purple-700 font-bold";
-        } else {
-          statusHint.innerText = "Remaining AR will update upon Director Approval";
+        if (statusHint) {
+          statusHint.innerText = "Requires sign-off from the Primary Approver, Finance Head, and Director before this reduces the invoice balance.";
           statusHint.className = "text-amber-700 font-bold";
         }
       }
@@ -848,21 +842,17 @@ var currentPaymentView = 'transactions';
           requestDate: getFormattedToday()
         };
 
-        var isDirectSign = document.getElementById('inp-adj-direct-sign') && document.getElementById('inp-adj-direct-sign').checked;
-        var directorNotes = document.getElementById('inp-adj-director-notes') ? document.getElementById('inp-adj-director-notes').value.trim() : '';
-
+        // Every write-off / goodwill request requires all three named
+        // authorities (Primary Approver, Finance Head, Director) to sign
+        // off — there is no shortcut to instantly self-sanction it, for
+        // any role.
         var res = window.RevOpsStore.createArAdjustmentRequest(adjData);
-        if (!res || !res.success) {
-          alert("Failed to submit adjustment request: " + (res.error || "Unknown error"));
+        if (!res) {
+          alert("Failed to submit adjustment request.");
           return;
         }
 
-        if (isDirectSign) {
-          window.RevOpsStore.approveArAdjustment(res.adjustment.id, 'Approved', directorNotes || 'Direct Director Sanction', 'Murugan V (Director)');
-          alert(`👑 Director Sanction Applied!\nAdjustment Ref: ${res.adjustment.adjustmentRef} for ${formatINR(adjAmount)} has been authorized.\nInvoice ${opt.getAttribute('data-invoicenum')} balance updated.`);
-        } else {
-          alert(`✅ Adjustment request ${res.adjustment.adjustmentRef} submitted successfully for mandatory Director Review.`);
-        }
+        alert(`✅ Adjustment request ${res.adjustmentNumber || res.refNumber} submitted. It requires sign-off from the Primary Approver, Finance Head, and Director before the invoice balance is reduced.`);
 
         closeAdjustmentModal();
         populatePaymentClientDropdown();
@@ -883,22 +873,46 @@ var currentPaymentView = 'transactions';
         }
       }
 
-      // Modal 5: Director Review & Decision
-      function openDirectorApprovalModal(adjId) {
+      // Modal 5: Three-way sign-off (Primary Approver / Finance Head / Director)
+      // Each named authority signs independently; the adjustment only takes
+      // effect once all three have signed 'Approved'.
+      var SIGNOFF_LABELS = {
+        primaryApproverSignoff: { flag: 'isPrimaryApprover', title: 'Primary Approver Sign-Off', roleLabel: 'Primary Approver' },
+        financeHeadSignoff: { flag: 'isFinanceHead', title: 'Finance Head Sign-Off', roleLabel: 'Finance Head' },
+        directorSignoff: { flag: 'isDirector', title: 'Director Sign-Off', roleLabel: 'Director' }
+      };
+
+      function openDirectorApprovalModal(adjId, signoffKey) {
         var adjustments = window.RevOpsStore.getCollection('arAdjustments') || [];
         var adj = adjustments.find(function(a) { return a.id === adjId; });
         if (!adj) return;
 
+        var meta = SIGNOFF_LABELS[signoffKey];
+        if (!meta || localStorage.getItem(meta.flag) !== 'true') {
+          alert("You are not the designated approver for this sign-off.");
+          return;
+        }
+
         document.getElementById('dir-adj-id').value = adj.id;
-        document.getElementById('dir-modal-ref').innerText = `Ref: ${adj.adjustmentRef} - ${adj.customerName}`;
+        document.getElementById('dir-signoff-key').value = signoffKey;
+        document.getElementById('dir-modal-title').innerText = meta.title;
+        document.getElementById('dir-modal-ref').innerText = `Ref: ${adj.adjustmentNumber || adj.refNumber} - ${adj.customerName}`;
         document.getElementById('dir-customer-name').innerText = adj.customerName;
         document.getElementById('dir-invoice-num').innerText = adj.invoiceNumber;
         document.getElementById('dir-adj-type').innerText = adj.adjustmentType;
         document.getElementById('dir-adj-amount').innerText = formatINR(adj.adjustmentAmount);
         document.getElementById('dir-adj-category').innerText = adj.reasonCategory;
-        document.getElementById('dir-adj-requested-by').innerText = `${adj.requestedBy || 'Staff'} on ${adj.requestDate}`;
-        document.getElementById('dir-adj-justification').innerText = adj.commercialJustification;
+        document.getElementById('dir-adj-requested-by').innerText = `${adj.requestedBy || 'Staff'} on ${adj.requestedDate}`;
+        document.getElementById('dir-adj-justification').innerText = adj.detailedJustification;
         document.getElementById('dir-adj-remarks').value = "Approved and sanctioned under Corporate Authority & Bad Debt Provisioning policy.";
+
+        var progressParts = [];
+        Object.keys(SIGNOFF_LABELS).forEach(function(key) {
+          var so = adj[key];
+          var label = SIGNOFF_LABELS[key].roleLabel;
+          progressParts.push(so ? (label + ': ' + so.decision) : (label + ': pending'));
+        });
+        document.getElementById('dir-signoff-progress').innerText = progressParts.join(' • ');
 
         document.getElementById('director-approval-modal').classList.remove('hidden');
       }
@@ -909,18 +923,26 @@ var currentPaymentView = 'transactions';
 
       function executeDirectorDecision(decision) {
         var adjId = document.getElementById('dir-adj-id').value;
+        var signoffKey = document.getElementById('dir-signoff-key').value;
         var remarks = document.getElementById('dir-adj-remarks').value.trim();
-        var directorName = 'Murugan V (Director)';
+        var myName = localStorage.getItem('userName') || SIGNOFF_LABELS[signoffKey].roleLabel;
+        var myEmpId = localStorage.getItem('employeeId') || '';
 
-        var res = window.RevOpsStore.approveArAdjustment(adjId, decision, remarks, directorName);
+        var res = window.RevOpsStore.signArAdjustment(adjId, signoffKey, decision, myName, myEmpId, remarks);
         if (res && res.success) {
           closeDirectorApprovalModal();
           populatePaymentClientDropdown();
           populateInvoiceDropdown();
           renderActivePaymentView();
-          alert(`👑 Director Decision Recorded: ${decision} for ${res.adjustment.adjustmentRef}.\nLinked Invoice balance synchronized.`);
+          if (res.status === 'Approved') {
+            alert(`✅ All three sign-offs complete — adjustment approved and invoice balance updated.`);
+          } else if (res.status === 'Rejected') {
+            alert(`❌ Adjustment rejected by ${SIGNOFF_LABELS[signoffKey].roleLabel}.`);
+          } else {
+            alert(`Signed as ${decision} by ${SIGNOFF_LABELS[signoffKey].roleLabel}. Still awaiting the remaining sign-off(s) before this takes effect.`);
+          }
         } else {
-          alert("Failed to record decision: " + (res.error || "Unknown error"));
+          alert("Failed to record decision: " + (res && res.error || "Unknown error"));
         }
       }
 
@@ -933,10 +955,13 @@ var currentPaymentView = 'transactions';
         var invoices = window.RevOpsStore.getCollection('invoices') || [];
         var linkedInv = invoices.find(function(i) { return i.id === adj.invoiceId || i.invoiceNumber === adj.invoiceNumber; });
 
-        document.getElementById('adj-voucher-title').innerText = `Director Authorization Certificate - ${adj.adjustmentRef}`;
+        var adjRef = adj.adjustmentNumber || adj.refNumber || 'ADJ-REQ';
+        document.getElementById('adj-voucher-title').innerText = `Authorization Certificate - ${adjRef}`;
         var wrapper = document.getElementById('printable-adj-wrapper');
 
-        var isApproved = adj.approvalStatus === 'Approved';
+        var isApproved = adj.status === 'Approved';
+        var latestSignoffDate = [adj.primaryApproverSignoff, adj.financeHeadSignoff, adj.directorSignoff]
+          .filter(Boolean).map(function(so) { return so.signedAt; }).pop();
 
         wrapper.innerHTML = `
           <!-- Header -->
@@ -945,7 +970,7 @@ var currentPaymentView = 'transactions';
               <div class="flex items-center space-x-2">
 
                 <span class="text-2xl font-black text-purple-950 tracking-tight">MEASURE DI TECHNOLOGIES</span>
-                <span class="px-2 py-0.5 rounded bg-purple-900 text-white text-[10px] font-black uppercase">DIRECTOR SANCTION</span>
+                <span class="px-2 py-0.5 rounded bg-purple-900 text-white text-[10px] font-black uppercase">Three-Way Authorization</span>
               </div>
               <p class="text-xs text-slate-600 mt-1">
                 Plot No. 42, SIDCO Industrial Estate, Guindy, Chennai - 600032, Tamil Nadu<br>
@@ -954,10 +979,10 @@ var currentPaymentView = 'transactions';
             </div>
             <div class="text-right">
               <h2 class="text-base font-black text-purple-950 uppercase tracking-wide">AR ADJUSTMENT MEMO</h2>
-              <div class="text-xs font-mono font-bold text-slate-900 mt-1">${escapeHtml(adj.adjustmentRef)}</div>
-              <div class="text-xs text-slate-500 font-mono mt-0.5">Date: ${escapeHtml(adj.approvalDate || adj.requestDate)}</div>
+              <div class="text-xs font-mono font-bold text-slate-900 mt-1">${escapeHtml(adjRef)}</div>
+              <div class="text-xs text-slate-500 font-mono mt-0.5">Date: ${escapeHtml(latestSignoffDate || adj.requestedDate)}</div>
               <span class="px-2 py-0.5 rounded text-[10px] font-bold ${isApproved ? 'bg-purple-100 text-purple-900' : 'bg-amber-100 text-amber-900'} uppercase">
-                ${escapeHtml(adj.approvalStatus)}
+                ${escapeHtml(adj.status)}
               </span>
             </div>
           </div>
@@ -1010,12 +1035,7 @@ var currentPaymentView = 'transactions';
           <div class="space-y-3 text-xs">
             <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl">
               <span class="text-[10px] font-bold uppercase text-slate-500 block mb-1">Commercial Justification & Case Rationale:</span>
-              <p class="text-slate-800 whitespace-pre-wrap">${escapeHtml(adj.commercialJustification)}</p>
-            </div>
-
-            <div class="p-3 bg-purple-50/70 border border-purple-300 rounded-xl">
-              <span class="text-[10px] font-bold uppercase text-purple-950 block mb-1">Director Remarks / Sanction Notes:</span>
-              <p class="text-purple-950 font-medium">${escapeHtml(adj.directorRemarks || 'Authorized and approved under Director Board Power & Bad Debt Recovery Protocol.')}</p>
+              <p class="text-slate-800 whitespace-pre-wrap">${escapeHtml(adj.detailedJustification)}</p>
             </div>
           </div>
 
@@ -1029,19 +1049,28 @@ var currentPaymentView = 'transactions';
             </div>
           ` : ''}
 
-          <!-- Director Seal & Signature -->
-          <div class="flex justify-between items-end border-t border-slate-200 pt-6 text-xs">
-            <div class="text-[11px] text-slate-400">
-              Document Ref: ${escapeHtml(adj.adjustmentRef)}<br>
-              Authorized by Board of Directors, Measure DI Technologies Private Limited.
+          <!-- Three-Way Sign-Off -->
+          <div class="border-t border-slate-200 pt-6 text-xs">
+            <div class="text-[11px] text-slate-400 mb-4">
+              Document Ref: ${escapeHtml(adjRef)}<br>
+              Requires sign-off from the Primary Approver, Finance Head, and Director — takes effect only once all three have signed.
             </div>
-            <div class="text-center">
-              <div class="w-36 h-12 border-b-2 border-purple-900 mx-auto flex items-center justify-center text-[10px] text-purple-900 font-bold italic">
-                Murugan V
-              </div>
-              <span class="font-black text-slate-900 block mt-1">MURUGAN V</span>
-              <span class="text-[10px] text-purple-800 font-bold uppercase">Director & Signatory</span>
-              <span class="text-[9px] text-slate-500 block">DIN: 08920149</span>
+            <div class="grid grid-cols-3 gap-4 text-center">
+              ${[
+                { so: adj.primaryApproverSignoff, label: 'Primary Approver' },
+                { so: adj.financeHeadSignoff, label: 'Finance Head' },
+                { so: adj.directorSignoff, label: 'Director' }
+              ].map(function(role) {
+                return `
+                  <div>
+                    <div class="w-full h-12 border-b-2 ${role.so ? 'border-purple-900' : 'border-slate-200'} flex items-center justify-center text-[10px] text-purple-900 font-bold italic">
+                      ${role.so ? escapeHtml(role.so.signedBy) : '— Not yet signed —'}
+                    </div>
+                    <span class="font-black text-slate-900 block mt-1 uppercase">${escapeHtml(role.label)}</span>
+                    ${role.so ? `<span class="text-[9px] ${role.so.decision === 'Approved' ? 'text-emerald-700' : 'text-rose-700'} font-bold block">${escapeHtml(role.so.decision)} • ${escapeHtml(role.so.signedAt)}</span>` : `<span class="text-[9px] text-amber-600 font-bold block">PENDING</span>`}
+                  </div>
+                `;
+              }).join('')}
             </div>
           </div>
         `;

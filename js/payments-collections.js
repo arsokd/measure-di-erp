@@ -99,6 +99,11 @@
         var userRole = localStorage.getItem('userRole');
         var myName = localStorage.getItem('userName') || 'Finance & Accounts Team';
 
+        if (localStorage.getItem('isFinanceHead') !== 'true') {
+          alert("Only the designated Finance Head can verify payments before they count as revenue. Ask your admin to assign this on the Employees page if this is incorrect.");
+          return;
+        }
+
         if (confirm("Confirm bank clearance and finance verification for this payment collection?\n\nThis will instantly clear the receipt and credit real-time revenue dashboards.")) {
           var res = window.RevOpsStore.verifyPaymentByAccounts(payId, myName, userRole);
           if (res.success) {
@@ -329,7 +334,7 @@
         document.getElementById('inp-pay-mode').value = "NEFT/RTGS";
         document.getElementById('inp-pay-utr').value = "";
         document.getElementById('inp-pay-date').value = getFormattedToday();
-        document.getElementById('inp-pay-status').value = (userRole === 'admin' || userRole === 'super_admin' || userRole === 'manager') ? "Cleared" : "Pending Accounts Verification";
+        document.getElementById('inp-pay-status-display').innerText = "⏳ Pending Finance Verification";
         document.getElementById('inp-pay-milestone').value = "1st Milestone Advance Payment against Purchase Order";
         document.getElementById('inp-pay-remarks').value = "";
 
@@ -360,9 +365,15 @@
         var amount = Number(document.getElementById('inp-pay-amount').value) || 0;
         var tdsAmount = Number(document.getElementById('inp-pay-tds').value) || 0;
         var paymentReason = document.getElementById('inp-pay-reason').value;
-        var statusVal = document.getElementById('inp-pay-status').value;
 
-        var isCleared = (statusVal === 'Cleared' || statusVal === 'Approved');
+        // Whoever records the payment (Advance, Part, or Final) cannot mark
+        // it Cleared themselves — it always starts Pending Finance
+        // Verification, and only counts as revenue once the Finance Head
+        // verifies it via verifyPaymentDirectly(). An edit to an
+        // already-verified payment keeps that verified state as-is.
+        var existingPayment = docId ? (window.RevOpsStore.getCollection('payments') || []).find(function(p) { return p.id === docId; }) : null;
+        var alreadyVerified = existingPayment && existingPayment.verifiedByAccounts === true;
+        var statusVal = alreadyVerified ? existingPayment.status : 'Pending Finance Verification';
 
         var receiptNumber = docId ? '' : window.RevOpsStore.generateNextReceiptNumber();
 
@@ -379,9 +390,9 @@
           paymentDate: document.getElementById('inp-pay-date').value.trim(),
           paymentMilestone: document.getElementById('inp-pay-milestone').value.trim(),
           status: statusVal,
-          verifiedByAccounts: isCleared,
-          accountsVerifiedAt: isCleared ? new Date().toISOString() : null,
-          accountsApproverName: isCleared ? myName : null,
+          verifiedByAccounts: alreadyVerified,
+          accountsVerifiedAt: alreadyVerified ? existingPayment.accountsVerifiedAt : null,
+          accountsApproverName: alreadyVerified ? existingPayment.accountsApproverName : null,
           remarks: document.getElementById('inp-pay-remarks').value.trim(),
           employeeId: myEmpId,
           employeeName: myName,
@@ -410,9 +421,9 @@
         renderActivePaymentView();
 
         // Prompt to email receipt
-        var confirmationMsg = isCleared ? 
-          ("✅ Payment collection recorded & verified! Receipt Ref: " + (payData.receiptNumber || 'REC') + ".\n\nWould you like to send the official Payment Settlement Receipt to the client now?") :
-          ("✅ Payment collection recorded (Pending Accounts Verification). Receipt Ref: " + (payData.receiptNumber || 'REC') + ".\n\nWould you like to compose the acknowledgement email for the client now?");
+        var confirmationMsg = alreadyVerified ?
+          ("✅ Payment collection updated. Receipt Ref: " + (payData.receiptNumber || existingPayment.receiptNumber || 'REC') + ".\n\nWould you like to send the official Payment Settlement Receipt to the client now?") :
+          ("✅ Payment collection recorded (Pending Finance Verification — it will not count as revenue until the Finance Head verifies it). Receipt Ref: " + (payData.receiptNumber || 'REC') + ".\n\nWould you like to compose the acknowledgement email for the client now?");
 
         if (confirm(confirmationMsg)) {
           openSendReceiptModal(savedDocId);
@@ -443,7 +454,7 @@
         document.getElementById('inp-pay-bank').value = p.bankAccount || document.getElementById('inp-pay-bank').options[0].value;
         document.getElementById('inp-pay-date').value = p.paymentDate;
         document.getElementById('inp-pay-milestone').value = p.paymentMilestone || '';
-        document.getElementById('inp-pay-status').value = p.status;
+        document.getElementById('inp-pay-status-display').innerText = p.verifiedByAccounts === true ? ("✅ Verified & Cleared by " + (p.accountsApproverName || 'Finance Head')) : "⏳ Pending Finance Verification";
         document.getElementById('inp-pay-remarks').value = p.remarks || '';
 
         calculateRemainingBalancePreview();

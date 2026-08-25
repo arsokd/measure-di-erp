@@ -449,12 +449,11 @@
               </select>
             </div>
             <div>
-              <label class="block font-bold text-slate-700 uppercase tracking-wider mb-1">Validation & Verification Status *</label>
-              <select id="inp-pay-status" required class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500">
-                <option value="Cleared">Cleared & Bank Verified (Accounts Approved)</option>
-                <option value="Pending Accounts Verification" selected>Pending Accounts Verification (Recorded by Staff)</option>
-              </select>
-              <p class="text-[10px] text-slate-400 mt-1">Note: Only payments verified & cleared by Finance/Accounts reflect in Revenue Dashboard.</p>
+              <label class="block font-bold text-slate-700 uppercase tracking-wider mb-1">Verification Status</label>
+              <div id="inp-pay-status-display" class="w-full px-3 py-2 bg-amber-50 border border-amber-200 rounded-xl text-xs font-semibold text-amber-800">
+                ⏳ Pending Finance Verification
+              </div>
+              <p class="text-[10px] text-slate-400 mt-1">This payment only counts as revenue once the Finance Head verifies it — that can't be set here by whoever records the payment.</p>
             </div>
           </div>
           <div>
@@ -634,20 +633,13 @@
             <textarea id="inp-adj-justification" required rows="3" placeholder="Provide full context: client discussions, good-will concession rationale, long-outstanding timeline, or insolvency notification details for Director review..." class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-purple-500"></textarea>
           </div>
           
-          <div id="director-direct-sign-panel" class="hidden p-3.5 bg-purple-100/70 border border-purple-300 rounded-xl space-y-2">
-            <label class="flex items-center space-x-2 cursor-pointer">
-              <input type="checkbox" id="inp-adj-direct-sign" class="w-4 h-4 text-purple-700 rounded focus:ring-purple-500" />
-              <span class="font-black text-purple-950 text-xs">👑 Sign & Authorize as Director Immediately (Murugan V - Director)</span>
-            </label>
-            <div>
-              <label class="block font-bold text-purple-900 text-[10px] uppercase mb-1">Director Remarks / Corporate Minutes Note</label>
-              <input type="text" id="inp-adj-director-notes" placeholder="Approved and sanctioned under Corporate Authority & Bad Debt Provisioning policy." class="w-full px-3 py-1.5 bg-white border border-purple-300 rounded-lg text-xs font-medium focus:outline-none focus:ring-2 focus:ring-purple-500" />
-            </div>
+          <div class="p-3 bg-amber-50 border border-amber-200 rounded-xl text-[11px] text-amber-800 font-semibold">
+            This request requires sign-off from the Primary Approver, Finance Head, and Director — the invoice balance only changes once all three have signed. There is no shortcut to self-approve.
           </div>
           <div class="pt-4 border-t border-slate-100 flex items-center justify-end space-x-3">
             <button type="button" onclick="closeAdjustmentModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl cursor-pointer">Cancel</button>
             <button type="submit" class="px-6 py-2 bg-purple-700 hover:bg-purple-800 text-white font-bold rounded-xl shadow-xs transition-colors cursor-pointer">
-              Submit for Director Approval
+              Submit for Approval
             </button>
           </div>
         </form>
@@ -660,7 +652,7 @@
           <div class="flex items-center space-x-2">
             <span class="text-xl">👑</span>
             <div>
-              <h3 class="text-base font-bold">Director AR Authorization Sign-Off</h3>
+              <h3 class="text-base font-bold" id="dir-modal-title">AR Authorization Sign-Off</h3>
               <p class="text-xs text-purple-200" id="dir-modal-ref">Review Adjustment Request</p>
             </div>
           </div>
@@ -668,6 +660,10 @@
         </div>
         <div class="p-6 space-y-4 text-xs overflow-y-auto">
           <input type="hidden" id="dir-adj-id" />
+          <input type="hidden" id="dir-signoff-key" />
+          <div class="bg-indigo-50 border border-indigo-200 rounded-xl p-3 text-[11px] text-indigo-800 font-semibold" id="dir-signoff-progress">
+            Requires sign-off from Primary Approver, Finance Head, and Director — this only reduces the invoice balance once all three have signed.
+          </div>
           
           <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2">
             <div class="flex justify-between">

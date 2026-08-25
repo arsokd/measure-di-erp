@@ -618,11 +618,27 @@ var currentSplits = [];
               ${o.bgRequired !== 'Yes' && o.retentionRequired !== 'Yes' ? `<span class="text-slate-500 text-[11px]">Standard Terms</span>` : ''}
             </td>
             <td class="py-3 px-4 text-center">
-              <span class="px-2 py-1 rounded-full text-[10px] font-black uppercase bg-emerald-950 text-emerald-300 border border-emerald-700/60">
-                Booked
-              </span>
+              ${o.status === 'Booked' ? `
+                <span class="px-2 py-1 rounded-full text-[10px] font-black uppercase bg-emerald-950 text-emerald-300 border border-emerald-700/60">Booked</span>
+                ${o.directorRatificationStatus === 'Ratified' ?
+                  `<div class="text-[9px] text-purple-300 font-bold mt-0.5">👑 Ratified</div>` :
+                  `<div class="text-[9px] text-amber-300 font-semibold mt-0.5">Pending Ratification</div>`}
+              ` : o.status === 'Rejected' ? `
+                <span class="px-2 py-1 rounded-full text-[10px] font-black uppercase bg-rose-950 text-rose-300 border border-rose-700/60">Rejected</span>
+              ` : `
+                <span class="px-2 py-1 rounded-full text-[10px] font-black uppercase bg-amber-950 text-amber-300 border border-amber-700/60 animate-pulse">Pending Approval</span>
+              `}
             </td>
-            <td class="py-3 px-4 text-center">
+            <td class="py-3 px-4 text-center space-y-1">
+              ${o.status === 'Pending Primary Approval' && localStorage.getItem('isPrimaryApprover') === 'true' ? `
+                <div class="flex items-center justify-center gap-1">
+                  <button onclick="approveOrderDirect('${o.id}')" class="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md text-[10px] font-bold cursor-pointer">✅ Approve</button>
+                  <button onclick="rejectOrderDirect('${o.id}')" class="px-2 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-md text-[10px] font-bold cursor-pointer">❌ Reject</button>
+                </div>
+              ` : ''}
+              ${o.status === 'Booked' && o.directorRatificationStatus === 'Pending' && localStorage.getItem('isDirector') === 'true' ? `
+                <button onclick="ratifyOrderDirect('${o.id}')" class="px-2 py-1 bg-purple-700 hover:bg-purple-800 text-white rounded-md text-[10px] font-bold cursor-pointer">👑 Ratify</button>
+              ` : ''}
               <button onclick="editOrder('${o.id}')" class="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white rounded-lg transition-colors cursor-pointer" title="Edit Order Details">
                 <i class="fa-solid fa-pen-to-square text-xs"></i>
               </button>
@@ -713,7 +729,11 @@ var currentSplits = [];
           factoryDocAttached: !document.getElementById('inp-no-fac-doc').checked,
           poFileData: poFileData,
           poFileName: poFileName,
-          status: 'Booked',
+          // Order confirmation (which reconciles the linked quotation/lead
+          // and books it) requires the Primary Approver's sign-off — see
+          // approveOrderDirect(). Saving here only records the raw PO entry.
+          status: existingOrder && (existingOrder.status === 'Booked' || existingOrder.status === 'Rejected') ? existingOrder.status : 'Pending Primary Approval',
+          autoReconcile: autoReconcile,
           createdDate: existingOrder ? existingOrder.createdDate : getFormattedToday(),
           createdAt: existingOrder ? existingOrder.createdAt : new Date().toISOString(),
           updatedAt: new Date().toISOString()
@@ -721,34 +741,75 @@ var currentSplits = [];
 
         window.RevOpsStore.saveRecord('orders', newOrder);
 
-        // 1. RECONCILE & UPDATE LINKED QUOTATION
-        if (quoteId && autoReconcile) {
+        // LOG AUDIT ENTRY FOR ORDER
+        if (window.RevOpsStore.logAudit) {
+          window.RevOpsStore.logAudit(
+            'Orders',
+            newOrder.poNumber,
+            existingOrder ? 'UPDATE' : 'CREATE',
+            (existingOrder ? 'Updated commercial order ' : 'Raised new commercial order (pending approval) ') + newOrder.customerName + ' (PO #' + poNum + ', ₹' + val.toLocaleString('en-IN') + ', 1st Advance: ₹' + advAmt.toLocaleString('en-IN') + ')',
+            existingOrder,
+            newOrder
+          );
+        }
+
+        closeOrderModal();
+        renderOrdersTable();
+
+        if (newOrder.status === 'Pending Primary Approval') {
+          alert("Order saved and submitted for approval. It will not be booked (and the linked quotation/lead will not update) until the Primary Approver signs off.");
+        }
+      }
+
+      function approveOrderDirect(orderId) {
+        if (localStorage.getItem('isPrimaryApprover') !== 'true') {
+          alert("Only the designated Primary Approver can confirm orders. Ask your admin to assign this on the Employees page if this is incorrect.");
+          return;
+        }
+
+        var orders = window.RevOpsStore.getCollection('orders') || [];
+        var o = orders.find(function(it) { return it.id === orderId; });
+        if (!o || o.status !== 'Pending Primary Approval') return;
+
+        var remarks = prompt("Enter approval remarks / signoff notes:", "Approved for order confirmation.");
+        if (remarks === null) return;
+
+        var myName = localStorage.getItem('userName') || 'Primary Approver';
+        var myEmpId = localStorage.getItem('employeeId') || '';
+        var val = Number(o.orderValue) || Number(o.value) || 0;
+        var gstAmount = Number(o.gstAmount) || 0;
+        var advAmt = Number(o.expectedAdvanceAmount) || 0;
+
+        o.status = 'Booked';
+        window.RevOpsStore.approvePrimaryStage(o, myName, myEmpId, remarks);
+
+        // RECONCILE & UPDATE LINKED QUOTATION — only now that the order is confirmed
+        if (o.quotationId && o.autoReconcile !== false) {
           var quotes = window.RevOpsStore.getCollection('quotations') || [];
-          var q = quotes.find(function(it) { return it.id === quoteId; });
+          var q = quotes.find(function(it) { return it.id === o.quotationId; });
           if (q) {
             var oldQuoteState = JSON.parse(JSON.stringify(q));
             q.status = 'Order Booked / Won';
-            q.poNumber = poNum;
-            q.poDate = poDate;
+            q.poNumber = o.poNumber;
+            q.poDate = o.poDate;
             q.netTaxableAmount = val;
             q.grandTotal = Math.round(val + gstAmount);
             q.expectedAdvanceAmount = advAmt;
             q.updatedAt = new Date().toISOString();
-            
+
             if (q.items && q.items.length === 1) {
               q.items[0].unitPrice = val;
             }
 
             window.RevOpsStore.saveRecord('quotations', q);
-
-            if (!leadId && q.leadId) leadId = q.leadId;
+            if (!o.leadId && q.leadId) o.leadId = q.leadId;
 
             if (window.RevOpsStore.logAudit) {
               window.RevOpsStore.logAudit(
                 'Quotations',
                 q.quoteNumber || q.id,
                 'UPDATE',
-                'Auto-reconciled quotation details to match final PO ' + poNum + ' (Valuation: ₹' + val.toLocaleString('en-IN') + ', 1st Advance: ₹' + advAmt.toLocaleString('en-IN') + ')',
+                'Auto-reconciled quotation details to match approved PO ' + o.poNumber + ' (Valuation: ₹' + val.toLocaleString('en-IN') + ', 1st Advance: ₹' + advAmt.toLocaleString('en-IN') + ')',
                 oldQuoteState,
                 q
               );
@@ -756,16 +817,16 @@ var currentSplits = [];
           }
         }
 
-        // 2. RECONCILE & UPDATE LINKED CRM LEAD
-        if (leadId && autoReconcile) {
+        // RECONCILE & UPDATE LINKED CRM LEAD
+        if (o.leadId && o.autoReconcile !== false) {
           var leads = window.RevOpsStore.getCollection('leads') || [];
-          var l = leads.find(function(it) { return it.id === leadId; });
+          var l = leads.find(function(it) { return it.id === o.leadId; });
           if (l) {
             var oldLeadState = JSON.parse(JSON.stringify(l));
             l.stage = 'Order Confirmed';
             l.status = 'Order Confirmed';
-            l.poNumber = poNum;
-            l.poDate = poDate;
+            l.poNumber = o.poNumber;
+            l.poDate = o.poDate;
             l.estimatedValue = val;
             l.updatedAt = new Date().toISOString();
             window.RevOpsStore.saveRecord('leads', l);
@@ -775,7 +836,7 @@ var currentSplits = [];
                 'Leads',
                 l.id,
                 'UPDATE',
-                'Advanced CRM Lead to "Order Confirmed" and updated value to final PO ' + poNum + ' (₹' + val.toLocaleString('en-IN') + ')',
+                'Advanced CRM Lead to "Order Confirmed" and updated value to approved PO ' + o.poNumber + ' (₹' + val.toLocaleString('en-IN') + ')',
                 oldLeadState,
                 l
               );
@@ -783,18 +844,48 @@ var currentSplits = [];
           }
         }
 
-        // 3. LOG AUDIT ENTRY FOR ORDER
-        if (window.RevOpsStore.logAudit) {
-          window.RevOpsStore.logAudit(
-            'Orders',
-            newOrder.poNumber,
-            existingOrder ? 'UPDATE' : 'CREATE',
-            (existingOrder ? 'Updated commercial order ' : 'Booked new commercial order ') + newOrder.customerName + ' (PO #' + poNum + ', ₹' + val.toLocaleString('en-IN') + ', 1st Advance: ₹' + advAmt.toLocaleString('en-IN') + ')',
-            existingOrder,
-            newOrder
-          );
-        }
-
-        closeOrderModal();
+        window.RevOpsStore.saveRecord('orders', o);
         renderOrdersTable();
+        alert("Order " + (o.poNumber || o.id) + " approved and booked! (Director ratification is still pending, but does not block anything.)");
+      }
+
+      function rejectOrderDirect(orderId) {
+        if (localStorage.getItem('isPrimaryApprover') !== 'true') {
+          alert("Only the designated Primary Approver can reject orders.");
+          return;
+        }
+        var reason = prompt("Enter reason for rejecting this order:", "");
+        if (reason === null) return;
+
+        var orders = window.RevOpsStore.getCollection('orders') || [];
+        var o = orders.find(function(it) { return it.id === orderId; });
+        if (!o || o.status !== 'Pending Primary Approval') return;
+
+        o.status = 'Rejected';
+        o.rejectionReason = reason;
+        window.RevOpsStore.saveRecord('orders', o);
+        renderOrdersTable();
+        alert("Order " + (o.poNumber || o.id) + " rejected.");
+      }
+
+      function ratifyOrderDirect(orderId) {
+        if (localStorage.getItem('isDirector') !== 'true') {
+          alert("Only the designated Director can ratify order approvals.");
+          return;
+        }
+        var orders = window.RevOpsStore.getCollection('orders') || [];
+        var o = orders.find(function(it) { return it.id === orderId; });
+        if (!o || o.status !== 'Booked' || o.directorRatificationStatus !== 'Pending') {
+          alert("This order isn't awaiting director ratification.");
+          return;
+        }
+        var remarks = prompt("Enter ratification remarks (optional):", "Ratified.");
+        if (remarks === null) return;
+
+        var myName = localStorage.getItem('userName') || 'Director';
+        var myEmpId = localStorage.getItem('employeeId') || '';
+        window.RevOpsStore.ratifyByDirector(o, myName, myEmpId, remarks);
+        window.RevOpsStore.saveRecord('orders', o);
+        renderOrdersTable();
+        alert("Order " + (o.poNumber || o.id) + " ratified by Director.");
       }

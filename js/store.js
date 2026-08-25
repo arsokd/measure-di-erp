@@ -295,14 +295,10 @@ Object.assign(window.RevOpsStore, {
     }
 
     var newTaxInvNumber = this.generateNextInvoiceNumber(false);
-    var isSenior = (userRole === 'admin' || userRole === 'super_admin');
-    var status = isSenior ? 'Approved' : 'Pending Senior Approval';
-    var approvalInfo = isSenior ? {
-      approvedBy: (raisedByName || 'Admin') + ' (' + (raisedByEmpId || 'E-001') + ')',
-      approvedRole: userRole,
-      approvedDate: getFormattedToday() + ' ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      seniorRemarks: 'Auto-approved upon conversion from Proforma ' + (pi.invoiceNumber || '')
-    } : null;
+    // Same as raising a fresh invoice — no auto-approve shortcut for any
+    // role. The Primary Approver must sign off before this can be sent.
+    var status = 'Pending Senior Approval';
+    var approvalInfo = null;
 
     var newTaxInvoice = {
       id: 'inv_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
@@ -774,13 +770,13 @@ Object.assign(window.RevOpsStore, {
     newTaxInvoice.proformaReference = proforma.invoiceNumber;
     newTaxInvoice.proformaId = proforma.id;
     newTaxInvoice.invoiceDate = nowStr;
-    newTaxInvoice.status = 'Approved';
-    newTaxInvoice.approvalInfo = {
-      approvedBy: approvedByName || 'Senior Approver',
-      approverRole: approvedByRole || 'admin',
-      approvedAt: new Date().toISOString(),
-      remarks: "Converted and approved from Proforma Invoice " + proforma.invoiceNumber
-    };
+    // Same as raising a fresh invoice — this still requires the Primary
+    // Approver's sign-off before it can be dispatched. No auto-approve
+    // shortcut for any role.
+    newTaxInvoice.status = 'Pending Senior Approval';
+    newTaxInvoice.approvalInfo = null;
+    newTaxInvoice.directorRatificationStatus = undefined;
+    newTaxInvoice.emailDispatchHistory = [];
 
     // Mark original Proforma as Converted
     proforma.status = 'Converted to Tax Invoice';
