@@ -232,6 +232,11 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('create-login-title').innerText = "Create Login Credentials for " + name;
         document.getElementById('modal-emp-email').value = email;
         generateRandomPassword();
+        var employees = window.RevOpsStore.getCollection('employees') || [];
+        var emp = employees.find(function(e) { return e.id === id; }) || {};
+        document.getElementById('modal-is-primary-approver').checked = !!emp.isPrimaryApprover;
+        document.getElementById('modal-is-director-ratifier').checked = !!emp.isDirector;
+        document.getElementById('modal-is-finance-head').checked = !!emp.isFinanceHead;
         document.getElementById('create-login-modal').classList.remove('hidden');
       }
 
@@ -253,10 +258,31 @@ document.addEventListener('DOMContentLoaded', function() {
         var empIdDoc = document.getElementById('modal-emp-id').value;
         var email = document.getElementById('modal-emp-email').value;
         var tempPassword = document.getElementById('modal-emp-password').value;
+        var isPrimaryApprover = document.getElementById('modal-is-primary-approver').checked;
+        var isDirector = document.getElementById('modal-is-director-ratifier').checked;
+        var isFinanceHead = document.getElementById('modal-is-finance-head').checked;
 
         var btn = document.getElementById('create-login-submit-btn');
         btn.disabled = true;
         btn.innerText = "Creating...";
+
+        var employees = window.RevOpsStore.getCollection('employees') || [];
+        var empRec = employees.find(function(e) { return e.id === empIdDoc; }) || {};
+        var approvalFlags = { isPrimaryApprover: isPrimaryApprover, isDirector: isDirector, isFinanceHead: isFinanceHead };
+
+        // Writes the users/{uid} role doc that Firestore rules and every
+        // approval gate in the app actually check — without this doc the
+        // login works, but the employee can't be recognized as an approver
+        // (or as admin/leadership at all) no matter what their role says.
+        function writeUsersRoleDoc(uid) {
+          if (!uid || !window.db) return;
+          window.db.collection('users').doc(uid).set(Object.assign({
+            employeeId: empRec.employeeId || '',
+            role: empRec.role || 'staff'
+          }, approvalFlags), { merge: true }).catch(function(err) {
+            console.warn("Error creating users/ role doc:", err);
+          });
+        }
 
         if (typeof firebase !== 'undefined' && firebase.initializeApp) {
           try {
@@ -265,7 +291,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
             secondaryAuth.createUserWithEmailAndPassword(email, tempPassword)
               .then(function(cred) {
-                window.RevOpsStore.updateItem('employees', empIdDoc, { uid: cred.user.uid });
+                var newUid = cred.user.uid;
+                window.RevOpsStore.updateItem('employees', empIdDoc, Object.assign({ uid: newUid }, approvalFlags));
+                writeUsersRoleDoc(newUid);
                 return secondaryAuth.signOut();
               })
               .then(function() {
@@ -277,14 +305,14 @@ document.addEventListener('DOMContentLoaded', function() {
               .catch(function(err) {
                 // Fallback for demo when secondary auth has duplicate email error or mock environment
                 var newUid = "uid_demo_" + Date.now();
-                window.RevOpsStore.updateItem('employees', empIdDoc, { uid: newUid });
+                window.RevOpsStore.updateItem('employees', empIdDoc, Object.assign({ uid: newUid }, approvalFlags));
                 alert("Login created successfully!\n\nEmail: " + email + "\nTemporary Password: " + tempPassword + "\n\nPlease share these credentials securely with the employee.");
                 closeCreateLoginModal();
                 renderTeamData();
               });
           } catch(err) {
             var newUid = "uid_demo_" + Date.now();
-            window.RevOpsStore.updateItem('employees', empIdDoc, { uid: newUid });
+            window.RevOpsStore.updateItem('employees', empIdDoc, Object.assign({ uid: newUid }, approvalFlags));
             alert("Login created successfully!\n\nEmail: " + email + "\nTemporary Password: " + tempPassword);
             closeCreateLoginModal();
             renderTeamData();

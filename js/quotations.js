@@ -296,7 +296,8 @@ var currentEditingQuoteId = null;
           else if (funnelStage.indexOf("Technical") !== -1 || funnelStage.indexOf("Site Visit") !== -1) funnelBadgeClass = "bg-amber-50 text-amber-700 border-amber-300";
           else if (funnelStage.indexOf("Lost") !== -1) funnelBadgeClass = "bg-rose-50 text-rose-700 border-rose-300";
 
-          var canApprove = (userRole === 'super_admin' || userRole === 'admin') && q.status === 'Pending Approval';
+          var canApprove = (localStorage.getItem('isPrimaryApprover') === 'true') && q.status === 'Pending Approval';
+          var canRatify = (localStorage.getItem('isDirector') === 'true') && q.status === 'Approved' && q.directorRatificationStatus === 'Pending';
           var canConvert = (q.status === 'Approved' || q.status === 'Sent to Customer') && !q.convertedOrderId;
           var canSend = (q.status === 'Approved' || q.status === 'Sent to Customer' || q.status === 'Converted to Order');
           var fileCount = (q.attachments && Array.isArray(q.attachments)) ? q.attachments.length : 0;
@@ -354,11 +355,16 @@ var currentEditingQuoteId = null;
                   </button>
                 ` : ''}
                 ${canApprove ? `
-                  <button onclick="approveQuoteDirect('${q.id}')" class="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors font-bold" title="Approve Discount">
+                  <button onclick="approveQuoteDirect('${q.id}')" class="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors font-bold" title="Approve (Primary Approver)">
                     ✅
                   </button>
-                  <button onclick="rejectQuoteDirect('${q.id}')" class="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors font-bold" title="Reject Discount">
+                  <button onclick="rejectQuoteDirect('${q.id}')" class="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors font-bold" title="Reject">
                     ❌
+                  </button>
+                ` : ''}
+                ${canRatify ? `
+                  <button onclick="ratifyQuoteDirect('${q.id}')" class="px-2 py-1 bg-purple-100 hover:bg-purple-200 text-purple-800 rounded-md text-[10px] font-bold shadow-xs transition-colors" title="Director Ratification">
+                    👑 Ratify
                   </button>
                 ` : ''}
                 ${canConvert ? `
@@ -384,14 +390,18 @@ var currentEditingQuoteId = null;
 
       function getQuoteStatusBadgeHtml(q) {
         if (q.status === 'Pending Approval') {
-          var reqRole = q.requiredApproverRole === 'super_admin' ? 'MD' : 'Manager';
           return `<span class="px-2 py-1 rounded-full text-[10px] font-black uppercase bg-amber-100 text-amber-900 border border-amber-300 animate-pulse">
-            ⚠️ Pending ${reqRole} Signoff
+            ⚠️ Pending Approval
           </span>`;
         } else if (q.status === 'Approved') {
-          return `<span class="px-2 py-1 rounded-full text-[10px] font-black uppercase bg-emerald-100 text-emerald-800 border border-emerald-300">
-            ✅ Approved
-          </span>`;
+          return `<div class="inline-flex flex-col items-center">
+            <span class="px-2 py-1 rounded-full text-[10px] font-black uppercase bg-emerald-100 text-emerald-800 border border-emerald-300">
+              ✅ Approved
+            </span>
+            ${q.directorRatificationStatus === 'Ratified' ?
+              `<span class="text-[9px] text-purple-700 mt-0.5 font-bold">👑 Ratified by ${escapeHtml(q.directorRatifiedBy || 'Director')}</span>` :
+              `<span class="text-[9px] text-amber-600 mt-0.5 font-semibold">Pending Director Ratification</span>`}
+          </div>`;
         } else if (q.status === 'Sent to Customer') {
           return `<div class="inline-flex flex-col items-center">
             <span class="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-sky-100 text-sky-800 border border-sky-300">
@@ -420,7 +430,7 @@ var currentEditingQuoteId = null;
         var badge = document.getElementById('pending-count-badge');
         if (!banner || !listContainer) return;
 
-        var isApprover = (userRole === 'super_admin' || userRole === 'admin');
+        var isApprover = localStorage.getItem('isPrimaryApprover') === 'true';
         if (!isApprover) {
           banner.classList.add('hidden');
           return;
@@ -440,7 +450,7 @@ var currentEditingQuoteId = null;
           var item = document.createElement('div');
           item.className = "bg-white p-3.5 rounded-xl border border-amber-300/80 shadow-xs flex items-center justify-between";
           
-          var reqApproverText = q.requiredApproverRole === 'super_admin' ? 'MD Signoff' : 'Manager Signoff';
+          var reqApproverText = 'Your Signoff';
 
           item.innerHTML = `
             <div>
@@ -952,23 +962,12 @@ var currentEditingQuoteId = null;
         var taxAmount = netSubtotal * 0.18;
         var grandTotal = netSubtotal + taxAmount;
 
-        // Determine Status & Required Approver
-        var status = "Approved";
+        // Every quotation requires the Primary Approver's sign-off before it
+        // can be sent to the client — regardless of discount level or who
+        // raised it. There is no auto-approve shortcut for any role,
+        // including super_admin, so this can't be bypassed by role alone.
+        var status = "Pending Approval";
         var requiredApproverRole = "none";
-
-        if (overallDiscPercent > 25) {
-          status = "Pending Approval";
-          requiredApproverRole = "super_admin";
-        } else if (overallDiscPercent > 15) {
-          status = "Pending Approval";
-          requiredApproverRole = "admin";
-        }
-
-        // Auto-approve if created by Super Admin / MD
-        if (userRole === 'super_admin') {
-          status = "Approved";
-          requiredApproverRole = "none";
-        }
 
         var quotes = getQuotationsList();
 
@@ -1053,9 +1052,8 @@ var currentEditingQuoteId = null;
             quotes[idx].grandTotal = grandTotal;
             quotes[idx].termsAndConditions = terms;
             
-            if (userRole !== 'super_admin' && overallDiscPercent > 15 && quotes[idx].status !== 'Approved') {
+            if (quotes[idx].status !== 'Approved' && quotes[idx].status !== 'Sent to Customer' && quotes[idx].status !== 'Converted to Order') {
               quotes[idx].status = 'Pending Approval';
-              quotes[idx].requiredApproverRole = overallDiscPercent > 25 ? 'super_admin' : 'admin';
             }
           }
         }
@@ -1068,26 +1066,18 @@ var currentEditingQuoteId = null;
         closeQuoteModal();
         renderQuotations();
 
-        if (status === 'Approved') {
-          if (confirm("Quotation " + quoteId + " saved & approved!\n\nWould you like to send this quotation directly to client (" + customerName + ") now?")) {
-            openSendQuoteModal(quoteId);
-          } else {
-            alert("Quotation " + quoteId + " saved successfully!");
-          }
-        } else {
-          alert("Quotation " + quoteId + " saved and submitted for Manager/MD discount approval.");
-        }
+        alert("Quotation " + quoteId + " saved and submitted for approval. It cannot be sent to the client until the Primary Approver signs off.");
       }
 
       function approveQuoteDirect(quoteId) {
-        var userRole = localStorage.getItem('userRole');
-        var myEmpId = localStorage.getItem('employeeId') || 'E-001';
-        if (userRole !== 'super_admin' && userRole !== 'admin') {
-          alert("Only Managers and Super Admin (MD) can approve discount thresholds.");
+        var myEmpId = localStorage.getItem('employeeId') || '';
+        var myName = localStorage.getItem('userName') || 'Primary Approver';
+        if (localStorage.getItem('isPrimaryApprover') !== 'true') {
+          alert("Only the designated Primary Approver can approve quotations. Ask your admin to assign this on the Employees page if this is incorrect.");
           return;
         }
 
-        var remarks = prompt("Enter approval remarks / signoff notes:", "Approved discount offer for customer relationship.");
+        var remarks = prompt("Enter approval remarks / signoff notes:", "Approved for dispatch to client.");
         if (remarks === null) return;
 
         var quotes = getQuotationsList();
@@ -1095,11 +1085,12 @@ var currentEditingQuoteId = null;
         if (q) {
           q.status = 'Approved';
           q.requiredApproverRole = 'none';
+          window.RevOpsStore.approvePrimaryStage(q, myName, myEmpId, remarks);
           q.approvalHistory.push({
             approverId: myEmpId,
-            approverName: localStorage.getItem('userName') || 'Manager',
-            approverRole: userRole,
-            action: 'Approved Discount',
+            approverName: myName,
+            approverRole: 'Primary Approver',
+            action: 'Approved',
             timestamp: getFormattedToday() + ' ' + new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
             remarks: remarks
           });
@@ -1110,21 +1101,21 @@ var currentEditingQuoteId = null;
           }
           renderQuotations();
 
-          if (confirm("Quote " + q.quoteNumber + " approved successfully!\n\nWould you like to send this quotation directly to client (" + q.customerName + ") now?")) {
+          if (confirm("Quote " + q.quoteNumber + " approved! (Director ratification is still pending, but does not block sending.)\n\nWould you like to send this quotation directly to client (" + q.customerName + ") now?")) {
             openSendQuoteModal(q.id);
           }
         }
       }
 
       function rejectQuoteDirect(quoteId) {
-        var userRole = localStorage.getItem('userRole');
-        var myEmpId = localStorage.getItem('employeeId') || 'E-001';
-        if (userRole !== 'super_admin' && userRole !== 'admin') {
-          alert("Only Managers and Super Admin (MD) can reject discount thresholds.");
+        var myEmpId = localStorage.getItem('employeeId') || '';
+        var myName = localStorage.getItem('userName') || 'Primary Approver';
+        if (localStorage.getItem('isPrimaryApprover') !== 'true') {
+          alert("Only the designated Primary Approver can reject quotations.");
           return;
         }
 
-        var reason = prompt("Enter reason for rejecting discount:", "Discount exceeds allowable margin limit. Please revise.");
+        var reason = prompt("Enter reason for rejecting this quotation:", "Discount exceeds allowable margin limit. Please revise.");
         if (reason === null) return;
 
         var quotes = getQuotationsList();
@@ -1133,9 +1124,9 @@ var currentEditingQuoteId = null;
           q.status = 'Rejected';
           q.approvalHistory.push({
             approverId: myEmpId,
-            approverName: localStorage.getItem('userName') || 'Manager',
-            approverRole: userRole,
-            action: 'Rejected Discount',
+            approverName: myName,
+            approverRole: 'Primary Approver',
+            action: 'Rejected',
             timestamp: getFormattedToday() + ' ' + new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
             remarks: reason
           });
@@ -1145,8 +1136,46 @@ var currentEditingQuoteId = null;
             window.RevOpsStore.syncAllToFirestore();
           }
           renderQuotations();
-          alert("Quote " + q.quoteNumber + " discount rejected.");
+          alert("Quote " + q.quoteNumber + " rejected.");
         }
+      }
+
+      function ratifyQuoteDirect(quoteId) {
+        var myEmpId = localStorage.getItem('employeeId') || '';
+        var myName = localStorage.getItem('userName') || 'Director';
+        if (localStorage.getItem('isDirector') !== 'true') {
+          alert("Only the designated Director can ratify quotation approvals.");
+          return;
+        }
+
+        var quotes = getQuotationsList();
+        var q = quotes.find(function(it) { return it.id === quoteId; });
+        if (!q) return;
+
+        if (q.status !== 'Approved' || q.directorRatificationStatus !== 'Pending') {
+          alert("This quotation isn't awaiting director ratification.");
+          return;
+        }
+
+        var remarks = prompt("Enter ratification remarks (optional):", "Ratified.");
+        if (remarks === null) return;
+
+        window.RevOpsStore.ratifyByDirector(q, myName, myEmpId, remarks);
+        q.approvalHistory.push({
+          approverId: myEmpId,
+          approverName: myName,
+          approverRole: 'Director',
+          action: 'Ratified',
+          timestamp: getFormattedToday() + ' ' + new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
+          remarks: remarks
+        });
+
+        window.RevOpsStore.saveCollection('quotations', quotes);
+        if (window.RevOpsStore.isFirebaseAvailable()) {
+          window.RevOpsStore.syncAllToFirestore();
+        }
+        renderQuotations();
+        alert("Quote " + q.quoteNumber + " ratified by Director.");
       }
 
       function createQuoteRevision(quoteId) {

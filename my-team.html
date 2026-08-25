@@ -122,6 +122,22 @@
             </div>
           </div>
 
+          <div class="pt-3 border-t border-slate-100 space-y-1.5">
+            <label class="block text-[10px] font-bold text-slate-700 uppercase tracking-wider">Approval Authority (optional)</label>
+            <label class="flex items-center space-x-2 text-[11px] font-semibold text-slate-700 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5">
+              <input type="checkbox" id="modal-is-primary-approver" class="w-3.5 h-3.5" />
+              <span>Primary Approver (quotations / orders / invoices)</span>
+            </label>
+            <label class="flex items-center space-x-2 text-[11px] font-semibold text-slate-700 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5">
+              <input type="checkbox" id="modal-is-director-ratifier" class="w-3.5 h-3.5" />
+              <span>Director Ratifier (ratification + write-off sign-off)</span>
+            </label>
+            <label class="flex items-center space-x-2 text-[11px] font-semibold text-slate-700 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5">
+              <input type="checkbox" id="modal-is-finance-head" class="w-3.5 h-3.5" />
+              <span>Finance Head (payment verification + write-off sign-off)</span>
+            </label>
+          </div>
+
           <div class="pt-4 border-t border-slate-100 flex items-center justify-end space-x-3">
             <button type="button" onclick="closeCreateLoginModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl">Cancel</button>
             <button type="submit" id="create-login-submit-btn" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-xl shadow-xs transition-colors cursor-pointer">

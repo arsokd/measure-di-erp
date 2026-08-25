@@ -22,6 +22,20 @@ service cloud.firestore {
       return signedIn() && myRole() == 'super_admin';
     }
 
+    // ---- Named approval authorities (assigned per-person on the Employees
+    // page, not tied to a fixed name — see employees.html "Approval Authority") ----
+    function isPrimaryApprover() {
+      return signedIn() && myUserData().isPrimaryApprover == true;
+    }
+
+    function isRatifyingDirector() {
+      return signedIn() && myUserData().isDirector == true;
+    }
+
+    function isFinanceHead() {
+      return signedIn() && myUserData().isFinanceHead == true;
+    }
+
     // True if the caller owns this record (matches on employeeId) or is admin/leadership.
     function isOwnerOrAdmin() {
       return isLeadershipOrAdmin() ||

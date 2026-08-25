@@ -214,6 +214,9 @@
           // Resolve role/employee identity from the authoritative server-side records.
           var role = null;
           var employeeId = '';
+          var isPrimaryApprover = false;
+          var isDirector = false;
+          var isFinanceHead = false;
           try {
             if (window.db) {
               var userDoc = await window.db.collection('users').doc(uid).get();
@@ -221,6 +224,9 @@
                 var userData = userDoc.data() || {};
                 role = userData.role || role;
                 employeeId = userData.employeeId || employeeId;
+                isPrimaryApprover = userData.isPrimaryApprover === true;
+                isDirector = userData.isDirector === true;
+                isFinanceHead = userData.isFinanceHead === true;
               }
             }
           } catch (eUserDoc) {
@@ -249,6 +255,11 @@
           localStorage.setItem('userName', empName);
           localStorage.setItem('userEmail', loginEmail);
           localStorage.setItem('employeeId', employeeId);
+          // Approval authority — separate from role, assigned per-person via
+          // the Employees page (see employees.html "Approval Authority").
+          localStorage.setItem('isPrimaryApprover', String(isPrimaryApprover || (employeeRecord && employeeRecord.isPrimaryApprover === true)));
+          localStorage.setItem('isDirector', String(isDirector || (employeeRecord && employeeRecord.isDirector === true)));
+          localStorage.setItem('isFinanceHead', String(isFinanceHead || (employeeRecord && employeeRecord.isFinanceHead === true)));
 
           if (role === 'super_admin' || role === 'admin' || role === 'manager') {
             window.location.href = 'dashboard.html';

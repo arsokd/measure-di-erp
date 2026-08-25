@@ -118,6 +118,9 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('inp-location').value = "";
         document.getElementById('inp-role').value = "staff";
         updateRoleAccessHint();
+        document.getElementById('inp-is-primary-approver').checked = false;
+        document.getElementById('inp-is-director-ratifier').checked = false;
+        document.getElementById('inp-is-finance-head').checked = false;
         document.getElementById('inp-aop-target').value = 10000000;
         document.getElementById('inp-monthly-ctc').value = 75000;
         document.getElementById('inp-bank-name').value = "HDFC Bank";
@@ -164,6 +167,9 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('inp-location').value = emp.location || '';
         document.getElementById('inp-role').value = emp.role || 'staff';
         updateRoleAccessHint();
+        document.getElementById('inp-is-primary-approver').checked = !!emp.isPrimaryApprover;
+        document.getElementById('inp-is-director-ratifier').checked = !!emp.isDirector;
+        document.getElementById('inp-is-finance-head').checked = !!emp.isFinanceHead;
         document.getElementById('inp-aop-target').value = (emp.primaryAopTarget !== undefined && emp.primaryAopTarget !== null) ? emp.primaryAopTarget : 0;
         document.getElementById('inp-monthly-ctc').value = emp.monthlyCtc || 75000;
         document.getElementById('inp-bank-name').value = emp.bankName || 'HDFC Bank';
@@ -240,6 +246,9 @@ document.addEventListener('DOMContentLoaded', function() {
           mobile: document.getElementById('inp-mobile').value.trim(),
           location: document.getElementById('inp-location').value.trim(),
           role: document.getElementById('inp-role').value,
+          isPrimaryApprover: document.getElementById('inp-is-primary-approver').checked,
+          isDirector: document.getElementById('inp-is-director-ratifier').checked,
+          isFinanceHead: document.getElementById('inp-is-finance-head').checked,
           primaryAopTarget: document.getElementById('inp-aop-target').value !== "" ? Number(document.getElementById('inp-aop-target').value) : 0,
           monthlyCtc: document.getElementById('inp-monthly-ctc').value !== "" ? Number(document.getElementById('inp-monthly-ctc').value) : 75000,
           bankName: document.getElementById('inp-bank-name').value.trim(),
@@ -256,6 +265,25 @@ document.addEventListener('DOMContentLoaded', function() {
           window.RevOpsStore.updateItem('employees', docId, empData);
         } else {
           window.RevOpsStore.addItem('employees', empData);
+        }
+
+        // Keep the users/{uid} role doc (what Firestore rules and approval
+        // gates actually check) in sync with the role and approval-authority
+        // flags just saved here, for anyone who already has a real login.
+        if (docId && window.db) {
+          var employees = window.RevOpsStore.getCollection('employees') || [];
+          var savedEmp = employees.find(function(e) { return e.id === docId; });
+          if (savedEmp && savedEmp.uid && savedEmp.uid.indexOf('uid_demo_') !== 0) {
+            window.db.collection('users').doc(savedEmp.uid).set({
+              employeeId: empData.employeeId,
+              role: empData.role,
+              isPrimaryApprover: empData.isPrimaryApprover,
+              isDirector: empData.isDirector,
+              isFinanceHead: empData.isFinanceHead
+            }, { merge: true }).catch(function(err) {
+              console.warn("Could not sync users/ role doc for", savedEmp.uid, err);
+            });
+          }
         }
 
         closeEmployeeModal();

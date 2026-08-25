@@ -605,7 +605,7 @@ Object.assign(window.RevOpsStore, {
     var arAdjustments = this.getCollection('arAdjustments') || [];
     var isWriteOff = adjData.type && adjData.type.indexOf('Write-Off') !== -1;
     var refNum = adjData.adjustmentNumber || this.generateNextAdjustmentNumber(isWriteOff);
-    
+
     var newAdj = {
       id: adjData.id || ('adj_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4)),
       adjustmentNumber: refNum,
@@ -621,54 +621,66 @@ Object.assign(window.RevOpsStore, {
       detailedJustification: adjData.detailedJustification || '',
       requestedBy: adjData.requestedBy || 'Staff',
       requestedDate: adjData.requestedDate || getFormattedToday(),
-      status: adjData.status || 'Pending Director Approval',
-      directorApproval: adjData.directorApproval || null,
+      // Every write-off / goodwill request requires all three named
+      // authorities to sign off before it counts — no shortcut for any role.
+      status: 'Pending Director Approval',
+      primaryApproverSignoff: null,
+      financeHeadSignoff: null,
+      directorSignoff: null,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
 
     var saved = this.addItem('arAdjustments', newAdj);
-    
-    // If auto-approved by Director
-    if (newAdj.status === 'Approved' || newAdj.status === 'Approved by Director') {
-      if (newAdj.invoiceId || newAdj.invoiceNumber) {
-        this.syncInvoicePaymentStatus(newAdj.invoiceId || newAdj.invoiceNumber);
-      }
-    }
-
     return saved;
   },
 
-  approveArAdjustment: function(adjId, directorName, directorRole, directorRemarks, decision) {
+  // One of the three required signatures on a write-off/goodwill request.
+  // `signoffKey` is one of: 'primaryApproverSignoff', 'financeHeadSignoff', 'directorSignoff'.
+  // The adjustment only takes effect (reduces the invoice balance) once all
+  // three are present and none rejected.
+  signArAdjustment: function(adjId, signoffKey, decision, signerName, signerEmpId, remarks) {
+    var validKeys = ['primaryApproverSignoff', 'financeHeadSignoff', 'directorSignoff'];
+    if (validKeys.indexOf(signoffKey) === -1) return { success: false, error: 'Invalid signoff type.' };
+
     var arAdjustments = this.getCollection('arAdjustments') || [];
     var adj = arAdjustments.find(function(it) { return it.id === adjId; });
     if (!adj) return { success: false, error: 'Adjustment record not found.' };
 
     var isApproved = decision === 'Approved';
-    var updatedStatus = isApproved ? 'Approved by Director' : 'Rejected by Director';
-
-    var directorApproval = {
-      approvedBy: directorName || 'Mr. Murugan V (Director)',
-      directorRole: directorRole || 'super_admin',
-      approvedDate: getFormattedToday() + ' ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      directorRemarks: directorRemarks || (isApproved ? 'Approved & Authorized by Director of Measure DI Technologies' : 'Rejected by Director'),
-      authorizationCode: 'DIR-AUTH-' + Math.floor(100000 + Math.random() * 900000)
+    var signoff = {
+      decision: isApproved ? 'Approved' : 'Rejected',
+      signedBy: signerName || 'Approver',
+      signedByEmpId: signerEmpId || '',
+      signedAt: getFormattedToday() + ' ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      remarks: remarks || ''
     };
 
-    var updates = {
-      status: updatedStatus,
-      directorApproval: directorApproval,
-      updatedAt: new Date().toISOString()
-    };
+    var updates = {};
+    updates[signoffKey] = signoff;
 
+    var afterPrimary = signoffKey === 'primaryApproverSignoff' ? signoff : adj.primaryApproverSignoff;
+    var afterFinance = signoffKey === 'financeHeadSignoff' ? signoff : adj.financeHeadSignoff;
+    var afterDirector = signoffKey === 'directorSignoff' ? signoff : adj.directorSignoff;
+
+    if (!isApproved) {
+      updates.status = 'Rejected';
+    } else if (afterPrimary && afterPrimary.decision === 'Approved' &&
+               afterFinance && afterFinance.decision === 'Approved' &&
+               afterDirector && afterDirector.decision === 'Approved') {
+      updates.status = 'Approved';
+    } else {
+      updates.status = 'Pending Director Approval';
+    }
+
+    updates.updatedAt = new Date().toISOString();
     this.updateItem('arAdjustments', adjId, updates);
 
-    // Synchronize invoice balance immediately
-    if (adj.invoiceId || adj.invoiceNumber) {
+    if (updates.status === 'Approved' && (adj.invoiceId || adj.invoiceNumber)) {
       this.syncInvoicePaymentStatus(adj.invoiceId || adj.invoiceNumber);
     }
 
-    return { success: true, adjustment: adj, status: updatedStatus };
+    return { success: true, adjustment: Object.assign({}, adj, updates), status: updates.status };
   },
 
   getPendingDirectorApprovals: function() {
@@ -676,6 +688,29 @@ Object.assign(window.RevOpsStore, {
     return arAdjustments.filter(function(adj) {
       return adj.status === 'Pending Director Approval';
     });
+  },
+
+  // ============ SHARED TWO-STAGE APPROVAL (Quotations / Orders / Invoices) ============
+  // Stage 1 (Primary Approver, e.g. Sales & Marketing Head): blocking — the
+  // team cannot send the quote / confirm the order / raise the invoice until
+  // this happens. Stage 2 (Director ratification): tracked for the record,
+  // never blocks the team.
+  approvePrimaryStage: function(record, approverName, approverEmpId, remarks) {
+    record.primaryApprovedBy = approverName;
+    record.primaryApprovedByEmpId = approverEmpId || '';
+    record.primaryApprovedAt = getFormattedToday() + ' ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    record.primaryApprovalRemarks = remarks || '';
+    record.directorRatificationStatus = 'Pending';
+    return record;
+  },
+
+  ratifyByDirector: function(record, directorName, directorEmpId, remarks) {
+    record.directorRatificationStatus = 'Ratified';
+    record.directorRatifiedBy = directorName;
+    record.directorRatifiedByEmpId = directorEmpId || '';
+    record.directorRatifiedAt = getFormattedToday() + ' ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    record.directorRatificationRemarks = remarks || '';
+    return record;
   },
 
   generateNextReceiptNumber: function() {

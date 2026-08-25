@@ -177,6 +177,15 @@ function checkAuth(allowedRoles) {
     if (currentEmp.email && localStorage.getItem('userEmail') !== currentEmp.email) {
       localStorage.setItem('userEmail', currentEmp.email);
     }
+    // Approval authority flags (Primary Approver / Director Ratifier / Finance
+    // Head) — kept in sync the same way role is, so a flag change on the
+    // Employees page takes effect on this device without a fresh login.
+    ['isPrimaryApprover', 'isDirector', 'isFinanceHead'].forEach(function(flagKey) {
+      var flagVal = String(currentEmp[flagKey] === true);
+      if (localStorage.getItem(flagKey) !== flagVal) {
+        localStorage.setItem(flagKey, flagVal);
+      }
+    });
 
     if (empUpdated && window.RevOpsStore && window.RevOpsStore.saveCollection) {
       try {
