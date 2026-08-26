@@ -535,8 +535,8 @@ Object.assign(window.RevOpsStore, {
     var totalAdjustments = 0;
     var totalWriteOffs = 0;
     linkedAdjustments.forEach(function(adj) {
-      var amt = Number(adj.amount) || 0;
-      if (adj.type && adj.type.indexOf('Write-Off') !== -1) {
+      var amt = Number(adj.adjustmentAmount) || 0;
+      if (adj.adjustmentType && adj.adjustmentType.indexOf('Write-Off') !== -1) {
         totalWriteOffs += amt;
       } else {
         totalAdjustments += amt;
@@ -599,24 +599,25 @@ Object.assign(window.RevOpsStore, {
 
   createArAdjustmentRequest: function(adjData) {
     var arAdjustments = this.getCollection('arAdjustments') || [];
-    var isWriteOff = adjData.type && adjData.type.indexOf('Write-Off') !== -1;
+    var isWriteOff = adjData.adjustmentType && adjData.adjustmentType.indexOf('Write-Off') !== -1;
     var refNum = adjData.adjustmentNumber || this.generateNextAdjustmentNumber(isWriteOff);
 
     var newAdj = {
       id: adjData.id || ('adj_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4)),
       adjustmentNumber: refNum,
       refNumber: refNum,
-      type: adjData.type || (isWriteOff ? 'Bad Debt Write-Off (Unrecoverable AR)' : 'Goodwill Discount / Commercial Adjustment'),
+      adjustmentType: adjData.adjustmentType || (isWriteOff ? 'Bad Debt Write-Off (Unrecoverable AR)' : 'Goodwill Discount / Commercial Adjustment'),
       invoiceId: adjData.invoiceId || '',
       invoiceNumber: adjData.invoiceNumber || '',
       customerName: adjData.customerName || '',
       invoiceGrandTotal: Number(adjData.invoiceGrandTotal) || 0,
-      invoiceCurrentBalance: Number(adjData.invoiceCurrentBalance) || 0,
-      amount: Number(adjData.amount) || 0,
+      currentBalanceDue: Number(adjData.currentBalanceDue) || 0,
+      adjustmentAmount: Number(adjData.adjustmentAmount) || 0,
       reasonCategory: adjData.reasonCategory || (isWriteOff ? 'Long Outstanding Unrecoverable' : 'Goodwill Customer Concession'),
-      detailedJustification: adjData.detailedJustification || '',
+      detailedJustification: adjData.commercialJustification || adjData.detailedJustification || '',
       requestedBy: adjData.requestedBy || 'Staff',
-      requestedDate: adjData.requestedDate || getFormattedToday(),
+      requestedByEmpId: adjData.requestedByEmpId || '',
+      requestedDate: adjData.requestDate || adjData.requestedDate || getFormattedToday(),
       // Every write-off / goodwill request requires all three named
       // authorities to sign off before it counts — no shortcut for any role.
       status: 'Pending Director Approval',

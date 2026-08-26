@@ -661,7 +661,7 @@
         var writeOffNotes = [];
         if (linkedAdjustments.length > 0) {
           linkedAdjustments.forEach(function(adj) {
-            writeOffNotes.push(`• Concession / Write-Off: ${adj.adjustmentNumber || adj.refNumber} | Amount: ${formatINR(adj.amount)} | Type: ${adj.type} | Authorized by Director (${adj.directorApproval ? adj.directorApproval.approvedBy : 'Board of Directors'})`);
+            writeOffNotes.push(`• Concession / Write-Off: ${adj.adjustmentNumber || adj.refNumber} | Amount: ${formatINR(adj.adjustmentAmount)} | Type: ${adj.adjustmentType} | Authorized by Director (${adj.directorSignoff ? adj.directorSignoff.signedBy : 'Board of Directors'})`);
           });
         }
 

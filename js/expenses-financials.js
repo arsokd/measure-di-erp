@@ -505,6 +505,8 @@
         var rawExpenses = window.RevOpsStore.getCollection('expenses') || [];
         var rawPayroll = window.RevOpsStore.getCollection('payroll') || [];
         var rawProjects = window.RevOpsStore.getCollection('projectsMaster') || [];
+        var rawInvoices = window.RevOpsStore.getCollection('invoices') || [];
+        var rawArAdjustments = window.RevOpsStore.getCollection('arAdjustments') || [];
 
         // Filter orders by FY
         var orders = rawOrders.filter(function(o) {
@@ -576,6 +578,27 @@
           payrollOpEx = payrollSum;
         }
 
+        // Director-approved AR write-offs / goodwill adjustments (Payments
+        // & Collections > Request Adjustment / Write-off) — this is the
+        // only place these hit the financial statements, and only once
+        // fully approved (all three sign-offs complete).
+        var totalBadDebtWriteOffs = 0;
+        var totalGoodwillAdjustments = 0;
+        rawArAdjustments.forEach(function(adj) {
+          if (adj.status !== 'Approved') return;
+          if (selectedFy !== 'All') {
+            var adjFy = typeof getFinancialYear === 'function' ? getFinancialYear(adj.requestedDate, adj.invoiceNumber) : '2026-27';
+            if (adjFy !== selectedFy) return;
+          }
+          var amt = Number(adj.adjustmentAmount) || 0;
+          if (adj.adjustmentType && adj.adjustmentType.indexOf('Write-Off') !== -1) {
+            totalBadDebtWriteOffs += amt;
+          } else {
+            totalGoodwillAdjustments += amt;
+          }
+        });
+        var totalArAdjustments = totalBadDebtWriteOffs + totalGoodwillAdjustments;
+
         // Realistic fallbacks for new setups
         if (totalRev === 0) totalRev = 48500000;
         if (invoicedRev === 0) invoicedRev = 41200000;
@@ -590,7 +613,10 @@
         var grossMarginPct = totalRev > 0 ? ((grossProfit / totalRev) * 100).toFixed(1) : '0';
 
         var totalOpEx = payrollOpEx + travelOpEx + adminOpEx + utilitiesOpEx;
-        var ebitda = grossProfit - totalOpEx;
+        // Approved bad-debt write-offs and goodwill/commercial discounts
+        // reduce EBITDA directly — this is the "adjust the revenue" impact
+        // the write-off/goodwill approval is required to have.
+        var ebitda = grossProfit - totalOpEx - totalArAdjustments;
         var ebitdaMarginPct = totalRev > 0 ? ((ebitda / totalRev) * 100).toFixed(1) : '0';
 
         var depreciation = Math.round(totalRev * 0.015);
@@ -599,8 +625,23 @@
         var netProfit = pbt - taxProvision;
         var netMarginPct = totalRev > 0 ? ((netProfit / totalRev) * 100).toFixed(1) : '0';
 
-        // Balance Sheet
-        var accountsReceivable = Math.max(0, invoicedRev - collectedRev);
+        // Balance Sheet — Trade Receivables is summed straight from real
+        // invoice balances (invoice.balanceDue is itself kept in sync with
+        // approved write-offs/goodwill by syncInvoicePaymentStatus, so an
+        // approved adjustment reduces this figure automatically). Falls
+        // back to the synthetic estimate only when there's no real invoice
+        // data yet.
+        var fyInvoicesForAr = rawInvoices.filter(function(inv) {
+          if (inv.status === 'Cancelled' || inv.status === 'Draft') return false;
+          if (selectedFy === 'All') return true;
+          var invFy = typeof getFinancialYear === 'function' ? getFinancialYear(inv.invoiceDate, inv.invoiceNumber) : '2026-27';
+          return invFy === selectedFy;
+        });
+        var realAccountsReceivable = 0;
+        fyInvoicesForAr.forEach(function(inv) {
+          realAccountsReceivable += Number(inv.balanceDue !== undefined ? inv.balanceDue : inv.grandTotal) || 0;
+        });
+        var accountsReceivable = fyInvoicesForAr.length > 0 ? realAccountsReceivable : Math.max(0, invoicedRev - collectedRev);
         var unbilledWip = Math.max(0, totalRev - invoicedRev);
         var cashAndBank = Math.max(1800000, collectedRev - (cogsDirect + totalOpEx + empAdvances));
         var totalCurrentAssets = cashAndBank + accountsReceivable + unbilledWip + empAdvances;
@@ -651,6 +692,9 @@
           grossProfit: grossProfit,
           grossMarginPct: grossMarginPct,
           totalOpEx: totalOpEx,
+          totalBadDebtWriteOffs: totalBadDebtWriteOffs,
+          totalGoodwillAdjustments: totalGoodwillAdjustments,
+          totalArAdjustments: totalArAdjustments,
           ebitda: ebitda,
           ebitdaMarginPct: ebitdaMarginPct,
           depreciation: depreciation,
@@ -784,6 +828,12 @@
                       <span class="text-slate-500">Operating Expenses (OpEx):</span>
                       <strong class="text-slate-700 font-bold">- ${formatINR(data.totalOpEx)}</strong>
                     </div>
+                    ${data.totalArAdjustments > 0 ? `
+                    <div class="flex justify-between">
+                      <span class="text-slate-500">Approved Write-Offs / Goodwill:</span>
+                      <strong class="text-purple-700 font-bold">- ${formatINR(data.totalArAdjustments)}</strong>
+                    </div>
+                    ` : ''}
                     <div class="flex justify-between pt-1 border-t border-slate-200 text-sm">
                       <span class="font-black text-indigo-900">Net Profit (PAT):</span>
                       <strong class="font-black text-indigo-900">${formatINR(data.netProfit)}</strong>
@@ -970,8 +1020,24 @@
                       <td class="py-2 px-4 text-right font-semibold text-slate-800">${formatINR(data.utilitiesOpEx)}</td>
                     </tr>
 
+                    <tr class="bg-purple-50/70 font-bold text-purple-950">
+                      <td class="py-3 px-4 uppercase text-[11px]">IV-B. APPROVED AR WRITE-OFFS & GOODWILL ADJUSTMENTS</td>
+                      <td class="py-3 px-4 text-right font-mono text-[11px]">SCH-3B</td>
+                      <td class="py-3 px-4 text-right text-sm font-black text-purple-800">- ${formatINR(data.totalArAdjustments)}</td>
+                    </tr>
+                    <tr>
+                      <td class="py-2 px-6 text-slate-600">Bad Debt Written Off (Director/Finance-Head/Primary-Approver Sanctioned)</td>
+                      <td class="py-2 px-4 text-right text-slate-400 font-mono">3B-1</td>
+                      <td class="py-2 px-4 text-right font-semibold text-slate-800">${formatINR(data.totalBadDebtWriteOffs)}</td>
+                    </tr>
+                    <tr>
+                      <td class="py-2 px-6 text-slate-600">Goodwill / Commercial Discount Adjustments</td>
+                      <td class="py-2 px-4 text-right text-slate-400 font-mono">3B-2</td>
+                      <td class="py-2 px-4 text-right font-semibold text-slate-800">${formatINR(data.totalGoodwillAdjustments)}</td>
+                    </tr>
+
                     <tr class="bg-indigo-100/70 font-black text-indigo-950 text-sm border-t-2 border-b-2 border-indigo-300">
-                      <td class="py-3 px-4 uppercase">V. OPERATING EBITDA (III - IV) [Margin: ${data.ebitdaMarginPct}%]</td>
+                      <td class="py-3 px-4 uppercase">V. OPERATING EBITDA (III - IV - IVB) [Margin: ${data.ebitdaMarginPct}%]</td>
                       <td class="py-3 px-4 text-right font-mono">EBITDA</td>
                       <td class="py-3 px-4 text-right text-base text-indigo-900">${formatINR(data.ebitda)}</td>
                     </tr>
@@ -1116,6 +1182,12 @@
                           <td class="py-2 px-6 text-slate-600">Trade Receivables (Client Outstanding AR)</td>
                           <td class="py-2 px-3 text-right font-semibold text-amber-700">${formatINR(data.accountsReceivable)}</td>
                         </tr>
+                        ${data.totalArAdjustments > 0 ? `
+                        <tr>
+                          <td class="py-1 px-6 text-[10px] text-purple-600 italic">↳ Net of ${formatINR(data.totalArAdjustments)} in Director-approved write-offs & goodwill this FY</td>
+                          <td class="py-1 px-3"></td>
+                        </tr>
+                        ` : ''}
                         <tr>
                           <td class="py-2 px-6 text-slate-600">Unbilled Contract Revenue / Work-in-Progress (WIP)</td>
                           <td class="py-2 px-3 text-right font-semibold text-slate-800">${formatINR(data.unbilledWip)}</td>
@@ -1187,6 +1259,12 @@
                       <td class="py-3 px-4 uppercase">Net Cash Generated from Operating Activities (A)</td>
                       <td class="py-3 px-4 text-right text-indigo-900">${formatINR(data.netOperatingCashFlow)}</td>
                     </tr>
+                    ${data.totalArAdjustments > 0 ? `
+                    <tr>
+                      <td class="py-2 px-6 text-[10px] text-purple-600 italic">Memo: ${formatINR(data.totalArAdjustments)} in approved AR write-offs/goodwill this FY is non-cash — that revenue was never collected, so it carries no cash impact above (already excluded from Cash Received)</td>
+                      <td class="py-2 px-4"></td>
+                    </tr>
+                    ` : ''}
 
                     <tr class="bg-slate-100/70 font-bold text-slate-900">
                       <td class="py-3 px-4 uppercase text-[11px]" colspan="2">B. CASH FLOWS FROM INVESTING ACTIVITIES</td>
@@ -1272,6 +1350,7 @@
                     <tr><td class="py-1.5 px-2 text-slate-600">Less: Direct Cost of Goods Sold (COGS)</td><td class="py-1.5 px-2 text-right text-rose-700 font-bold">- ${formatINR(data.cogsDirect)}</td></tr>
                     <tr class="bg-slate-50 font-black"><td class="py-1.5 px-2">Gross Profit (Margin: ${data.grossMarginPct}%)</td><td class="py-1.5 px-2 text-right text-emerald-800">${formatINR(data.grossProfit)}</td></tr>
                     <tr><td class="py-1.5 px-2 text-slate-600">Less: Operating Overhead Expenses (OpEx)</td><td class="py-1.5 px-2 text-right font-bold">- ${formatINR(data.totalOpEx)}</td></tr>
+                    ${data.totalArAdjustments > 0 ? `<tr><td class="py-1.5 px-2 text-slate-600">Less: Approved AR Write-Offs & Goodwill Adjustments</td><td class="py-1.5 px-2 text-right font-bold text-purple-700">- ${formatINR(data.totalArAdjustments)}</td></tr>` : ''}
                     <tr class="bg-indigo-50 font-black"><td class="py-1.5 px-2">Operating EBITDA (Margin: ${data.ebitdaMarginPct}%)</td><td class="py-1.5 px-2 text-right text-indigo-900">${formatINR(data.ebitda)}</td></tr>
                     <tr><td class="py-1.5 px-2 text-slate-600">Less: Depreciation & Tax Provisions</td><td class="py-1.5 px-2 text-right font-bold">- ${formatINR(data.depreciation + data.taxProvision)}</td></tr>
                     <tr class="bg-slate-900 text-white font-black"><td class="py-2 px-2">Net Profit After Tax (PAT) / Net Income</td><td class="py-2 px-2 text-right text-emerald-300">${formatINR(data.netProfit)}</td></tr>
