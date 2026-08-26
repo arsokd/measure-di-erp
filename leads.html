@@ -193,41 +193,30 @@
               </div>
 
               <div>
-                <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">Lead Source (10 Standard Channels) *</label>
-                <select id="inp-lead-source" required class="w-full px-3 py-2 bg-slate-950 border border-slate-750 rounded-xl text-xs font-semibold text-white focus:outline-none focus:border-indigo-500">
-                  <option value="India Mart">1. India Mart</option>
-                  <option value="Tender / E-Procurement Portal">2. Tender / E-Procurement Portal</option>
-                  <option value="SEO">3. SEO</option>
-                  <option value="Existing Client">4. Existing Client</option>
-                  <option value="Customer Reference">5. Customer Reference</option>
-                  <option value="Ariba">6. Ariba</option>
-                  <option value="OEM">7. OEM</option>
-                  <option value="Mail Marketing / Digital Marketing">8. Mail Marketing / Digital Marketing</option>
-                  <option value="Direct Customer Approach">9. Direct Customer Approach</option>
-                  <option value="Exhibition / Trade Fair">10. Exhibition / Trade Fair</option>
-                </select>
+                <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">Lead Owner</label>
+                <input type="text" id="disp-lead-owner" readonly class="w-full px-3 py-2 bg-slate-900 border border-slate-750 rounded-xl text-xs font-semibold text-indigo-300 cursor-not-allowed" />
+                <p class="text-[10px] text-slate-500 mt-1">Automatically set to your login name.</p>
               </div>
             </div>
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">Industry Vertical *</label>
-                <select id="inp-lead-industry" onchange="handleIndustryChange()" required class="w-full px-3 py-2 bg-slate-950 border border-slate-750 rounded-xl text-xs font-semibold text-white focus:outline-none focus:border-indigo-500">
-                  <option value="Project">Project</option>
-                  <option value="Onboard">Onboard</option>
-                  <option value="Crane">Crane</option>
+                <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">Lead Source *</label>
+                <select id="inp-lead-source" required class="w-full px-3 py-2 bg-slate-950 border border-slate-750 rounded-xl text-xs font-semibold text-white focus:outline-none focus:border-indigo-500">
                 </select>
               </div>
 
+              <div>
+                <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">Industry Vertical *</label>
+                <select id="inp-lead-industry" onchange="handleIndustryChange()" required class="w-full px-3 py-2 bg-slate-950 border border-slate-750 rounded-xl text-xs font-semibold text-white focus:outline-none focus:border-indigo-500">
+                </select>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div id="project-sector-box">
                 <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">Project Sector / Origin *</label>
                 <select id="inp-project-sector" onchange="handleProjectSectorChange()" class="w-full px-3 py-2 bg-slate-950 border border-slate-750 rounded-xl text-xs font-semibold text-white focus:outline-none focus:border-indigo-500">
-                  <option value="Steel">Steel</option>
-                  <option value="Cement">Cement</option>
-                  <option value="Power Plant">Power Plant</option>
-                  <option value="Infrastructure (Roads & Highways)">Infrastructure (Roads & Highways)</option>
-                  <option value="Mining">Mining</option>
-                  <option value="Other Industries">Other Industries</option>
                 </select>
                 <input type="text" id="inp-other-sector" placeholder="Specify sector name..." class="hidden mt-2 w-full px-3 py-1.5 bg-slate-950 border border-slate-750 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500" />
               </div>
@@ -250,11 +239,8 @@
             <div>
               <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">Vertical Classification *</label>
               <select id="inp-lead-vertical" onchange="handleVerticalChange()" required class="w-full px-3 py-2 bg-slate-950 border border-slate-750 rounded-xl text-xs font-semibold text-white focus:outline-none focus:border-indigo-500">
-                <option value="Projects">Projects (Weighbridges & Heavy Industrial)</option>
-                <option value="Onboard">Onboard (Tipper, Dumper, Loader Scales)</option>
-                <option value="Crane">Crane (Wireless & Overhead Crane Scales)</option>
               </select>
-              <p class="text-[10px] text-slate-400 mt-1">Products dropdown will dynamically filter equipment matching this vertical.</p>
+              <p class="text-[10px] text-slate-400 mt-1">The Product Name dropdown below filters by Industry Vertical + Project Sector, selected above.</p>
             </div>
 
             <!-- Multi-Product Line Items Container -->
@@ -274,9 +260,6 @@
               <div>
                 <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">Currency *</label>
                 <select id="inp-lead-currency" class="w-full px-3 py-2 bg-slate-950 border border-slate-750 rounded-xl text-xs font-semibold text-white focus:outline-none focus:border-indigo-500">
-                  <option value="INR" selected>INR - Indian Rupee (₹)</option>
-                  <option value="USD">USD - US Dollar ($)</option>
-                  <option value="EUR">EUR - Euro (€)</option>
                 </select>
               </div>
 

@@ -11,6 +11,14 @@ if (typeof window.getFormattedToday !== 'function') {
 }
 var getFormattedToday = window.getFormattedToday;
 window.RevOpsStore.initSeedData = function() {
+ // Configuration master lists (Lead Source, Industry Vertical, Project
+ // Sector, Vertical Classification, Currency) — idempotent, runs every
+ // time regardless of the version gate below, but only fills a collection
+ // the first time it's genuinely empty.
+ if (typeof window.RevOpsStore.seedMasterListsIfEmpty === 'function') {
+   window.RevOpsStore.seedMasterListsIfEmpty();
+ }
+
  var checkCols = ['employees', 'orders', 'leads', 'serviceTickets', 'aopTargets', 'kraTargets', 'expenses', 'payments', 'payroll', 'attendance', 'dwmActivities', 'reviews', 'projectsMaster'];
  var hasEmptyCols = checkCols.some(function(colName) {
  var arr = (window.RevOpsStore && typeof window.RevOpsStore.getCollection === 'function') ? window.RevOpsStore.getCollection(colName) : null;

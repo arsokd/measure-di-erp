@@ -110,6 +110,11 @@ service cloud.firestore {
     match /clientsMaster/{docId}       { allow read: if signedIn(); allow write: if isLeadershipOrAdmin(); }
     match /clients/{docId}             { allow read: if signedIn(); allow write: if isLeadershipOrAdmin(); }
     match /projectsMaster/{docId}      { allow read: if signedIn(); allow write: if isLeadershipOrAdmin(); }
+    match /leadSourceMaster/{docId}          { allow read: if signedIn(); allow write: if isLeadershipOrAdmin(); }
+    match /industryVerticalMaster/{docId}    { allow read: if signedIn(); allow write: if isLeadershipOrAdmin(); }
+    match /projectSectorMaster/{docId}       { allow read: if signedIn(); allow write: if isLeadershipOrAdmin(); }
+    match /verticalClassificationMaster/{docId} { allow read: if signedIn(); allow write: if isLeadershipOrAdmin(); }
+    match /currencyMaster/{docId}            { allow read: if signedIn(); allow write: if isLeadershipOrAdmin(); }
 
     // ---- Safety net for any collection not explicitly listed above ----
     // Requires sign-in at minimum; this app has more modules than this file

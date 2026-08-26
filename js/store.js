@@ -709,6 +709,46 @@ Object.assign(window.RevOpsStore, {
     return record;
   },
 
+  // ============ CONFIGURATION MASTER LISTS (Lead Source, Industry Vertical,
+  // Project Sector, Vertical Classification, Currency) ============
+  // Idempotent: only fills a collection the very first time it's empty, so
+  // it never overwrites edits made later via the Master Data page. These
+  // starting values are the org's real current categories (previously
+  // hardcoded directly into leads.html) — not demo/dummy data.
+  seedMasterListsIfEmpty: function() {
+    var self = this;
+    function seedIfEmpty(colName, names) {
+      var existing = self.getCollection(colName);
+      if (existing && existing.length > 0) return;
+      var records = names.map(function(name, i) {
+        return { id: colName + '_' + (i + 1), name: name, isActive: true };
+      });
+      self.saveCollection(colName, records);
+    }
+
+    seedIfEmpty('leadSourceMaster', [
+      'India Mart', 'Tender / E-Procurement Portal', 'SEO', 'Existing Client', 'Customer Reference',
+      'Ariba', 'OEM', 'Mail Marketing / Digital Marketing', 'Direct Customer Approach', 'Exhibition / Trade Fair'
+    ]);
+
+    seedIfEmpty('industryVerticalMaster', ['Project', 'Onboard', 'Crane', 'Spare/Service']);
+
+    seedIfEmpty('projectSectorMaster', [
+      'Steel', 'Cement', 'Power Plant', 'Infrastructure (Roads & Highways)', 'Mining', 'Other Industries'
+    ]);
+
+    seedIfEmpty('verticalClassificationMaster', ['Projects', 'Onboard', 'Crane', 'Service and Parts']);
+
+    var currencyExisting = this.getCollection('currencyMaster');
+    if (!currencyExisting || currencyExisting.length === 0) {
+      this.saveCollection('currencyMaster', [
+        { id: 'currencyMaster_1', code: 'INR', name: 'Indian Rupee', symbol: '₹', isActive: true },
+        { id: 'currencyMaster_2', code: 'USD', name: 'US Dollar', symbol: '$', isActive: true },
+        { id: 'currencyMaster_3', code: 'EUR', name: 'Euro', symbol: '€', isActive: true }
+      ]);
+    }
+  },
+
   generateNextReceiptNumber: function() {
     var payments = this.getCollection('payments') || [];
     var maxNum = 0;

@@ -58,7 +58,7 @@
       </div>
     </div>
 
-    <!-- Master Data Selector Tabs & Metrics Bar (5 Master Categories) -->
+    <!-- Master Data Selector Tabs & Metrics Bar (10 Master Categories) -->
     <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
       
       <!-- Tab 1: Products & Technical Specs Master -->
@@ -119,6 +119,66 @@
         </div>
         <div class="text-xl font-black text-white" id="count-projects">0</div>
         <div class="text-[10px] text-slate-400 mt-0.5">Turnkey Turnaround</div>
+      </button>
+
+      <!-- Tab 6: Lead Source Master -->
+      <button onclick="switchMasterTab('leadsources')" id="tab-btn-leadsources" class="master-tab-btn p-3.5 rounded-xl border text-left transition-all relative overflow-hidden bg-slate-900/40 border-slate-800 hover:border-slate-700 cursor-pointer">
+        <div class="flex items-center justify-between mb-1.5">
+          <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Lead Source</span>
+          <span class="w-7 h-7 rounded-lg bg-rose-500/20 text-rose-400 flex items-center justify-center text-xs">
+            <i class="fa-solid fa-bullhorn"></i>
+          </span>
+        </div>
+        <div class="text-xl font-black text-white" id="count-leadsources">0</div>
+        <div class="text-[10px] text-slate-400 mt-0.5">Channels & Origins</div>
+      </button>
+
+      <!-- Tab 7: Industry Vertical Master -->
+      <button onclick="switchMasterTab('industryverticals')" id="tab-btn-industryverticals" class="master-tab-btn p-3.5 rounded-xl border text-left transition-all relative overflow-hidden bg-slate-900/40 border-slate-800 hover:border-slate-700 cursor-pointer">
+        <div class="flex items-center justify-between mb-1.5">
+          <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Industry Vertical</span>
+          <span class="w-7 h-7 rounded-lg bg-cyan-500/20 text-cyan-400 flex items-center justify-center text-xs">
+            <i class="fa-solid fa-industry"></i>
+          </span>
+        </div>
+        <div class="text-xl font-black text-white" id="count-industryverticals">0</div>
+        <div class="text-[10px] text-slate-400 mt-0.5">Lead Industry Type</div>
+      </button>
+
+      <!-- Tab 8: Project Sector / Origin Master -->
+      <button onclick="switchMasterTab('projectsectors')" id="tab-btn-projectsectors" class="master-tab-btn p-3.5 rounded-xl border text-left transition-all relative overflow-hidden bg-slate-900/40 border-slate-800 hover:border-slate-700 cursor-pointer">
+        <div class="flex items-center justify-between mb-1.5">
+          <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Project Sector</span>
+          <span class="w-7 h-7 rounded-lg bg-orange-500/20 text-orange-400 flex items-center justify-center text-xs">
+            <i class="fa-solid fa-earth-asia"></i>
+          </span>
+        </div>
+        <div class="text-xl font-black text-white" id="count-projectsectors">0</div>
+        <div class="text-[10px] text-slate-400 mt-0.5">Origin / Sector</div>
+      </button>
+
+      <!-- Tab 9: Vertical Classification Master -->
+      <button onclick="switchMasterTab('verticalclass')" id="tab-btn-verticalclass" class="master-tab-btn p-3.5 rounded-xl border text-left transition-all relative overflow-hidden bg-slate-900/40 border-slate-800 hover:border-slate-700 cursor-pointer">
+        <div class="flex items-center justify-between mb-1.5">
+          <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Vertical Class.</span>
+          <span class="w-7 h-7 rounded-lg bg-teal-500/20 text-teal-400 flex items-center justify-center text-xs">
+            <i class="fa-solid fa-layer-group"></i>
+          </span>
+        </div>
+        <div class="text-xl font-black text-white" id="count-verticalclass">0</div>
+        <div class="text-[10px] text-slate-400 mt-0.5">Product Line Class.</div>
+      </button>
+
+      <!-- Tab 10: Currency Master -->
+      <button onclick="switchMasterTab('currencies')" id="tab-btn-currencies" class="master-tab-btn p-3.5 rounded-xl border text-left transition-all relative overflow-hidden bg-slate-900/40 border-slate-800 hover:border-slate-700 cursor-pointer">
+        <div class="flex items-center justify-between mb-1.5">
+          <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Currency List</span>
+          <span class="w-7 h-7 rounded-lg bg-lime-500/20 text-lime-400 flex items-center justify-center text-xs">
+            <i class="fa-solid fa-money-bill-1-wave"></i>
+          </span>
+        </div>
+        <div class="text-xl font-black text-white" id="count-currencies">0</div>
+        <div class="text-[10px] text-slate-400 mt-0.5">Code, Name & Symbol</div>
       </button>
 
     </div>

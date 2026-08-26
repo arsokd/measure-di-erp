@@ -30,6 +30,74 @@ var currentLeadContacts = [];
         renderLeadsTable();
       }
 
+      // Populates the Lead Source / Industry Vertical / Project Sector /
+      // Vertical Classification / Currency dropdowns from their master
+      // lists (Master Data page), preserving the current selection if it's
+      // still a valid option after refresh.
+      function populateLeadMasterDropdowns() {
+        function fillSelect(selectId, collectionName) {
+          var select = document.getElementById(selectId);
+          if (!select) return;
+          var items = (window.RevOpsStore.getCollection(collectionName) || []).filter(function(it) { return it.isActive !== false; });
+          var currentVal = select.value;
+          select.innerHTML = items.map(function(it) {
+            return '<option value="' + escapeHtml(it.name) + '">' + escapeHtml(it.name) + '</option>';
+          }).join('');
+          if (currentVal && items.some(function(it) { return it.name === currentVal; })) {
+            select.value = currentVal;
+          }
+        }
+
+        fillSelect('inp-lead-source', 'leadSourceMaster');
+        fillSelect('inp-lead-industry', 'industryVerticalMaster');
+        fillSelect('inp-project-sector', 'projectSectorMaster');
+        fillSelect('inp-lead-vertical', 'verticalClassificationMaster');
+
+        var curSelect = document.getElementById('inp-lead-currency');
+        if (curSelect) {
+          var currencies = (window.RevOpsStore.getCollection('currencyMaster') || []).filter(function(it) { return it.isActive !== false; });
+          var currentCur = curSelect.value;
+          curSelect.innerHTML = currencies.map(function(c) {
+            return '<option value="' + escapeHtml(c.code) + '">' + escapeHtml(c.code) + ' - ' + escapeHtml(c.name) + ' (' + escapeHtml(c.symbol) + ')</option>';
+          }).join('');
+          if (currentCur && currencies.some(function(c) { return c.code === currentCur; })) {
+            curSelect.value = currentCur;
+          } else {
+            var inr = currencies.find(function(c) { return c.code === 'INR'; });
+            if (inr) curSelect.value = 'INR';
+          }
+        }
+      }
+
+      // Product Name cascades by Industry Vertical + Project Sector (master
+      // data tagged on each productsMaster record). Falls back to filtering
+      // by Vertical Classification alone if nothing is tagged yet for that
+      // specific combination, so the dropdown is never left empty while the
+      // catalog is still being tagged.
+      function getProductsForLeadCascade(industryVertical, projectSector, vertical) {
+        var masterProducts = window.RevOpsStore.getCollection('productsMaster') || [];
+        if (masterProducts.length === 0) {
+          return getProductsByVertical(vertical);
+        }
+
+        var matched = masterProducts.filter(function(p) {
+          var industryOk = !p.industryVertical || p.industryVertical === industryVertical;
+          var sectorOk = !p.projectSector || p.projectSector === projectSector;
+          return industryOk && sectorOk;
+        });
+
+        if (matched.length > 0) return matched;
+        return masterProducts.filter(function(p) { return p.vertical === vertical; });
+      }
+
+      function getCurrentLeadCascadeValues() {
+        return {
+          industryVertical: (document.getElementById('inp-lead-industry') || {}).value || '',
+          projectSector: (document.getElementById('inp-project-sector') || {}).value || '',
+          vertical: (document.getElementById('inp-lead-vertical') || {}).value || 'Projects'
+        };
+      }
+
       function getProductsByVertical(vertical) {
         var masterProducts = window.RevOpsStore.getCollection('productsMaster') || [];
         if (masterProducts.length === 0) {
@@ -70,9 +138,9 @@ var currentLeadContacts = [];
       }
 
       function handleVerticalChange() {
-        var vert = document.getElementById('inp-lead-vertical').value;
-        var prods = getProductsByVertical(vert);
-        
+        var cascade = getCurrentLeadCascadeValues();
+        var prods = getProductsForLeadCascade(cascade.industryVertical, cascade.projectSector, cascade.vertical);
+
         // Update any product rows that don't match the new vertical
         if (currentLeadProducts.length === 0) {
           addProductRow();
@@ -93,8 +161,8 @@ var currentLeadContacts = [];
       }
 
       function addProductRow(existing) {
-        var vert = document.getElementById('inp-lead-vertical').value || 'Projects';
-        var prods = getProductsByVertical(vert);
+        var cascade = getCurrentLeadCascadeValues();
+        var prods = getProductsForLeadCascade(cascade.industryVertical, cascade.projectSector, cascade.vertical);
         var first = prods.length > 0 ? prods[0] : { name: 'Standard Unit', spec: '', hsn: '90318000', price: 0 };
 
         var prod = existing || {
@@ -123,8 +191,9 @@ var currentLeadContacts = [];
         if (!container) return;
         container.innerHTML = '';
 
-        var vert = document.getElementById('inp-lead-vertical').value || 'Projects';
-        var availableProducts = getProductsByVertical(vert);
+        var cascade = getCurrentLeadCascadeValues();
+        var availableProducts = getProductsForLeadCascade(cascade.industryVertical, cascade.projectSector, cascade.vertical);
+        var cascadeLabel = [cascade.industryVertical, cascade.projectSector].filter(Boolean).join(' / ') || cascade.vertical;
 
         currentLeadProducts.forEach(function(prod, i) {
           var card = document.createElement('div');
@@ -150,20 +219,20 @@ var currentLeadContacts = [];
 
             <div class="grid grid-cols-1 sm:grid-cols-12 gap-2">
               <div class="sm:col-span-8">
-                <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Product Name (Filtered by ${vert}) *</label>
+                <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Product Name (Filtered by ${escapeHtml(cascadeLabel)}) *</label>
                 <select onchange="onLeadProductSelected(${i}, this.value)" class="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white font-semibold focus:outline-none focus:border-indigo-500">
                   ${optionsHtml}
                 </select>
               </div>
               <div class="sm:col-span-4">
-                <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">HSN Code</label>
-                <input type="text" value="${escapeHtml(prod.hsn || '')}" oninput="currentLeadProducts[${i}].hsn = this.value" placeholder="90318000" class="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-xs text-slate-200 focus:outline-none focus:border-indigo-500" />
+                <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">HSN Code (from master)</label>
+                <input type="text" value="${escapeHtml(prod.hsn || '')}" readonly class="w-full px-2.5 py-1.5 bg-slate-950/60 border border-slate-800 rounded-lg text-xs text-slate-400 cursor-not-allowed" />
               </div>
             </div>
 
             <div>
-              <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Technical Specification (Unique Specs) *</label>
-              <input type="text" value="${escapeHtml(prod.spec || '')}" oninput="currentLeadProducts[${i}].spec = this.value" required placeholder="Detailed specifications, capacity, tolerances..." class="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-xs text-slate-200 focus:outline-none focus:border-indigo-500" />
+              <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Technical Specification / Unique Specs (from master)</label>
+              <input type="text" value="${escapeHtml(prod.spec || '')}" readonly class="w-full px-2.5 py-1.5 bg-slate-950/60 border border-slate-800 rounded-lg text-xs text-slate-400 cursor-not-allowed" />
             </div>
 
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
@@ -172,8 +241,8 @@ var currentLeadContacts = [];
                 <input type="number" min="1" value="${prod.quantity || 1}" oninput="updateLeadProductField(${i}, 'quantity', this.value, this)" class="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white font-bold text-center focus:outline-none focus:border-indigo-500" />
               </div>
               <div>
-                <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Est. Unit Price (₹) *</label>
-                <input type="number" min="0" value="${prod.unitPrice || 0}" oninput="updateLeadProductField(${i}, 'unitPrice', this.value, this)" class="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white font-bold text-right focus:outline-none focus:border-indigo-500" />
+                <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Unit Price (₹, from master)</label>
+                <input type="number" value="${prod.unitPrice || 0}" readonly class="w-full px-2.5 py-1.5 bg-slate-950/60 border border-slate-800 rounded-lg text-xs text-slate-400 font-bold text-right cursor-not-allowed" />
               </div>
               <div>
                 <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Line Total (₹)</label>
@@ -207,8 +276,8 @@ var currentLeadContacts = [];
       }
 
       function onLeadProductSelected(idx, prodName) {
-        var vert = document.getElementById('inp-lead-vertical').value || 'Projects';
-        var prods = getProductsByVertical(vert);
+        var cascade = getCurrentLeadCascadeValues();
+        var prods = getProductsForLeadCascade(cascade.industryVertical, cascade.projectSector, cascade.vertical);
         var found = prods.find(function(p) { return (p.name || p.productName) === prodName; });
 
         if (found && currentLeadProducts[idx]) {
@@ -260,6 +329,8 @@ var currentLeadContacts = [];
         } else {
           otherInput.classList.add('hidden');
         }
+        // Product Name is also filtered by Project Sector — refresh it.
+        handleVerticalChange();
       }
 
       function addContactRow(existingContact) {
@@ -511,6 +582,11 @@ var currentLeadContacts = [];
         var modal = document.getElementById('lead-modal');
         var form = document.getElementById('lead-form');
         form.reset();
+        populateLeadMasterDropdowns();
+
+        // Lead Owner is always automatic — the current logged-in user's
+        // name on a new lead, or whoever already owns it on an edit.
+        document.getElementById('disp-lead-owner').value = leadData ? (leadData.employeeName || localStorage.getItem('userName') || '') : (localStorage.getItem('userName') || '');
 
         if (leadData) {
           document.getElementById('lead-modal-title').innerHTML = `<i class="fa-solid fa-pen-to-square text-[#E283BD]"></i> <span>Edit Commercial Lead (${leadData.leadNumber || leadData.id})</span>`;

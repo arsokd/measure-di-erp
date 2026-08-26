@@ -18,12 +18,67 @@ var activeMasterTab = 'products';
       var banks = window.RevOpsStore.getCollection('bankDetailsMaster') || [];
       var clients = window.RevOpsStore.getCollection('clientsMaster') || [];
       var projects = window.RevOpsStore.getCollection('projectsMaster') || [];
+      var leadSources = window.RevOpsStore.getCollection('leadSourceMaster') || [];
+      var industryVerticals = window.RevOpsStore.getCollection('industryVerticalMaster') || [];
+      var projectSectors = window.RevOpsStore.getCollection('projectSectorMaster') || [];
+      var verticalClass = window.RevOpsStore.getCollection('verticalClassificationMaster') || [];
+      var currencies = window.RevOpsStore.getCollection('currencyMaster') || [];
 
       document.getElementById('count-products').innerText = prods.length;
       document.getElementById('count-equipment').innerText = equip.length;
       document.getElementById('count-banks').innerText = banks.length;
       document.getElementById('count-clients').innerText = clients.length;
       document.getElementById('count-projects').innerText = projects.length;
+      document.getElementById('count-leadsources').innerText = leadSources.length;
+      document.getElementById('count-industryverticals').innerText = industryVerticals.length;
+      document.getElementById('count-projectsectors').innerText = projectSectors.length;
+      document.getElementById('count-verticalclass').innerText = verticalClass.length;
+      document.getElementById('count-currencies').innerText = currencies.length;
+    }
+
+    // Simple name-only master lists (Lead Source, Industry Vertical, Project
+    // Sector, Vertical Classification) all share the same collection shape
+    // ({ id, name, isActive }), so their table/form config is centralized here.
+    var SIMPLE_MASTER_TABS = {
+      leadsources: { collection: 'leadSourceMaster', label: 'Lead Source', idPrefix: 'lsrc' },
+      industryverticals: { collection: 'industryVerticalMaster', label: 'Industry Vertical', idPrefix: 'ivert' },
+      projectsectors: { collection: 'projectSectorMaster', label: 'Project Sector / Origin', idPrefix: 'psect' },
+      verticalclass: { collection: 'verticalClassificationMaster', label: 'Vertical Classification', idPrefix: 'vclass' }
+    };
+
+    function masterCollectionNameForTab(tabKey) {
+      if (tabKey === 'products') return 'productsMaster';
+      if (tabKey === 'equipment') return 'clientEquipmentMaster';
+      if (tabKey === 'banks') return 'bankDetailsMaster';
+      if (tabKey === 'clients') return 'clientsMaster';
+      if (tabKey === 'projects') return 'projectsMaster';
+      if (tabKey === 'currencies') return 'currencyMaster';
+      if (SIMPLE_MASTER_TABS[tabKey]) return SIMPLE_MASTER_TABS[tabKey].collection;
+      return null;
+    }
+
+    function getMasterRecordsForTab(tabKey) {
+      var colName = masterCollectionNameForTab(tabKey);
+      return colName ? (window.RevOpsStore.getCollection(colName) || []) : [];
+    }
+
+    // Builds <option> tags from a master list collection, for use inside
+    // other forms (e.g. Industry Vertical / Project Sector / Vertical
+    // Classification dropdowns on the Products form).
+    function optionsHtmlForMaster(collectionName, selectedValue) {
+      var items = (window.RevOpsStore.getCollection(collectionName) || []).filter(function(it) { return it.isActive !== false; });
+      return items.map(function(it) {
+        return `<option value="${escapeHtml(it.name)}" ${it.name === selectedValue ? 'selected' : ''}>${escapeHtml(it.name)}</option>`;
+      }).join('');
+    }
+
+    function deleteMasterRecord(id) {
+      var colName = masterCollectionNameForTab(activeMasterTab);
+      if (!colName) return;
+      if (!confirm("Delete this master record? This cannot be undone, and any place that already references it (existing leads, quotes, orders, invoices) will keep the value it already has.")) return;
+      window.RevOpsStore.deleteItem(colName, id);
+      updateTabBadges();
+      renderMasterTable();
     }
 
     function switchMasterTab(tabKey) {
@@ -62,11 +117,7 @@ var activeMasterTab = 'products';
       body.innerHTML = '';
 
       var records = [];
-      if (activeMasterTab === 'products') records = window.RevOpsStore.getCollection('productsMaster') || [];
-      else if (activeMasterTab === 'equipment') records = window.RevOpsStore.getCollection('clientEquipmentMaster') || [];
-      else if (activeMasterTab === 'banks') records = window.RevOpsStore.getCollection('bankDetailsMaster') || [];
-      else if (activeMasterTab === 'clients') records = window.RevOpsStore.getCollection('clientsMaster') || [];
-      else if (activeMasterTab === 'projects') records = window.RevOpsStore.getCollection('projectsMaster') || [];
+      records = getMasterRecordsForTab(activeMasterTab);
 
       var filtered = records.filter(function(r) {
         if (activeMasterTab === 'products' && vertFilter !== 'all' && r.vertical !== vertFilter) {
@@ -106,6 +157,7 @@ var activeMasterTab = 'products';
             <td class="py-3 px-4 text-right font-black text-emerald-400">₹${Number(p.unitPrice || p.price || 0).toLocaleString('en-IN')}</td>
             <td class="py-3 px-4 text-center">
               <button onclick="editMasterRecord('${p.id}')" class="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg"><i class="fa-solid fa-pen-to-square"></i></button>
+              <button onclick="deleteMasterRecord('${p.id}')" class="p-1.5 bg-slate-800 hover:bg-rose-900/60 text-rose-400 rounded-lg ml-1"><i class="fa-solid fa-trash-can"></i></button>
             </td>
           `;
           body.appendChild(tr);
@@ -132,6 +184,7 @@ var activeMasterTab = 'products';
             <td class="py-3 px-4 text-center text-amber-400 font-semibold">${escapeHtml(eq.warrantyExpiry || eq.amcExpiry || 'Active')}</td>
             <td class="py-3 px-4 text-center">
               <button onclick="editMasterRecord('${eq.id}')" class="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg"><i class="fa-solid fa-pen-to-square"></i></button>
+              <button onclick="deleteMasterRecord('${eq.id}')" class="p-1.5 bg-slate-800 hover:bg-rose-900/60 text-rose-400 rounded-lg ml-1"><i class="fa-solid fa-trash-can"></i></button>
             </td>
           `;
           body.appendChild(tr);
@@ -158,6 +211,7 @@ var activeMasterTab = 'products';
             <td class="py-3 px-4 text-slate-300">${escapeHtml(b.beneficiaryName || 'MEASURE DI TECHNOLOGIES')}</td>
             <td class="py-3 px-4 text-center">
               <button onclick="editMasterRecord('${b.id}')" class="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg"><i class="fa-solid fa-pen-to-square"></i></button>
+              <button onclick="deleteMasterRecord('${b.id}')" class="p-1.5 bg-slate-800 hover:bg-rose-900/60 text-rose-400 rounded-lg ml-1"><i class="fa-solid fa-trash-can"></i></button>
             </td>
           `;
           body.appendChild(tr);
@@ -182,6 +236,7 @@ var activeMasterTab = 'products';
             <td class="py-3 px-4 text-slate-400">${escapeHtml(c.city || 'India')}</td>
             <td class="py-3 px-4 text-center">
               <button onclick="editMasterRecord('${c.id}')" class="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg"><i class="fa-solid fa-pen-to-square"></i></button>
+              <button onclick="deleteMasterRecord('${c.id}')" class="p-1.5 bg-slate-800 hover:bg-rose-900/60 text-rose-400 rounded-lg ml-1"><i class="fa-solid fa-trash-can"></i></button>
             </td>
           `;
           body.appendChild(tr);
@@ -206,6 +261,54 @@ var activeMasterTab = 'products';
             <td class="py-3 px-4 text-right font-black text-emerald-400">₹${Number(pr.budget || 0).toLocaleString('en-IN')}</td>
             <td class="py-3 px-4 text-center">
               <button onclick="editMasterRecord('${pr.id}')" class="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg"><i class="fa-solid fa-pen-to-square"></i></button>
+              <button onclick="deleteMasterRecord('${pr.id}')" class="p-1.5 bg-slate-800 hover:bg-rose-900/60 text-rose-400 rounded-lg ml-1"><i class="fa-solid fa-trash-can"></i></button>
+            </td>
+          `;
+          body.appendChild(tr);
+        });
+      } else if (activeMasterTab === 'currencies') {
+        header.innerHTML = `
+          <tr>
+            <th class="py-3 px-4 font-mono">Code</th>
+            <th class="py-3 px-4">Currency Name</th>
+            <th class="py-3 px-4 text-center">Symbol</th>
+            <th class="py-3 px-4 text-center">Actions</th>
+          </tr>
+        `;
+        filtered.forEach(function(cu) {
+          var tr = document.createElement('tr');
+          tr.className = "hover:bg-slate-800/40 transition-colors";
+          tr.innerHTML = `
+            <td class="py-3 px-4 font-mono font-bold text-indigo-300">${escapeHtml(cu.code || '')}</td>
+            <td class="py-3 px-4 font-bold text-white">${escapeHtml(cu.name || '')}</td>
+            <td class="py-3 px-4 text-center text-emerald-400 font-black">${escapeHtml(cu.symbol || '')}</td>
+            <td class="py-3 px-4 text-center">
+              <button onclick="editMasterRecord('${cu.id}')" class="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg"><i class="fa-solid fa-pen-to-square"></i></button>
+              <button onclick="deleteMasterRecord('${cu.id}')" class="p-1.5 bg-slate-800 hover:bg-rose-900/60 text-rose-400 rounded-lg ml-1"><i class="fa-solid fa-trash-can"></i></button>
+            </td>
+          `;
+          body.appendChild(tr);
+        });
+      } else if (SIMPLE_MASTER_TABS[activeMasterTab]) {
+        var simpleLabel = SIMPLE_MASTER_TABS[activeMasterTab].label;
+        header.innerHTML = `
+          <tr>
+            <th class="py-3 px-4">${escapeHtml(simpleLabel)}</th>
+            <th class="py-3 px-4 text-center">Status</th>
+            <th class="py-3 px-4 text-center">Actions</th>
+          </tr>
+        `;
+        filtered.forEach(function(item) {
+          var tr = document.createElement('tr');
+          tr.className = "hover:bg-slate-800/40 transition-colors";
+          tr.innerHTML = `
+            <td class="py-3 px-4 font-bold text-white">${escapeHtml(item.name || '')}</td>
+            <td class="py-3 px-4 text-center">
+              <span class="px-2 py-0.5 rounded text-[10px] font-bold ${item.isActive === false ? 'bg-slate-800 text-slate-400' : 'bg-emerald-950 text-emerald-300 border border-emerald-800/60'}">${item.isActive === false ? 'Inactive' : 'Active'}</span>
+            </td>
+            <td class="py-3 px-4 text-center">
+              <button onclick="editMasterRecord('${item.id}')" class="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg"><i class="fa-solid fa-pen-to-square"></i></button>
+              <button onclick="deleteMasterRecord('${item.id}')" class="p-1.5 bg-slate-800 hover:bg-rose-900/60 text-rose-400 rounded-lg ml-1"><i class="fa-solid fa-trash-can"></i></button>
             </td>
           `;
           body.appendChild(tr);
@@ -227,8 +330,10 @@ var activeMasterTab = 'products';
         'equipment': 'Client Installed Equipment',
         'banks': 'Company Bank Account',
         'clients': 'Client Organization',
-        'projects': 'Turnkey Automation Project'
+        'projects': 'Turnkey Automation Project',
+        'currencies': 'Currency'
       };
+      Object.keys(SIMPLE_MASTER_TABS).forEach(function(k) { titles[k] = SIMPLE_MASTER_TABS[k].label; });
 
       document.getElementById('single-modal-title').innerHTML = `<i class="fa-solid fa-database text-indigo-400"></i> <span>${recordData ? 'Edit' : 'Add'} ${titles[activeMasterTab]}</span>`;
       container.innerHTML = '';
@@ -236,13 +341,27 @@ var activeMasterTab = 'products';
       if (activeMasterTab === 'products') {
         var d = recordData || {};
         container.innerHTML = `
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">Industry Vertical</label>
+              <select id="inp-rec-industryvertical" class="w-full px-3 py-2 bg-slate-950 border border-slate-750 rounded-xl text-xs font-semibold text-white">
+                <option value="">-- Any --</option>
+                ${optionsHtmlForMaster('industryVerticalMaster', d.industryVertical)}
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">Project Sector / Origin</label>
+              <select id="inp-rec-projectsector" class="w-full px-3 py-2 bg-slate-950 border border-slate-750 rounded-xl text-xs font-semibold text-white">
+                <option value="">-- Any --</option>
+                ${optionsHtmlForMaster('projectSectorMaster', d.projectSector)}
+              </select>
+            </div>
+          </div>
+          <p class="text-[10px] text-slate-400">Industry Vertical + Project Sector determine which products appear on the Add Lead form. Leave either as "Any" to make this product available regardless of that field.</p>
           <div>
             <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">Vertical Classification *</label>
             <select id="inp-rec-vertical" required class="w-full px-3 py-2 bg-slate-950 border border-slate-750 rounded-xl text-xs font-semibold text-white">
-              <option value="Projects" ${d.vertical === 'Projects' ? 'selected' : ''}>Projects</option>
-              <option value="Onboard" ${d.vertical === 'Onboard' ? 'selected' : ''}>Onboard</option>
-              <option value="Crane" ${d.vertical === 'Crane' ? 'selected' : ''}>Crane</option>
-              <option value="Service and Parts" ${d.vertical === 'Service and Parts' ? 'selected' : ''}>Service and Parts</option>
+              ${optionsHtmlForMaster('verticalClassificationMaster', d.vertical)}
             </select>
           </div>
           <div>
@@ -381,6 +500,39 @@ var activeMasterTab = 'products';
             </div>
           </div>
         `;
+      } else if (activeMasterTab === 'currencies') {
+        var d = recordData || {};
+        container.innerHTML = `
+          <div class="grid grid-cols-3 gap-3">
+            <div>
+              <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">Code *</label>
+              <input type="text" id="inp-rec-curcode" required maxlength="3" value="${escapeHtml(d.code || '')}" placeholder="INR" class="w-full px-3 py-2 bg-slate-950 border border-slate-750 rounded-xl text-xs font-mono uppercase text-white" />
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">Name *</label>
+              <input type="text" id="inp-rec-curname" required value="${escapeHtml(d.name || '')}" placeholder="Indian Rupee" class="w-full px-3 py-2 bg-slate-950 border border-slate-750 rounded-xl text-xs text-white" />
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">Symbol *</label>
+              <input type="text" id="inp-rec-cursymbol" required value="${escapeHtml(d.symbol || '')}" placeholder="₹" class="w-full px-3 py-2 bg-slate-950 border border-slate-750 rounded-xl text-xs font-bold text-white" />
+            </div>
+          </div>
+        `;
+      } else if (SIMPLE_MASTER_TABS[activeMasterTab]) {
+        var d = recordData || {};
+        var simpleLabel = SIMPLE_MASTER_TABS[activeMasterTab].label;
+        container.innerHTML = `
+          <div>
+            <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">${escapeHtml(simpleLabel)} Name *</label>
+            <input type="text" id="inp-rec-simplename" required value="${escapeHtml(d.name || '')}" placeholder="e.g. ${escapeHtml(simpleLabel)}" class="w-full px-3 py-2 bg-slate-950 border border-slate-750 rounded-xl text-xs text-white" />
+          </div>
+          <div>
+            <label class="flex items-center space-x-2 cursor-pointer">
+              <input type="checkbox" id="inp-rec-simpleactive" ${d.isActive === false ? '' : 'checked'} class="w-4 h-4" />
+              <span class="text-xs font-semibold text-slate-300">Active (uncheck to hide from dropdowns without deleting it)</span>
+            </label>
+          </div>
+        `;
       }
 
       modal.classList.remove('hidden');
@@ -392,11 +544,7 @@ var activeMasterTab = 'products';
 
     function editMasterRecord(id) {
       var records = [];
-      if (activeMasterTab === 'products') records = window.RevOpsStore.getCollection('productsMaster') || [];
-      else if (activeMasterTab === 'equipment') records = window.RevOpsStore.getCollection('clientEquipmentMaster') || [];
-      else if (activeMasterTab === 'banks') records = window.RevOpsStore.getCollection('bankDetailsMaster') || [];
-      else if (activeMasterTab === 'clients') records = window.RevOpsStore.getCollection('clientsMaster') || [];
-      else if (activeMasterTab === 'projects') records = window.RevOpsStore.getCollection('projectsMaster') || [];
+      records = getMasterRecordsForTab(activeMasterTab);
 
       var r = records.find(function(item) { return item.id === id; });
       if (r) openAddSingleModal(r);
@@ -414,6 +562,8 @@ var activeMasterTab = 'products';
         recordObj = {
           id: docId || ('prod_' + Date.now()),
           vertical: document.getElementById('inp-rec-vertical').value,
+          industryVertical: document.getElementById('inp-rec-industryvertical').value || '',
+          projectSector: document.getElementById('inp-rec-projectsector').value || '',
           productName: document.getElementById('inp-rec-name').value.trim(),
           name: document.getElementById('inp-rec-name').value.trim(),
           technicalSpec: document.getElementById('inp-rec-spec').value.trim(),
@@ -466,6 +616,22 @@ var activeMasterTab = 'products';
           clientName: document.getElementById('inp-rec-prjclient').value.trim(),
           vertical: document.getElementById('inp-rec-prjvertical').value,
           budget: Number(document.getElementById('inp-rec-prjbudget').value) || 0
+        };
+      } else if (activeMasterTab === 'currencies') {
+        colName = 'currencyMaster';
+        recordObj = {
+          id: docId || ('currencyMaster_' + Date.now()),
+          code: document.getElementById('inp-rec-curcode').value.trim().toUpperCase(),
+          name: document.getElementById('inp-rec-curname').value.trim(),
+          symbol: document.getElementById('inp-rec-cursymbol').value.trim(),
+          isActive: true
+        };
+      } else if (SIMPLE_MASTER_TABS[activeMasterTab]) {
+        colName = SIMPLE_MASTER_TABS[activeMasterTab].collection;
+        recordObj = {
+          id: docId || (SIMPLE_MASTER_TABS[activeMasterTab].idPrefix + '_' + Date.now()),
+          name: document.getElementById('inp-rec-simplename').value.trim(),
+          isActive: document.getElementById('inp-rec-simpleactive').checked
         };
       }
 
@@ -544,12 +710,16 @@ var activeMasterTab = 'products';
         return;
       }
 
-      var colName = 'productsMaster';
-      if (activeMasterTab === 'products') colName = 'productsMaster';
-      else if (activeMasterTab === 'equipment') colName = 'clientEquipmentMaster';
-      else if (activeMasterTab === 'banks') colName = 'bankDetailsMaster';
-      else if (activeMasterTab === 'clients') colName = 'clientsMaster';
-      else if (activeMasterTab === 'projects') colName = 'projectsMaster';
+      if (SIMPLE_MASTER_TABS[activeMasterTab] || activeMasterTab === 'currencies') {
+        alert("Bulk CSV upload isn't available for this category yet — these are small lists, please add records one at a time using \"+ Add Master Record\".");
+        return;
+      }
+
+      var colName = masterCollectionNameForTab(activeMasterTab);
+      if (!colName) {
+        alert("Bulk CSV upload isn't available for this category.");
+        return;
+      }
 
       var existing = window.RevOpsStore.getCollection(colName) || [];
 
@@ -616,11 +786,7 @@ var activeMasterTab = 'products';
 
     function exportCurrentMasterCSV() {
       var records = [];
-      if (activeMasterTab === 'products') records = window.RevOpsStore.getCollection('productsMaster') || [];
-      else if (activeMasterTab === 'equipment') records = window.RevOpsStore.getCollection('clientEquipmentMaster') || [];
-      else if (activeMasterTab === 'banks') records = window.RevOpsStore.getCollection('bankDetailsMaster') || [];
-      else if (activeMasterTab === 'clients') records = window.RevOpsStore.getCollection('clientsMaster') || [];
-      else if (activeMasterTab === 'projects') records = window.RevOpsStore.getCollection('projectsMaster') || [];
+      records = getMasterRecordsForTab(activeMasterTab);
 
       if (records.length === 0) {
         alert("No records to export.");
