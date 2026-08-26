@@ -28,12 +28,14 @@ var currentPaymentView = 'transactions';
         populateInvoiceDropdown();
         renderActivePaymentView();
 
-        // Check if redirected with ?action=adjustment or ?invoiceId=...
+        // Check if redirected with ?action=adjustment/adjustments or ?invoiceId=...
         var urlParams = new URLSearchParams(window.location.search);
         var targetAction = urlParams.get('action');
         var targetInvId = urlParams.get('invoiceId');
         if (targetAction === 'adjustment') {
           openAdjustmentModal(targetInvId);
+        } else if (targetAction === 'adjustments') {
+          switchPaymentView('adjustments');
         } else if (targetInvId) {
           openPaymentModal(targetInvId);
         }

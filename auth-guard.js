@@ -995,6 +995,46 @@ document.addEventListener('click', function(e) {
   }
 });
 
+// Total items awaiting this viewer's approval action, across every module —
+// backs the "Approvals" nav badge. Mirrors the section logic in
+// js/approvals.js; kept here too since this file loads on every page.
+function computeMyPendingApprovalCount() {
+  if (typeof window.hasApprovalAuthority !== 'function' || !window.RevOpsStore || typeof window.RevOpsStore.getCollection !== 'function') return 0;
+  var count = 0;
+  try {
+    var quotes = window.RevOpsStore.getCollection('quotations') || [];
+    var orders = window.RevOpsStore.getCollection('orders') || [];
+    var invoices = window.RevOpsStore.getCollection('invoices') || [];
+    var payments = window.RevOpsStore.getCollection('payments') || [];
+    var arAdjustments = window.RevOpsStore.getCollection('arAdjustments') || [];
+
+    if (hasApprovalAuthority('isPrimaryApprover')) {
+      count += quotes.filter(function(q) { return q.status === 'Pending Approval'; }).length;
+      count += orders.filter(function(o) { return o.status === 'Pending Primary Approval'; }).length;
+      count += invoices.filter(function(i) { return i.status === 'Pending Senior Approval'; }).length;
+    }
+    if (hasApprovalAuthority('isDirector')) {
+      count += quotes.filter(function(q) { return q.status === 'Approved' && q.directorRatificationStatus === 'Pending'; }).length;
+      count += orders.filter(function(o) { return o.status === 'Booked' && o.directorRatificationStatus === 'Pending'; }).length;
+      count += invoices.filter(function(i) { return (i.status === 'Approved' || i.status === 'Issued') && i.directorRatificationStatus === 'Pending'; }).length;
+    }
+    if (hasApprovalAuthority('isFinanceHead')) {
+      count += payments.filter(function(p) { return p.status === 'Pending Finance Verification'; }).length;
+    }
+    if (hasApprovalAuthority('isPrimaryApprover') || hasApprovalAuthority('isFinanceHead') || hasApprovalAuthority('isDirector')) {
+      count += arAdjustments.filter(function(adj) {
+        if (adj.status !== 'Pending Director Approval') return false;
+        return (hasApprovalAuthority('isPrimaryApprover') && !adj.primaryApproverSignoff) ||
+               (hasApprovalAuthority('isFinanceHead') && !adj.financeHeadSignoff) ||
+               (hasApprovalAuthority('isDirector') && !adj.directorSignoff);
+      }).length;
+    }
+  } catch (e) {
+    console.warn('computeMyPendingApprovalCount failed:', e);
+  }
+  return count;
+}
+
 function getRevOpsNavigationHtml(userName, userRole, employeeId, userEmail, roleBadgeColor, currentPath, salesItems, financeItems, hrItems, perfItems, serviceItems, showTeamAndReviews, isAdmin) {
   function renderSidebarItem(title, path, icon, show) {
     if (!show) return '';
@@ -1092,6 +1132,12 @@ function getRevOpsNavigationHtml(userName, userRole, employeeId, userEmail, role
       <!-- Middle: Horizontal Category Dropdown Menus (Desktop / Tablet) -->
       <nav class="hidden md:flex items-center space-x-1.5">
         ${isAdmin ? `<a href="dashboard.html" class="${currentPath === 'dashboard.html' ? 'px-2.5 py-1.5 rounded-lg text-xs font-bold bg-[#982B68] text-white shadow-xs' : 'px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-300 hover:bg-slate-800 hover:text-white transition-all'}">📊 Dashboard</a>` : ''}
+        ${(typeof hasApprovalAuthority === 'function' && (hasApprovalAuthority('isPrimaryApprover') || hasApprovalAuthority('isFinanceHead') || hasApprovalAuthority('isDirector'))) ? `
+          <a href="approvals.html" class="${currentPath === 'approvals.html' ? 'px-2.5 py-1.5 rounded-lg text-xs font-bold bg-[#982B68] text-white shadow-xs flex items-center gap-1.5' : 'px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-300 hover:bg-slate-800 hover:text-white transition-all flex items-center gap-1.5'}">
+            <span>✅ Approvals</span>
+            ${computeMyPendingApprovalCount() > 0 ? `<span class="px-1.5 py-0.5 rounded-full text-[9px] font-black bg-amber-500 text-slate-900">${computeMyPendingApprovalCount()}</span>` : ''}
+          </a>
+        ` : ''}
         ${renderTopDropdown("Sales", "📈", salesItems, ['leads.html', 'quotations.html', 'orders.html', 'invoices.html', 'payments.html', 'master-data.html', 'audit-logs.html'])}
         ${renderTopDropdown("Service & Quality", "🛠️", serviceItems, ['service-tickets.html', 'amc-contracts.html', 'service-leads.html', 'amc-quotes.html', 'amc-orders.html', 'amc-invoices.html', 'parts-sales.html', 'warranty-management.html'])}
         ${renderTopDropdown("Finance", "💰", financeItems, ['expenses.html', 'payroll.html'])}
@@ -1386,6 +1432,14 @@ function getRevOpsNavigationHtml(userName, userRole, employeeId, userEmail, role
                 <a href="dashboard.html" onclick="toggleMobileNavDrawer()" class="flex items-center space-x-2.5 p-2.5 rounded-xl ${currentPath === 'dashboard.html' ? 'bg-[#982B68] text-white font-bold' : 'bg-slate-800/60 text-slate-200'}">
                   <svg class="w-4 h-4 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg>
                   <span class="text-xs font-bold">Executive Dashboard</span>
+                </a>
+              </div>
+            ` : ''}
+            ${(typeof hasApprovalAuthority === 'function' && (hasApprovalAuthority('isPrimaryApprover') || hasApprovalAuthority('isFinanceHead') || hasApprovalAuthority('isDirector'))) ? `
+              <div>
+                <a href="approvals.html" onclick="toggleMobileNavDrawer()" class="flex items-center justify-between p-2.5 rounded-xl ${currentPath === 'approvals.html' ? 'bg-[#982B68] text-white font-bold' : 'bg-slate-800/60 text-slate-200'}">
+                  <span class="flex items-center space-x-2.5"><span>✅</span><span class="text-xs font-bold">Approvals</span></span>
+                  ${computeMyPendingApprovalCount() > 0 ? `<span class="px-1.5 py-0.5 rounded-full text-[9px] font-black bg-amber-500 text-slate-900">${computeMyPendingApprovalCount()}</span>` : ''}
                 </a>
               </div>
             ` : ''}

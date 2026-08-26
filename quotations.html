@@ -56,7 +56,7 @@
       </div>
       
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-        <div class="bg-white p-5 rounded-2xl shadow-xs border border-slate-200">
+        <div id="statcard-total" onclick="filterQuotesByStatCard(null)" class="bg-white p-5 rounded-2xl shadow-xs border border-slate-200 cursor-pointer hover:shadow-md transition-shadow" title="Click to clear scorecard filter">
           <div class="flex items-center justify-between text-slate-500 mb-1">
             <span class="text-xs font-bold uppercase tracking-wider">Total Quotations</span>
             <span class="text-lg">📑</span>
@@ -64,7 +64,7 @@
           <div class="text-2xl font-black text-slate-900" id="stat-total-count">0</div>
           <p class="text-xs text-slate-400 mt-1" id="stat-total-val">Total Value: ₹0</p>
         </div>
-        <div class="bg-white p-5 rounded-2xl shadow-xs border border-slate-200">
+        <div id="statcard-pending" onclick="filterQuotesByStatCard('pending')" class="bg-white p-5 rounded-2xl shadow-xs border border-slate-200 cursor-pointer hover:shadow-md transition-shadow" title="Click to filter to Pending Approval">
           <div class="flex items-center justify-between text-amber-600 mb-1">
             <span class="text-xs font-bold uppercase tracking-wider">Pending Approvals</span>
             <span class="text-lg">⏳</span>
@@ -72,7 +72,7 @@
           <div class="text-2xl font-black text-amber-600" id="stat-pending-count">0</div>
           <p class="text-xs text-slate-400 mt-1" id="stat-pending-val">High-Discount Quotes</p>
         </div>
-        <div class="bg-white p-5 rounded-2xl shadow-xs border border-slate-200">
+        <div id="statcard-approved" onclick="filterQuotesByStatCard('approved')" class="bg-white p-5 rounded-2xl shadow-xs border border-slate-200 cursor-pointer hover:shadow-md transition-shadow" title="Click to filter to Approved / Sent to Customer">
           <div class="flex items-center justify-between text-emerald-600 mb-1">
             <span class="text-xs font-bold uppercase tracking-wider">Approved Quotes</span>
             <span class="text-lg">✅</span>
@@ -80,7 +80,7 @@
           <div class="text-2xl font-black text-emerald-600" id="stat-approved-count">0</div>
           <p class="text-xs text-slate-400 mt-1" id="stat-approved-val">Ready for Dispatch / Order</p>
         </div>
-        <div class="bg-white p-5 rounded-2xl shadow-xs border border-slate-200">
+        <div id="statcard-converted" onclick="filterQuotesByStatCard('converted')" class="bg-white p-5 rounded-2xl shadow-xs border border-slate-200 cursor-pointer hover:shadow-md transition-shadow" title="Click to filter to Converted to Order">
           <div class="flex items-center justify-between text-indigo-600 mb-1">
             <span class="text-xs font-bold uppercase tracking-wider">Converted to Orders</span>
             <span class="text-lg">📦</span>
@@ -122,9 +122,15 @@
             </div>
             
             <input type="text" id="quote-search-input" onkeyup="renderQuotations()" placeholder="Search customer, quote ID..." class="bg-slate-50 text-slate-800 text-xs border border-slate-300 rounded-xl px-3 py-2 w-48 sm:w-60 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+
+            <label class="flex items-center space-x-1.5 text-[11px] font-semibold text-slate-600 cursor-pointer whitespace-nowrap">
+              <input type="checkbox" id="chk-show-invoiced-quotes" onchange="renderQuotations()" class="w-3.5 h-3.5" />
+              <span>Show already-invoiced</span>
+            </label>
           </div>
         </div>
-        
+        <div id="invoiced-quotes-hint" class="px-5 pt-2 text-[11px] text-slate-400 font-medium"></div>
+
         <div class="overflow-x-auto">
           <table class="w-full text-left text-xs text-slate-600">
             <thead class="bg-slate-50 text-slate-500 font-bold uppercase tracking-wider border-b border-slate-200">
@@ -177,17 +183,19 @@
                 <label class="block text-xs font-bold text-slate-700">Link to Lead (CRM)</label>
                 <span class="text-[10px] text-indigo-600 font-semibold">⚡ Auto-fills customer, contacts, email, mobile, vertical, sales rep & specs</span>
               </div>
+              <input type="text" id="inp-quote-lead-search" oninput="filterLeadDropdown()" placeholder="🔍 Search leads by number, customer, or vertical..." class="w-full px-3 py-2 mb-1.5 bg-white border border-slate-300 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500">
               <select id="inp-quote-lead" onchange="onLeadSelected()" class="w-full px-3 py-2 bg-white border border-indigo-300 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-xs">
                 <option value="">-- Standalone Customer (Manual Entry) --</option>
               </select>
               <div id="lead-autofill-notice" class="hidden mt-2 text-[11px] font-semibold text-emerald-800 bg-emerald-50 border border-emerald-300 rounded-lg p-2.5 flex items-center gap-2"></div>
             </div>
-            
+
             <div>
               <label class="block text-xs font-bold text-slate-700 mb-1">Customer / Organization *</label>
               <input type="text" id="inp-quote-customer" required placeholder="Company Name" class="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500">
+              <p id="quote-customer-locked-hint" class="hidden text-[10px] text-indigo-600 font-semibold mt-1">🔒 From linked Lead — switch to "Standalone Customer" above to edit manually.</p>
             </div>
-            
+
             <div>
               <label class="block text-xs font-bold text-slate-700 mb-1">Contact Person</label>
               <input type="text" id="inp-quote-contact" placeholder="e.g. Mr. S. K. Raman" class="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500">

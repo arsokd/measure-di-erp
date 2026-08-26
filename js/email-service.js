@@ -258,7 +258,15 @@
    */
   async function sendQuotationEmail(quote, customDetails = {}) {
     const to = customDetails.to || quote.email || quote.clientEmail || 'client@example.com';
-    const cc = customDetails.cc || '';
+    // measuredichennai@gmail.com is always CC'd on every quotation email,
+    // without exception — not something the sender can remove by editing
+    // the CC field before dispatch.
+    const MANDATORY_QUOTE_CC = 'measuredichennai@gmail.com';
+    const requestedCc = (customDetails.cc || '').split(',').map(s => s.trim()).filter(Boolean);
+    if (!requestedCc.some(em => em.toLowerCase() === MANDATORY_QUOTE_CC)) {
+      requestedCc.push(MANDATORY_QUOTE_CC);
+    }
+    const cc = requestedCc.join(', ');
     const subject = customDetails.subject || `[Measure DI Quotation] Proposal: ${quote.quoteNumber} (Rev ${quote.revision || 1}) - ${quote.customerName}`;
     const attachments = customDetails.attachments || customDetails.attachment || quote.attachments || [];
 

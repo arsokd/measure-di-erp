@@ -211,6 +211,48 @@ var currentEditingQuoteId = null;
         return window.RevOpsStore.getCollection('quotations') || [];
       }
 
+      // Clicking a scorecard tile filters the registry to exactly that
+      // category — click again to clear it back to "Total".
+      var activeStatCardFilter = null; // null | 'pending' | 'approved' | 'converted'
+
+      function filterQuotesByStatCard(type) {
+        activeStatCardFilter = (activeStatCardFilter === type) ? null : type;
+        var statusSelect = document.getElementById('quote-status-filter');
+        if (statusSelect) statusSelect.value = 'All';
+        renderQuotations();
+        var tbody = document.getElementById('quotations-tbody');
+        if (tbody) tbody.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+
+      function updateStatCardHighlight() {
+        [
+          { id: 'statcard-total', type: null },
+          { id: 'statcard-pending', type: 'pending' },
+          { id: 'statcard-approved', type: 'approved' },
+          { id: 'statcard-converted', type: 'converted' }
+        ].forEach(function(c) {
+          var el = document.getElementById(c.id);
+          if (!el) return;
+          el.classList.toggle('ring-2', activeStatCardFilter === c.type && c.type !== null);
+          el.classList.toggle('ring-indigo-400', activeStatCardFilter === c.type && c.type !== null);
+        });
+      }
+
+      // A quote's linked Order has itself been invoiced — once that's true,
+      // the quote is done and doesn't need to stay in the everyday list.
+      function computeInvoicedQuoteIds(quotes) {
+        var orders = window.RevOpsStore.getCollection('orders') || [];
+        var invoices = window.RevOpsStore.getCollection('invoices') || [];
+        var invoicedOrderIds = new Set(invoices.map(function(inv) { return inv.orderId; }).filter(Boolean));
+        var invoicedIds = new Set();
+        quotes.forEach(function(q) {
+          if (q.convertedOrderId && invoicedOrderIds.has(q.convertedOrderId)) {
+            invoicedIds.add(q.id);
+          }
+        });
+        return invoicedIds;
+      }
+
       function renderQuotations() {
         var quotes = getQuotationsList();
         var userRole = localStorage.getItem('userRole');
@@ -220,9 +262,15 @@ var currentEditingQuoteId = null;
         var statusFilter = document.getElementById('quote-status-filter')?.value || 'All';
         var ownerFilter = document.getElementById('quote-owner-filter')?.value || 'All';
         var searchQuery = (document.getElementById('quote-search-input')?.value || '').toLowerCase();
+        var showInvoiced = document.getElementById('chk-show-invoiced-quotes')?.checked || false;
 
-        // RBAC Scoping & Filtering
-        var filtered = quotes.filter(function(q) {
+        var invoicedQuoteIds = computeInvoicedQuoteIds(quotes);
+
+        // RBAC Scoping & Filtering — everything except the scorecard-tile
+        // filter, since the scorecards themselves must always report the
+        // true totals for this scope, not a number that shrinks to match
+        // whichever tile happens to be selected.
+        var baseFiltered = quotes.filter(function(q) {
           if (userRole === 'staff' && q.employeeId !== myEmpId) return false;
           if (fyFilter !== 'All' && q.financialYear && q.financialYear !== fyFilter) return false;
           if (statusFilter !== 'All' && q.status !== statusFilter) return false;
@@ -231,18 +279,39 @@ var currentEditingQuoteId = null;
           if (searchQuery) {
             var text = (q.quoteNumber + ' ' + q.customerName + ' ' + (q.contactPerson || '') + ' ' + (q.employeeName || '')).toLowerCase();
             if (!text.includes(searchQuery)) return false;
+          } else if (!showInvoiced && invoicedQuoteIds.has(q.id)) {
+            // Already-invoiced quotes are hidden from the default view to
+            // avoid a bulk pile-up — still reachable via search or the
+            // "Show already-invoiced" toggle.
+            return false;
           }
           return true;
         });
 
-        // Compute KPIs
-        var totalCount = filtered.length;
+        // Table rows additionally apply whichever scorecard tile is active.
+        var filtered = baseFiltered.filter(function(q) {
+          if (activeStatCardFilter === 'pending' && q.status !== 'Pending Approval') return false;
+          if (activeStatCardFilter === 'approved' && q.status !== 'Approved' && q.status !== 'Sent to Customer') return false;
+          if (activeStatCardFilter === 'converted' && q.status !== 'Converted to Order') return false;
+          return true;
+        });
+
+        var invoicedHiddenCount = quotes.filter(function(q) { return invoicedQuoteIds.has(q.id); }).length;
+        var invoicedHint = document.getElementById('invoiced-quotes-hint');
+        if (invoicedHint) {
+          invoicedHint.innerText = invoicedHiddenCount > 0 && !showInvoiced && !searchQuery
+            ? (invoicedHiddenCount + ' already-invoiced quotation(s) hidden — search or check "Show already-invoiced" to see them.')
+            : '';
+        }
+
+        // Compute KPIs from baseFiltered (never shrunk by the scorecard filter itself)
+        var totalCount = baseFiltered.length;
         var totalVal = 0;
         var pendingCount = 0;
         var approvedCount = 0;
         var convertedCount = 0;
 
-        filtered.forEach(function(q) {
+        baseFiltered.forEach(function(q) {
           totalVal += (q.grandTotal || 0);
           if (q.status === 'Pending Approval') pendingCount++;
           if (q.status === 'Approved' || q.status === 'Sent to Customer') approvedCount++;
@@ -257,6 +326,7 @@ var currentEditingQuoteId = null;
         
         var conversionRate = totalCount > 0 ? Math.round((convertedCount / totalCount) * 100) : 0;
         document.getElementById('stat-conversion-rate').innerText = conversionRate + '% Quote-to-Order Conversion';
+        updateStatCardHighlight();
 
         // Render Urgent Pending Approvals Banner for Manager / Super Admin
         renderPendingApprovalsBanner(quotes, userRole);
@@ -275,7 +345,12 @@ var currentEditingQuoteId = null;
           emptyState.classList.add('hidden');
         }
 
+        // Pending Approval quotations always sort to the top, regardless of
+        // date, so approvers see what needs action first without hunting.
         filtered.sort(function(a, b) {
+          var aPending = a.status === 'Pending Approval' ? 0 : 1;
+          var bPending = b.status === 'Pending Approval' ? 0 : 1;
+          if (aPending !== bPending) return aPending - bPending;
           return new Date(b.createdDate || '2026-01-01') - new Date(a.createdDate || '2026-01-01');
         });
 
@@ -518,6 +593,7 @@ var currentEditingQuoteId = null;
           var q = quotes.find(function(it) { return it.id === quoteId; });
           if (q) {
             document.getElementById('quoteModalTitle').innerText = "✏️ Edit Quotation - " + q.quoteNumber;
+            if (document.getElementById('inp-quote-lead-search')) document.getElementById('inp-quote-lead-search').value = "";
             document.getElementById('inp-quote-id').value = q.id;
             document.getElementById('inp-quote-revision').value = q.revision || 1;
             document.getElementById('inp-parent-quote-id').value = q.parentQuoteId || '';
@@ -540,6 +616,7 @@ var currentEditingQuoteId = null;
 
             activeQuoteItems = q.items ? JSON.parse(JSON.stringify(q.items)) : [];
             activeQuoteAttachments = q.attachments ? JSON.parse(JSON.stringify(q.attachments)) : [];
+            setLeadLinkedFieldsLocked(!!q.leadId);
           }
         } else {
           // New quote
@@ -560,6 +637,8 @@ var currentEditingQuoteId = null;
           document.getElementById('inp-overall-disc-percent').value = "0";
           document.getElementById('inp-overall-disc-amount').value = "0";
           document.getElementById('inp-quote-remarks').value = "";
+          if (document.getElementById('inp-quote-lead-search')) document.getElementById('inp-quote-lead-search').value = "";
+          setLeadLinkedFieldsLocked(false);
 
           activeQuoteItems = [
             { itemId: "ITEM-1", description: "Measure DI High-Precision Dynamic Weigher", hsnCode: "90318000", qty: 1, unitPrice: 1000000, lineDiscountPercent: 0, taxPercent: 18 }
@@ -605,19 +684,77 @@ var currentEditingQuoteId = null;
         activeQuoteItems = updated;
       }
 
+      // Locks/unlocks Customer & Contact Person to read-only once a Lead is
+      // linked, so they can only ever match what's on the Lead record — not
+      // be retyped or drift out of sync. Free again for standalone entry.
+      function setLeadLinkedFieldsLocked(locked) {
+        var custInput = document.getElementById('inp-quote-customer');
+        var contactInput = document.getElementById('inp-quote-contact');
+        var hint = document.getElementById('quote-customer-locked-hint');
+        [custInput, contactInput].forEach(function(el) {
+          if (!el) return;
+          if (locked) {
+            el.setAttribute('readonly', 'readonly');
+            el.classList.add('bg-slate-100', 'cursor-not-allowed');
+          } else {
+            el.removeAttribute('readonly');
+            el.classList.remove('bg-slate-100', 'cursor-not-allowed');
+          }
+        });
+        if (hint) hint.classList.toggle('hidden', !locked);
+      }
+
+      // Filters the Lead dropdown's visible options as the user types in
+      // the search box above it, without touching the actual <select>
+      // options list itself (so the currently selected value is preserved).
+      function filterLeadDropdown() {
+        var query = (document.getElementById('inp-quote-lead-search').value || '').toLowerCase();
+        var select = document.getElementById('inp-quote-lead');
+        if (!select) return;
+        Array.from(select.options).forEach(function(opt) {
+          if (!opt.value) { opt.hidden = false; return; } // always keep "Standalone" visible
+          opt.hidden = query.length > 0 && opt.innerText.toLowerCase().indexOf(query) === -1;
+        });
+      }
+
+      // A lead that already has an active (non-Rejected) quotation cannot
+      // get a second, separate one — prevents accidental duplicates. Editing
+      // the existing quote, creating a revision of it, or deleting it first
+      // are the supported ways to change course.
+      function leadAlreadyHasActiveQuote(leadId, excludingQuoteId) {
+        if (!leadId) return null;
+        var quotes = getQuotationsList();
+        return quotes.find(function(q) {
+          return q.leadId === leadId && q.status !== 'Rejected' && q.id !== excludingQuoteId;
+        }) || null;
+      }
+
       function onLeadSelected(passedLead) {
         var leadId = document.getElementById('inp-quote-lead').value;
         var notice = document.getElementById('lead-autofill-notice');
-        
+
         var leads = window.RevOpsStore.getCollection('leads') || [];
         var lead = passedLead || leads.find(function(l) { return l.id === leadId || l.leadNumber === leadId; });
         
         if (!lead && !leadId) {
           if (notice) notice.classList.add('hidden');
+          setLeadLinkedFieldsLocked(false);
           return;
         }
 
         if (!lead) return;
+
+        // Block linking a Lead that already has an active quotation, when
+        // raising a brand-new quotation (not while editing an existing one).
+        if (!currentEditingQuoteId) {
+          var dupe = leadAlreadyHasActiveQuote(lead.id, null);
+          if (dupe) {
+            alert("Lead " + (lead.leadNumber || lead.id) + " already has an active quotation (" + dupe.quoteNumber + ", status: " + dupe.status + ").\n\nTo avoid duplicates, please edit that quotation, create a revision of it, or delete it first if you really need to start over.");
+            document.getElementById('inp-quote-lead').value = '';
+            setLeadLinkedFieldsLocked(false);
+            return;
+          }
+        }
 
         // Ensure dropdown reflects the leadId
         var leadSelect = document.getElementById('inp-quote-lead');
@@ -786,6 +923,8 @@ var currentEditingQuoteId = null;
           `;
           notice.classList.remove('hidden');
         }
+
+        setLeadLinkedFieldsLocked(true);
       }
 
       function renderQuoteLineItems() {
