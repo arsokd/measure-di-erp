@@ -294,7 +294,7 @@ var currentTab = 'All';
 
         // Senior Approval alert banner
         var alertBanner = document.getElementById('senior-approval-alert');
-        if (countPending > 0 && localStorage.getItem('isPrimaryApprover') === 'true') {
+        if (countPending > 0 && hasApprovalAuthority('isPrimaryApprover')) {
           alertBanner.classList.remove('hidden');
           document.getElementById('pending-approval-count').innerText = countPending;
         } else {
@@ -349,7 +349,7 @@ var currentTab = 'All';
           
           var approvalCell = `<span class="text-slate-400 text-[11px]">--</span>`;
           if (inv.status === 'Pending Senior Approval') {
-            if (localStorage.getItem('isPrimaryApprover') === 'true') {
+            if (hasApprovalAuthority('isPrimaryApprover')) {
               approvalCell = `<button onclick="openSeniorReviewModal('${escapeHtml(inv.id)}')" class="px-2.5 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded-md text-[10px] font-black shadow-xs cursor-pointer">Review & Sign</button>`;
             } else {
               approvalCell = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">Awaiting Approver</span>`;
@@ -907,7 +907,7 @@ var currentTab = 'All';
 
       function executeSeniorApproval(decision) {
         if (!pendingReviewInvoiceId) return;
-        if (localStorage.getItem('isPrimaryApprover') !== 'true') {
+        if (!hasApprovalAuthority('isPrimaryApprover')) {
           alert("Only the designated Primary Approver can approve invoices. Ask your admin to assign this on the Employees page if this is incorrect.");
           return;
         }

@@ -630,7 +630,7 @@ var currentSplits = [];
               `}
             </td>
             <td class="py-3 px-4 text-center space-y-1">
-              ${o.status === 'Pending Primary Approval' && localStorage.getItem('isPrimaryApprover') === 'true' ? `
+              ${o.status === 'Pending Primary Approval' && hasApprovalAuthority('isPrimaryApprover') ? `
                 <div class="flex items-center justify-center gap-1">
                   <button onclick="approveOrderDirect('${o.id}')" class="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md text-[10px] font-bold cursor-pointer">✅ Approve</button>
                   <button onclick="rejectOrderDirect('${o.id}')" class="px-2 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-md text-[10px] font-bold cursor-pointer">❌ Reject</button>
@@ -762,7 +762,7 @@ var currentSplits = [];
       }
 
       function approveOrderDirect(orderId) {
-        if (localStorage.getItem('isPrimaryApprover') !== 'true') {
+        if (!hasApprovalAuthority('isPrimaryApprover')) {
           alert("Only the designated Primary Approver can confirm orders. Ask your admin to assign this on the Employees page if this is incorrect.");
           return;
         }
@@ -850,7 +850,7 @@ var currentSplits = [];
       }
 
       function rejectOrderDirect(orderId) {
-        if (localStorage.getItem('isPrimaryApprover') !== 'true') {
+        if (!hasApprovalAuthority('isPrimaryApprover')) {
           alert("Only the designated Primary Approver can reject orders.");
           return;
         }

@@ -1,5 +1,18 @@
 // auth-guard.js - Measure DI RevOps Auth Guard & Global UI Header Renderer
 
+// Approval-authority check used everywhere a quotation/order/invoice
+// approval, payment verification, or write-off sign-off is gated.
+// The Director (isDirector) is the organization's ultimate authority and
+// can act in place of the Primary Approver or Finance Head on anything —
+// nobody in the org can block them by simply not holding a specific flag.
+// Pass 'isDirector' itself to just check that flag directly.
+function hasApprovalAuthority(kind) {
+  if (kind === 'isDirector') return localStorage.getItem('isDirector') === 'true';
+  if (localStorage.getItem('isDirector') === 'true') return true;
+  return localStorage.getItem(kind) === 'true';
+}
+window.hasApprovalAuthority = hasApprovalAuthority;
+
 // Global Currency Formatter Helper
 function formatINR(val) {
   var num = Number(val) || 0;

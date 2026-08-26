@@ -296,7 +296,7 @@ var currentEditingQuoteId = null;
           else if (funnelStage.indexOf("Technical") !== -1 || funnelStage.indexOf("Site Visit") !== -1) funnelBadgeClass = "bg-amber-50 text-amber-700 border-amber-300";
           else if (funnelStage.indexOf("Lost") !== -1) funnelBadgeClass = "bg-rose-50 text-rose-700 border-rose-300";
 
-          var canApprove = (localStorage.getItem('isPrimaryApprover') === 'true') && q.status === 'Pending Approval';
+          var canApprove = (hasApprovalAuthority('isPrimaryApprover')) && q.status === 'Pending Approval';
           var canRatify = (localStorage.getItem('isDirector') === 'true') && q.status === 'Approved' && q.directorRatificationStatus === 'Pending';
           var canConvert = (q.status === 'Approved' || q.status === 'Sent to Customer') && !q.convertedOrderId;
           var canSend = (q.status === 'Approved' || q.status === 'Sent to Customer' || q.status === 'Converted to Order');
@@ -430,7 +430,7 @@ var currentEditingQuoteId = null;
         var badge = document.getElementById('pending-count-badge');
         if (!banner || !listContainer) return;
 
-        var isApprover = localStorage.getItem('isPrimaryApprover') === 'true';
+        var isApprover = hasApprovalAuthority('isPrimaryApprover');
         if (!isApprover) {
           banner.classList.add('hidden');
           return;
@@ -1072,7 +1072,7 @@ var currentEditingQuoteId = null;
       function approveQuoteDirect(quoteId) {
         var myEmpId = localStorage.getItem('employeeId') || '';
         var myName = localStorage.getItem('userName') || 'Primary Approver';
-        if (localStorage.getItem('isPrimaryApprover') !== 'true') {
+        if (!hasApprovalAuthority('isPrimaryApprover')) {
           alert("Only the designated Primary Approver can approve quotations. Ask your admin to assign this on the Employees page if this is incorrect.");
           return;
         }
@@ -1110,7 +1110,7 @@ var currentEditingQuoteId = null;
       function rejectQuoteDirect(quoteId) {
         var myEmpId = localStorage.getItem('employeeId') || '';
         var myName = localStorage.getItem('userName') || 'Primary Approver';
-        if (localStorage.getItem('isPrimaryApprover') !== 'true') {
+        if (!hasApprovalAuthority('isPrimaryApprover')) {
           alert("Only the designated Primary Approver can reject quotations.");
           return;
         }

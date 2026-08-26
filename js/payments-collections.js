@@ -72,9 +72,9 @@
             </td>
             <td class="py-3 px-4 text-center">
               <span class="px-2.5 py-0.5 rounded-full text-[10px] uppercase ${statusPill}">
-                ${isCleared ? '✓ Cleared' : '⏳ Pending Accounts Verification'}
+                ${isCleared ? '✓ Cleared' : '⏳ Pending Finance Verification'}
               </span>
-              ${!isCleared && (userRole === 'admin' || userRole === 'super_admin' || userRole === 'manager') ? `
+              ${!isCleared && hasApprovalAuthority('isFinanceHead') ? `
                 <button onclick="verifyPaymentDirectly('${escapeHtml(p.id)}')" class="mt-1 block mx-auto px-2 py-0.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[9px] font-bold shadow-xs cursor-pointer" title="Accounts Department Verification">
                   ✓ Verify in Bank
                 </button>
@@ -99,7 +99,7 @@
         var userRole = localStorage.getItem('userRole');
         var myName = localStorage.getItem('userName') || 'Finance & Accounts Team';
 
-        if (localStorage.getItem('isFinanceHead') !== 'true') {
+        if (!hasApprovalAuthority('isFinanceHead')) {
           alert("Only the designated Finance Head can verify payments before they count as revenue. Ask your admin to assign this on the Employees page if this is incorrect.");
           return;
         }

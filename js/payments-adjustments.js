@@ -341,8 +341,8 @@ var currentPaymentView = 'transactions';
         // three named approvers still owes a sign-off on at least one request.
         var pendingApprovals = typeof window.RevOpsStore.getPendingDirectorApprovals === 'function' ? window.RevOpsStore.getPendingDirectorApprovals() : [];
         var myOutstandingSignoffs = pendingApprovals.filter(function(adj) {
-          return (localStorage.getItem('isPrimaryApprover') === 'true' && !adj.primaryApproverSignoff) ||
-                 (localStorage.getItem('isFinanceHead') === 'true' && !adj.financeHeadSignoff) ||
+          return (hasApprovalAuthority('isPrimaryApprover') && !adj.primaryApproverSignoff) ||
+                 (hasApprovalAuthority('isFinanceHead') && !adj.financeHeadSignoff) ||
                  (localStorage.getItem('isDirector') === 'true' && !adj.directorSignoff);
         });
         var alertBanner = document.getElementById('director-approval-alert');
@@ -577,7 +577,7 @@ var currentPaymentView = 'transactions';
             if (so) {
               var icon = so.decision === 'Approved' ? '✅' : '❌';
               directorInfo += `<div class="text-[10px] font-semibold ${so.decision === 'Approved' ? 'text-emerald-700' : 'text-rose-700'}">${icon} ${escapeHtml(role.label)}: ${escapeHtml(so.signedBy || '')}</div>`;
-            } else if (adj.status === 'Pending Director Approval' && localStorage.getItem(role.flag) === 'true') {
+            } else if (adj.status === 'Pending Director Approval' && hasApprovalAuthority(role.flag)) {
               directorInfo += `<button onclick="openDirectorApprovalModal('${escapeHtml(adj.id)}', '${role.key}')" class="mt-0.5 px-2 py-0.5 bg-purple-700 hover:bg-purple-800 text-white rounded text-[9px] font-black cursor-pointer">Sign as ${escapeHtml(role.label)}</button>`;
             } else if (adj.status === 'Pending Director Approval') {
               directorInfo += `<div class="text-[9px] text-amber-600 font-semibold">Awaiting ${escapeHtml(role.label)}</div>`;
@@ -888,7 +888,7 @@ var currentPaymentView = 'transactions';
         if (!adj) return;
 
         var meta = SIGNOFF_LABELS[signoffKey];
-        if (!meta || localStorage.getItem(meta.flag) !== 'true') {
+        if (!meta || !hasApprovalAuthority(meta.flag)) {
           alert("You are not the designated approver for this sign-off.");
           return;
         }
