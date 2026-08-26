@@ -30,7 +30,7 @@
           </div>
           <h1 class="text-2xl sm:text-3xl font-black text-white tracking-tight flex items-center gap-3">
             <span>Standard Operating Procedures (SOP)</span>
-            <span class="text-xs font-mono font-normal px-2.5 py-0.5 rounded-lg bg-emerald-950 text-emerald-300 border border-emerald-800">Version 2.6 Live</span>
+            <span class="text-xs font-mono font-normal px-2.5 py-0.5 rounded-lg bg-emerald-950 text-emerald-300 border border-emerald-800">Version 3.0 Live</span>
           </h1>
           <p class="text-sm text-slate-300 max-w-3xl">
             Step-by-step role-based execution guide for new joiners, operations managers, and business leaders at <strong>Measure DI Technologies</strong>. Learn exact day-to-day procedures for Lead-to-Cash, Service, Attendance, DWM, and Financial governance.
@@ -155,7 +155,7 @@
           </div>
           <div class="p-2.5 rounded-lg bg-slate-900 border border-slate-700">
             <div class="font-bold text-white">2. Quotation & Approvals</div>
-            <div class="text-[10px] text-slate-400">quotations.html (2-Tier)</div>
+            <div class="text-[10px] text-slate-400">quotations.html (2-Stage)</div>
           </div>
           <div class="p-2.5 rounded-lg bg-slate-900 border border-slate-700">
             <div class="font-bold text-white">3. Order Booking</div>
@@ -179,9 +179,9 @@
             Open <strong>Leads & Pipeline</strong> (<code>leads.html</code>) and click <strong>+ Add New Lead</strong>. Follow these mandatory entry rules:
           </p>
           <ul class="list-disc list-inside text-slate-300 space-y-1.5 leading-relaxed">
-            <li><strong>Lead Source (Select from 10 Prescribed Channels):</strong> India Mart, Tender / E-Procurement Portal, SEO, Existing Client, Customer Reference, Ariba, OEM, Mail Marketing / Digital Marketing, Direct Customer Approach, or Exhibition / Trade Fair.</li>
-            <li><strong>Industry Origin:</strong> Select from <em>Onboard</em>, <em>Project</em> (specify sector: Steel, Cement, Power Plant, Infrastructure, Mining, Other), <em>Crane</em>, or <em>Spare/Service</em>.</li>
-            <li><strong>Vertical & Cascading Product Specs:</strong> Choose Vertical (<em>Projects, Onboard, Crane, Service and Parts</em>). The product dropdown will dynamically filter only items belonging to that vertical from the Product Master, auto-filling technical specs and HSN codes.</li>
+            <li><strong>Lead Owner:</strong> Auto-fills to the logged-in user creating the lead — never entered manually.</li>
+            <li><strong>Lead Source, Industry Vertical, Project Sector / Origin, Vertical Classification, Currency:</strong> All five are picked from live Master Data lists (<code>master-data.html</code>) rather than hardcoded options. Admins/leadership can add, edit, or delete entries in these lists at any time without a code change, and every lead across the org immediately sees the updated list.</li>
+            <li><strong>Vertical & Cascading Product Specs:</strong> Choose Industry Vertical and Project Sector first — the Product Name dropdown then dynamically filters to only matching items from the Product Master. Selecting a product auto-populates HSN Code, Technical Specification, and Price as <strong>read-only</strong> fields — never typed in manually, so pricing always matches the master catalog.</li>
             <li><strong>Multi-Contact Entry:</strong> Add up to 5 customer contact persons with Designation, Mobile, Email, and Auto-CC toggles.</li>
             <li><strong>8-Stage Funnel Progression:</strong> Maintain active progression through:
               <ol class="list-decimal list-inside ml-4 text-slate-400 space-y-0.5 mt-1">
@@ -199,44 +199,52 @@
         </div>
 
         <div class="p-4 bg-slate-800/60 rounded-xl border border-slate-700/80 space-y-2">
-          <h4 class="font-bold text-emerald-400 text-sm">Procedure 2.2: Quotation Generation & 2-Tier Approval Workflow</h4>
-          <p class="text-slate-300">Quotation pricing and gross margins follow a strict 2-tier approval hierarchy:</p>
+          <h4 class="font-bold text-emerald-400 text-sm">Procedure 2.2: Quotation Creation, Lead Linkage & 2-Stage Approval</h4>
+          <ul class="list-disc list-inside text-slate-300 space-y-1.5 leading-relaxed">
+            <li><strong>Link to Lead (CRM):</strong> Search and select the source Lead by number, customer, or vertical — Customer, Contact Person, Email/Mobile, and Vertical auto-fill from the Lead and lock (edit the Lead itself, or unlink to "Standalone Customer", to change them).</li>
+            <li><strong>Duplicate-quote prevention:</strong> A Lead that already has an active (non-rejected) quotation cannot have a second one raised against it — edit or delete the existing quote first.</li>
+            <li><strong>Mandatory CC:</strong> Every quotation email automatically CCs <code>measuredichennai@gmail.com</code> — this is enforced by the system and cannot be removed.</li>
+            <li>Discounts can be entered as absolute value (₹) with auto % calculation. Up to 10 PDF/ZIP attachments and delivery commitment lead-time are supported. A <strong>First Advance %</strong> is captured on the quote (defaults 50%) and later flows straight into the Order — see 2.3.</li>
+          </ul>
+          <p class="text-slate-300 pt-1">Every quotation — regardless of discount level — goes through the same 2-stage sign-off before it can be emailed to the client:</p>
           <div class="overflow-x-auto">
             <table class="w-full text-left text-xs border border-slate-700 rounded-lg overflow-hidden mt-2">
               <thead class="bg-slate-900 text-slate-200">
                 <tr>
-                  <th class="p-2.5 border-b border-slate-700 font-bold">Approval Level</th>
+                  <th class="p-2.5 border-b border-slate-700 font-bold">Stage</th>
                   <th class="p-2.5 border-b border-slate-700 font-bold">Designated Authority</th>
-                  <th class="p-2.5 border-b border-slate-700 font-bold">Threshold Condition</th>
+                  <th class="p-2.5 border-b border-slate-700 font-bold">Blocking?</th>
                   <th class="p-2.5 border-b border-slate-700 font-bold">System Enforcement</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-slate-800 text-slate-300">
                 <tr class="bg-slate-850">
-                  <td class="p-2.5 font-bold text-indigo-400">Level 1</td>
-                  <td class="p-2.5 font-semibold text-white">Mr. Murugan V (Sales & Marketing Head)</td>
-                  <td class="p-2.5">Standard Quotations (&le;25% Discount)</td>
-                  <td class="p-2.5">Mandatory technical & commercial review before client email dispatch.</td>
+                  <td class="p-2.5 font-bold text-indigo-400">1. Primary Approval</td>
+                  <td class="p-2.5 font-semibold text-white">The employee flagged "Primary Approver"</td>
+                  <td class="p-2.5 font-bold text-rose-400">Yes — blocking</td>
+                  <td class="p-2.5">Quotation cannot be emailed to the client until this sign-off happens, for every discount level.</td>
                 </tr>
                 <tr class="bg-rose-950/20">
-                  <td class="p-2.5 font-bold text-rose-400">Level 2</td>
-                  <td class="p-2.5 font-semibold text-white">Mr. Ravichandran (Director)</td>
-                  <td class="p-2.5 font-bold text-amber-400">Discount Exceeds 25.0%</td>
-                  <td class="p-2.5">Escalated to Director sign-off. Quotation locked until approved.</td>
+                  <td class="p-2.5 font-bold text-purple-400">2. Director Ratification</td>
+                  <td class="p-2.5 font-semibold text-white">The employee flagged "Director"</td>
+                  <td class="p-2.5 font-bold text-emerald-400">No — non-blocking</td>
+                  <td class="p-2.5">Recorded for the record after the fact; does not hold up sending the quote or booking the order.</td>
                 </tr>
               </tbody>
             </table>
           </div>
-          <p class="text-[11px] text-slate-400 mt-1">Discounts can be entered as absolute value (₹) with auto % calculation. Up to 10 PDF/ZIP attachments and delivery commitment lead-time are supported.</p>
+          <p class="text-[11px] text-slate-400 mt-1">Pending-approval quotations always sort to the top of the registry. Already-invoiced quotations are hidden from the default list (still reachable via search or the "Show already-invoiced" toggle) to keep the working list short.</p>
         </div>
 
         <div class="p-4 bg-slate-800/60 rounded-xl border border-slate-700/80 space-y-2">
-          <h4 class="font-bold text-emerald-400 text-sm">Procedure 2.3: Order Booking & 100% Sales Contribution Split</h4>
-          <ul class="list-disc list-inside text-slate-300 space-y-1">
-            <li>Open <strong>Orders & Contracts</strong> (<code>orders.html</code>) and link the approved Quotation.</li>
-            <li><strong>Mandatory 100% Contribution Split:</strong> Add all contributing sales engineers and allocate percentage effort (summing to exactly 100%). This feeds individual AOP revenue achievement in <code>my-scorecard.html</code>.</li>
-            <li>Attach signed Customer PO Copy and Technical Factory Instruction Document.</li>
-            <li>Configure Bank / Performance Guarantee (BG/PG) amount and expiry date if required by customer contract.</li>
+          <h4 class="font-bold text-emerald-400 text-sm">Procedure 2.3: Order Booking, Quote-Locked Valuation & 100% Sales Contribution Split</h4>
+          <ul class="list-disc list-inside text-slate-300 space-y-1.5 leading-relaxed">
+            <li>Open <strong>Orders & Contracts</strong> (<code>orders.html</code>). Select the Customer / Account first — the Quotation dropdown then shows <strong>only that customer's Approved (and not already-booked) quotations</strong>, never a Pending/Rejected/Draft one and never a free-text entry.</li>
+            <li><strong>Everything locks to the Quotation:</strong> Order Value, GST rate/amount, Total, and 1st Advance % & amount are pulled straight from the selected quote and shown read-only — they cannot be typed in or overridden. If the customer's real PO doesn't match, the fix is either to get the PO corrected by the client, or to edit the Quotation itself to match the PO and re-select it — the app will not save a mismatched order.</li>
+            <li><strong>Mandatory 100% Contribution Split:</strong> Add all contributing sales engineers and allocate percentage effort (summing to exactly 100%) — entered manually, not auto-filled. This split now correctly drives each contributor's revenue in AOP / <code>my-scorecard.html</code> / <code>my-team.html</code> once the order is booked.</li>
+            <li>Bank / Performance Guarantee (BG/PG) amount and expiry date are entered manually if required by the customer contract.</li>
+            <li>Order confirmation follows the same 2-stage sign-off as quotations (Primary Approver blocking, Director ratification non-blocking) before it counts as "Booked" and reconciles the linked Lead.</li>
+            <li>Already-invoiced orders are hidden from the default list (reachable via search or "Show already-invoiced").</li>
           </ul>
         </div>
 
@@ -245,8 +253,18 @@
           <ul class="list-disc list-inside text-slate-300 space-y-1">
             <li><strong>Role Restriction:</strong> Commercial Invoices (Tax & Proforma) are raised strictly by the <strong>Accounting and Finance Department</strong> (and Director / Super Admin). Sales engineers can view invoice statuses and balance dues.</li>
             <li>Invoices auto-populate line items and GST details directly from confirmed POs.</li>
+            <li><strong>Every invoice</strong> (no value threshold) requires the same 2-stage sign-off as quotations/orders — Primary Approver blocking, Director ratification non-blocking — before it can be dispatched to the client.</li>
             <li>Official invoices feature company bank details from <code>bankDetailsMaster</code> and the authorized signatory seal and digital signature of <strong>Mr. Ravichandran (Director)</strong>.</li>
             <li>All activities across Leads, Quotes, Orders, Invoices, and Master Data are logged into the <strong>Universal Audit Trail</strong> viewable exclusively by the Director and Super Admin.</li>
+          </ul>
+        </div>
+
+        <div class="p-4 bg-slate-800/60 rounded-xl border border-purple-800/60 space-y-2">
+          <h4 class="font-bold text-purple-300 text-sm">Procedure 2.5: Approval Authority Model & the "✅ Approvals" Hub</h4>
+          <ul class="list-disc list-inside text-slate-300 space-y-1.5 leading-relaxed">
+            <li>Three named, assignable authority flags drive every approval gate in the app: <strong>Primary Approver</strong>, <strong>Director Ratifier</strong>, and <strong>Finance Head</strong>. They are assigned per employee on the <strong>Employees</strong> page ("Approval Authority" section on Add/Edit) — not hardcoded to any one person.</li>
+            <li><strong>Mr. Ravichandran (Director) holds universal approval authority</strong> — as the ultimate authority of the organization, his sign-off satisfies any approval gate (Primary Approver, Finance Head, or Director) across the entire app, so nothing can ever get stuck waiting on someone else if he needs to act.</li>
+            <li>Anyone holding at least one of these three flags sees a standalone <strong>"✅ Approvals"</strong> menu item in the top navigation, with a live count badge. This is the single place to see everything awaiting your sign-off — quotations, orders, invoices, payment verifications, and write-off/goodwill requests — grouped by category, with a direct link into the source record to act on it.</li>
           </ul>
         </div>
       </div>
@@ -258,7 +276,7 @@
         <div class="w-10 h-10 rounded-xl bg-indigo-600/20 text-indigo-400 font-black flex items-center justify-center text-base border border-indigo-500/30">3</div>
         <div>
           <h2 class="text-xl font-black text-white">Finance, Invoicing & Accounts Receivable (AR) SOP</h2>
-          <p class="text-xs text-slate-400">Standard operating guidelines for GST tax billing, Director approval gates, collection reconciliation, and bad debt adjustments.</p>
+          <p class="text-xs text-slate-400">Standard operating guidelines for GST tax billing, 2-stage invoice approval, Finance Head payment verification, and 3-way write-off/goodwill sign-off.</p>
         </div>
       </div>
 
@@ -269,24 +287,30 @@
             <li>Open <strong>Invoices & Approvals</strong> (<code>invoices.html</code>) and click <strong>Create New Invoice</strong>.</li>
             <li>Select Client, Project, and Invoice Type (<em>Tax Invoice</em> or <em>Proforma Invoice</em>).</li>
             <li>Line items auto-calculate 18% GST (CGST+SGST 9%+9% for intra-state Karnataka, or IGST 18% for inter-state).</li>
-            <li><strong>Director Approval Threshold:</strong> Invoices with total value &ge; INR 5,00,000 enter <code>Pending Director Approval</code>. Only Director / Super Admin can approve and release for client email dispatch.</li>
+            <li><strong>Every invoice</strong> enters <code>Pending Senior Approval</code> regardless of value, and requires the Primary Approver's sign-off (blocking dispatch) followed by Director ratification (non-blocking) — see Procedure 2.5.</li>
             <li>When client pays against Proforma, use <strong>Convert to Tax Invoice</strong> to generate official tax invoice number without re-entering data.</li>
           </ol>
         </div>
 
         <div class="p-4 bg-slate-800/60 rounded-xl border border-slate-700/80 space-y-2.5">
-          <h4 class="font-bold text-indigo-400 text-sm">Procedure 3.2: Payment Logging & Director AR Write-Offs</h4>
+          <h4 class="font-bold text-indigo-400 text-sm">Procedure 3.2: Payment Logging & Finance Head Verification</h4>
           <ol class="list-decimal list-inside text-slate-300 space-y-1.5 leading-relaxed">
             <li>Open <strong>Payments & Collections</strong> (<code>payments.html</code>) upon receipt of bank credit.</li>
             <li>Select invoice from the pending collection dropdown (automatically calculates outstanding balance).</li>
-            <li>Enter Bank Transaction Reference (UTR / Cheque), TDS Deducted (if any), and Net Amount Received.</li>
-            <li><strong>Goodwill Discount / Bad Debt Write-Off Rule:</strong>
-              <ul class="list-disc list-inside text-slate-400 pl-4 pt-1 space-y-1">
-                <li>If a customer dispute or balance rounding requires an adjustment, click <strong>Request AR Adjustment</strong>.</li>
-                <li>Enter Adjustment Type (<em>Goodwill Discount</em> or <em>Bad Debt Write-Off</em>) with mandatory audit explanation.</li>
-                <li>Write-offs are locked until approved by Managing Director to prevent unauthorized revenue leakage.</li>
-              </ul>
-            </li>
+            <li>Enter Bank Transaction Reference (UTR / Cheque), TDS Deducted (if any), and Net Amount Received — classify as <em>Advance</em>, <em>Part Payment</em>, or <em>Final Payment</em>.</li>
+            <li><strong>Finance Head verification gate:</strong> every payment (advance, part, or final) requires sign-off from the employee flagged "Finance Head" before it counts as recognized revenue anywhere in the app — dashboards, AOP achievement, and financial statements only reflect verified payments.</li>
+          </ol>
+        </div>
+
+        <div class="p-4 bg-slate-800/60 rounded-xl border border-purple-800/60 space-y-2.5 md:col-span-2">
+          <h4 class="font-bold text-purple-300 text-sm">Procedure 3.3: Request Adjustment / Write-Off (Goodwill or Bad Debt)</h4>
+          <ol class="list-decimal list-inside text-slate-300 space-y-1.5 leading-relaxed">
+            <li>From <strong>Payments & Collections</strong>, click <strong>+ Request Adjustment / Write-Off</strong>.</li>
+            <li><strong>Filter Client (Pending AR Only):</strong> the client dropdown lists strictly only clients who currently have a real outstanding balance — never a fully-settled account.</li>
+            <li><strong>Select Pending Invoice:</strong> once a client is chosen, the invoice dropdown cascades to show only that client's pending invoices.</li>
+            <li>Choose adjustment type — <em>Goodwill Discount / Commercial Adjustment</em> or <em>Bad Debt Write-Off (Unrecoverable AR)</em> — enter the amount and a mandatory commercial justification.</li>
+            <li><strong>3-Way Sign-Off:</strong> the request appears in the pending-approval list immediately with its full amount, and requires all three named authorities — <strong>Primary Approver</strong>, <strong>Finance Head</strong>, and <strong>Director</strong> — to sign off independently. It only takes effect once all three have approved.</li>
+            <li><strong>Financial impact once approved:</strong> the invoice balance reduces immediately, and the approved amount flows automatically into the company's <strong>Profit & Loss</strong> (reduces Net Profit/EBITDA), <strong>Balance Sheet</strong> (reduces Trade Receivables), and <strong>Cash Flow Statement</strong> (disclosed as a non-cash memo item) on the Finance &rarr; Financial Statements page.</li>
           </ol>
         </div>
       </div>
@@ -347,8 +371,21 @@
         <div class="w-10 h-10 rounded-xl bg-teal-600/20 text-teal-400 font-black flex items-center justify-center text-base border border-teal-500/30">5</div>
         <div>
           <h2 class="text-xl font-black text-white">Master Data & Bulk Import SOP (Operations & Admins)</h2>
-          <p class="text-xs text-slate-400">Standard protocol for onboarding new clients, active projects, employee roster updates, and spare parts catalog.</p>
+          <p class="text-xs text-slate-400">Standard protocol for onboarding new clients, active projects, employee roster updates, spare parts catalog, and the CRM dropdown lists.</p>
         </div>
+      </div>
+
+      <div class="p-4 bg-slate-800/60 rounded-xl border border-slate-700/80 space-y-2 text-xs">
+        <h3 class="font-bold text-teal-400 text-sm">Simple Master Lists (Add / Edit / Delete — No Code Change Required)</h3>
+        <p class="text-slate-300">These five lists feed the dropdowns on the Add New Lead form directly. Leadership/Admin can maintain them anytime under <code>master-data.html</code>:</p>
+        <div class="flex flex-wrap gap-2 pt-1">
+          <span class="px-2.5 py-1 bg-slate-900 rounded-lg border border-slate-700 text-slate-300 font-semibold">Lead Source</span>
+          <span class="px-2.5 py-1 bg-slate-900 rounded-lg border border-slate-700 text-slate-300 font-semibold">Industry Vertical</span>
+          <span class="px-2.5 py-1 bg-slate-900 rounded-lg border border-slate-700 text-slate-300 font-semibold">Project Sector</span>
+          <span class="px-2.5 py-1 bg-slate-900 rounded-lg border border-slate-700 text-slate-300 font-semibold">Vertical Classification</span>
+          <span class="px-2.5 py-1 bg-slate-900 rounded-lg border border-slate-700 text-slate-300 font-semibold">Currency</span>
+        </div>
+        <p class="text-[11px] text-slate-400">The Products tab additionally carries HSN Code, Technical Specification, and Price per product — these are what auto-populate on the Lead form once a Product is selected.</p>
       </div>
 
       <div class="p-4 bg-slate-800/60 rounded-xl border border-slate-700/80 space-y-3 text-xs">
