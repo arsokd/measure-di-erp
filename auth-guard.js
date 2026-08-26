@@ -193,7 +193,14 @@ function checkAuth(allowedRoles) {
     // Approval authority flags (Primary Approver / Director Ratifier / Finance
     // Head) — kept in sync the same way role is, so a flag change on the
     // Employees page takes effect on this device without a fresh login.
+    // Only sync a flag down from the local employees cache when that
+    // record actually has an opinion on it (true or false). If it's never
+    // been touched there (undefined — e.g. an account whose flag was set
+    // directly on its users/{uid} Firestore doc, not via the Employees
+    // page), leave localStorage alone rather than stomping the correct
+    // value login.html just loaded from users/{uid} back to "false".
     ['isPrimaryApprover', 'isDirector', 'isFinanceHead'].forEach(function(flagKey) {
+      if (currentEmp[flagKey] === undefined) return;
       var flagVal = String(currentEmp[flagKey] === true);
       if (localStorage.getItem(flagKey) !== flagVal) {
         localStorage.setItem(flagKey, flagVal);
