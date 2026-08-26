@@ -96,6 +96,7 @@ export default defineConfig(({ mode }) => {
           leads: path.resolve(__dirname, 'leads.html'),
           quotations: path.resolve(__dirname, 'quotations.html'),
           orders: path.resolve(__dirname, 'orders.html'),
+          approvals: path.resolve(__dirname, 'approvals.html'),
           payments: path.resolve(__dirname, 'payments.html'),
           dwm: path.resolve(__dirname, 'dwm.html'),
           attendance: path.resolve(__dirname, 'attendance.html'),
