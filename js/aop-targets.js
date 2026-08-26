@@ -88,8 +88,8 @@ document.addEventListener('DOMContentLoaded', function() {
         var totalWonRevenue = 0;
 
         orders.forEach(function(o) {
-          if (o.status === "Won") {
-            var ordFy = typeof getFinancialYear === 'function' ? getFinancialYear(o.orderDate) : '2026-27';
+          if (window.RevOpsStore.isOrderWon(o)) {
+            var ordFy = typeof getFinancialYear === 'function' ? getFinancialYear(window.RevOpsStore.getOrderDate(o)) : '2026-27';
             if (fy !== 'All' && ordFy !== fy) return;
             var val = Number(o.orderValue) || 0;
             totalWonRevenue += val;

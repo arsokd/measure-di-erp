@@ -27,6 +27,16 @@ var currentSplits = [];
         }
 
         renderOrdersTable();
+
+        // Arriving from Quotations ("🚀 Book Order" link) — open the Book
+        // Order form pre-loaded with that quotation and its customer.
+        var urlParams = new URLSearchParams(window.location.search);
+        var bookFromQuote = urlParams.get('bookFromQuote');
+        if (bookFromQuote) {
+          openOrderModal(null, bookFromQuote);
+          // Clean the URL so a page refresh doesn't reopen the modal.
+          window.history.replaceState({}, '', 'orders.html');
+        }
       }
 
       function toggleBgFields() {
@@ -55,60 +65,50 @@ var currentSplits = [];
         }
       }
 
-      function recalculateOrderTotals() {
-        var val = Number(document.getElementById('inp-ord-value').value) || 0;
-        var gstPct = Number(document.getElementById('inp-ord-gstpct').value) || 0;
-        var total = val + (val * (gstPct / 100));
-        document.getElementById('disp-ord-total').value = '₹' + Math.round(total).toLocaleString('en-IN');
+      // Populates the locked Valuation/Tax/Advance section (and the
+      // read-only quoted items list) straight from the selected, approved
+      // Quotation — nothing here is user-editable. If the customer's real
+      // PO doesn't match, the fix is to correct the Quotation itself (or
+      // get the PO corrected), never to type a different number here.
+      function applyQuoteLockToOrderForm(q) {
+        var noQuoteNotice = document.getElementById('no-quote-notice');
+        var lockedFields = document.getElementById('quote-locked-fields');
 
-        // Auto calculate advance amount based on percentage
-        var advPct = Number(document.getElementById('inp-ord-adv-pct').value) || 0;
-        if (advPct > 0) {
-          var advAmt = Math.round(val * (advPct / 100));
-          document.getElementById('inp-ord-adv-amt').value = advAmt;
-        }
-
-        checkValuationDiscrepancy(val);
-      }
-
-      function onAdvancePctChanged() {
-        var val = Number(document.getElementById('inp-ord-value').value) || 0;
-        var pct = Number(document.getElementById('inp-ord-adv-pct').value) || 0;
-        var amt = Math.round(val * (pct / 100));
-        document.getElementById('inp-ord-adv-amt').value = amt;
-      }
-
-      function onAdvanceAmtChanged() {
-        var val = Number(document.getElementById('inp-ord-value').value) || 0;
-        var amt = Number(document.getElementById('inp-ord-adv-amt').value) || 0;
-        if (val > 0) {
-          var pct = (amt / val) * 100;
-          document.getElementById('inp-ord-adv-pct').value = parseFloat(pct.toFixed(2));
-        }
-      }
-
-      function checkValuationDiscrepancy(currentOrderVal) {
-        var alertBox = document.getElementById('discrepancy-alert');
-        var titleEl = document.getElementById('discrepancy-title');
-        var descEl = document.getElementById('discrepancy-desc');
-
-        if (!activeSelectedQuote) {
-          alertBox.classList.add('hidden');
+        if (!q) {
+          noQuoteNotice.classList.remove('hidden');
+          lockedFields.classList.add('hidden');
           return;
         }
 
-        var quoteVal = Math.round(activeSelectedQuote.netTaxableAmount || activeSelectedQuote.grandTotal || 0);
-        var orderVal = Math.round(currentOrderVal);
+        noQuoteNotice.classList.add('hidden');
+        lockedFields.classList.remove('hidden');
 
-        if (orderVal > 0 && Math.abs(orderVal - quoteVal) > 10) {
-          var diff = orderVal - quoteVal;
-          var sign = diff > 0 ? '+' : '';
-          titleEl.innerHTML = `⚠️ Quotation & PO Discrepancy Detected (Variance: ${sign}₹${Math.abs(diff).toLocaleString('en-IN')})`;
-          descEl.innerHTML = `Approved Quotation Value is <strong>₹${quoteVal.toLocaleString('en-IN')}</strong> vs Final PO Value is <strong>₹${orderVal.toLocaleString('en-IN')}</strong>. Enabling the option below will auto-correct and align the Quotation and CRM Lead to match the final PO.`;
-          alertBox.classList.remove('hidden');
-        } else {
-          alertBox.classList.add('hidden');
-        }
+        var netVal = Math.round(q.netSubtotal || q.netTaxableAmount || 0);
+        var taxAmt = Number(q.taxAmount) || 0;
+        var gstPct = netVal > 0 ? Math.round((taxAmt / netVal) * 100) : 18;
+        var total = netVal + taxAmt;
+        var advPct = q.advancePercent !== undefined ? Number(q.advancePercent) : 50;
+        var advAmt = Math.round(netVal * (advPct / 100));
+
+        document.getElementById('inp-ord-value').value = '₹' + netVal.toLocaleString('en-IN');
+        document.getElementById('inp-ord-gstpct').value = gstPct + '% GST';
+        document.getElementById('disp-ord-total').value = '₹' + Math.round(total).toLocaleString('en-IN');
+        document.getElementById('inp-ord-adv-pct').value = advPct + '%';
+        document.getElementById('inp-ord-adv-amt').value = '₹' + advAmt.toLocaleString('en-IN');
+
+        var itemsBox = document.getElementById('quote-items-readonly');
+        var items = q.items || [];
+        itemsBox.innerHTML = items.length === 0 ? `<div class="p-2.5 text-slate-500">No line items on this quotation.</div>` : items.map(function(it) {
+          return `
+            <div class="p-2.5 flex items-center justify-between gap-2">
+              <div class="min-w-0">
+                <div class="font-semibold text-white truncate">${escapeHtml(it.description || '')}</div>
+                <div class="text-slate-500">HSN ${escapeHtml(it.hsnCode || '-')} • Qty ${it.qty || 1}</div>
+              </div>
+              <div class="font-bold text-emerald-400 whitespace-nowrap">₹${Number(it.unitPrice || 0).toLocaleString('en-IN')}</div>
+            </div>
+          `;
+        }).join('');
       }
 
       function addSplitRow(existing) {
@@ -281,27 +281,47 @@ var currentSplits = [];
       function onCustomerSelectedForOrder() {
         var customer = document.getElementById('inp-ord-customer-select').value;
         document.getElementById('inp-ord-customer').value = customer;
-        populateCustomerQuotes(customer, null);
+        var excludeOrderId = document.getElementById('ord-doc-id').value || null;
+        populateCustomerQuotes(customer, null, excludeOrderId);
       }
 
-      function populateCustomerQuotes(customerName, selectedQuoteId) {
+      // A quote is already "claimed" by a live order if some order (other
+      // than the one currently being edited) points at it and hasn't been
+      // rejected — that quote must not be selectable for a second order.
+      function isQuoteAlreadyOrdered(q, excludeOrderId) {
+        if (q.convertedOrderId && q.convertedOrderId !== excludeOrderId) return true;
+        var orders = window.RevOpsStore.getCollection('orders') || [];
+        return orders.some(function(o) {
+          return o.quotationId === q.id && o.status !== 'Rejected' && o.id !== excludeOrderId;
+        });
+      }
+
+      // Only a customer's APPROVED (and not-yet-booked-into-another-order)
+      // quotations are offered here — never a free-text/manual entry, and
+      // never a Pending/Rejected/Draft one. This is deliberately strict:
+      // the Order pulls its valuation, tax and advance terms straight from
+      // whichever quote is picked, so only a properly signed-off quote
+      // should be eligible.
+      function populateCustomerQuotes(customerName, selectedQuoteId, excludeOrderId) {
         var quoteSelect = document.getElementById('inp-ord-quote');
-        quoteSelect.innerHTML = '<option value="">-- Select Pending Quotation for ' + (customerName || 'Customer') + ' --</option>';
+        quoteSelect.innerHTML = '<option value="">-- Select Approved Quotation for ' + (customerName || 'Customer') + ' --</option>';
 
         var quotes = window.RevOpsStore.getCollection('quotations') || [];
-        var filteredQuotes = quotes;
-
-        if (customerName) {
-          filteredQuotes = quotes.filter(function(q) {
-            return (q.customerName || '').trim().toLowerCase() === customerName.trim().toLowerCase();
-          });
-        }
+        var filteredQuotes = quotes.filter(function(q) {
+          if (customerName && (q.customerName || '').trim().toLowerCase() !== customerName.trim().toLowerCase()) return false;
+          if (q.id === selectedQuoteId) return true; // always keep the currently-linked quote visible/selectable
+          if (q.status !== 'Approved' && q.status !== 'Sent to Customer') return false;
+          if (isQuoteAlreadyOrdered(q, excludeOrderId)) return false;
+          return true;
+        });
 
         if (filteredQuotes.length === 0) {
           var opt = document.createElement('option');
           opt.value = "";
-          opt.innerText = "(No pending quotations for " + customerName + " - Create Quote first)";
+          opt.innerText = "(No approved, unbooked quotations for " + customerName + " — approve one on the Quotations page first)";
           quoteSelect.appendChild(opt);
+          activeSelectedQuote = null;
+          applyQuoteLockToOrderForm(null);
           return;
         }
 
@@ -315,8 +335,10 @@ var currentSplits = [];
           quoteSelect.appendChild(opt);
         });
 
-        // If only 1 quote exists for this customer, auto-select it!
-        if (filteredQuotes.length === 1 && !selectedQuoteId) {
+        if (selectedQuoteId) {
+          handleQuoteSelectForOrder();
+        } else if (filteredQuotes.length === 1) {
+          // If only 1 eligible quote exists for this customer, auto-select it.
           quoteSelect.value = filteredQuotes[0].id;
           handleQuoteSelectForOrder();
         }
@@ -325,11 +347,11 @@ var currentSplits = [];
       function handleQuoteSelectForOrder() {
         var quoteId = document.getElementById('inp-ord-quote').value;
         var infoBox = document.getElementById('linkage-info-box');
-        
+
         if (!quoteId) {
           activeSelectedQuote = null;
           infoBox.classList.add('hidden');
-          document.getElementById('discrepancy-alert').classList.add('hidden');
+          applyQuoteLockToOrderForm(null);
           return;
         }
 
@@ -343,18 +365,17 @@ var currentSplits = [];
             document.getElementById('inp-ord-customer-select').value = q.customerName.trim();
           }
           if (q.vertical) document.getElementById('inp-ord-vertical').value = q.vertical;
-          var netVal = q.netTaxableAmount || q.grandTotal || 0;
-          document.getElementById('inp-ord-value').value = Math.round(netVal);
           document.getElementById('ord-lead-id').value = q.leadId || '';
 
           // Populate linkage details
+          var netVal = q.netSubtotal || q.netTaxableAmount || 0;
           infoBox.classList.remove('hidden');
           document.getElementById('disp-link-lead-no').innerText = q.leadId || 'Direct Quote';
           document.getElementById('disp-link-contact').innerText = q.contactPerson || q.customerEmail || q.customerName;
           document.getElementById('disp-link-quote-val').innerText = '₹' + Number(netVal).toLocaleString('en-IN');
           document.getElementById('disp-link-quote-status').innerText = q.status || 'Approved';
 
-          recalculateOrderTotals();
+          applyQuoteLockToOrderForm(q);
         }
       }
 
@@ -423,30 +444,28 @@ var currentSplits = [];
         document.getElementById('po-viewer-modal').classList.add('hidden');
       }
 
-      function openOrderModal(orderData) {
+      function openOrderModal(orderData, bookFromQuoteId) {
         currentSplits = [];
         activeSelectedQuote = null;
         var modal = document.getElementById('order-modal');
         var form = document.getElementById('order-form');
         form.reset();
         removePOImageAttachment();
-        document.getElementById('discrepancy-alert').classList.add('hidden');
         document.getElementById('linkage-info-box').classList.add('hidden');
+        applyQuoteLockToOrderForm(null);
 
         if (orderData) {
           document.getElementById('order-modal-title').innerHTML = `<i class="fa-solid fa-pen-to-square text-purple-400"></i> <span>Edit Commercial Order (${orderData.poNumber || orderData.id})</span>`;
           document.getElementById('ord-doc-id').value = orderData.id;
           populateCustomerOptions(orderData.customerName);
           document.getElementById('inp-ord-customer').value = orderData.customerName || '';
-          populateCustomerQuotes(orderData.customerName, orderData.quotationId);
+          // Valuation/tax/advance and quoted items are (re-)locked from
+          // the linked quotation by populateCustomerQuotes -> handleQuoteSelectForOrder.
+          populateCustomerQuotes(orderData.customerName, orderData.quotationId, orderData.id);
 
           document.getElementById('inp-ord-ponum').value = orderData.poNumber || '';
           document.getElementById('inp-ord-podate').value = orderData.poDate || '';
           document.getElementById('inp-ord-vertical').value = orderData.vertical || 'Projects';
-          document.getElementById('inp-ord-value').value = orderData.orderValue || orderData.value || 0;
-          document.getElementById('inp-ord-gstpct').value = orderData.gstPercent || 18;
-          document.getElementById('inp-ord-adv-pct').value = orderData.advancePercent || 50;
-          document.getElementById('inp-ord-adv-amt').value = orderData.expectedAdvanceAmount || Math.round((orderData.orderValue || 0) * 0.5);
           document.getElementById('ord-lead-id').value = orderData.leadId || '';
 
           if (orderData.poFileData) {
@@ -458,8 +477,6 @@ var currentSplits = [];
               document.getElementById('po-image-thumbnail').src = orderData.poFileData;
             }
           }
-
-          recalculateOrderTotals();
 
           if (orderData.bgRequired === 'Yes') {
             document.getElementById('inp-ord-bgreq').value = 'Yes';
@@ -484,12 +501,19 @@ var currentSplits = [];
           document.getElementById('order-modal-title').innerHTML = `<i class="fa-solid fa-file-contract text-purple-400"></i> <span>Book Commercial Order / PO</span>`;
           document.getElementById('ord-doc-id').value = '';
           document.getElementById('inp-ord-podate').value = new Date().toISOString().slice(0, 10);
-          populateCustomerOptions(null);
-          populateCustomerQuotes(null, null);
+
+          var prefillQuote = null;
+          if (bookFromQuoteId) {
+            var quotes = window.RevOpsStore.getCollection('quotations') || [];
+            prefillQuote = quotes.find(function(q) { return q.id === bookFromQuoteId; });
+          }
+
+          populateCustomerOptions(prefillQuote ? prefillQuote.customerName : null);
+          if (prefillQuote) document.getElementById('inp-ord-customer').value = prefillQuote.customerName || '';
+          populateCustomerQuotes(prefillQuote ? prefillQuote.customerName : null, bookFromQuoteId || null);
 
           var myEmpId = localStorage.getItem('employeeId') || 'E-002';
           currentSplits = [{ employeeId: myEmpId, percent: 100 }];
-          document.getElementById('inp-ord-adv-pct').value = '50';
           toggleBgFields();
           toggleRetentionFields();
         }
@@ -502,11 +526,20 @@ var currentSplits = [];
         document.getElementById('order-modal').classList.add('hidden');
       }
 
+      // An order that's already been invoiced is done — hide it from the
+      // everyday list by default so already-processed POs don't pile up;
+      // it's still reachable by searching or via "Show already-invoiced".
+      function computeInvoicedOrderIds() {
+        var invoices = window.RevOpsStore.getCollection('invoices') || [];
+        return new Set(invoices.map(function(inv) { return inv.orderId; }).filter(Boolean));
+      }
+
       function renderOrdersTable() {
         var userRole = localStorage.getItem('userRole');
         var myEmpId = localStorage.getItem('employeeId');
         var searchQuery = (document.getElementById('order-search-input').value || '').toLowerCase();
         var selectedFy = document.getElementById('order-fy-filter').value;
+        var showInvoiced = document.getElementById('chk-show-invoiced-orders') ? document.getElementById('chk-show-invoiced-orders').checked : false;
 
         var selectedFilterEmp = "All";
         var filterElem = document.getElementById('order-emp-filter');
@@ -514,6 +547,7 @@ var currentSplits = [];
 
         var orders = window.RevOpsStore.getCollection('orders') || [];
         var employees = window.RevOpsStore.getCollection('employees') || [];
+        var invoicedOrderIds = computeInvoicedOrderIds();
 
         var filtered = orders.filter(function(o) {
           if (selectedFy !== 'All') {
@@ -534,8 +568,20 @@ var currentSplits = [];
           var textMatch = (o.customerName || '').toLowerCase().includes(searchQuery) ||
                           (o.poNumber || '').toLowerCase().includes(searchQuery) ||
                           (o.vertical || '').toLowerCase().includes(searchQuery);
-          return textMatch;
+          if (!textMatch) return false;
+
+          if (!searchQuery && !showInvoiced && invoicedOrderIds.has(o.id)) return false;
+
+          return true;
         });
+
+        var invoicedHiddenCount = orders.filter(function(o) { return invoicedOrderIds.has(o.id); }).length;
+        var invoicedHint = document.getElementById('invoiced-orders-hint');
+        if (invoicedHint) {
+          invoicedHint.innerText = invoicedHiddenCount > 0 && !showInvoiced && !searchQuery
+            ? (invoicedHiddenCount + ' already-invoiced order(s) hidden — search or check "Show already-invoiced" to see them.')
+            : '';
+        }
 
         var totalWon = filtered.length;
         var totalVal = 0;
@@ -680,6 +726,15 @@ var currentSplits = [];
           return;
         }
 
+        // Valuation, tax and advance terms are never typed in here — they
+        // must come straight from the selected, approved Quotation. No
+        // quote selected means no order: this is what makes mismatched
+        // values impossible rather than just discouraged.
+        if (!activeSelectedQuote) {
+          alert("Cannot Save Order:\n\nSelect the customer's approved Quotation first — Order Value, GST and Advance terms are pulled from it automatically and cannot be typed in manually.");
+          return;
+        }
+
         var docId = document.getElementById('ord-doc-id').value;
         var existingOrder = docId ? (window.RevOpsStore.getCollection('orders') || []).find(function(o) { return o.id === docId; }) : null;
 
@@ -687,17 +742,18 @@ var currentSplits = [];
         var poDate = document.getElementById('inp-ord-podate').value;
         var customerName = (document.getElementById('inp-ord-customer-select').value || document.getElementById('inp-ord-customer').value).trim();
         var vertical = document.getElementById('inp-ord-vertical').value;
-        var val = Number(document.getElementById('inp-ord-value').value) || 0;
-        var gstPct = Number(document.getElementById('inp-ord-gstpct').value) || 18;
+
+        var val = Math.round(activeSelectedQuote.netSubtotal || activeSelectedQuote.netTaxableAmount || 0);
+        var taxAmt = Number(activeSelectedQuote.taxAmount) || 0;
+        var gstPct = val > 0 ? Math.round((taxAmt / val) * 100) : 18;
         var gstAmount = val * (gstPct / 100);
-        var advPct = Number(document.getElementById('inp-ord-adv-pct').value) || 50;
-        var advAmt = Number(document.getElementById('inp-ord-adv-amt').value) || Math.round(val * (advPct / 100));
+        var advPct = activeSelectedQuote.advancePercent !== undefined ? Number(activeSelectedQuote.advancePercent) : 50;
+        var advAmt = Math.round(val * (advPct / 100));
 
         var bgReq = document.getElementById('inp-ord-bgreq').value;
         var retReq = document.getElementById('inp-ord-retreq').value;
         var quoteId = document.getElementById('inp-ord-quote').value;
         var leadId = document.getElementById('ord-lead-id').value;
-        var autoReconcile = document.getElementById('chk-auto-reconcile') ? document.getElementById('chk-auto-reconcile').checked : true;
 
         var poFileData = document.getElementById('ord-po-file-data').value || (existingOrder ? existingOrder.poFileData : '');
         var poFileName = document.getElementById('ord-po-file-name').value || (existingOrder ? existingOrder.poFileName : '');
@@ -733,7 +789,6 @@ var currentSplits = [];
           // and books it) requires the Primary Approver's sign-off — see
           // approveOrderDirect(). Saving here only records the raw PO entry.
           status: existingOrder && (existingOrder.status === 'Booked' || existingOrder.status === 'Rejected') ? existingOrder.status : 'Pending Primary Approval',
-          autoReconcile: autoReconcile,
           createdDate: existingOrder ? existingOrder.createdDate : getFormattedToday(),
           createdAt: existingOrder ? existingOrder.createdAt : new Date().toISOString(),
           updatedAt: new Date().toISOString()
@@ -777,14 +832,16 @@ var currentSplits = [];
         var myName = localStorage.getItem('userName') || 'Primary Approver';
         var myEmpId = localStorage.getItem('employeeId') || '';
         var val = Number(o.orderValue) || Number(o.value) || 0;
-        var gstAmount = Number(o.gstAmount) || 0;
-        var advAmt = Number(o.expectedAdvanceAmount) || 0;
 
         o.status = 'Booked';
         window.RevOpsStore.approvePrimaryStage(o, myName, myEmpId, remarks);
 
-        // RECONCILE & UPDATE LINKED QUOTATION — only now that the order is confirmed
-        if (o.quotationId && o.autoReconcile !== false) {
+        // MARK LINKED QUOTATION AS BOOKED — its valuation/tax/advance were
+        // already the single source of truth for this order (locked at
+        // creation), so there's nothing to reconcile numerically here;
+        // just close the loop so the quote can't be booked into a second
+        // order and shows up as invoiced once this order is.
+        if (o.quotationId) {
           var quotes = window.RevOpsStore.getCollection('quotations') || [];
           var q = quotes.find(function(it) { return it.id === o.quotationId; });
           if (q) {
@@ -792,14 +849,8 @@ var currentSplits = [];
             q.status = 'Order Booked / Won';
             q.poNumber = o.poNumber;
             q.poDate = o.poDate;
-            q.netTaxableAmount = val;
-            q.grandTotal = Math.round(val + gstAmount);
-            q.expectedAdvanceAmount = advAmt;
+            q.convertedOrderId = o.id;
             q.updatedAt = new Date().toISOString();
-
-            if (q.items && q.items.length === 1) {
-              q.items[0].unitPrice = val;
-            }
 
             window.RevOpsStore.saveRecord('quotations', q);
             if (!o.leadId && q.leadId) o.leadId = q.leadId;
@@ -809,7 +860,7 @@ var currentSplits = [];
                 'Quotations',
                 q.quoteNumber || q.id,
                 'UPDATE',
-                'Auto-reconciled quotation details to match approved PO ' + o.poNumber + ' (Valuation: ₹' + val.toLocaleString('en-IN') + ', 1st Advance: ₹' + advAmt.toLocaleString('en-IN') + ')',
+                'Quotation booked into PO ' + o.poNumber + ' (Valuation: ₹' + val.toLocaleString('en-IN') + ')',
                 oldQuoteState,
                 q
               );
@@ -818,7 +869,7 @@ var currentSplits = [];
         }
 
         // RECONCILE & UPDATE LINKED CRM LEAD
-        if (o.leadId && o.autoReconcile !== false) {
+        if (o.leadId) {
           var leads = window.RevOpsStore.getCollection('leads') || [];
           var l = leads.find(function(it) { return it.id === o.leadId; });
           if (l) {

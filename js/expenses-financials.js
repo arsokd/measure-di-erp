@@ -509,7 +509,7 @@
         // Filter orders by FY
         var orders = rawOrders.filter(function(o) {
           if (selectedFy === 'All') return true;
-          var fy = typeof getFinancialYear === 'function' ? getFinancialYear(o.orderDate) : '2026-27';
+          var fy = typeof getFinancialYear === 'function' ? getFinancialYear(window.RevOpsStore.getOrderDate(o)) : '2026-27';
           return fy === selectedFy;
         });
 
@@ -525,7 +525,7 @@
         var collectedRev = 0;
 
         orders.forEach(function(o) {
-          if (o.status === "Won") {
+          if (window.RevOpsStore.isOrderWon(o)) {
             var val = Number(o.orderValue) || 0;
             totalRev += val;
             invoicedRev += (Number(o.invoicedAmount) || val);
@@ -1349,7 +1349,7 @@
         // Filter dataset by FY
         var filteredOrders = orders.filter(function(o) {
           if (selectedFy === 'All') return true;
-          var fy = typeof getFinancialYear === 'function' ? getFinancialYear(o.orderDate) : '2026-27';
+          var fy = typeof getFinancialYear === 'function' ? getFinancialYear(window.RevOpsStore.getOrderDate(o)) : '2026-27';
           return fy === selectedFy;
         });
 
@@ -1440,10 +1440,10 @@
 
         // Sales Vouchers
         filteredOrders.forEach(function(o, idx) {
-          if (o.status === "Won") {
-            var dateFormatted = formatTallyDate(o.orderDate || '2026-04-01');
+          if (window.RevOpsStore.isOrderWon(o)) {
+            var dateFormatted = formatTallyDate(window.RevOpsStore.getOrderDate(o) || '2026-04-01');
             var val = Number(o.orderValue) || 0;
-            var invNo = o.orderId || ('INV-2026-' + (1000 + idx));
+            var invNo = o.poNumber || o.orderId || ('INV-2026-' + (1000 + idx));
             var client = o.customerName || 'Client Customer';
 
             xml += `

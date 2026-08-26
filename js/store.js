@@ -709,6 +709,36 @@ Object.assign(window.RevOpsStore, {
     return record;
   },
 
+  // ============ ORDER REVENUE / CONTRIBUTION HELPERS ============
+  // Single source of truth for "is this order a confirmed booking" and
+  // "who gets what share of its revenue" — used by the dashboard, AOP
+  // targets, individual scorecards and team rollups so they all agree
+  // with the Orders page's own numbers. Understands both the current
+  // schema (orders.html: status 'Booked', splits[]/percent, poDate) and
+  // the older seed/demo schema (status 'Won', contributors[]/contributionPct,
+  // orderDate) so real bookings and legacy demo data both count correctly.
+  isOrderWon: function(order) {
+    return !!order && (order.status === 'Booked' || order.status === 'Won');
+  },
+
+  getOrderContributions: function(order) {
+    if (!order) return [];
+    var val = Number(order.orderValue || order.value || order.invoiceValue) || 0;
+    var raw = (Array.isArray(order.splits) && order.splits.length > 0) ? order.splits
+      : (Array.isArray(order.contributors) && order.contributors.length > 0) ? order.contributors
+      : [{ employeeId: order.employeeId, percent: 100 }];
+
+    return raw.map(function(c) {
+      var pct = Number(c.percent !== undefined ? c.percent : c.contributionPct) || 0;
+      return { employeeId: c.employeeId, percent: pct, amount: (val * pct) / 100 };
+    });
+  },
+
+  getOrderDate: function(order) {
+    if (!order) return '';
+    return order.poDate || order.orderDate || order.createdDate || '';
+  },
+
   // ============ CONFIGURATION MASTER LISTS (Lead Source, Industry Vertical,
   // Project Sector, Vertical Classification, Currency) ============
   // Idempotent: only fills a collection the very first time it's empty, so

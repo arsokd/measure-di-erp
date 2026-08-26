@@ -102,15 +102,15 @@ document.addEventListener('DOMContentLoaded', function() {
           var memberAchievedRev = 0;
 
           orders.forEach(function(ord) {
-            if (ord.status === "Won") {
+            if (window.RevOpsStore.isOrderWon(ord)) {
               if (selectedFy !== 'All') {
-                var ordFy = typeof getFinancialYear === 'function' ? getFinancialYear(ord.orderDate) : '2026-27';
+                var ordFy = typeof getFinancialYear === 'function' ? getFinancialYear(window.RevOpsStore.getOrderDate(ord)) : '2026-27';
                 if (ordFy !== selectedFy) return;
               }
 
               var val = Number(ord.orderValue) || 0;
               var isMyTeam = (memberSubIds.indexOf(ord.employeeId) !== -1);
-              var contribs = ord.contributors || [{ employeeId: ord.employeeId, contributionPct: 100 }];
+              var contribs = window.RevOpsStore.getOrderContributions(ord);
               var hasContrib = contribs.some(function(c) { return memberSubIds.indexOf(c.employeeId) !== -1; });
 
               if (isMyTeam || hasContrib) {
@@ -119,7 +119,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 } else {
                   contribs.forEach(function(c) {
                     if (c.employeeId === member.employeeId) {
-                      memberAchievedRev += (val * Number(c.contributionPct)) / 100;
+                      memberAchievedRev += c.amount;
                     }
                   });
                 }

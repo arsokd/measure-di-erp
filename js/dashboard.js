@@ -365,13 +365,13 @@
           return ordList.filter(function(ord) {
             // FY Filter
             if (selectedFy !== 'All') {
-              var ordFy = typeof getFinancialYear === 'function' ? getFinancialYear(ord.orderDate, ord.invoiceNumber) : '2025-26';
+              var ordFy = typeof getFinancialYear === 'function' ? getFinancialYear(window.RevOpsStore.getOrderDate(ord), ord.invoiceNumber) : '2025-26';
               if (ordFy !== selectedFy) return false;
             }
 
             // Date Range Filter (only when not 'Full' or when selectedFy === 'All')
             if ((currentPreset !== 'Full' || selectedFy === 'All') && (rangeStart || rangeEnd)) {
-              var d = parseAppDate(ord.orderDate);
+              var d = parseAppDate(window.RevOpsStore.getOrderDate(ord));
               if (d) {
                 if (rangeStart && d < rangeStart) return false;
                 if (rangeEnd && d > rangeEnd) return false;
@@ -389,13 +389,9 @@
 
             // Employee Filter
             if (selectedEmpId !== 'All') {
-              var contribs = ord.contributors || [];
-              if (contribs.length > 0) {
-                var isContrib = contribs.some(c => c.employeeId === selectedEmpId);
-                if (!isContrib) return false;
-              } else {
-                if (ord.employeeId !== selectedEmpId) return false;
-              }
+              var contribs = window.RevOpsStore.getOrderContributions(ord);
+              var isContrib = contribs.some(c => c.employeeId === selectedEmpId);
+              if (!isContrib) return false;
             }
 
             return true;
@@ -413,7 +409,7 @@
           employees.forEach(e => empMap[e.employeeId] = 0);
 
           ordersList.forEach(function(ord) {
-            if (ord.status === "Won") {
+            if (window.RevOpsStore.isOrderWon(ord)) {
               var val = Number(ord.orderValue) || 0;
               tot += val;
 
@@ -424,20 +420,16 @@
               else if (rawV !== "Sales") vName = "Service/Parts";
               vertMap[vName] = (vertMap[vName] || 0) + val;
 
-              // Employee Share
-              var contribs = ord.contributors || [];
-              if (!Array.isArray(contribs) || contribs.length === 0) {
-                contribs = [{ employeeId: ord.employeeId, contributionPct: 100 }];
-              }
-              contribs.forEach(function(c) {
-                var pct = Number(c.contributionPct) || 0;
-                var share = (val * pct) / 100;
-                empMap[c.employeeId] = (empMap[c.employeeId] || 0) + share;
+              // Employee Share — split exactly per the Sales Contribution
+              // Split % recorded on the order (falls back to 100% to the
+              // sole owner for legacy demo orders with no split).
+              window.RevOpsStore.getOrderContributions(ord).forEach(function(c) {
+                empMap[c.employeeId] = (empMap[c.employeeId] || 0) + c.amount;
               });
             }
           });
 
-          return { total: tot, verticals: vertMap, employees: empMap, count: ordersList.filter(o => o.status === "Won").length };
+          return { total: tot, verticals: vertMap, employees: empMap, count: ordersList.filter(o => window.RevOpsStore.isOrderWon(o)).length };
         }
 
         var currRev = computeRevenueData(currentOrders);
@@ -834,19 +826,21 @@
         var currEnd = periodInfo.current ? periodInfo.current.end : null;
 
         rawOrders.forEach(function(ord) {
-          if (ord.status !== "Won") return;
+          if (!window.RevOpsStore.isOrderWon(ord)) return;
+
+          var ordDateStr = window.RevOpsStore.getOrderDate(ord);
 
           // FY Filter
           if (selectedFy !== 'All') {
-            var ordFy = typeof getFinancialYear === 'function' ? getFinancialYear(ord.orderDate) : '2025-26';
+            var ordFy = typeof getFinancialYear === 'function' ? getFinancialYear(ordDateStr) : '2025-26';
             if (ordFy !== selectedFy) return;
           }
 
           if (currStart || currEnd) {
-            var d = parseAppDate(ord.orderDate);
-            if (d) {
-              if (currStart && d < currStart) return;
-              if (currEnd && d > currEnd) return;
+            var dRange = parseAppDate(ordDateStr);
+            if (dRange) {
+              if (currStart && dRange < currStart) return;
+              if (currEnd && dRange > currEnd) return;
             }
           }
 
@@ -859,17 +853,14 @@
             if (normV !== selectedVertical) return;
           }
 
+          var contribs = window.RevOpsStore.getOrderContributions(ord);
+
           // Employee Filter
           if (selectedEmpId !== 'All') {
-            var contribs = ord.contributors || [];
-            if (contribs.length > 0) {
-              if (!contribs.some(c => c.employeeId === selectedEmpId)) return;
-            } else {
-              if (ord.employeeId !== selectedEmpId) return;
-            }
+            if (!contribs.some(c => c.employeeId === selectedEmpId)) return;
           }
 
-          var d = parseAppDate(ord.orderDate);
+          var d = parseAppDate(ordDateStr);
           if (!d) return;
 
           var m = d.getMonth(); // 0=Jan..11=Dec
@@ -880,11 +871,8 @@
 
           // If employee filter active, calculate share
           if (selectedEmpId !== 'All') {
-            var contribs = ord.contributors || [];
-            if (contribs.length > 0) {
-              var c = contribs.find(item => item.employeeId === selectedEmpId);
-              if (c) val = (val * (Number(c.contributionPct) || 0)) / 100;
-            }
+            var c = contribs.find(item => item.employeeId === selectedEmpId);
+            if (c) val = c.amount;
           }
 
           if (slotIndex !== -1) {
@@ -1828,10 +1816,10 @@
             stream.push({
               type: 'Order',
               badgeClass: 'bg-emerald-950 text-emerald-300 border-emerald-700/50',
-              title: 'Order #' + (o.orderId || o.id) + ' — ' + (o.customerName || 'Customer'),
+              title: 'Order #' + (o.poNumber || o.orderId || o.id) + ' — ' + (o.customerName || 'Customer'),
               empName: empMap[o.employeeId] || o.employeeId || 'Sales Lead',
-              subtitle: 'Amount: ₹' + (Number(o.amount) || 0).toLocaleString('en-IN') + ' • ' + (o.vertical || 'Sales'),
-              dateStr: o.orderDate || o.date || 'Today',
+              subtitle: 'Amount: ₹' + (Number(o.orderValue || o.amount) || 0).toLocaleString('en-IN') + ' • ' + (o.vertical || 'Sales'),
+              dateStr: window.RevOpsStore.getOrderDate(o) || o.date || 'Today',
               icon: '📦'
             });
           });

@@ -95,7 +95,7 @@ var viewingEmpId = null;
         var myAchievedRevenue = 0;
         var filteredOrders = orders.filter(function(ord) {
           if (selectedFy === 'All') return true;
-          var fy = typeof getFinancialYear === 'function' ? getFinancialYear(ord.orderDate) : '2026-27';
+          var fy = typeof getFinancialYear === 'function' ? getFinancialYear(window.RevOpsStore.getOrderDate(ord)) : '2026-27';
           return fy === selectedFy;
         });
 
@@ -104,27 +104,24 @@ var viewingEmpId = null;
 
         filteredOrders.forEach(function(ord) {
           var isMyTeam = (subEmpIds.indexOf(ord.employeeId) !== -1);
-          var contribs = ord.contributors || [];
-          if (!Array.isArray(contribs) || contribs.length === 0) {
-            contribs = [{ employeeId: ord.employeeId, contributionPct: 100 }];
-          }
+          var contribs = window.RevOpsStore.getOrderContributions(ord);
 
           var hasContrib = contribs.some(function(c) { return subEmpIds.indexOf(c.employeeId) !== -1; });
 
           if (isMyTeam || hasContrib) {
             totalOrdersCount++;
-            if (ord.status === "Won") {
+            if (window.RevOpsStore.isOrderWon(ord)) {
               wonOrdersCount++;
               var val = Number(ord.orderValue) || 0;
               if (subEmpIds.length > 1) {
                 // Manager/MD rollup - count total team order value
                 myAchievedRevenue += val;
               } else {
-                // Individual contributor share
+                // Individual contributor share, exactly per the Sales
+                // Contribution Split % recorded on the order
                 contribs.forEach(function(c) {
                   if (c.employeeId === empId) {
-                    var pct = Number(c.contributionPct) || 0;
-                    myAchievedRevenue += (val * pct) / 100;
+                    myAchievedRevenue += c.amount;
                   }
                 });
               }

@@ -443,9 +443,9 @@ var currentEditingQuoteId = null;
                   </button>
                 ` : ''}
                 ${canConvert ? `
-                  <button onclick="convertQuoteToOrder('${q.id}')" class="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md text-[10px] font-bold shadow-xs transition-colors flex items-center space-x-1" title="Convert to Sales Order">
-                    <span>🚀 Order</span>
-                  </button>
+                  <a href="orders.html?bookFromQuote=${encodeURIComponent(q.id)}" class="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md text-[10px] font-bold shadow-xs transition-colors flex items-center space-x-1" title="Book Commercial Order / PO against this quotation">
+                    <span>🚀 Book Order</span>
+                  </a>
                 ` : ''}
                 <button onclick="createQuoteRevision('${q.id}')" class="p-1.5 text-amber-600 hover:bg-amber-50 rounded-lg transition-colors" title="Create Revision">
                   🔄
@@ -609,6 +609,7 @@ var currentEditingQuoteId = null;
             document.getElementById('inp-quote-date').value = formatDateForInput(q.createdDate);
             document.getElementById('inp-quote-validity').value = q.validityDays || 30;
             document.getElementById('inp-quote-leadtime').value = q.deliveryLeadTime || '3-4 Weeks from advance PO';
+            document.getElementById('inp-quote-advance-pct').value = q.advancePercent !== undefined ? q.advancePercent : 50;
             document.getElementById('inp-overall-disc-percent').value = q.overallDiscountPercent || 0;
             document.getElementById('inp-overall-disc-amount').value = Math.round(q.overallDiscountAmount || 0);
             document.getElementById('inp-quote-terms').value = q.termsAndConditions || '';
@@ -634,6 +635,7 @@ var currentEditingQuoteId = null;
           document.getElementById('inp-quote-date').value = new Date().toISOString().slice(0, 10);
           document.getElementById('inp-quote-validity').value = "30";
           document.getElementById('inp-quote-leadtime').value = "3-4 Weeks from advance PO";
+          document.getElementById('inp-quote-advance-pct').value = "50";
           document.getElementById('inp-overall-disc-percent').value = "0";
           document.getElementById('inp-overall-disc-amount').value = "0";
           document.getElementById('inp-quote-remarks').value = "";
@@ -1089,6 +1091,7 @@ var currentEditingQuoteId = null;
         var dateVal = document.getElementById('inp-quote-date').value;
         var validityDays = parseInt(document.getElementById('inp-quote-validity').value) || 30;
         var leadTime = document.getElementById('inp-quote-leadtime').value.trim() || '3-4 Weeks from advance PO';
+        var advancePercent = Math.max(0, Math.min(100, parseFloat(document.getElementById('inp-quote-advance-pct').value) || 0));
         var overallDiscPercent = parseFloat(document.getElementById('inp-overall-disc-percent').value) || 0;
         var terms = document.getElementById('inp-quote-terms').value;
         var remarks = document.getElementById('inp-quote-remarks').value;
@@ -1134,6 +1137,7 @@ var currentEditingQuoteId = null;
             createdDate: formatDateFromInput(dateVal),
             validityDays: validityDays,
             deliveryLeadTime: leadTime,
+            advancePercent: advancePercent,
             expiryDate: calculateExpiryDate(dateVal, validityDays),
             financialYear: '2026-27',
             items: activeQuoteItems,
@@ -1179,6 +1183,7 @@ var currentEditingQuoteId = null;
             quotes[idx].createdDate = formatDateFromInput(dateVal);
             quotes[idx].validityDays = validityDays;
             quotes[idx].deliveryLeadTime = leadTime;
+            quotes[idx].advancePercent = advancePercent;
             quotes[idx].expiryDate = calculateExpiryDate(dateVal, validityDays);
             quotes[idx].items = activeQuoteItems;
             quotes[idx].attachments = activeQuoteAttachments;
@@ -1351,71 +1356,16 @@ var currentEditingQuoteId = null;
         openQuoteModal(newQuoteId);
       }
 
-      function convertQuoteToOrder(quoteId) {
-        var quotes = getQuotationsList();
-        var q = quotes.find(function(it) { return it.id === quoteId; });
-        if (!q) return;
-
-        if (q.status !== 'Approved' && q.status !== 'Sent to Customer') {
-          alert("Only approved quotations can be converted to Sales Orders.");
-          return;
-        }
-
-        if (!confirm("Are you sure you want to convert Quote " + q.quoteNumber + " into a Sales Order for " + q.customerName + "?")) {
-          return;
-        }
-
-        var orders = window.RevOpsStore.getCollection('orders') || [];
-        var orderId = 'ORD-2026-' + String(orders.length + 101);
-
-        var newOrder = {
-          id: orderId,
-          orderId: orderId,
-          invoiceNumber: 'INV-2026-' + String(orders.length + 101),
-          customerName: q.customerName,
-          vertical: q.vertical || 'Equipment Sales',
-          orderDate: getFormattedToday(),
-          dispatchDate: calculateExpiryDate(new Date().toISOString().slice(0, 10), 14),
-          invoiceValue: q.grandTotal,
-          status: 'Won',
-          quoteId: q.id,
-          quoteNumber: q.quoteNumber,
-          contributors: [
-            {
-              employeeId: q.employeeId,
-              employeeName: q.employeeName,
-              splitPercent: 100,
-              creditedRevenue: q.grandTotal
-            }
-          ]
-        };
-
-        orders.push(newOrder);
-        window.RevOpsStore.saveCollection('orders', orders);
-
-        // Update Quote status
-        q.status = 'Converted to Order';
-        q.convertedOrderId = orderId;
-        window.RevOpsStore.saveCollection('quotations', quotes);
-
-        // Update Lead status if linked
-        if (q.leadId) {
-          var leads = window.RevOpsStore.getCollection('leads') || [];
-          var lead = leads.find(function(l) { return l.id === q.leadId; });
-          if (lead) {
-            lead.stage = 'Won';
-            lead.dealValue = q.grandTotal;
-            window.RevOpsStore.saveCollection('leads', leads);
-          }
-        }
-
-        if (window.RevOpsStore.isFirebaseAvailable()) {
-          window.RevOpsStore.syncAllToFirestore();
-        }
-
-        renderQuotations();
-        alert("Success! Sales Order " + orderId + " created for " + q.customerName + ". View in Orders & Contracts.");
-      }
+      // NOTE: Quotations used to have their own "Convert to Order" shortcut
+      // here that created a minimally-shaped order record directly —
+      // bypassing Primary Approver / Director sign-off entirely and using
+      // a different field schema (contributors/orderDate/status "Won")
+      // than the real Orders module (splits/poDate/status "Booked"). That
+      // let two order records exist for one quote and skipped approval.
+      // It's been replaced by the "🚀 Book Order" link above, which sends
+      // the user to the proper Book Commercial Order / PO flow on
+      // orders.html with this quotation pre-selected (see bookFromQuote
+      // handling in js/orders.js).
 
       function editQuote(quoteId) {
         openQuoteModal(quoteId);
