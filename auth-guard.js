@@ -310,15 +310,22 @@ function renderRevOpsNavbar(userName, userRole, hasDirectReports) {
     { title: "User Guide & PDF Manual", path: "user-guide.html", desc: "Comprehensive RevOps SOP & live PDF manual", icon: "📖", show: true }
   ];
 
+  // Grouped by the 3 revenue-generating verticals under Service & Quality
+  // (Service, Spare Parts, AMC) — Service & Spares Leads sits ungrouped
+  // at the top since it's the shared intake funnel for all three, not
+  // exclusively one of them.
   var serviceItems = [
-    { title: "Service & Spares Leads", path: "service-leads.html", desc: "Dedicated pipeline for Spare Parts, Paid Services, AMC Renewals & Calls", icon: "🎯", show: true },
-    { title: "Spare Parts Sales Hub", path: "parts-sales.html", desc: "Spare parts catalog, inventory, prices, COGS & margin analytics", icon: "⚙️", show: true },
-    { title: "Service Tickets & QC", path: "service-tickets.html", desc: "Breakdown calls, on-site diagnostics, field SLAs & QC alerts", icon: "🛠️", show: true },
-    { title: "AMC Contracts & PM Visits", path: "amc-contracts.html", desc: "Contract registry, quarterly PM visits, SLA & renewal countdown", icon: "📋", show: true },
-    { title: "AMC & Service Quotations", path: "amc-quotes.html", desc: "Comprehensive & Non-Comprehensive AMC commercial proposals", icon: "📑", show: true },
-    { title: "AMC & Service Orders", path: "amc-orders.html", desc: "Booked AMC contracts & service execution agreements", icon: "📦", show: true },
-    { title: "AMC & Service Invoices", path: "amc-invoices.html", desc: "Quarterly & annual AMC billing milestones & GST tax invoices", icon: "🧾", show: true },
-    { title: "Warranty & Equipment Health", path: "warranty-management.html", desc: "Installed base warranty tracking, RMA claims & 1-click AMC conversion", icon: "🛡️", show: true }
+    { title: "Service & Spares Leads", path: "service-leads.html", desc: "Dedicated pipeline for Spare Parts, Paid Services, AMC Renewals & Calls", icon: "🎯", show: true, group: null },
+
+    { title: "Service Tickets & QC", path: "service-tickets.html", desc: "Breakdown calls, on-site diagnostics, field SLAs & QC alerts", icon: "🛠️", show: true, group: "Service" },
+    { title: "Warranty & Equipment Health", path: "warranty-management.html", desc: "Installed base warranty tracking, RMA claims & 1-click AMC conversion", icon: "🛡️", show: true, group: "Service" },
+
+    { title: "Spare Parts Sales Hub", path: "parts-sales.html", desc: "Spare parts catalog, inventory, prices, COGS & margin analytics", icon: "⚙️", show: true, group: "Spare Parts" },
+
+    { title: "AMC Contracts & PM Visits", path: "amc-contracts.html", desc: "Contract registry, quarterly PM visits, SLA & renewal countdown", icon: "📋", show: true, group: "AMC" },
+    { title: "AMC & Service Quotations", path: "amc-quotes.html", desc: "Comprehensive & Non-Comprehensive AMC commercial proposals", icon: "📑", show: true, group: "AMC" },
+    { title: "AMC & Service Orders", path: "amc-orders.html", desc: "Booked AMC contracts & service execution agreements", icon: "📦", show: true, group: "AMC" },
+    { title: "AMC & Service Invoices", path: "amc-invoices.html", desc: "Quarterly & annual AMC billing milestones & GST tax invoices", icon: "🧾", show: true, group: "AMC" }
   ];
 
   var roleBadgeColor = "bg-[#982B68]/30 text-[#E283BD] border-[#982B68]/50";
@@ -1063,9 +1070,21 @@ function getRevOpsNavigationHtml(userName, userRole, employeeId, userEmail, role
     var safeId = 'top-menu-' + title.toLowerCase().replace(/[^a-z0-9]/g, '-');
     var visibleItems = items.filter(function(i) { return i.show; });
 
+    // Items may optionally carry a .group (e.g. Service & Quality's
+    // Service / Spare Parts / AMC clusters) — a small sub-header is
+    // inserted whenever the group changes. Items with no group (or
+    // dropdowns that don't use this at all) render exactly as before.
+    var lastGroup = undefined;
     var itemsHtml = visibleItems.map(function(item) {
       var isActive = currentPath === item.path;
+      var groupHeaderHtml = '';
+      if (item.group && item.group !== lastGroup) {
+        groupHeaderHtml = `<div class="text-[9px] font-black uppercase text-slate-500 tracking-wider px-2 pt-2 pb-0.5 ${lastGroup === undefined ? '' : 'border-t border-slate-800/80 mt-1'}">${item.group}</div>`;
+      }
+      lastGroup = item.group || lastGroup;
+
       return `
+        ${groupHeaderHtml}
         <a href="${item.path}" class="block p-2 rounded-lg text-xs hover:bg-slate-800 transition-colors ${isActive ? 'bg-indigo-900/80 text-white font-bold border-l-2 border-[#982B68]' : 'text-slate-300'}">
           <div class="flex items-center space-x-1.5 font-bold">
             <span>${item.icon}</span>
@@ -1480,9 +1499,17 @@ function getRevOpsNavigationHtml(userName, userRole, employeeId, userEmail, role
                 <span>Service & Quality</span>
               </div>
               <div class="space-y-1">
-                ${serviceItems.filter(function(i){ return i.show; }).map(function(i){
-                  return `<a href="${i.path}" onclick="toggleMobileNavDrawer()" class="flex items-center space-x-2 p-2 rounded-lg text-xs font-semibold ${currentPath === i.path ? 'bg-indigo-900 text-white font-extrabold border-l-2 border-[#982B68]' : 'text-slate-300 hover:bg-slate-800'}"><span>${i.icon}</span><span>${i.title}</span></a>`;
-                }).join('')}
+                ${(function() {
+                  var lastMobileGroup = undefined;
+                  return serviceItems.filter(function(i){ return i.show; }).map(function(i){
+                    var groupHeaderHtml = '';
+                    if (i.group && i.group !== lastMobileGroup) {
+                      groupHeaderHtml = `<div class="text-[9px] font-black uppercase text-slate-500 tracking-wider px-2 pt-2 pb-0.5 ${lastMobileGroup === undefined ? '' : 'border-t border-slate-800/80 mt-1'}">${i.group}</div>`;
+                    }
+                    lastMobileGroup = i.group || lastMobileGroup;
+                    return groupHeaderHtml + `<a href="${i.path}" onclick="toggleMobileNavDrawer()" class="flex items-center space-x-2 p-2 rounded-lg text-xs font-semibold ${currentPath === i.path ? 'bg-indigo-900 text-white font-extrabold border-l-2 border-[#982B68]' : 'text-slate-300 hover:bg-slate-800'}"><span>${i.icon}</span><span>${i.title}</span></a>`;
+                  }).join('');
+                })()}
               </div>
             </div>
 
