@@ -1072,7 +1072,153 @@ if (!localStorage.getItem('expenses')) {
  localStorage.setItem('revops_seeded_v25', 'true');
  localStorage.setItem('revops_seeded_v27', 'true');
  }
+
+ // Real FY2026-27 Sales + Service KRA/AOP cascade, sourced from the
+ // client's own "Employee Role & Target Input Form" (Google Sheet).
+ // Runs every load (idempotent, fixed IDs) but only actually writes
+ // once per browser via its own version flag, and only when signed in
+ // as leadership/admin (kraTargets/aopTargets writes require
+ // isLeadershipOrAdmin() in firestore.rules anyway).
+ if (typeof window.RevOpsStore.applyRealSalesServiceKraAop2027 === 'function') {
+   window.RevOpsStore.applyRealSalesServiceKraAop2027();
+ }
 };
+
+// ---- Real FY2026-27 KRA/AOP cascade (Sales + Service verticals) ----
+// Source: client-provided "Employee Role & Target Input Form", tabs
+// "2. KRA-KPI-Targets" and "3. AOP Top Sheet". The source sheet used an
+// older/smaller Employee ID scheme (e.g. its "E-003" = Subhashini); every
+// employeeId/rollsUpTo below has been re-keyed onto this app's real,
+// live Employee IDs (cross-checked by name + AOP amount + territory,
+// 8/8 matched unambiguously) — see defaultEmployees above for the
+// authoritative roster. Anitha (E-003) and the other 13 employees are
+// intentionally NOT included yet; their KRA/AOP data will be added in a
+// later pass once provided.
+window.RevOpsStore.applyRealSalesServiceKraAop2027 = function() {
+  try {
+    if (localStorage.getItem('revops_real_kra_aop_2027_v1')) return;
+    var role = (typeof localStorage !== 'undefined') ? localStorage.getItem('userRole') : null;
+    if (role !== 'super_admin' && role !== 'admin') return; // matches isLeadershipOrAdmin()
+
+    var FY = '2026-27';
+
+    // Superseded placeholders this replaces: the old FY2024-25 dummy KRA
+    // rows for E-002/E-003/E-004 (mismatched to the wrong people — e.g.
+    // "Onboard Order Revenue" was seeded onto Anitha, who never owned
+    // it), and the old generic FY2026-27 AOP placeholder lines (Sales/
+    // Service/Company Total) which this real cascade supersedes. The 2026-27
+    // SLA Compliance & CSAT lines (aop_26_4/5) are untouched — no real
+    // data for those yet.
+    ['kra_5','kra_6','kra_7','kra_8','kra_9','kra_10','kra_11','kra_12','kra_13','kra_14','kra_15','kra_16','kra_17','kra_18','kra_19'].forEach(function(id) {
+      window.RevOpsStore.deleteRecord('kraTargets', id);
+    });
+    ['aop_26_1','aop_26_2','aop_26_3'].forEach(function(id) {
+      window.RevOpsStore.deleteRecord('aopTargets', id);
+    });
+
+    // ---- 3. AOP Top Sheet — 10 real line items, FY2026-27 ----
+    var aopRecords = [
+      { id: 'aop_2627_1', financialYear: FY, lineItem: 'Company Total Revenue (Sales + Service + Spares + Projects)', vertical: 'All Verticals', subVertical: 'All Verticals', annualTarget: 200000000, unit: '₹ (INR)', rollupType: 'Sum of verticals', splitBasis: 'Sales Vertical (₹5 Cr) + Service/Parts/Projects Vertical (₹15 Cr)', ownerEmployeeId: 'E-001', notes: 'MD-owned company AOP; executed through E-002 (Sales & Marketing Head)' },
+      { id: 'aop_2627_2', financialYear: FY, lineItem: 'Sales Vertical Revenue', vertical: 'Sales', subVertical: 'Onboard Sales, Project Sales', annualTarget: 50000000, unit: '₹ (INR)', rollupType: 'Sum of sub-vertical/owner targets', splitBasis: '100% to Onboard Sales + Project Sales combined - only active owner today', ownerEmployeeId: 'E-002', notes: 'Delivered by E-004 (Onboard Vertical Head); Project Sales added to her scope on the source sheet but not separately quantified' },
+      { id: 'aop_2627_3', financialYear: FY, lineItem: 'Onboard Sales + Project Sales', vertical: 'Sales', subVertical: 'Onboard Sales, Project Sales', annualTarget: 50000000, unit: '₹ (INR)', rollupType: 'Leaf - individual owner target', splitBasis: 'Owned in full by E-004 (Subhashini)', ownerEmployeeId: 'E-004', notes: 'Rolls up to E-002 Sales Vertical Revenue. Amount unchanged from source; ask owner to split out Project Sales value once material' },
+      { id: 'aop_2627_4', financialYear: FY, lineItem: 'Service/Parts/Projects Vertical Revenue', vertical: 'Service, Parts Sales, Projects', subVertical: 'Warranty Service + AMC Service + Paid/Out-of-Warranty Service + Installation & Commissioning + Field Service + OEM Spares + Project Sales (combined)', annualTarget: 150000000, unit: '₹ (INR)', rollupType: 'Sum of territory/segment owner targets', splitBasis: 'Split by territory/customer segment across 6 owners (E-005, E-016, E-017, E-018, E-019, E-021)', ownerEmployeeId: 'E-002', notes: 'Rolls up to Company Total' },
+      { id: 'aop_2627_5', financialYear: FY, lineItem: 'Service/Parts/Projects - Crane Weighing / HO Key Accounts', vertical: 'Service, Parts Sales, Projects', subVertical: 'Warranty Service + AMC Service + Paid/Out-of-Warranty Service + OEM Spares + Project Sales', annualTarget: 70000000, unit: '₹ (INR)', rollupType: 'Leaf - individual owner target', splitBasis: 'Owned in full by E-005 (Dipanwita)', ownerEmployeeId: 'E-005', notes: 'Rolls up to Service/Parts/Projects Vertical Revenue' },
+      { id: 'aop_2627_6', financialYear: FY, lineItem: 'Service/Parts/Projects - Steel Industry (Ramagundam)', vertical: 'Service, Parts Sales, Projects', subVertical: 'Warranty Service + AMC Service + Paid/Out-of-Warranty Service + OEM Spares + Project Sales', annualTarget: 30000000, unit: '₹ (INR)', rollupType: 'Leaf - individual owner target', splitBasis: 'Owned in full by E-017 (Balram)', ownerEmployeeId: 'E-017', notes: 'Rolls up to Service/Parts/Projects Vertical Revenue' },
+      { id: 'aop_2627_7', financialYear: FY, lineItem: 'Service/Parts/Projects - Karnataka (Toranagallu)', vertical: 'Service, Parts Sales, Projects', subVertical: 'Warranty Service + AMC Service + Paid/Out-of-Warranty Service + OEM Spares + Project Sales', annualTarget: 20000000, unit: '₹ (INR)', rollupType: 'Leaf - individual owner target', splitBasis: 'Owned in full by E-018 (Mathiyarasu)', ownerEmployeeId: 'E-018', notes: 'Rolls up to Service/Parts/Projects Vertical Revenue' },
+      { id: 'aop_2627_8', financialYear: FY, lineItem: 'Service/Parts/Projects - Odisha & CG (Jharsuguda)', vertical: 'Service, Parts Sales, Projects', subVertical: 'Warranty Service + AMC Service + Paid/Out-of-Warranty Service + OEM Spares + Project Sales', annualTarget: 20000000, unit: '₹ (INR)', rollupType: 'Leaf - individual owner target', splitBasis: 'Owned in full by E-016 (Sivakumar Chinnayan)', ownerEmployeeId: 'E-016', notes: 'Rolls up to Service/Parts/Projects Vertical Revenue' },
+      { id: 'aop_2627_9', financialYear: FY, lineItem: 'Service/Parts/Projects - MP & UP (Maihar)', vertical: 'Service, Parts Sales, Projects', subVertical: 'Warranty Service + AMC Service + Paid/Out-of-Warranty Service + OEM Spares + Project Sales', annualTarget: 5000000, unit: '₹ (INR)', rollupType: 'Leaf - individual owner target', splitBasis: 'Owned in full by E-019 (Sandeep)', ownerEmployeeId: 'E-019', notes: 'Rolls up to Service/Parts/Projects Vertical Revenue' },
+      { id: 'aop_2627_10', financialYear: FY, lineItem: 'Service/Parts/Projects - Head Office Book', vertical: 'Service, Parts Sales, Projects', subVertical: 'Warranty Service + AMC Service + Paid/Out-of-Warranty Service + OEM Spares + Project Sales', annualTarget: 5000000, unit: '₹ (INR)', rollupType: 'Leaf - individual owner target', splitBasis: 'Owned in full by E-021 (Manohar)', ownerEmployeeId: 'E-021', notes: 'Rolls up to Service/Parts/Projects Vertical Revenue' }
+    ];
+    aopRecords.forEach(function(r) { window.RevOpsStore.saveRecord('aopTargets', r); });
+
+    // ---- 2. KRA-KPI-Targets — 8 people x 5 KRAs = 40 records, FY2026-27 ----
+    function makeFive(empId, empName, vertical, rollsUpTo, dataSource1, orderKraName, orderDaily, orderAnnual, orderHY, orderQ, orderM, orderW, outstandingKraName, outstandingDaily, leadAnnual, leadHY, leadQ, leadM, leadW, leadDaily, conversionDaily, retentionDaily) {
+      var idPrefix = 'kra_2627_' + empId.toLowerCase().replace('-', '');
+      return [
+        { id: idPrefix + '_1', employeeId: empId, employeeName: empName, financialYear: FY, aopLine: vertical, rollsUpTo: rollsUpTo, kraName: orderKraName, targetMetric: 'Order value won vs AOP', kpiType: 'Amount', unit: '₹ (INR)', dataSource: dataSource1, weight: 50, leadLag: 'Lagging', annualTarget: orderAnnual, targetValue: orderAnnual, halfYearlyTarget: orderHY, quarterlyTarget: orderQ, monthlyTarget: orderM, weeklyTarget: orderW, dailyControl: orderDaily },
+        { id: idPrefix + '_2', employeeId: empId, employeeName: empName, financialYear: FY, aopLine: vertical, rollsUpTo: rollsUpTo, kraName: outstandingKraName, targetMetric: 'Payment Collection', kpiType: 'Days', unit: 'days', dataSource: 'Tally', weight: 20, leadLag: 'Lagging', annualTarget: 45, targetValue: 45, halfYearlyTarget: 45, quarterlyTarget: 45, monthlyTarget: 45, weeklyTarget: 45, dailyControl: outstandingDaily },
+        { id: idPrefix + '_3', employeeId: empId, employeeName: empName, financialYear: FY, aopLine: vertical, rollsUpTo: rollsUpTo, kraName: 'Lead generation', targetMetric: 'Daily 1 leads', kpiType: 'Count', unit: 'nos', dataSource: 'ERP', weight: 20, leadLag: 'Leading', annualTarget: leadAnnual, targetValue: leadAnnual, halfYearlyTarget: leadHY, quarterlyTarget: leadQ, monthlyTarget: leadM, weeklyTarget: leadW, dailyControl: leadDaily },
+        { id: idPrefix + '_4', employeeId: empId, employeeName: empName, financialYear: FY, aopLine: vertical, rollsUpTo: rollsUpTo, kraName: 'Order Conversion', targetMetric: '>=35% conversion ratio', kpiType: 'Percentage', unit: '%', dataSource: 'ERP', weight: 5, leadLag: 'Leading', annualTarget: 35, targetValue: 35, halfYearlyTarget: 35, quarterlyTarget: 35, monthlyTarget: 35, weeklyTarget: 35, dailyControl: conversionDaily },
+        { id: idPrefix + '_5', employeeId: empId, employeeName: empName, financialYear: FY, aopLine: vertical, rollsUpTo: rollsUpTo, kraName: 'Retention of customer', targetMetric: '90% Customer Retention', kpiType: 'Percentage', unit: '%', dataSource: 'ERP', weight: 5, leadLag: 'Lagging', annualTarget: 90, targetValue: 90, halfYearlyTarget: 90, quarterlyTarget: 90, monthlyTarget: 90, weeklyTarget: 90, dailyControl: retentionDaily }
+      ];
+    }
+
+    var territoryConversionDaily = 'Call or revisit every open quotation within 48 hours rather than waiting for the next scheduled visit to that area; note exact loss reason if lost';
+    var territoryRetentionDaily = 'Prioritize any customer with no order in 60+ days into this week\'s beat plan; flag "at risk" accounts to E-002 immediately, don\'t wait for month-end';
+    var territoryOutstandingDaily = 'Collect payment or firm commitment date during the same visit; do not leave a site without an update on overdue accounts';
+    var territoryLeadDaily = 'Log every enquiry on the spot via mobile ERP/WhatsApp — don\'t wait till evening, field memory fades fast; ask every visited customer "anything else you need?"';
+    var territoryBeatPlanDaily = 'Follow a daily beat plan (which customers to visit, planned the evening before); submit the offer for standard products; if customised, follow up with HO for offers';
+
+    var kraRecords = []
+      .concat(makeFive('E-002', 'Mr. Murugan V', 'Sales, Marketing, Service, Parts Sales', 'E-001', 'ERP',
+        'over all orders',
+        '1. Direct Customer Visits: Plan bi-weekly visits to direct customers, with a particular focus on steel plants and project sites, to generate new leads.\n2. Lead Follow-Up: Closely track and follow up on existing leads to convert them into orders.\n3. Digital Marketing: Increase active leads by investing in SEO and Google Ads, and by regularly posting company updates across all social media platforms.\n4. Corporate Accounts: Focus on generating more corporate leads.\n5. Daily Segment Reviews: Conduct daily follow-ups with all segment heads to review enquiry statuses. Discuss specific strategies to progress leads through the pipeline (converting cold leads to warm, warm to hot, and hot leads into orders).\n6. Review Meetings: Hold regular review meetings with the onboard, projects, crane, and service teams.\n7. Sales Team Assignment: Assign enquiries to the nearest area sales team immediately upon receipt, and closely monitor their progress.',
+        200000000, 100000000, 50000000, 16666667, 3846154,
+        'Over all Outstanding', 'Call/visit top 5 overdue customers every morning; update follow-up remarks',
+        2100, 1050, 525, 175, 41, 'Log every enquiry (call, walk-in, referral, online) into ERP same day; no lead left unlogged by EOD',
+        'Follow up on every open lead within 48 hours; move stuck leads to "reason for loss" if dead',
+        'Proactively contact any customer who hasn\'t ordered in 60+ days; flag "at risk" accounts'
+      ))
+      .concat(makeFive('E-004', 'Mrs. Subhashini', 'Sales', 'E-002', 'ERP',
+        'Onboard Order',
+        '1) Review the sales pipeline, pending enquiries, quotations, purchase orders, project execution, and service status to ensure timely order conversion and customer satisfaction.\n2) Monitor daily sales performance against the ₹5 Crore annual target and identify actions required to achieve monthly and quarterly business goals.\n3) Follow up with existing customers to identify new business opportunities, monitor ongoing requirements, and strengthen customer relationships.\n4) Monitor payment collections, outstanding receivables, and customer commitments to maintain healthy cash flow.\n5) Coordinate with production, stores, purchase, accounts, and dispatch to ensure on-time delivery, installation, and project completion.',
+        50000000, 25000000, 12500000, 4166667, 961539,
+        'Onboard Payment', 'Call/visit top 5 overdue customers every morning; update follow-up remarks',
+        300, 150, 75, 25, 6, 'Log every enquiry (call, walk-in, referral, online) into ERP same day; no lead left unlogged by EOD',
+        'Follow up on every open lead within 48 hours; move stuck leads to "reason for loss" if dead',
+        'Proactively contact any customer who hasn\'t ordered in 60+ days; flag "at risk" accounts'
+      ))
+      .concat(makeFive('E-005', 'Ms. Dipa', 'Service, Parts Sales, Projects', 'E-002', 'ERP',
+        'Orderin spares & Crane scale',
+        'Monitor pending enquiries, quotations, purchase orders, service complaints, and engineer schedules to ensure timely execution and customer satisfaction.\nCall existing customers.\nFollow up on pending quotations.\nAsk for new spare requirements and AMC opportunities.\nCoordinate with the service team for site visits and spare requirements.\nCheck stock availability with stores.\nGenerate new business by contacting industries.\nPrepare the daily report.\nPlan customer follow-ups for the next day.',
+        70000000, 35000000, 17500000, 5833334, 1346154,
+        'outstanding related to Spares & cranes', 'Call overdue customers before releasing any fresh spares order to them; update follow-up remarks daily',
+        300, 150, 75, 25, 6, 'Log every enquiry — service call spillover, walk-in, referral, existing customer machine health check — into ERP same day',
+        'Follow up every open quotation within 48 hours; capture exact reason for every lost quote (price, delay, competitor, no need)',
+        'Proactively contact any customer with no spares order or service call in 60+ days; flag "at risk" accounts'
+      ))
+      .concat(makeFive('E-017', 'Mr. Balram', 'Service, Parts Sales, Projects', 'E-002', 'ERP',
+        'over all orders', territoryBeatPlanDaily, 30000000, 15000000, 7500000, 2500000, 576924,
+        'Over all Outstanding', territoryOutstandingDaily,
+        300, 150, 75, 25, 6, territoryLeadDaily,
+        territoryConversionDaily, territoryRetentionDaily
+      ))
+      .concat(makeFive('E-018', 'Mr. Mathiyarasu', 'Service, Parts Sales, Projects', 'E-002', 'ERP',
+        'over all orders', territoryBeatPlanDaily, 20000000, 10000000, 5000000, 1666667, 384616,
+        'Over all Outstanding', territoryOutstandingDaily,
+        300, 150, 75, 25, 6, territoryLeadDaily,
+        territoryConversionDaily, territoryRetentionDaily
+      ))
+      .concat(makeFive('E-016', 'Mr. Sivakumar Chinnayan', 'Service, Parts Sales, Projects', 'E-002', 'ERP',
+        'over all orders', territoryBeatPlanDaily, 20000000, 10000000, 5000000, 1666667, 384616,
+        'Over all Outstanding', territoryOutstandingDaily,
+        300, 150, 75, 25, 6, territoryLeadDaily,
+        territoryConversionDaily, territoryRetentionDaily
+      ))
+      .concat(makeFive('E-019', 'Mr. Sandeep', 'Service, Parts Sales, Projects', 'E-002', 'ERP',
+        'over all orders', territoryBeatPlanDaily, 5000000, 2500000, 1250000, 416667, 96154,
+        'Over all Outstanding', territoryOutstandingDaily,
+        300, 150, 75, 25, 6, territoryLeadDaily,
+        territoryConversionDaily, territoryRetentionDaily
+      ))
+      .concat(makeFive('E-021', 'Mr. Manohar', 'Service, Parts Sales, Projects', 'E-002', 'ERP',
+        'over all orders',
+        'Follow a daily beat plan (which customers to visit, planned the evening before); push aging quotations (>7 days) with a decision call before leaving that customer\'s site',
+        5000000, 2500000, 1250000, 416667, 96154,
+        'Over all Outstanding', territoryOutstandingDaily,
+        300, 150, 75, 25, 6, territoryLeadDaily,
+        territoryConversionDaily, territoryRetentionDaily
+      ));
+
+    kraRecords.forEach(function(r) { window.RevOpsStore.saveRecord('kraTargets', r); });
+
+    localStorage.setItem('revops_real_kra_aop_2027_v1', 'true');
+    console.log("Applied real FY2026-27 Sales/Service KRA & AOP cascade (source: client's Employee Role & Target Input Form) for 8 employees + 10 AOP lines.");
+  } catch (eMigrate) {
+    console.warn("applyRealSalesServiceKraAop2027 failed:", eMigrate);
+  }
+};
+
 if (typeof window !== "undefined") {
  window.RevOpsStore = window.RevOpsStore || {};
  if (typeof window.RevOpsStore.initSeedData === "function") {
