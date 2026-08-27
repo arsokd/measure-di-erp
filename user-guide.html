@@ -44,7 +44,7 @@
       <div class="space-y-1">
         <div class="flex items-center space-x-2">
           <span class="px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider rounded-md bg-[#982B68] text-white">Official Documentation</span>
-          <span class="px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider rounded-md bg-emerald-950/80 text-emerald-400 border border-emerald-800/80">Auto-Updating SOP v3.0</span>
+          <span class="px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider rounded-md bg-emerald-950/80 text-emerald-400 border border-emerald-800/80">Auto-Updating SOP v3.1</span>
         </div>
         <h1 class="text-2xl sm:text-3xl font-black text-white tracking-tight flex items-center space-x-2">
           <span>📖 K-30_ERP User Guide & SOP</span>
@@ -156,7 +156,7 @@
               <h3 class="text-xl font-black text-white flex items-center gap-2">
                 <span>Sidebar Navigation & Sequential Menu Demonstration Order</span>
               </h3>
-              <p class="text-xs text-indigo-200">Main menu categories and sub-menu items listed in exact sidebar sequence for client presentation</p>
+              <p class="text-xs text-indigo-200">Every top-nav main menu and every submenu beneath it, in exact left-to-right nav sequence — with who is allowed to see each one, so anybody using the app instantly knows what's coming under which menu.</p>
             </div>
           </div>
           <a href="Measure_DI_RevOps_Client_Demo_Guide.pdf" download="Measure_DI_RevOps_Client_Demo_Guide.pdf" onclick="downloadClientDemoGuidePDF(event)" class="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center space-x-2 border border-indigo-400 shrink-0">
@@ -165,111 +165,210 @@
           </a>
         </div>
         
+        <div class="flex flex-wrap items-center gap-1.5 text-[10px] font-bold">
+          <span class="px-2 py-1 rounded-md bg-slate-800 text-slate-300 border border-slate-700">9 Main Menus</span>
+          <span class="text-slate-600">&bull;</span>
+          <span class="px-2 py-1 rounded-md bg-slate-800 text-slate-300 border border-slate-700">30 Submenu Destinations</span>
+          <span class="text-slate-600">&bull;</span>
+          <span class="px-2 py-1 rounded-md bg-slate-800 text-emerald-300 border border-emerald-800">No badge = every signed-in user</span>
+          <span class="px-2 py-1 rounded-md bg-amber-950 text-amber-300 border border-amber-800">Restricted badge = role/authority gated</span>
+        </div>
+
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-xs">
-          
+
           <div class="bg-slate-900/90 border border-fuchsia-800/60 rounded-xl p-4 space-y-2.5">
             <div class="flex items-center justify-between border-b border-fuchsia-900/60 pb-2">
               <span class="text-[11px] font-black uppercase text-fuchsia-400 tracking-wider flex items-center gap-1.5">
                 <span class="w-2 h-2 rounded-full bg-fuchsia-400 animate-pulse"></span>
                 OVERVIEW
               </span>
-              <span class="px-2 py-0.5 rounded-md bg-fuchsia-950 text-fuchsia-300 text-[10px] font-bold">1 Sub-Menu</span>
+              <span class="px-2 py-0.5 rounded-md bg-fuchsia-950 text-fuchsia-300 text-[10px] font-bold">Standalone Menu</span>
             </div>
             <a href="dashboard.html" class="block p-2 bg-slate-800/80 hover:bg-slate-800 rounded-lg border border-slate-700/80 transition-all hover:border-fuchsia-500 group">
-              <div class="flex items-center justify-between">
-                <span class="font-extrabold text-white group-hover:text-fuchsia-300">1. Executive Dashboard</span>
-                <span class="text-[10px] text-slate-400 font-mono">dashboard.html</span>
+              <div class="flex items-center justify-between gap-2">
+                <span class="font-extrabold text-white group-hover:text-fuchsia-300">1. 📊 Executive Dashboard</span>
+                <span class="text-[10px] text-slate-400 font-mono shrink-0">dashboard.html</span>
               </div>
               <p class="text-[11px] text-slate-400 mt-1">C-suite macro metrics, active pipeline conversion funnels & ratio scaling.</p>
+              <span class="inline-block mt-1.5 px-1.5 py-0.5 rounded bg-amber-950 text-amber-300 text-[9px] font-bold uppercase tracking-wide">Admin / Leadership Only</span>
             </a>
           </div>
-          
-          <div class="bg-slate-900/90 border border-emerald-800/60 rounded-xl p-4 space-y-2.5">
-            <div class="flex items-center justify-between border-b border-emerald-900/60 pb-2">
-              <span class="text-[11px] font-black uppercase text-emerald-400 tracking-wider flex items-center gap-1.5">
-                <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
-                SALES & REVENUE (LEAD-TO-CASH)
+
+          <div class="bg-slate-900/90 border border-rose-800/60 rounded-xl p-4 space-y-2.5">
+            <div class="flex items-center justify-between border-b border-rose-900/60 pb-2">
+              <span class="text-[11px] font-black uppercase text-rose-400 tracking-wider flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-rose-400"></span>
+                APPROVALS
               </span>
-              <span class="px-2 py-0.5 rounded-md bg-emerald-950 text-emerald-300 text-[10px] font-bold">6 Sub-Menus</span>
+              <span class="px-2 py-0.5 rounded-md bg-rose-950 text-rose-300 text-[10px] font-bold">Standalone Menu</span>
             </div>
-            <div class="space-y-2">
-              <a href="leads.html" class="block p-2 bg-slate-800/80 hover:bg-slate-800 rounded-lg border border-slate-700/80 transition-all hover:border-emerald-500 group">
-                <div class="flex items-center justify-between">
-                  <span class="font-extrabold text-white group-hover:text-emerald-300">2. Leads & Pipeline CRM</span>
-                  <span class="text-[10px] text-slate-400 font-mono">leads.html</span>
-                </div>
-                <p class="text-[11px] text-slate-400 mt-1">8-stage funnel, master-data-driven Source/Vertical/Sector lists & cascading product specs.</p>
-              </a>
-              <a href="quotations.html" class="block p-2 bg-slate-800/80 hover:bg-slate-800 rounded-lg border border-slate-700/80 transition-all hover:border-emerald-500 group">
-                <div class="flex items-center justify-between">
-                  <span class="font-extrabold text-white group-hover:text-emerald-300">3. Quotations & Approvals</span>
-                  <span class="text-[10px] text-slate-400 font-mono">quotations.html</span>
-                </div>
-                <p class="text-[11px] text-slate-400 mt-1">Lead search & lock, mandatory CC, duplicate-quote prevention, 2-stage sign-off.</p>
-              </a>
-              <a href="invoices.html" class="block p-2 bg-slate-800/80 hover:bg-slate-800 rounded-lg border border-slate-700/80 transition-all hover:border-emerald-500 group">
-                <div class="flex items-center justify-between">
-                  <span class="font-extrabold text-white group-hover:text-emerald-300">4. Invoices & Approvals</span>
-                  <span class="text-[10px] text-slate-400 font-mono">invoices.html</span>
-                </div>
-                <p class="text-[11px] text-slate-400 mt-1">Tax & proforma billing, 2-stage approval gate (every invoice) & client dispatch.</p>
-              </a>
-              <a href="orders.html" class="block p-2 bg-slate-800/80 hover:bg-slate-800 rounded-lg border border-slate-700/80 transition-all hover:border-emerald-500 group">
-                <div class="flex items-center justify-between">
-                  <span class="font-extrabold text-white group-hover:text-emerald-300">5. Orders & Contracts</span>
-                  <span class="text-[10px] text-slate-400 font-mono">orders.html</span>
-                </div>
-                <p class="text-[11px] text-slate-400 mt-1">Customer PO booking, valuation locked to the quote, 100% split & 2-stage approval.</p>
-              </a>
-              <a href="payments.html" class="block p-2 bg-slate-800/80 hover:bg-slate-800 rounded-lg border border-slate-700/80 transition-all hover:border-emerald-500 group">
-                <div class="flex items-center justify-between">
-                  <span class="font-extrabold text-white group-hover:text-emerald-300">6. Payments & AR Write-Offs</span>
-                  <span class="text-[10px] text-slate-400 font-mono">payments.html</span>
-                </div>
-                <p class="text-[11px] text-slate-400 mt-1">Finance Head payment verification, 3-way write-off/goodwill sign-off & P&amp;L impact.</p>
-              </a>
-              <a href="approvals.html" class="block p-2 bg-slate-800/80 hover:bg-slate-800 rounded-lg border border-slate-700/80 transition-all hover:border-emerald-500 group">
-                <div class="flex items-center justify-between">
-                  <span class="font-extrabold text-white group-hover:text-emerald-300">✅ Approvals Hub</span>
-                  <span class="text-[10px] text-slate-400 font-mono">approvals.html</span>
-                </div>
-                <p class="text-[11px] text-slate-400 mt-1">Visible only to Primary Approver/Finance Head/Director — everything awaiting your sign-off, in one place.</p>
-              </a>
-            </div>
-          </div>
-          
-          <div class="bg-slate-900/90 border border-amber-800/60 rounded-xl p-4 space-y-2.5">
-            <div class="flex items-center justify-between border-b border-amber-900/60 pb-2">
-              <span class="text-[11px] font-black uppercase text-amber-400 tracking-wider flex items-center gap-1.5">
-                <span class="w-2 h-2 rounded-full bg-amber-400"></span>
-                SERVICE & QUALITY
-              </span>
-              <span class="px-2 py-0.5 rounded-md bg-amber-950 text-amber-300 text-[10px] font-bold">1 Sub-Menu</span>
-            </div>
-            <a href="service-tickets.html" class="block p-2 bg-slate-800/80 hover:bg-slate-800 rounded-lg border border-slate-700/80 transition-all hover:border-amber-500 group">
-              <div class="flex items-center justify-between">
-                <span class="font-extrabold text-white group-hover:text-amber-300">7. Service Tickets & Quality</span>
-                <span class="text-[10px] text-slate-400 font-mono">service-tickets.html</span>
+            <a href="approvals.html" class="block p-2 bg-slate-800/80 hover:bg-slate-800 rounded-lg border border-slate-700/80 transition-all hover:border-rose-500 group">
+              <div class="flex items-center justify-between gap-2">
+                <span class="font-extrabold text-white group-hover:text-rose-300">2. ✅ Approvals Hub</span>
+                <span class="text-[10px] text-slate-400 font-mono shrink-0">approvals.html</span>
               </div>
-              <p class="text-[11px] text-slate-400 mt-1">Post-sale support tickets, SLA resolution & warranty tracking.</p>
+              <p class="text-[11px] text-slate-400 mt-1">Every quotation, order, invoice, write-off & master-data item awaiting your sign-off, in one place, with a live pending-count badge.</p>
+              <span class="inline-block mt-1.5 px-1.5 py-0.5 rounded bg-amber-950 text-amber-300 text-[9px] font-bold uppercase tracking-wide">Primary Approver / Finance Head / Director Only</span>
             </a>
           </div>
-          
+
           <div class="bg-slate-900/90 border border-teal-800/60 rounded-xl p-4 space-y-2.5">
             <div class="flex items-center justify-between border-b border-teal-900/60 pb-2">
               <span class="text-[11px] font-black uppercase text-teal-400 tracking-wider flex items-center gap-1.5">
                 <span class="w-2 h-2 rounded-full bg-teal-400"></span>
-                MASTER DATA & BULK IMPORT
+                MASTER DATA
               </span>
-              <span class="px-2 py-0.5 rounded-md bg-teal-950 text-teal-300 text-[10px] font-bold">1 Sub-Menu</span>
+              <span class="px-2 py-0.5 rounded-md bg-teal-950 text-teal-300 text-[10px] font-bold">Standalone Menu</span>
             </div>
             <a href="master-data.html" class="block p-2 bg-slate-800/80 hover:bg-slate-800 rounded-lg border border-slate-700/80 transition-all hover:border-teal-500 group">
-              <div class="flex items-center justify-between">
-                <span class="font-extrabold text-white group-hover:text-teal-300">8. Master Data & Bulk Upload</span>
-                <span class="text-[10px] text-slate-400 font-mono">master-data.html</span>
+              <div class="flex items-center justify-between gap-2">
+                <span class="font-extrabold text-white group-hover:text-teal-300">3. 🗄️ Master Data & Bulk Upload</span>
+                <span class="text-[10px] text-slate-400 font-mono shrink-0">master-data.html</span>
               </div>
-              <p class="text-[11px] text-slate-400 mt-1">CSV templates, bulk upload for Clients, Projects, Staff & Spare Parts, plus 5 admin-editable dropdown lists (Lead Source, Industry Vertical, Project Sector, Vertical Classification, Currency).</p>
+              <p class="text-[11px] text-slate-400 mt-1">Its own top-level menu (not buried under Sales) — 17 dropdown-list masters (Products, Spare Parts, Client Equipment, Clients, Projects, Lead Source, Industry Vertical, Sector, Currency, Spare Part Category, Complaint Category, SLA Response Tier, AMC Contract Tier, PM Visit Frequency, AMC Invoicing Milestone, AMC Contract Duration, Bank Details) plus CSV bulk upload — feeds every dropdown across the app.</p>
+              <span class="inline-block mt-1.5 px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-300 text-[9px] font-bold uppercase tracking-wide mr-1">View: Everyone</span>
+              <span class="inline-block mt-1.5 px-1.5 py-0.5 rounded bg-amber-950 text-amber-300 text-[9px] font-bold uppercase tracking-wide">Add/Edit/Delete: Master Data Admin or Director Only</span>
             </a>
+          </div>
+
+          <div class="bg-slate-900/90 border border-emerald-800/60 rounded-xl p-4 space-y-2.5 lg:col-span-3">
+            <div class="flex items-center justify-between border-b border-emerald-900/60 pb-2">
+              <span class="text-[11px] font-black uppercase text-emerald-400 tracking-wider flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+                SALES & REVENUE &nbsp;(Lead &rarr; Quote &rarr; Order &rarr; Invoice &rarr; Cash — Equipment/Capital Sales)
+              </span>
+              <span class="px-2 py-0.5 rounded-md bg-emerald-950 text-emerald-300 text-[10px] font-bold">6 Submenus</span>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+              <a href="leads.html" class="block p-2 bg-slate-800/80 hover:bg-slate-800 rounded-lg border border-slate-700/80 transition-all hover:border-emerald-500 group">
+                <div class="flex items-center justify-between gap-2">
+                  <span class="font-extrabold text-white group-hover:text-emerald-300">4. Equipment Sales Leads</span>
+                  <span class="text-[10px] text-slate-400 font-mono shrink-0">leads.html</span>
+                </div>
+                <p class="text-[11px] text-slate-400 mt-1">Capital equipment pipeline (Projects, Onboard, Crane) — 8-stage funnel, master-data-driven Source/Vertical/Sector lists.</p>
+              </a>
+              <a href="quotations.html" class="block p-2 bg-slate-800/80 hover:bg-slate-800 rounded-lg border border-slate-700/80 transition-all hover:border-emerald-500 group">
+                <div class="flex items-center justify-between gap-2">
+                  <span class="font-extrabold text-white group-hover:text-emerald-300">5. Equipment Quotations</span>
+                  <span class="text-[10px] text-slate-400 font-mono shrink-0">quotations.html</span>
+                </div>
+                <p class="text-[11px] text-slate-400 mt-1">Itemized quotes, lead lock, mandatory CC, duplicate-quote prevention, 2-stage discount sign-off.</p>
+              </a>
+              <a href="orders.html" class="block p-2 bg-slate-800/80 hover:bg-slate-800 rounded-lg border border-slate-700/80 transition-all hover:border-emerald-500 group">
+                <div class="flex items-center justify-between gap-2">
+                  <span class="font-extrabold text-white group-hover:text-emerald-300">6. Equipment Orders</span>
+                  <span class="text-[10px] text-slate-400 font-mono shrink-0">orders.html</span>
+                </div>
+                <p class="text-[11px] text-slate-400 mt-1">Customer PO booking — pending-quote dropdown auto-filters to the chosen customer, valuation/tax/advance locked to the approved quote, Sales Contribution Split feeds Target Achievement.</p>
+              </a>
+              <a href="invoices.html" class="block p-2 bg-slate-800/80 hover:bg-slate-800 rounded-lg border border-slate-700/80 transition-all hover:border-emerald-500 group">
+                <div class="flex items-center justify-between gap-2">
+                  <span class="font-extrabold text-white group-hover:text-emerald-300">7. Equipment Invoices</span>
+                  <span class="text-[10px] text-slate-400 font-mono shrink-0">invoices.html</span>
+                </div>
+                <p class="text-[11px] text-slate-400 mt-1">Tax & proforma billing, 2-stage approval gate on every invoice & client dispatch.</p>
+              </a>
+              <a href="payments.html" class="block p-2 bg-slate-800/80 hover:bg-slate-800 rounded-lg border border-slate-700/80 transition-all hover:border-emerald-500 group">
+                <div class="flex items-center justify-between gap-2">
+                  <span class="font-extrabold text-white group-hover:text-emerald-300">8. Payments & Collections</span>
+                  <span class="text-[10px] text-slate-400 font-mono shrink-0">payments.html</span>
+                </div>
+                <p class="text-[11px] text-slate-400 mt-1">AR collections, BG/PG tracking, milestone invoicing & strict pending-AR-only write-off/goodwill requests that post straight to P&amp;L, Balance Sheet & Cash Flow once approved.</p>
+              </a>
+              <a href="audit-logs.html" class="block p-2 bg-slate-800/80 hover:bg-slate-800 rounded-lg border border-slate-700/80 transition-all hover:border-emerald-500 group">
+                <div class="flex items-center justify-between gap-2">
+                  <span class="font-extrabold text-white group-hover:text-emerald-300">9. Audit & Activity Trail</span>
+                  <span class="text-[10px] text-slate-400 font-mono shrink-0">audit-logs.html</span>
+                </div>
+                <p class="text-[11px] text-slate-400 mt-1">Universal ledger of all entries, edits, timestamps & actor diffs.</p>
+                <span class="inline-block mt-1.5 px-1.5 py-0.5 rounded bg-amber-950 text-amber-300 text-[9px] font-bold uppercase tracking-wide">Admin / Leadership Only</span>
+              </a>
+            </div>
+          </div>
+
+          <div class="bg-slate-900/90 border border-orange-800/60 rounded-xl p-4 space-y-3 lg:col-span-3">
+            <div class="flex items-center justify-between border-b border-orange-900/60 pb-2">
+              <span class="text-[11px] font-black uppercase text-orange-400 tracking-wider flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-orange-400"></span>
+                SERVICE & QUALITY &nbsp;(3 revenue-generating verticals, clipped together: Service &bull; Spare Parts &bull; AMC)
+              </span>
+              <span class="px-2 py-0.5 rounded-md bg-orange-950 text-orange-300 text-[10px] font-bold">8 Submenus</span>
+            </div>
+
+            <a href="service-leads.html" class="block p-2 bg-slate-800/80 hover:bg-slate-800 rounded-lg border border-slate-700/80 transition-all hover:border-orange-500 group">
+              <div class="flex items-center justify-between gap-2">
+                <span class="font-extrabold text-white group-hover:text-orange-300">10. Service & Spares Leads</span>
+                <span class="text-[10px] text-slate-400 font-mono shrink-0">service-leads.html</span>
+              </div>
+              <p class="text-[11px] text-slate-400 mt-1">Shared intake funnel for all three verticals below — Spare Parts, Paid Services, AMC Renewals & Calls — deliberately kept ungrouped since it feeds all of them.</p>
+            </a>
+
+            <div class="pt-1">
+              <div class="text-[10px] font-black uppercase text-orange-300/80 tracking-wider mb-1.5 pl-1 border-l-2 border-orange-500">Service</div>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <a href="service-tickets.html" class="block p-2 bg-slate-800/80 hover:bg-slate-800 rounded-lg border border-slate-700/80 transition-all hover:border-orange-500 group">
+                  <div class="flex items-center justify-between gap-2">
+                    <span class="font-extrabold text-white group-hover:text-orange-300">11. Service Tickets & QC</span>
+                    <span class="text-[10px] text-slate-400 font-mono shrink-0">service-tickets.html</span>
+                  </div>
+                  <p class="text-[11px] text-slate-400 mt-1">Breakdown calls, on-site diagnostics, master-driven SLA response tiers & QC alerts, tied to the real client equipment registry.</p>
+                </a>
+                <a href="warranty-management.html" class="block p-2 bg-slate-800/80 hover:bg-slate-800 rounded-lg border border-slate-700/80 transition-all hover:border-orange-500 group">
+                  <div class="flex items-center justify-between gap-2">
+                    <span class="font-extrabold text-white group-hover:text-orange-300">12. Warranty & Equipment Health</span>
+                    <span class="text-[10px] text-slate-400 font-mono shrink-0">warranty-management.html</span>
+                  </div>
+                  <p class="text-[11px] text-slate-400 mt-1">Installed-base warranty tracking, RMA claims & 1-click AMC conversion once warranty lapses.</p>
+                </a>
+              </div>
+            </div>
+
+            <div class="pt-1">
+              <div class="text-[10px] font-black uppercase text-orange-300/80 tracking-wider mb-1.5 pl-1 border-l-2 border-orange-500">Spare Parts</div>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <a href="parts-sales.html" class="block p-2 bg-slate-800/80 hover:bg-slate-800 rounded-lg border border-slate-700/80 transition-all hover:border-orange-500 group">
+                  <div class="flex items-center justify-between gap-2">
+                    <span class="font-extrabold text-white group-hover:text-orange-300">13. Spare Parts Sales Hub</span>
+                    <span class="text-[10px] text-slate-400 font-mono shrink-0">parts-sales.html</span>
+                  </div>
+                  <p class="text-[11px] text-slate-400 mt-1">Spare parts catalog, inventory, prices, COGS & margin analytics — categories driven by the Spare Part Category master.</p>
+                </a>
+              </div>
+            </div>
+
+            <div class="pt-1">
+              <div class="text-[10px] font-black uppercase text-orange-300/80 tracking-wider mb-1.5 pl-1 border-l-2 border-orange-500">AMC</div>
+              <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+                <a href="amc-contracts.html" class="block p-2 bg-slate-800/80 hover:bg-slate-800 rounded-lg border border-slate-700/80 transition-all hover:border-orange-500 group">
+                  <div class="flex items-center justify-between gap-2">
+                    <span class="font-extrabold text-white group-hover:text-orange-300">14. AMC Contracts & PM Visits</span>
+                    <span class="text-[10px] text-slate-400 font-mono shrink-0">amc-contracts.html</span>
+                  </div>
+                  <p class="text-[11px] text-slate-400 mt-1">Contract registry, quarterly PM visit scheduling, SLA & renewal countdown.</p>
+                </a>
+                <a href="amc-quotes.html" class="block p-2 bg-slate-800/80 hover:bg-slate-800 rounded-lg border border-slate-700/80 transition-all hover:border-orange-500 group">
+                  <div class="flex items-center justify-between gap-2">
+                    <span class="font-extrabold text-white group-hover:text-orange-300">15. AMC & Service Quotations</span>
+                    <span class="text-[10px] text-slate-400 font-mono shrink-0">amc-quotes.html</span>
+                  </div>
+                  <p class="text-[11px] text-slate-400 mt-1">Comprehensive & Non-Comprehensive AMC commercial proposals.</p>
+                </a>
+                <a href="amc-orders.html" class="block p-2 bg-slate-800/80 hover:bg-slate-800 rounded-lg border border-slate-700/80 transition-all hover:border-orange-500 group">
+                  <div class="flex items-center justify-between gap-2">
+                    <span class="font-extrabold text-white group-hover:text-orange-300">16. AMC & Service Orders</span>
+                    <span class="text-[10px] text-slate-400 font-mono shrink-0">amc-orders.html</span>
+                  </div>
+                  <p class="text-[11px] text-slate-400 mt-1">Booked AMC contracts & service execution agreements.</p>
+                </a>
+                <a href="amc-invoices.html" class="block p-2 bg-slate-800/80 hover:bg-slate-800 rounded-lg border border-slate-700/80 transition-all hover:border-orange-500 group">
+                  <div class="flex items-center justify-between gap-2">
+                    <span class="font-extrabold text-white group-hover:text-orange-300">17. AMC & Service Invoices</span>
+                    <span class="text-[10px] text-slate-400 font-mono shrink-0">amc-invoices.html</span>
+                  </div>
+                  <p class="text-[11px] text-slate-400 mt-1">Quarterly & annual AMC billing milestones & GST tax invoices.</p>
+                </a>
+              </div>
+            </div>
           </div>
 
           <div class="bg-slate-900/90 border border-indigo-800/60 rounded-xl p-4 space-y-2.5">
@@ -278,120 +377,140 @@
                 <span class="w-2 h-2 rounded-full bg-indigo-400"></span>
                 FINANCE & LEDGER
               </span>
-              <span class="px-2 py-0.5 rounded-md bg-indigo-950 text-indigo-300 text-[10px] font-bold">2 Sub-Menus</span>
+              <span class="px-2 py-0.5 rounded-md bg-indigo-950 text-indigo-300 text-[10px] font-bold">2 Submenus</span>
             </div>
             <div class="space-y-2">
               <a href="expenses.html" class="block p-2 bg-slate-800/80 hover:bg-slate-800 rounded-lg border border-slate-700/80 transition-all hover:border-indigo-500 group">
-                <div class="flex items-center justify-between">
-                  <span class="font-extrabold text-white group-hover:text-indigo-300">9. Expenses & Profit Center</span>
-                  <span class="text-[10px] text-slate-400 font-mono">expenses.html</span>
+                <div class="flex items-center justify-between gap-2">
+                  <span class="font-extrabold text-white group-hover:text-indigo-300">18. Expenses & Profit Center</span>
+                  <span class="text-[10px] text-slate-400 font-mono shrink-0">expenses.html</span>
                 </div>
-                <p class="text-[11px] text-slate-400 mt-1">Project-wise overheads, material claims & net margin %.</p>
+                <p class="text-[11px] text-slate-400 mt-1">Project-wise overheads, material claims, net margin % & the full P&amp;L / Balance Sheet / Cash Flow statements (incl. approved AR write-offs).</p>
               </a>
               <a href="payroll.html" class="block p-2 bg-slate-800/80 hover:bg-slate-800 rounded-lg border border-slate-700/80 transition-all hover:border-indigo-500 group">
-                <div class="flex items-center justify-between">
-                  <span class="font-extrabold text-white group-hover:text-indigo-300">10. Payroll & CTC</span>
-                  <span class="text-[10px] text-slate-400 font-mono">payroll.html</span>
+                <div class="flex items-center justify-between gap-2">
+                  <span class="font-extrabold text-white group-hover:text-indigo-300">19. Payroll & CTC</span>
+                  <span class="text-[10px] text-slate-400 font-mono shrink-0">payroll.html</span>
                 </div>
                 <p class="text-[11px] text-slate-400 mt-1">Monthly compensation, LOP attendance deductions & CTC.</p>
+                <span class="inline-block mt-1.5 px-1.5 py-0.5 rounded bg-amber-950 text-amber-300 text-[9px] font-bold uppercase tracking-wide">Admin / Leadership Only</span>
               </a>
             </div>
           </div>
-          
+
           <div class="bg-slate-900/90 border border-sky-800/60 rounded-xl p-4 space-y-2.5">
             <div class="flex items-center justify-between border-b border-sky-900/60 pb-2">
               <span class="text-[11px] font-black uppercase text-sky-400 tracking-wider flex items-center gap-1.5">
                 <span class="w-2 h-2 rounded-full bg-sky-400"></span>
                 PEOPLE & HR
               </span>
-              <span class="px-2 py-0.5 rounded-md bg-sky-950 text-sky-300 text-[10px] font-bold">3 Sub-Menus</span>
+              <span class="px-2 py-0.5 rounded-md bg-sky-950 text-sky-300 text-[10px] font-bold">3 Submenus</span>
             </div>
             <div class="space-y-2">
               <a href="employees.html" class="block p-2 bg-slate-800/80 hover:bg-slate-800 rounded-lg border border-slate-700/80 transition-all hover:border-sky-500 group">
-                <div class="flex items-center justify-between">
-                  <span class="font-extrabold text-white group-hover:text-sky-300">11. Employee Directory</span>
-                  <span class="text-[10px] text-slate-400 font-mono">employees.html</span>
+                <div class="flex items-center justify-between gap-2">
+                  <span class="font-extrabold text-white group-hover:text-sky-300">20. Employee Directory</span>
+                  <span class="text-[10px] text-slate-400 font-mono shrink-0">employees.html</span>
                 </div>
-                <p class="text-[11px] text-slate-400 mt-1">Staff roster, supervisor mapping & active headcount master.</p>
+                <p class="text-[11px] text-slate-400 mt-1">Staff roster, supervisor mapping, active headcount master & all 4 approval-authority flags (Primary Approver, Director Ratifier, Finance Head, Master Data Admin).</p>
+                <span class="inline-block mt-1.5 px-1.5 py-0.5 rounded bg-amber-950 text-amber-300 text-[9px] font-bold uppercase tracking-wide">Admin / Leadership Only</span>
               </a>
               <a href="attendance.html" class="block p-2 bg-slate-800/80 hover:bg-slate-800 rounded-lg border border-slate-700/80 transition-all hover:border-sky-500 group">
-                <div class="flex items-center justify-between">
-                  <span class="font-extrabold text-white group-hover:text-sky-300">12. Attendance & Leaves</span>
-                  <span class="text-[10px] text-slate-400 font-mono">attendance.html</span>
+                <div class="flex items-center justify-between gap-2">
+                  <span class="font-extrabold text-white group-hover:text-sky-300">21. Attendance & Leaves</span>
+                  <span class="text-[10px] text-slate-400 font-mono shrink-0">attendance.html</span>
                 </div>
                 <p class="text-[11px] text-slate-400 mt-1">Punch logs, shift hours, WFH status & leave approvals.</p>
               </a>
               <a href="my-team.html" class="block p-2 bg-slate-800/80 hover:bg-slate-800 rounded-lg border border-slate-700/80 transition-all hover:border-sky-500 group">
-                <div class="flex items-center justify-between">
-                  <span class="font-extrabold text-white group-hover:text-sky-300">13. My Team</span>
-                  <span class="text-[10px] text-slate-400 font-mono">my-team.html</span>
+                <div class="flex items-center justify-between gap-2">
+                  <span class="font-extrabold text-white group-hover:text-sky-300">22. My Team</span>
+                  <span class="text-[10px] text-slate-400 font-mono shrink-0">my-team.html</span>
                 </div>
-                <p class="text-[11px] text-slate-400 mt-1">Manager portal for direct report workload & output ratings.</p>
+                <p class="text-[11px] text-slate-400 mt-1">Manager portal for direct report workload, output ratings & Create Login access.</p>
+                <span class="inline-block mt-1.5 px-1.5 py-0.5 rounded bg-amber-950 text-amber-300 text-[9px] font-bold uppercase tracking-wide">Managers / Team Leads Only</span>
               </a>
             </div>
           </div>
-          
-          <div class="bg-slate-900/90 border border-pink-800/60 rounded-xl p-4 space-y-2.5 lg:col-span-2">
+
+          <div class="bg-slate-900/90 border border-pink-800/60 rounded-xl p-4 space-y-2.5 lg:col-span-3">
             <div class="flex items-center justify-between border-b border-pink-900/60 pb-2">
               <span class="text-[11px] font-black uppercase text-pink-400 tracking-wider flex items-center gap-1.5">
                 <span class="w-2 h-2 rounded-full bg-pink-400"></span>
                 PERFORMANCE & STRATEGY
               </span>
-              <span class="px-2 py-0.5 rounded-md bg-pink-950 text-pink-300 text-[10px] font-bold">5 Sub-Menus</span>
+              <span class="px-2 py-0.5 rounded-md bg-pink-950 text-pink-300 text-[10px] font-bold">7 Submenus</span>
             </div>
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
               <a href="my-scorecard.html" class="block p-2 bg-slate-800/80 hover:bg-slate-800 rounded-lg border border-slate-700/80 transition-all hover:border-pink-500 group">
-                <div class="flex items-center justify-between">
-                  <span class="font-extrabold text-white group-hover:text-pink-300">14. My Scorecard</span>
-                  <span class="text-[10px] text-slate-400 font-mono">my-scorecard.html</span>
+                <div class="flex items-center justify-between gap-2">
+                  <span class="font-extrabold text-white group-hover:text-pink-300">23. My Scorecard</span>
+                  <span class="text-[10px] text-slate-400 font-mono shrink-0">my-scorecard.html</span>
                 </div>
-                <p class="text-[11px] text-slate-400 mt-1">Real-time target score gauge based on active KRA weightages.</p>
+                <p class="text-[11px] text-slate-400 mt-1">Real-time target score gauge based on active KRA weightages & booked order Sales Contribution Splits.</p>
               </a>
               <a href="dwm.html" class="block p-2 bg-slate-800/80 hover:bg-slate-800 rounded-lg border border-slate-700/80 transition-all hover:border-pink-500 group">
-                <div class="flex items-center justify-between">
-                  <span class="font-extrabold text-white group-hover:text-pink-300">15. Daily Work (DWM) & Productivity</span>
-                  <span class="text-[10px] text-slate-400 font-mono">dwm.html</span>
+                <div class="flex items-center justify-between gap-2">
+                  <span class="font-extrabold text-white group-hover:text-pink-300">24. Daily Work (DWM)</span>
+                  <span class="text-[10px] text-slate-400 font-mono shrink-0">dwm.html</span>
                 </div>
-                <p class="text-[11px] text-slate-400 mt-1">Auto-selected session, Special Assignment 100% credit & scores.</p>
+                <p class="text-[11px] text-slate-400 mt-1">Auto-selected session, Special Assignment 100% credit & plan-vs-actual scores.</p>
               </a>
               <a href="kra-targets.html" class="block p-2 bg-slate-800/80 hover:bg-slate-800 rounded-lg border border-slate-700/80 transition-all hover:border-pink-500 group">
-                <div class="flex items-center justify-between">
-                  <span class="font-extrabold text-white group-hover:text-pink-300">16. KRAs & Targets</span>
-                  <span class="text-[10px] text-slate-400 font-mono">kra-targets.html</span>
+                <div class="flex items-center justify-between gap-2">
+                  <span class="font-extrabold text-white group-hover:text-pink-300">25. KRAs & Target Metrics</span>
+                  <span class="text-[10px] text-slate-400 font-mono shrink-0">kra-targets.html</span>
                 </div>
                 <p class="text-[11px] text-slate-400 mt-1">Quarterly metric targets, weightages & assignments.</p>
               </a>
               <a href="reviews.html" class="block p-2 bg-slate-800/80 hover:bg-slate-800 rounded-lg border border-slate-700/80 transition-all hover:border-pink-500 group">
-                <div class="flex items-center justify-between">
-                  <span class="font-extrabold text-white group-hover:text-pink-300">17. Performance Reviews</span>
-                  <span class="text-[10px] text-slate-400 font-mono">reviews.html</span>
+                <div class="flex items-center justify-between gap-2">
+                  <span class="font-extrabold text-white group-hover:text-pink-300">26. Performance Reviews</span>
+                  <span class="text-[10px] text-slate-400 font-mono shrink-0">reviews.html</span>
                 </div>
                 <p class="text-[11px] text-slate-400 mt-1">Structured 360 appraisals & manager evaluation feedback.</p>
+                <span class="inline-block mt-1.5 px-1.5 py-0.5 rounded bg-amber-950 text-amber-300 text-[9px] font-bold uppercase tracking-wide">Managers / Team Leads Only</span>
               </a>
               <a href="aop-targets.html" class="block p-2 bg-slate-800/80 hover:bg-slate-800 rounded-lg border border-slate-700/80 transition-all hover:border-pink-500 group">
-                <div class="flex items-center justify-between">
-                  <span class="font-extrabold text-white group-hover:text-pink-300">18. Annual Plan (AOP)</span>
-                  <span class="text-[10px] text-slate-400 font-mono">aop-targets.html</span>
+                <div class="flex items-center justify-between gap-2">
+                  <span class="font-extrabold text-white group-hover:text-pink-300">27. Annual Operating Plan (AOP)</span>
+                  <span class="text-[10px] text-slate-400 font-mono shrink-0">aop-targets.html</span>
                 </div>
-                <p class="text-[11px] text-slate-400 mt-1">Company-wide annual strategic goals per vertical.</p>
+                <p class="text-[11px] text-slate-400 mt-1">Company-wide annual revenue targets & strategy per vertical.</p>
+                <span class="inline-block mt-1.5 px-1.5 py-0.5 rounded bg-amber-950 text-amber-300 text-[9px] font-bold uppercase tracking-wide">Admin / Leadership Only</span>
+              </a>
+              <a href="sop.html" class="block p-2 bg-slate-800/80 hover:bg-slate-800 rounded-lg border border-slate-700/80 transition-all hover:border-pink-500 group">
+                <div class="flex items-center justify-between gap-2">
+                  <span class="font-extrabold text-white group-hover:text-pink-300">28. Standard Operating Procedures (SOP)</span>
+                  <span class="text-[10px] text-slate-400 font-mono shrink-0">sop.html</span>
+                </div>
+                <p class="text-[11px] text-slate-400 mt-1">New-joiner training & role-based operational procedures.</p>
+              </a>
+              <a href="user-guide.html" class="block p-2 bg-slate-800/80 hover:bg-slate-800 rounded-lg border border-slate-700/80 transition-all hover:border-pink-500 group">
+                <div class="flex items-center justify-between gap-2">
+                  <span class="font-extrabold text-white group-hover:text-pink-300">29. User Guide & PDF Manual</span>
+                  <span class="text-[10px] text-slate-400 font-mono shrink-0">user-guide.html</span>
+                </div>
+                <p class="text-[11px] text-slate-400 mt-1">This page — the comprehensive RevOps guide, live PDF manual & this nav map.</p>
               </a>
             </div>
           </div>
-          
+
           <div class="bg-slate-900/90 border border-purple-800/60 rounded-xl p-4 space-y-2.5">
             <div class="flex items-center justify-between border-b border-purple-900/60 pb-2">
               <span class="text-[11px] font-black uppercase text-purple-400 tracking-wider flex items-center gap-1.5">
                 <span class="w-2 h-2 rounded-full bg-purple-400"></span>
                 ANALYTICS & DOCS
               </span>
-              <span class="px-2 py-0.5 rounded-md bg-purple-950 text-purple-300 text-[10px] font-bold">1 Sub-Menu</span>
+              <span class="px-2 py-0.5 rounded-md bg-purple-950 text-purple-300 text-[10px] font-bold">Standalone Menu</span>
             </div>
             <a href="reports.html" class="block p-2 bg-slate-800/80 hover:bg-slate-800 rounded-lg border border-slate-700/80 transition-all hover:border-purple-500 group">
-              <div class="flex items-center justify-between">
-                <span class="font-extrabold text-white group-hover:text-purple-300">19. Executive Reports</span>
-                <span class="text-[10px] text-slate-400 font-mono">reports.html</span>
+              <div class="flex items-center justify-between gap-2">
+                <span class="font-extrabold text-white group-hover:text-purple-300">30. Executive Reports</span>
+                <span class="text-[10px] text-slate-400 font-mono shrink-0">reports.html</span>
               </div>
               <p class="text-[11px] text-slate-400 mt-1">Cross-functional board analytics with one-click PDF & CSV exports.</p>
+              <span class="inline-block mt-1.5 px-1.5 py-0.5 rounded bg-amber-950 text-amber-300 text-[9px] font-bold uppercase tracking-wide">Admin / Leadership Only</span>
             </a>
           </div>
         </div>
