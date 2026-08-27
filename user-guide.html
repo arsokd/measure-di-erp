@@ -44,7 +44,7 @@
       <div class="space-y-1">
         <div class="flex items-center space-x-2">
           <span class="px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider rounded-md bg-[#982B68] text-white">Official Documentation</span>
-          <span class="px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider rounded-md bg-emerald-950/80 text-emerald-400 border border-emerald-800/80">Auto-Updating SOP v3.1</span>
+          <span class="px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider rounded-md bg-emerald-950/80 text-emerald-400 border border-emerald-800/80">Auto-Updating SOP v3.2</span>
         </div>
         <h1 class="text-2xl sm:text-3xl font-black text-white tracking-tight flex items-center space-x-2">
           <span>📖 K-30_ERP User Guide & SOP</span>
@@ -125,24 +125,28 @@
             <span class="w-6 h-6 rounded-lg bg-emerald-950 text-emerald-400 font-black text-[10px] flex items-center justify-center border border-emerald-800/50">3</span>
             <span class="font-bold text-white">Sales & Revenue CRM Modules</span>
           </a>
+          <a href="#sec-masterdata" class="p-3 bg-slate-800/60 hover:bg-slate-800 rounded-xl border border-slate-700/60 transition-colors flex items-center space-x-2.5">
+            <span class="w-6 h-6 rounded-lg bg-teal-950 text-teal-400 font-black text-[10px] flex items-center justify-center border border-teal-800/50">4</span>
+            <span class="font-bold text-white">Master Data & Bulk Import</span>
+          </a>
           <a href="#sec-finance" class="p-3 bg-slate-800/60 hover:bg-slate-800 rounded-xl border border-slate-700/60 transition-colors flex items-center space-x-2.5">
-            <span class="w-6 h-6 rounded-lg bg-indigo-950 text-indigo-400 font-black text-[10px] flex items-center justify-center border border-indigo-800/50">4</span>
+            <span class="w-6 h-6 rounded-lg bg-indigo-950 text-indigo-400 font-black text-[10px] flex items-center justify-center border border-indigo-800/50">5</span>
             <span class="font-bold text-white">Finance, Payroll & Expenses</span>
           </a>
           <a href="#sec-hr" class="p-3 bg-slate-800/60 hover:bg-slate-800 rounded-xl border border-slate-700/60 transition-colors flex items-center space-x-2.5">
-            <span class="w-6 h-6 rounded-lg bg-amber-950 text-amber-400 font-black text-[10px] flex items-center justify-center border border-amber-800/50">5</span>
+            <span class="w-6 h-6 rounded-lg bg-amber-950 text-amber-400 font-black text-[10px] flex items-center justify-center border border-amber-800/50">6</span>
             <span class="font-bold text-white">People, HR & Attendance</span>
           </a>
           <a href="#sec-perf" class="p-3 bg-slate-800/60 hover:bg-slate-800 rounded-xl border border-slate-700/60 transition-colors flex items-center space-x-2.5">
-            <span class="w-6 h-6 rounded-lg bg-[#982B68]/30 text-[#E283BD] font-black text-[10px] flex items-center justify-center border border-[#982B68]/50">6</span>
+            <span class="w-6 h-6 rounded-lg bg-[#982B68]/30 text-[#E283BD] font-black text-[10px] flex items-center justify-center border border-[#982B68]/50">7</span>
             <span class="font-bold text-white">Performance, Scorecards & AOP</span>
           </a>
           <a href="#sec-dashboard" class="p-3 bg-slate-800/60 hover:bg-slate-800 rounded-xl border border-slate-700/60 transition-colors flex items-center space-x-2.5">
-            <span class="w-6 h-6 rounded-lg bg-rose-950 text-rose-400 font-black text-[10px] flex items-center justify-center border border-rose-800/50">7</span>
+            <span class="w-6 h-6 rounded-lg bg-rose-950 text-rose-400 font-black text-[10px] flex items-center justify-center border border-rose-800/50">8</span>
             <span class="font-bold text-white">Executive Dashboard & Ratios</span>
           </a>
           <a href="#sec-sop" class="p-3 bg-slate-800/60 hover:bg-slate-800 rounded-xl border border-slate-700/60 transition-colors flex items-center space-x-2.5">
-            <span class="w-6 h-6 rounded-lg bg-teal-950 text-teal-400 font-black text-[10px] flex items-center justify-center border border-teal-800/50">8</span>
+            <span class="w-6 h-6 rounded-lg bg-teal-950 text-teal-400 font-black text-[10px] flex items-center justify-center border border-teal-800/50">9</span>
             <span class="font-bold text-white">Daily, Weekly & Monthly SOP</span>
           </a>
         </div>
@@ -607,12 +611,23 @@
                 <td class="p-3 text-slate-500">Restricted</td>
                 <td class="p-3 text-slate-500">Restricted</td>
               </tr>
+              <tr>
+                <td class="p-3 font-semibold text-white">🗄️ Master Data (View)</td>
+                <td class="p-3 text-fuchsia-400 font-extrabold">Full Visibility</td>
+                <td class="p-3 text-purple-400 font-bold">Full Visibility</td>
+                <td class="p-3 text-emerald-400 font-bold">Full Visibility</td>
+                <td class="p-3 text-emerald-400 font-bold">Full Visibility</td>
+              </tr>
+              <tr>
+                <td class="p-3 font-semibold text-white">🗄️ Master Data (Add / Edit / Delete)</td>
+                <td class="p-3 text-fuchsia-400 font-extrabold" colspan="4">Restricted to the named <strong>Master Data Admin</strong> flag (or Director) only — see note below. Not automatic for any role, including Super Admin/Admin.</td>
+              </tr>
             </tbody>
           </table>
         </div>
         <div class="p-3.5 bg-purple-950/30 border border-purple-800/60 rounded-xl text-xs text-purple-100 leading-relaxed">
-          <strong class="text-purple-300 block mb-1">🔐 Approval Authority (independent of Role):</strong>
-          Three named flags — <strong>Primary Approver</strong>, <strong>Director Ratifier</strong>, and <strong>Finance Head</strong> — are assigned per employee on the Employees page and drive every approval gate (quotations, orders, invoices, payment verification, write-offs/goodwill). They are separate from Super Admin / Admin / Manager / Staff roles — an Admin does not automatically hold approval authority unless flagged. <strong>Mr. Ravichandran (Director) holds universal authority</strong>: his sign-off satisfies any of the three gates. Anyone holding a flag sees the "✅ Approvals" menu with a live pending-count badge.
+          <strong class="text-purple-300 block mb-1">🔐 Approval & Master Data Authority (independent of Role):</strong>
+          Four named flags — <strong>Primary Approver</strong>, <strong>Director Ratifier</strong>, <strong>Finance Head</strong>, and <strong>Master Data Admin</strong> — are assigned per employee on the Employees page. The first three drive every approval gate (quotations, orders, invoices, payment verification, write-offs/goodwill) and surface in the "✅ Approvals" menu with a live pending-count badge. <strong>Master Data Admin</strong> is different — it's a standing edit-authority (not a per-item queue) that controls who can Add/Edit/Delete/Bulk-Upload on the standalone "🗄️ Master Data" menu; everyone else can still view every list, just not change it. All four flags are separate from Super Admin / Admin / Manager / Staff roles — an Admin does not automatically hold any of them unless flagged. <strong>Mr. Ravichandran (Director) holds universal authority</strong>: his sign-off/edit satisfies any of the four gates. As of this revision, Master Data Admin is held by the Director plus two named senior staff (Mr. Murugan, Mrs. Anitha).
         </div>
       </section>
 
@@ -692,25 +707,45 @@
               <li><strong>3-Way Sign-Off:</strong> Primary Approver + Finance Head + Director must all approve. Once approved, the amount reduces Net Profit in the P&amp;L, Trade Receivables on the Balance Sheet, and appears as a non-cash memo in the Cash Flow Statement.</li>
             </ul>
           </div>
+        </div>
+      </section>
+
+      <section id="sec-masterdata" class="bg-slate-900 border border-teal-900/60 rounded-2xl p-6 shadow-xl space-y-4 print-card">
+        <div class="flex items-center space-x-3 pb-3 border-b border-slate-800">
+          <div class="w-8 h-8 rounded-xl bg-teal-500/20 text-teal-400 font-black flex items-center justify-center text-sm border border-teal-500/30">4</div>
+          <div>
+            <h3 class="text-lg font-black text-white">Master Data & Bulk Import</h3>
+            <p class="text-xs text-slate-400">Its own standalone top-level menu — every other module reads its dropdown lists from here</p>
+          </div>
+        </div>
+        <p class="text-xs text-slate-300 leading-relaxed">
+          17 dropdown-list masters spanning every vertical, plus CSV bulk upload, all under one menu that used to be buried inside Sales:
+        </p>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
           <div class="p-4 bg-slate-800/60 rounded-xl border border-slate-700/80 space-y-2">
-            <h4 class="font-bold text-teal-400 text-sm flex items-center space-x-1.5">
-              <span>📁 Master Data & Bulk Import</span>
-            </h4>
-            <p class="text-slate-300 leading-relaxed">
-              Centralized entity repository and seamless CSV import engine for production cutover:
-            </p>
-            <ul class="list-disc list-inside text-slate-400 space-y-1 pt-1">
-              <li>Clients, Project Master, Employees, Spare Parts and Products catalog.</li>
-              <li>5 simple dropdown lists — Lead Source, Industry Vertical, Project Sector, Vertical Classification, Currency — with add/edit/delete, feeding the Leads form directly.</li>
-              <li>Pre-formatted CSV template downloads with column validation; instant merge into local state and Firestore database.</li>
+            <h4 class="font-bold text-teal-300 text-sm">What it manages</h4>
+            <ul class="list-disc list-inside text-slate-400 space-y-1">
+              <li><strong>Sales/CRM:</strong> Lead Source, Industry Vertical, Project Sector, Vertical Classification, Currency, Products & Technical Specs.</li>
+              <li><strong>Service & Spare Parts:</strong> Client Installed Equipment, Complaint/Fault Category, SLA Response Policy, Spare Part Category.</li>
+              <li><strong>AMC:</strong> AMC Contract Tier, PM Visit Frequency, AMC Invoicing Milestone, AMC Contract Duration.</li>
+              <li><strong>Finance & Entities:</strong> Bank Details, Clients, Projects.</li>
+              <li>CSV bulk upload works on whichever dataset tab is open, with a downloadable template per tab.</li>
+            </ul>
+          </div>
+          <div class="p-4 bg-amber-950/30 rounded-xl border border-amber-800/60 space-y-2">
+            <h4 class="font-bold text-amber-300 text-sm">Who can change it</h4>
+            <ul class="list-disc list-inside text-slate-300 space-y-1">
+              <li><strong>View:</strong> every signed-in user — needed so every page's dropdowns populate correctly.</li>
+              <li><strong>Add / Edit / Delete / Bulk Upload:</strong> only the <strong>Master Data Admin</strong> flag (or Director) — see RBAC above. Enforced both in the app screen and by the Firestore database itself.</li>
+              <li>Currently: the Director, Mr. Murugan, and Mrs. Anitha.</li>
             </ul>
           </div>
         </div>
       </section>
-      
+
       <section id="sec-finance" class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4 print-card">
         <div class="flex items-center space-x-3 pb-3 border-b border-slate-800">
-          <div class="w-8 h-8 rounded-xl bg-indigo-500/20 text-indigo-400 font-black flex items-center justify-center text-sm border border-indigo-500/30">4</div>
+          <div class="w-8 h-8 rounded-xl bg-indigo-500/20 text-indigo-400 font-black flex items-center justify-center text-sm border border-indigo-500/30">5</div>
           <div>
             <h3 class="text-lg font-black text-white">Finance, Payroll & Expense Management</h3>
             <p class="text-xs text-slate-400">Profit Center, Project Ledger Split, Monthly CTC & Payroll</p>
@@ -748,7 +783,7 @@
       
       <section id="sec-hr" class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4 print-card">
         <div class="flex items-center space-x-3 pb-3 border-b border-slate-800">
-          <div class="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-400 font-black flex items-center justify-center text-sm border border-amber-500/30">5</div>
+          <div class="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-400 font-black flex items-center justify-center text-sm border border-amber-500/30">6</div>
           <div>
             <h3 class="text-lg font-black text-white">People, HR & Attendance Administration</h3>
             <p class="text-xs text-slate-400">Roster, punch logs, leaves, direct reportees, org hierarchy</p>
@@ -772,7 +807,7 @@
       
       <section id="sec-perf" class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4 print-card">
         <div class="flex items-center space-x-3 pb-3 border-b border-slate-800">
-          <div class="w-8 h-8 rounded-xl bg-[#982B68]/30 text-[#E283BD] font-black flex items-center justify-center text-sm border border-[#982B68]/50">6</div>
+          <div class="w-8 h-8 rounded-xl bg-[#982B68]/30 text-[#E283BD] font-black flex items-center justify-center text-sm border border-[#982B68]/50">7</div>
           <div>
             <h3 class="text-lg font-black text-white">Performance, Scorecards, DWM & AOP Strategy</h3>
             <p class="text-xs text-slate-400">Scorecard rating engine, Daily Work Management (DWM), Special Assignments & AOP</p>
@@ -805,7 +840,7 @@
       
       <section id="sec-dashboard" class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4 print-card">
         <div class="flex items-center space-x-3 pb-3 border-b border-slate-800">
-          <div class="w-8 h-8 rounded-xl bg-rose-500/20 text-rose-400 font-black flex items-center justify-center text-sm border border-rose-500/30">7</div>
+          <div class="w-8 h-8 rounded-xl bg-rose-500/20 text-rose-400 font-black flex items-center justify-center text-sm border border-rose-500/30">8</div>
           <div>
             <h3 class="text-lg font-black text-white">Executive Dashboard & Target Ratio Calculation</h3>
             <p class="text-xs text-slate-400">Understanding period ratio scaling across Q1-Q4, H1-H2, WTD, MTD & Full Year</p>
@@ -858,7 +893,7 @@
       
       <section id="sec-sop" class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4 print-card">
         <div class="flex items-center space-x-3 pb-3 border-b border-slate-800">
-          <div class="w-8 h-8 rounded-xl bg-teal-500/20 text-teal-400 font-black flex items-center justify-center text-sm border border-teal-500/30">8</div>
+          <div class="w-8 h-8 rounded-xl bg-teal-500/20 text-teal-400 font-black flex items-center justify-center text-sm border border-teal-500/30">9</div>
           <div>
             <h3 class="text-lg font-black text-white">Standard Operating Procedures (SOP) Routine</h3>
             <p class="text-xs text-slate-400">Checklists for Sales Reps, Managers, and Managing Director</p>
@@ -897,7 +932,7 @@
       
       <section id="sec-data" class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4 print-card">
         <div class="flex items-center space-x-3 pb-3 border-b border-slate-800">
-          <div class="w-8 h-8 rounded-xl bg-slate-800 text-slate-300 font-black flex items-center justify-center text-sm border border-slate-700">9</div>
+          <div class="w-8 h-8 rounded-xl bg-slate-800 text-slate-300 font-black flex items-center justify-center text-sm border border-slate-700">10</div>
           <div>
             <h3 class="text-lg font-black text-white">Data Maintenance & Dataset Reloading</h3>
             <p class="text-xs text-slate-400">LocalStorage storage key structure and dataset reseed</p>
@@ -915,7 +950,7 @@
       
       <section id="sec-200-users" class="bg-slate-900 border border-fuchsia-900/60 rounded-2xl p-6 shadow-xl space-y-4 print-card">
         <div class="flex items-center space-x-3 pb-3 border-b border-slate-800">
-          <div class="w-8 h-8 rounded-xl bg-fuchsia-500/20 text-fuchsia-400 font-black flex items-center justify-center text-sm border border-fuchsia-500/30">10</div>
+          <div class="w-8 h-8 rounded-xl bg-fuchsia-500/20 text-fuchsia-400 font-black flex items-center justify-center text-sm border border-fuchsia-500/30">11</div>
           <div>
             <h3 class="text-lg font-black text-white flex items-center gap-2">
               <span>🚀 Commercial Readiness & 200 Daily User Operating SOP</span>

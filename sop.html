@@ -56,8 +56,8 @@
       <div class="pt-4 border-t border-slate-800 flex flex-wrap items-center gap-2 text-xs">
         <span class="font-bold text-slate-400 uppercase tracking-wider text-[11px]">Jump by Role:</span>
         <a href="#role-sales" class="px-3 py-1 rounded-lg bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-800/80 text-emerald-300 font-bold transition-colors">Sales & Commercial</a>
-        <a href="#role-service" class="px-3 py-1 rounded-lg bg-amber-950/80 hover:bg-amber-900 border border-amber-800/80 text-amber-300 font-bold transition-colors">Field & Service Engineers</a>
-        <a href="#role-projects" class="px-3 py-1 rounded-lg bg-blue-950/80 hover:bg-blue-900 border border-blue-800/80 text-blue-300 font-bold transition-colors">Project Managers</a>
+        <a href="#role-service" class="px-3 py-1 rounded-lg bg-amber-950/80 hover:bg-amber-900 border border-amber-800/80 text-amber-300 font-bold transition-colors">Service, Spare Parts & AMC</a>
+        <a href="#role-projects" class="px-3 py-1 rounded-lg bg-blue-950/80 hover:bg-blue-900 border border-blue-800/80 text-blue-300 font-bold transition-colors">Master Data Admins</a>
         <a href="#role-finance" class="px-3 py-1 rounded-lg bg-indigo-950/80 hover:bg-indigo-900 border border-indigo-800/80 text-indigo-300 font-bold transition-colors">Finance & Billing</a>
         <a href="#role-hr" class="px-3 py-1 rounded-lg bg-sky-950/80 hover:bg-sky-900 border border-sky-800/80 text-sky-300 font-bold transition-colors">HR & People Operations</a>
         <a href="#role-general" class="px-3 py-1 rounded-lg bg-pink-950/80 hover:bg-pink-900 border border-pink-800/80 text-pink-300 font-bold transition-colors">All New Joiners (Day 1 Daily Rhythm)</a>
@@ -262,9 +262,10 @@
         <div class="p-4 bg-slate-800/60 rounded-xl border border-purple-800/60 space-y-2">
           <h4 class="font-bold text-purple-300 text-sm">Procedure 2.5: Approval Authority Model & the "✅ Approvals" Hub</h4>
           <ul class="list-disc list-inside text-slate-300 space-y-1.5 leading-relaxed">
-            <li>Three named, assignable authority flags drive every approval gate in the app: <strong>Primary Approver</strong>, <strong>Director Ratifier</strong>, and <strong>Finance Head</strong>. They are assigned per employee on the <strong>Employees</strong> page ("Approval Authority" section on Add/Edit) — not hardcoded to any one person.</li>
-            <li><strong>Mr. Ravichandran (Director) holds universal approval authority</strong> — as the ultimate authority of the organization, his sign-off satisfies any approval gate (Primary Approver, Finance Head, or Director) across the entire app, so nothing can ever get stuck waiting on someone else if he needs to act.</li>
-            <li>Anyone holding at least one of these three flags sees a standalone <strong>"✅ Approvals"</strong> menu item in the top navigation, with a live count badge. This is the single place to see everything awaiting your sign-off — quotations, orders, invoices, payment verifications, and write-off/goodwill requests — grouped by category, with a direct link into the source record to act on it.</li>
+            <li>Four named, assignable authority flags drive every approval and restricted-edit gate in the app: <strong>Primary Approver</strong>, <strong>Director Ratifier</strong>, <strong>Finance Head</strong>, and <strong>Master Data Admin</strong>. They are assigned per employee on the <strong>Employees</strong> page ("Approval Authority" section on Add/Edit) — not hardcoded to any one person.</li>
+            <li><strong>Mr. Ravichandran (Director) holds universal authority</strong> — as the ultimate authority of the organization, his sign-off satisfies any of the four gates (Primary Approver, Finance Head, Director, or Master Data Admin) across the entire app, so nothing can ever get stuck waiting on someone else if he needs to act.</li>
+            <li>Anyone holding the Primary Approver, Finance Head, or Director flag sees a standalone <strong>"✅ Approvals"</strong> menu item in the top navigation, with a live count badge. This is the single place to see everything awaiting your sign-off — quotations, orders, invoices, payment verifications, and write-off/goodwill requests — grouped by category, with a direct link into the source record to act on it.</li>
+            <li>The <strong>Master Data Admin</strong> flag is a standing edit-authority, not a per-item approval queue — it does not appear in the Approvals Hub. It instead controls who may Add/Edit/Delete/Bulk-Upload on the <strong>🗄️ Master Data</strong> menu (see Procedure 5). Currently held by the Director and two named senior staff — see Procedure 5.1.</li>
           </ul>
         </div>
       </div>
@@ -316,52 +317,65 @@
       </div>
     </section>
 
-    <!-- SOP SECTION 4: SERVICE, FIELD ENGINEERS & QUALITY SLA SOP -->
+    <!-- SOP SECTION 4: SERVICE, SPARE PARTS & AMC SOP -->
     <section id="role-service" class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-5 print-card">
       <div class="flex items-center space-x-3 pb-4 border-b border-slate-800">
         <div class="w-10 h-10 rounded-xl bg-amber-600/20 text-amber-400 font-black flex items-center justify-center text-base border border-amber-500/30">4</div>
         <div>
-          <h2 class="text-xl font-black text-white">Service & Field Engineering Team SOP</h2>
-          <p class="text-xs text-slate-400">Operating procedures for breakdown tickets, calibration SLAs, spare parts requisitions, and emergency callouts.</p>
+          <h2 class="text-xl font-black text-white">Service, Spare Parts & AMC Team SOP</h2>
+          <p class="text-xs text-slate-400">The three revenue-generating verticals grouped under the "Service & Quality" menu — breakdown tickets, spare parts sales, and AMC contracts/PM visits/billing — sharing one common lead intake.</p>
         </div>
       </div>
 
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-        <div class="p-4 bg-slate-800/60 rounded-xl border border-slate-700/80 space-y-2">
-          <h4 class="font-bold text-amber-400 text-sm">1. Ticket Logging & SLA Triage</h4>
-          <p class="text-slate-300 leading-relaxed">
-            When a client reports an equipment fault or calibration request:
-          </p>
-          <ul class="list-disc list-inside text-slate-400 space-y-1">
-            <li>Open <code>service-tickets.html</code> and click <strong>Raise Ticket</strong>.</li>
-            <li>Set Priority: <strong>P1 Critical (&le;4h SLA)</strong>, <strong>P2 High (&le;12h SLA)</strong>, <strong>P3 Medium (&le;24h)</strong>, or <strong>P4 Low</strong>.</li>
-            <li>Assign Lead Engineer based on client site territory.</li>
-          </ul>
-        </div>
+      <div class="p-3 bg-orange-950/30 rounded-xl border border-orange-800/60 text-xs text-slate-300 leading-relaxed">
+        All three verticals below share a single intake funnel — <strong>Service & Spares Leads</strong> — for Spare Parts enquiries, Paid Service requests, and AMC Renewals/Calls. From there, each lead is worked in its own vertical's page.
+      </div>
 
-        <div class="p-4 bg-slate-800/60 rounded-xl border border-slate-700/80 space-y-2">
-          <h4 class="font-bold text-amber-400 text-sm">2. On-Site Action & Parts Usage</h4>
-          <p class="text-slate-300 leading-relaxed">
-            During client site troubleshooting:
-          </p>
-          <ul class="list-disc list-inside text-slate-400 space-y-1">
-            <li>Punch Attendance with <em>Site / On-Field</em> location flag.</li>
-            <li>Log DWM task as <em>Special Assignment - Client Emergency Breakdown</em>.</li>
-            <li>Record spare part replacements (load cells, indicators, junction boxes) from Master Catalog.</li>
-          </ul>
+      <div class="p-4 bg-slate-800/60 rounded-xl border border-slate-700/80 space-y-2 text-xs">
+        <h3 class="font-bold text-amber-400 text-sm">Vertical 1: Service (<code>service-tickets.html</code>, <code>warranty-management.html</code>)</h3>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div class="p-3 bg-slate-900/80 rounded-lg border border-slate-800 space-y-1.5">
+            <div class="font-bold text-amber-300">1. Ticket Logging & SLA Triage</div>
+            <ul class="list-disc list-inside text-slate-400 space-y-1">
+              <li>Open <code>service-tickets.html</code> and click <strong>Raise Ticket</strong>. Select the client's equipment from the <strong>Client Installed Equipment</strong> registry (Master Data) — do not free-type it.</li>
+              <li>Set Severity: response window is driven live by the <strong>SLA Response Policy</strong> master list — by default <strong>Critical (4h)</strong>, <strong>High (8h)</strong>, <strong>Medium (24h)</strong>, <strong>Low (48h)</strong> — but a Master Data Admin can retune these hours at any time without a code change, so always trust what the app shows, not this printed figure.</li>
+              <li>Assign Lead Engineer based on client site territory.</li>
+            </ul>
+          </div>
+          <div class="p-3 bg-slate-900/80 rounded-lg border border-slate-800 space-y-1.5">
+            <div class="font-bold text-amber-300">2. On-Site Action & Parts Usage</div>
+            <ul class="list-disc list-inside text-slate-400 space-y-1">
+              <li>Punch Attendance with <em>Site / On-Field</em> location flag.</li>
+              <li>Log DWM task as <em>Special Assignment - Client Emergency Breakdown</em>.</li>
+              <li>Record spare part replacements from the Spare Parts catalog, categorized per the <strong>Spare Part Category</strong> master.</li>
+            </ul>
+          </div>
+          <div class="p-3 bg-slate-900/80 rounded-lg border border-slate-800 space-y-1.5">
+            <div class="font-bold text-amber-300">3. Closure, Warranty & Sign-Off</div>
+            <ul class="list-disc list-inside text-slate-400 space-y-1">
+              <li>Upload service report notes and root cause analysis (RCA).</li>
+              <li>Change ticket status to <strong>Resolved</strong> &rarr; <strong>Closed</strong> with customer sign-off.</li>
+              <li>If the equipment is still under warranty, check <strong>Warranty & Equipment Health</strong> before billing — it tracks claims and offers 1-click AMC conversion once warranty lapses. Otherwise trigger a Service Quotation or Billing Invoice.</li>
+            </ul>
+          </div>
         </div>
+      </div>
 
-        <div class="p-4 bg-slate-800/60 rounded-xl border border-slate-700/80 space-y-2">
-          <h4 class="font-bold text-amber-400 text-sm">3. Ticket Closure & Sign-Off</h4>
-          <p class="text-slate-300 leading-relaxed">
-            Post-restoration and customer verification:
-          </p>
-          <ul class="list-disc list-inside text-slate-400 space-y-1">
-            <li>Upload service report notes and root cause analysis (RCA).</li>
-            <li>Change ticket status to <strong>Resolved</strong> &rarr; <strong>Closed</strong> with customer sign-off.</li>
-            <li>Trigger Service Quotation or Billing Invoice if billable out-of-warranty.</li>
-          </ul>
-        </div>
+      <div class="p-4 bg-slate-800/60 rounded-xl border border-slate-700/80 space-y-2 text-xs">
+        <h3 class="font-bold text-amber-400 text-sm">Vertical 2: Spare Parts (<code>parts-sales.html</code>)</h3>
+        <ul class="list-disc list-inside text-slate-400 space-y-1">
+          <li>Every spare part sale is categorized against the <strong>Spare Part Category</strong> master list (Master Data) — keep this list current so inventory, pricing, and margin analytics roll up cleanly.</li>
+          <li>The hub tracks catalog, inventory levels, prices, COGS, and margin % per part/category — use it before quoting a client to confirm current stock and cost.</li>
+        </ul>
+      </div>
+
+      <div class="p-4 bg-slate-800/60 rounded-xl border border-slate-700/80 space-y-2 text-xs">
+        <h3 class="font-bold text-amber-400 text-sm">Vertical 3: AMC (<code>amc-contracts.html</code>, <code>amc-quotes.html</code>, <code>amc-orders.html</code>, <code>amc-invoices.html</code>)</h3>
+        <ul class="list-disc list-inside text-slate-400 space-y-1">
+          <li>Quote using the <strong>AMC Contract Tier</strong> master (Comprehensive / Non-Comprehensive variants) and the <strong>AMC Contract Duration</strong> master.</li>
+          <li>Once ordered, PM visit scheduling follows the <strong>PM Visit Frequency</strong> master (e.g. quarterly), and billing milestones follow the <strong>AMC Invoicing Milestone</strong> master — both admin-editable so contract terms can evolve without a code change.</li>
+          <li>Renewal countdown is tracked automatically on <code>amc-contracts.html</code> — review this page ahead of every quarter-end to catch lapsing contracts before they go cold.</li>
+        </ul>
       </div>
     </section>
 
@@ -370,44 +384,87 @@
       <div class="flex items-center space-x-3 pb-4 border-b border-slate-800">
         <div class="w-10 h-10 rounded-xl bg-teal-600/20 text-teal-400 font-black flex items-center justify-center text-base border border-teal-500/30">5</div>
         <div>
-          <h2 class="text-xl font-black text-white">Master Data & Bulk Import SOP (Operations & Admins)</h2>
-          <p class="text-xs text-slate-400">Standard protocol for onboarding new clients, active projects, employee roster updates, spare parts catalog, and the CRM dropdown lists.</p>
+          <h2 class="text-xl font-black text-white">Master Data & Bulk Import SOP (Master Data Admins)</h2>
+          <p class="text-xs text-slate-400">Standard protocol for maintaining every dropdown list, product/parts/equipment catalog, and client/project registry that the rest of the app reads from.</p>
         </div>
+      </div>
+
+      <div class="p-4 bg-amber-950/30 rounded-xl border border-amber-800/60 space-y-2 text-xs">
+        <h3 class="font-bold text-amber-300 text-sm">Procedure 5.1: Master Data is its own top-level menu, and access is restricted</h3>
+        <ul class="list-disc list-inside text-slate-300 space-y-1.5 leading-relaxed">
+          <li><strong>🗄️ Master Data</strong> is a standalone top-level menu (not nested inside Sales) — every module (Sales, Service, Spare Parts, AMC) reads its dropdown lists from here, so it lives on its own.</li>
+          <li><strong>Viewing</strong> Master Data is open to every signed-in user — every page across the app needs these lists to populate its own dropdowns.</li>
+          <li><strong>Adding, editing, deleting, or bulk-uploading</strong> a master record is restricted to whoever holds the <strong>Master Data Admin</strong> authority flag (Procedure 2.5), or the Director. Everyone else sees the lists but the Add/Edit/Delete/Bulk Upload controls are hidden — and even a direct attempt is rejected by the database itself, not just hidden in the screen.</li>
+          <li>As of this SOP revision, Master Data Admin is held by the <strong>Director</strong> and two named senior staff: <strong>Mr. Murugan</strong> and <strong>Mrs. Anitha</strong>. It is assignable to anyone else per-employee on the Employees page, same as the other three authority flags.</li>
+        </ul>
       </div>
 
       <div class="p-4 bg-slate-800/60 rounded-xl border border-slate-700/80 space-y-2 text-xs">
-        <h3 class="font-bold text-teal-400 text-sm">Simple Master Lists (Add / Edit / Delete — No Code Change Required)</h3>
-        <p class="text-slate-300">These five lists feed the dropdowns on the Add New Lead form directly. Leadership/Admin can maintain them anytime under <code>master-data.html</code>:</p>
-        <div class="flex flex-wrap gap-2 pt-1">
-          <span class="px-2.5 py-1 bg-slate-900 rounded-lg border border-slate-700 text-slate-300 font-semibold">Lead Source</span>
-          <span class="px-2.5 py-1 bg-slate-900 rounded-lg border border-slate-700 text-slate-300 font-semibold">Industry Vertical</span>
-          <span class="px-2.5 py-1 bg-slate-900 rounded-lg border border-slate-700 text-slate-300 font-semibold">Project Sector</span>
-          <span class="px-2.5 py-1 bg-slate-900 rounded-lg border border-slate-700 text-slate-300 font-semibold">Vertical Classification</span>
-          <span class="px-2.5 py-1 bg-slate-900 rounded-lg border border-slate-700 text-slate-300 font-semibold">Currency</span>
+        <h3 class="font-bold text-teal-400 text-sm">Procedure 5.2: The 17 Master Lists, by Consuming Module</h3>
+        <p class="text-slate-300">Every list below lives under <code>master-data.html</code>. Add/Edit/Delete requires Master Data Admin (Procedure 5.1).</p>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+          <div class="p-3 bg-slate-900/80 rounded-lg border border-slate-800 space-y-1.5">
+            <div class="font-bold text-emerald-300">Sales & CRM (Leads / Quotations)</div>
+            <div class="flex flex-wrap gap-1.5 pt-0.5">
+              <span class="px-2 py-0.5 bg-slate-950 rounded border border-slate-700 text-slate-300 font-semibold">Lead Source</span>
+              <span class="px-2 py-0.5 bg-slate-950 rounded border border-slate-700 text-slate-300 font-semibold">Industry Vertical</span>
+              <span class="px-2 py-0.5 bg-slate-950 rounded border border-slate-700 text-slate-300 font-semibold">Project Sector / Origin</span>
+              <span class="px-2 py-0.5 bg-slate-950 rounded border border-slate-700 text-slate-300 font-semibold">Vertical Classification</span>
+              <span class="px-2 py-0.5 bg-slate-950 rounded border border-slate-700 text-slate-300 font-semibold">Currency</span>
+              <span class="px-2 py-0.5 bg-slate-950 rounded border border-slate-700 text-slate-300 font-semibold">Products & Technical Specs</span>
+            </div>
+          </div>
+          <div class="p-3 bg-slate-900/80 rounded-lg border border-slate-800 space-y-1.5">
+            <div class="font-bold text-orange-300">Service & Spare Parts</div>
+            <div class="flex flex-wrap gap-1.5 pt-0.5">
+              <span class="px-2 py-0.5 bg-slate-950 rounded border border-slate-700 text-slate-300 font-semibold">Client Installed Equipment</span>
+              <span class="px-2 py-0.5 bg-slate-950 rounded border border-slate-700 text-slate-300 font-semibold">Complaint / Fault Category</span>
+              <span class="px-2 py-0.5 bg-slate-950 rounded border border-slate-700 text-slate-300 font-semibold">SLA Response Policy (Tier)</span>
+              <span class="px-2 py-0.5 bg-slate-950 rounded border border-slate-700 text-slate-300 font-semibold">Spare Part Category</span>
+            </div>
+          </div>
+          <div class="p-3 bg-slate-900/80 rounded-lg border border-slate-800 space-y-1.5">
+            <div class="font-bold text-orange-300">AMC</div>
+            <div class="flex flex-wrap gap-1.5 pt-0.5">
+              <span class="px-2 py-0.5 bg-slate-950 rounded border border-slate-700 text-slate-300 font-semibold">AMC Contract Tier</span>
+              <span class="px-2 py-0.5 bg-slate-950 rounded border border-slate-700 text-slate-300 font-semibold">PM Visit Frequency</span>
+              <span class="px-2 py-0.5 bg-slate-950 rounded border border-slate-700 text-slate-300 font-semibold">AMC Invoicing Milestone</span>
+              <span class="px-2 py-0.5 bg-slate-950 rounded border border-slate-700 text-slate-300 font-semibold">AMC Contract Duration</span>
+            </div>
+          </div>
+          <div class="p-3 bg-slate-900/80 rounded-lg border border-slate-800 space-y-1.5">
+            <div class="font-bold text-indigo-300">Finance & CRM Entities</div>
+            <div class="flex flex-wrap gap-1.5 pt-0.5">
+              <span class="px-2 py-0.5 bg-slate-950 rounded border border-slate-700 text-slate-300 font-semibold">Bank Details</span>
+              <span class="px-2 py-0.5 bg-slate-950 rounded border border-slate-700 text-slate-300 font-semibold">Clients</span>
+              <span class="px-2 py-0.5 bg-slate-950 rounded border border-slate-700 text-slate-300 font-semibold">Projects</span>
+            </div>
+          </div>
         </div>
-        <p class="text-[11px] text-slate-400">The Products tab additionally carries HSN Code, Technical Specification, and Price per product — these are what auto-populate on the Lead form once a Product is selected.</p>
+        <p class="text-[11px] text-slate-400 pt-1">Client Installed Equipment is the shared registry that both <strong>Service Tickets</strong> and <strong>Warranty & Equipment Health</strong> read from — one record per client's installed machine, carrying warranty/AMC dates so both modules stay in sync automatically.</p>
       </div>
 
       <div class="p-4 bg-slate-800/60 rounded-xl border border-slate-700/80 space-y-3 text-xs">
-        <h3 class="font-bold text-teal-400 text-sm">Step-by-Step CSV Bulk Upload Protocol (<code>master-data.html</code>)</h3>
+        <h3 class="font-bold text-teal-400 text-sm">Procedure 5.3: Step-by-Step CSV Bulk Upload Protocol (<code>master-data.html</code>)</h3>
         <div class="grid grid-cols-1 md:grid-cols-4 gap-3 text-slate-300">
           <div class="p-3 bg-slate-900/80 rounded-lg border border-slate-800 space-y-1">
-            <div class="font-bold text-teal-300">1. Select Entity Tab</div>
-            <p class="text-slate-400">Choose between <em>Clients</em>, <em>Projects</em>, <em>Employees</em>, or <em>Spare Parts</em>.</p>
+            <div class="font-bold text-teal-300">1. Open the Dataset Tab</div>
+            <p class="text-slate-400">Bulk upload targets whichever of the 17 master tabs is currently open — not a fixed list of entities.</p>
           </div>
           <div class="p-3 bg-slate-900/80 rounded-lg border border-slate-800 space-y-1">
             <div class="font-bold text-teal-300">2. Download CSV Template</div>
-            <p class="text-slate-400">Click <strong>Download Prescribed CSV Template</strong> to obtain correct column headers.</p>
+            <p class="text-slate-400">Click <strong>Download Prescribed CSV Template</strong> to obtain correct column headers for that tab.</p>
           </div>
           <div class="p-3 bg-slate-900/80 rounded-lg border border-slate-800 space-y-1">
             <div class="font-bold text-teal-300">3. Fill & Validate Data</div>
-            <p class="text-slate-400">Ensure GSTIN 15-character format, valid email formats, and mandatory phone numbers.</p>
+            <p class="text-slate-400">Ensure GSTIN 15-character format, valid email formats, and mandatory phone numbers where applicable.</p>
           </div>
           <div class="p-3 bg-slate-900/80 rounded-lg border border-slate-800 space-y-1">
             <div class="font-bold text-teal-300">4. Upload & Merge</div>
-            <p class="text-slate-400">Drop CSV file into uploader. System checks for duplicates and merges into local & cloud DB.</p>
+            <p class="text-slate-400">Drop the CSV into the uploader. The system checks for duplicates and merges into local & cloud DB. Requires Master Data Admin (Procedure 5.1).</p>
           </div>
         </div>
+        <p class="text-[11px] text-slate-400 pt-1">Note: the Employee roster is <strong>not</strong> managed here — new hires and role/authority-flag changes are entered directly on the <strong>Employee Directory</strong> page (People & HR menu), which has its own admin-only access control.</p>
       </div>
     </section>
 
