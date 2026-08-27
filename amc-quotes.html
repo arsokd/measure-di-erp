@@ -178,39 +178,28 @@
             <div>
               <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">AMC Contract Classification *</label>
               <select id="inp-quote-type" required class="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs font-semibold text-white focus:outline-none focus:border-amber-500">
-                <option value="Comprehensive AMC">Comprehensive AMC (Includes PM + Spares + Emergency Breakdown)</option>
-                <option value="Non-Comprehensive AMC">Non-Comprehensive AMC (PM Visits + Labor Only, Spares Charged Extra)</option>
-                <option value="Calibration & Testing SLA">Calibration & Stamping SLA (Annual Legal Metrology Compliance)</option>
-                <option value="Breakdown Repair SLA">Breakdown Repair Callout SLA (Guaranteed 4-Hr Attendance)</option>
+                <!-- Populated from Master Data > AMC Contract Tier -->
               </select>
             </div>
 
             <div>
               <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Contract Duration *</label>
               <select id="inp-quote-duration" required class="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs font-semibold text-white focus:outline-none focus:border-amber-500">
-                <option value="1 Year">1 Year (Annual)</option>
-                <option value="2 Years">2 Years (Multi-Year Contract)</option>
-                <option value="3 Years">3 Years (Long-Term Corporate SLA)</option>
+                <!-- Populated from Master Data > Contract Duration -->
               </select>
             </div>
 
             <div>
               <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Preventive Maintenance (PM) Frequency *</label>
               <select id="inp-quote-pm-frequency" required class="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs font-semibold text-white focus:outline-none focus:border-amber-500">
-                <option value="4 Visits (Quarterly PM)">4 Visits (Quarterly PM Audits)</option>
-                <option value="6 Visits (Bi-Monthly PM)">6 Visits (Bi-Monthly Audits)</option>
-                <option value="12 Visits (Monthly PM)">12 Visits (Monthly Intensive PM)</option>
-                <option value="2 Visits (Semi-Annual PM)">2 Visits (Semi-Annual PM)</option>
+                <!-- Populated from Master Data > PM Visit Frequency -->
               </select>
             </div>
 
             <div>
               <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Target Breakdown Response SLA *</label>
               <select id="inp-quote-response-sla" required class="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs font-semibold text-white focus:outline-none focus:border-amber-500">
-                <option value="Within 4 Hours (Critical Line)">Within 4 Hours (Critical Industrial Line)</option>
-                <option value="Within 8 Hours (Same Day)">Within 8 Hours (Same Day Response)</option>
-                <option value="Within 24 Hours (Next Day)">Within 24 Hours (Next Business Day)</option>
-                <option value="Within 48 Hours">Within 48 Hours</option>
+                <!-- Populated from Master Data > SLA Response Policy -->
               </select>
             </div>
 
@@ -510,8 +499,45 @@
         renderAmcQuotesTable();
       }
 
+      // Contract Classification, Duration and PM Frequency come from
+      // Master Data (shared with AMC Monitoring — same underlying lists,
+      // so a won quote's terms match 1:1 to the contract it becomes).
+      // SLA is shared with Service Tickets and AMC Monitoring too.
+      function populateAmcQuoteMasterDropdowns() {
+        fillMasterSelect('inp-quote-type', 'amcContractTierMaster');
+        fillMasterSelect('inp-quote-duration', 'amcContractDurationMaster');
+        fillMasterSelect('inp-quote-pm-frequency', 'pmVisitFrequencyMaster');
+
+        var slaSelect = document.getElementById('inp-quote-response-sla');
+        if (slaSelect) {
+          var tiers = (window.RevOpsStore.getCollection('slaResponseTierMaster') || []).filter(function(t) { return t.isActive !== false; });
+          var currentVal = slaSelect.value;
+          slaSelect.innerHTML = tiers.map(function(t) {
+            var win = t.slaWindow || ((t.slaHours || 24) + ' Hours');
+            return '<option value="' + escapeHtml(win) + '">' + escapeHtml(t.name) + ' — ' + escapeHtml(win) + '</option>';
+          }).join('');
+          if (currentVal && tiers.some(function(t) { return (t.slaWindow || '') === currentVal; })) {
+            slaSelect.value = currentVal;
+          }
+        }
+      }
+
+      function fillMasterSelect(selectId, collectionName) {
+        var select = document.getElementById(selectId);
+        if (!select) return;
+        var items = (window.RevOpsStore.getCollection(collectionName) || []).filter(function(it) { return it.isActive !== false; });
+        var currentVal = select.value;
+        select.innerHTML = items.map(function(it) {
+          return '<option value="' + escapeHtml(it.name) + '">' + escapeHtml(it.name) + '</option>';
+        }).join('');
+        if (currentVal && items.some(function(it) { return it.name === currentVal; })) {
+          select.value = currentVal;
+        }
+      }
+
       document.addEventListener('DOMContentLoaded', function() {
         setTimeout(function() {
+          populateAmcQuoteMasterDropdowns();
           initSampleAmcQuotesIfEmpty();
           renderAmcQuotesTable();
         }, 100);

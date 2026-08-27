@@ -181,6 +181,90 @@
         <div class="text-[10px] text-slate-400 mt-0.5">Code, Name & Symbol</div>
       </button>
 
+      <!-- Tab 11: Spare Part Category Master -->
+      <button onclick="switchMasterTab('sparepartcategories')" id="tab-btn-sparepartcategories" class="master-tab-btn p-3.5 rounded-xl border text-left transition-all relative overflow-hidden bg-slate-900/40 border-slate-800 hover:border-slate-700 cursor-pointer">
+        <div class="flex items-center justify-between mb-1.5">
+          <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Spares Category</span>
+          <span class="w-7 h-7 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-xs">
+            <i class="fa-solid fa-boxes-stacked"></i>
+          </span>
+        </div>
+        <div class="text-xl font-black text-white" id="count-sparepartcategories">0</div>
+        <div class="text-[10px] text-slate-400 mt-0.5">Spare Parts Hub Category</div>
+      </button>
+
+      <!-- Tab 12: Complaint / Fault Category Master -->
+      <button onclick="switchMasterTab('complaintcategories')" id="tab-btn-complaintcategories" class="master-tab-btn p-3.5 rounded-xl border text-left transition-all relative overflow-hidden bg-slate-900/40 border-slate-800 hover:border-slate-700 cursor-pointer">
+        <div class="flex items-center justify-between mb-1.5">
+          <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Complaint Category</span>
+          <span class="w-7 h-7 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center text-xs">
+            <i class="fa-solid fa-triangle-exclamation"></i>
+          </span>
+        </div>
+        <div class="text-xl font-black text-white" id="count-complaintcategories">0</div>
+        <div class="text-[10px] text-slate-400 mt-0.5">Service Ticket Fault Types</div>
+      </button>
+
+      <!-- Tab 13: SLA Response Policy Master -->
+      <button onclick="switchMasterTab('slapolicy')" id="tab-btn-slapolicy" class="master-tab-btn p-3.5 rounded-xl border text-left transition-all relative overflow-hidden bg-slate-900/40 border-slate-800 hover:border-slate-700 cursor-pointer">
+        <div class="flex items-center justify-between mb-1.5">
+          <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">SLA Response Policy</span>
+          <span class="w-7 h-7 rounded-lg bg-rose-500/20 text-rose-400 flex items-center justify-center text-xs">
+            <i class="fa-solid fa-stopwatch"></i>
+          </span>
+        </div>
+        <div class="text-xl font-black text-white" id="count-slapolicy">0</div>
+        <div class="text-[10px] text-slate-400 mt-0.5">Shared: Tickets, AMC & Quotes</div>
+      </button>
+
+      <!-- Tab 14: AMC Contract Tier Master -->
+      <button onclick="switchMasterTab('amctiers')" id="tab-btn-amctiers" class="master-tab-btn p-3.5 rounded-xl border text-left transition-all relative overflow-hidden bg-slate-900/40 border-slate-800 hover:border-slate-700 cursor-pointer">
+        <div class="flex items-center justify-between mb-1.5">
+          <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">AMC Contract Tier</span>
+          <span class="w-7 h-7 rounded-lg bg-indigo-500/20 text-indigo-400 flex items-center justify-center text-xs">
+            <i class="fa-solid fa-file-contract"></i>
+          </span>
+        </div>
+        <div class="text-xl font-black text-white" id="count-amctiers">0</div>
+        <div class="text-[10px] text-slate-400 mt-0.5">Shared: AMC Monitoring & Quotes</div>
+      </button>
+
+      <!-- Tab 15: PM Visit Frequency Master -->
+      <button onclick="switchMasterTab('pmfrequency')" id="tab-btn-pmfrequency" class="master-tab-btn p-3.5 rounded-xl border text-left transition-all relative overflow-hidden bg-slate-900/40 border-slate-800 hover:border-slate-700 cursor-pointer">
+        <div class="flex items-center justify-between mb-1.5">
+          <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">PM Visit Frequency</span>
+          <span class="w-7 h-7 rounded-lg bg-violet-500/20 text-violet-400 flex items-center justify-center text-xs">
+            <i class="fa-solid fa-calendar-check"></i>
+          </span>
+        </div>
+        <div class="text-xl font-black text-white" id="count-pmfrequency">0</div>
+        <div class="text-[10px] text-slate-400 mt-0.5">Shared: AMC Monitoring & Quotes</div>
+      </button>
+
+      <!-- Tab 16: AMC Invoicing Milestone Master -->
+      <button onclick="switchMasterTab('amcmilestones')" id="tab-btn-amcmilestones" class="master-tab-btn p-3.5 rounded-xl border text-left transition-all relative overflow-hidden bg-slate-900/40 border-slate-800 hover:border-slate-700 cursor-pointer">
+        <div class="flex items-center justify-between mb-1.5">
+          <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">AMC Invoicing Milestone</span>
+          <span class="w-7 h-7 rounded-lg bg-fuchsia-500/20 text-fuchsia-400 flex items-center justify-center text-xs">
+            <i class="fa-solid fa-file-invoice-dollar"></i>
+          </span>
+        </div>
+        <div class="text-xl font-black text-white" id="count-amcmilestones">0</div>
+        <div class="text-[10px] text-slate-400 mt-0.5">AMC Monitoring Payment Terms</div>
+      </button>
+
+      <!-- Tab 17: AMC Contract Duration Master -->
+      <button onclick="switchMasterTab('contractdurations')" id="tab-btn-contractdurations" class="master-tab-btn p-3.5 rounded-xl border text-left transition-all relative overflow-hidden bg-slate-900/40 border-slate-800 hover:border-slate-700 cursor-pointer">
+        <div class="flex items-center justify-between mb-1.5">
+          <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Contract Duration</span>
+          <span class="w-7 h-7 rounded-lg bg-pink-500/20 text-pink-400 flex items-center justify-center text-xs">
+            <i class="fa-solid fa-hourglass-half"></i>
+          </span>
+        </div>
+        <div class="text-xl font-black text-white" id="count-contractdurations">0</div>
+        <div class="text-[10px] text-slate-400 mt-0.5">AMC Quotes Term Length</div>
+      </button>
+
     </div>
 
     <!-- Active Master Workbench Table Container -->

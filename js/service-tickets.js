@@ -35,41 +35,24 @@ var currentViewMode = 'table';
       function getClientEquipmentRegistry() {
         var clientMap = {};
 
-        // 1. Base Master Roster
-        var defaultRegistry = [
-          { customer: 'Tata Steel Long Products', model: 'MDI-WS-9000 Weighbridge System', serial: 'EQ-9042', warranty: 'AMC Contract', vertical: 'Service/Parts', contactEmail: 'procurement@tatasteel.com' },
-          { customer: 'Tata Steel Long Products', model: 'MDI-WS-9000 Weighbridge System', serial: 'EQ-9080', warranty: 'Under Warranty', vertical: 'Service/Parts', contactEmail: 'maintenance@tatasteel.com' },
-          { customer: 'Tata Steel Long Products', model: 'MDI-AX-8000 Dynamic Axle Weigher', serial: 'EQ-8055', warranty: 'AMC Contract', vertical: 'Projects', contactEmail: 'logistics@tatasteel.com' },
-          { customer: 'JSW Steel Ltd - Vijayanagar Works', model: 'MDI-CS-5000 Heavy Crane Scale', serial: 'EQ-5011', warranty: 'AMC Contract', vertical: 'Service/Parts', contactEmail: 'stores@jsw.in' },
-          { customer: 'JSW Steel Ltd - Vijayanagar Works', model: 'MDI-CS-5000 Heavy Crane Scale', serial: 'EQ-5022', warranty: 'Out of Warranty', vertical: 'Service/Parts', contactEmail: 'hotstrip@jsw.in' },
-          { customer: 'JSW Steel Ltd - Vijayanagar Works', model: 'Pitless Digital Truck Scale 100T', serial: 'EQ-9088', warranty: 'Under Warranty', vertical: 'Service/Parts', contactEmail: 'gate@jsw.in' },
-          { customer: 'JSW Cement Toranagallu', model: 'MDI-BS-7000 Belt Conveyor Weigher', serial: 'EQ-7019', warranty: 'AMC Contract', vertical: 'Service/Parts', contactEmail: 'plant@jswcement.in' },
-          { customer: 'JSW Cement Toranagallu', model: 'MDI-BS-7000 Belt Conveyor Weigher', serial: 'EQ-7025', warranty: 'Under Warranty', vertical: 'Service/Parts', contactEmail: 'dispatch@jswcement.in' },
-          { customer: 'Vedanta Ltd Jharsuguda Smelter', model: 'Heavy Duty High Temp Crane Scale', serial: 'EQ-5015', warranty: 'AMC Contract', vertical: 'Service/Parts', contactEmail: 'smelter.service@vedanta.co.in' },
-          { customer: 'Vedanta Ltd Jharsuguda Smelter', model: 'MDI-WS-9000 Weighbridge System', serial: 'EQ-9055', warranty: 'Under Warranty', vertical: 'Projects', contactEmail: 'weigh@vedanta.co.in' },
-          { customer: 'Hindalco Lapanga Smelter', model: 'MDI-CS-5000 Heavy Crane Scale', serial: 'EQ-5030', warranty: 'AMC Contract', vertical: 'Service/Parts', contactEmail: 'potline@adityabirla.com' },
-          { customer: 'Thermax Limited Chinchwad', model: 'MDI-TS-2000 Platform Scale System', serial: 'EQ-2001', warranty: 'Under Warranty', vertical: 'Sales', contactEmail: 'qa@thermaxglobal.com' },
-          { customer: 'Ashok Leyland Mining Fleet', model: 'MDI-OB-3000 Onboard Loader Scale', serial: 'EQ-3088', warranty: 'Under Warranty', vertical: 'Service/Parts', contactEmail: 'mining@ashokleyland.com' },
-          { customer: 'Ashok Leyland Mining Fleet', model: 'MDI-OB-3000 Onboard Loader Scale', serial: 'EQ-3090', warranty: 'Under Warranty', vertical: 'Service/Parts', contactEmail: 'fleet@ashokleyland.com' },
-          { customer: 'Ultratech Cement Maihar Works', model: 'MDI-BS-7000 Belt Conveyor Weigher', serial: 'EQ-7033', warranty: 'AMC Contract', vertical: 'Service/Parts', contactEmail: 'maihar@ultratechcement.com' },
-          { customer: 'Ultratech Cement Maihar Works', model: 'Pitless Digital Truck Scale 100T', serial: 'EQ-9092', warranty: 'Under Warranty', vertical: 'Service/Parts', contactEmail: 'logistics@ultratechcement.com' },
-          { customer: 'KIOCL Kudremukh Iron Ore', model: 'MDI-HS-4000 Hydraulic Excavator Scale', serial: 'EQ-4012', warranty: 'Out of Warranty', vertical: 'Service/Parts', contactEmail: 'works@kioclltd.com' },
-          { customer: 'Kesoram Cement Basantnagar', model: 'MDI-BS-7000 Belt Conveyor Weigher', serial: 'EQ-7040', warranty: 'AMC Contract', vertical: 'Service/Parts', contactEmail: 'cement@kesoram.com' },
-          { customer: 'SAIL Durgapur Steel Plant', model: 'Heavy Duty High Temp Crane Scale', serial: 'EQ-5045', warranty: 'AMC Contract', vertical: 'Service/Parts', contactEmail: 'dsp.maintenance@sail.in' },
-          { customer: 'Bharat Earth Movers Ltd (BEML)', model: 'MDI-OB-3000 Onboard Loader Scale', serial: 'EQ-3095', warranty: 'Under Warranty', vertical: 'Projects', contactEmail: 'mining@beml.co.in' },
-          { customer: 'SECL Korba Coalfields', model: 'MDI-AX-8000 Dynamic Axle Weigher', serial: 'EQ-8060', warranty: 'AMC Contract', vertical: 'Service/Parts', contactEmail: 'korba@secl.gov.in' },
-          { customer: 'Jindal Steel & Power Angul', model: 'MDI-WS-9000 Weighbridge System', serial: 'EQ-9065', warranty: 'AMC Contract', vertical: 'Service/Parts', contactEmail: 'angul.service@jindalsteel.com' },
-          { customer: 'Singareni Collieries Co Ltd (SCCL)', model: 'MDI-WS-9000 Weighbridge System', serial: 'EQ-9072', warranty: 'AMC Contract', vertical: 'Service/Parts', contactEmail: 'kothagudem@scclmines.com' }
-        ];
-
-        defaultRegistry.forEach(function(item) {
-          if (!clientMap[item.customer]) clientMap[item.customer] = {};
-          if (!clientMap[item.customer][item.model]) clientMap[item.customer][item.model] = [];
-          clientMap[item.customer][item.model].push({
-            serial: item.serial,
-            warranty: item.warranty,
-            vertical: item.vertical,
-            contactEmail: item.contactEmail
+        // 1. Base Master Roster — Master Data > Installed Equipment
+        // (clientEquipmentMaster). This is the same real, admin-editable
+        // registry Warranty Management reads from, so a machine added
+        // there now actually shows up here when raising a ticket for it.
+        var equipRoster = window.RevOpsStore ? (window.RevOpsStore.getCollection('clientEquipmentMaster') || []) : [];
+        equipRoster.forEach(function(item) {
+          if (item.isActive === false) return;
+          var cust = (item.customerName || '').trim();
+          var model = (item.modelName || item.equipmentModel || '').trim();
+          var serial = (item.serialNumber || '').trim();
+          if (!cust || !model || !serial) return;
+          if (!clientMap[cust]) clientMap[cust] = {};
+          if (!clientMap[cust][model]) clientMap[cust][model] = [];
+          clientMap[cust][model].push({
+            serial: serial,
+            warranty: item.warrantyStatus || (item.warrantyExpiry ? 'Under Warranty' : 'AMC Contract'),
+            vertical: item.vertical || 'Service/Parts',
+            contactEmail: item.contactEmail || ''
           });
         });
 
@@ -121,6 +104,45 @@ var currentViewMode = 'table';
       function populateMasterDropdowns() {
         populateTechnicianDropdowns();
         populateCustomerDropdown();
+        populateComplaintCategoryDropdown();
+        populateSeverityDropdown();
+      }
+
+      // Complaint Category — admin-editable via Master Data > Complaint
+      // Category. "Other" stays as a fixed manual-entry escape hatch, not
+      // part of the master list itself.
+      function populateComplaintCategoryDropdown() {
+        var select = document.getElementById('input-category');
+        if (!select) return;
+        var items = (window.RevOpsStore.getCollection('complaintCategoryMaster') || []).filter(function(it) { return it.isActive !== false; });
+        var currentVal = select.value;
+        var optionsHtml = items.map(function(it) {
+          return '<option value="' + escapeHtml(it.name) + '">' + escapeHtml(it.name) + '</option>';
+        }).join('') + '<option value="Other">Other (Enter Manually...)</option>';
+        select.innerHTML = optionsHtml;
+        if (currentVal && (items.some(function(it) { return it.name === currentVal; }) || currentVal === 'Other')) {
+          select.value = currentVal;
+        }
+      }
+
+      // Severity / Priority — options AND their target SLA response
+      // window both come from Master Data > SLA Response Policy (shared
+      // with AMC Monitoring & AMC Quotes), so all three modules always
+      // agree on what "Critical" etc. actually promises.
+      function populateSeverityDropdown() {
+        var select = document.getElementById('input-severity');
+        if (!select) return;
+        var tiers = (window.RevOpsStore.getCollection('slaResponseTierMaster') || []).filter(function(it) { return it.isActive !== false; });
+        var currentVal = select.value;
+        select.innerHTML = tiers.map(function(t) {
+          var win = t.slaWindow || ((t.slaHours || 24) + ' Hours');
+          return '<option value="' + escapeHtml(t.name) + '">' + escapeHtml(t.name) + ' (SLA ' + escapeHtml(win) + ')</option>';
+        }).join('');
+        if (currentVal && tiers.some(function(t) { return t.name === currentVal; })) {
+          select.value = currentVal;
+        } else if (tiers.some(function(t) { return t.name === 'High'; })) {
+          select.value = 'High';
+        }
       }
 
       function populateTechnicianDropdowns() {
@@ -335,14 +357,13 @@ var currentViewMode = 'table';
       function handleSeveritySelectChange(sevVal) {
         var slaDateInput = document.getElementById('input-sla-date');
         if (!slaDateInput) return;
-        var daysToAdd = 2; // Default for High
-        if (sevVal === 'Critical') daysToAdd = 1;
-        else if (sevVal === 'High') daysToAdd = 2;
-        else if (sevVal === 'Medium') daysToAdd = 3;
-        else if (sevVal === 'Low') daysToAdd = 5;
+
+        var tiers = window.RevOpsStore ? (window.RevOpsStore.getCollection('slaResponseTierMaster') || []) : [];
+        var tier = tiers.find(function(t) { return t.name === sevVal; });
+        var slaHours = tier ? (Number(tier.slaHours) || 24) : 24;
 
         var targetDate = new Date();
-        targetDate.setDate(targetDate.getDate() + daysToAdd);
+        targetDate.setHours(targetDate.getHours() + slaHours);
         slaDateInput.value = targetDate.toISOString().slice(0, 10);
       }
 

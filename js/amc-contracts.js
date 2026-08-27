@@ -4,6 +4,7 @@ var activeAmcContracts = [];
       document.addEventListener('DOMContentLoaded', function() {
         populateEngineersList();
         populateCustomerRoster();
+        populateAmcMasterDropdowns();
         renderAmcTable();
 
         // Subscribe to real-time updates if Firestore active
@@ -13,6 +14,43 @@ var activeAmcContracts = [];
           });
         }
       });
+
+      // Contract Tier, Invoicing Milestone, SLA Breakdown Response and PM
+      // Visit Frequency all come from Master Data now — Tier/PM Frequency
+      // are shared with AMC Quotes, and SLA is shared with Service
+      // Tickets too, so all three modules describe the same terms
+      // consistently instead of three separately hardcoded lists.
+      function populateAmcMasterDropdowns() {
+        fillMasterSelect('amc-inp-tier', 'amcContractTierMaster');
+        fillMasterSelect('amc-inp-billing', 'amcInvoicingMilestoneMaster');
+        fillMasterSelect('amc-inp-pm-freq', 'pmVisitFrequencyMaster');
+
+        var slaSelect = document.getElementById('amc-inp-sla');
+        if (slaSelect) {
+          var tiers = (window.RevOpsStore.getCollection('slaResponseTierMaster') || []).filter(function(t) { return t.isActive !== false; });
+          var currentVal = slaSelect.value;
+          slaSelect.innerHTML = tiers.map(function(t) {
+            var win = t.slaWindow || ((t.slaHours || 24) + ' Hours');
+            return '<option value="' + escapeHtml(win) + '">' + escapeHtml(t.name) + ' — ' + escapeHtml(win) + '</option>';
+          }).join('');
+          if (currentVal && tiers.some(function(t) { return (t.slaWindow || '') === currentVal; })) {
+            slaSelect.value = currentVal;
+          }
+        }
+      }
+
+      function fillMasterSelect(selectId, collectionName) {
+        var select = document.getElementById(selectId);
+        if (!select) return;
+        var items = (window.RevOpsStore.getCollection(collectionName) || []).filter(function(it) { return it.isActive !== false; });
+        var currentVal = select.value;
+        select.innerHTML = items.map(function(it) {
+          return '<option value="' + escapeHtml(it.name) + '">' + escapeHtml(it.name) + '</option>';
+        }).join('');
+        if (currentVal && items.some(function(it) { return it.name === currentVal; })) {
+          select.value = currentVal;
+        }
+      }
 
       function populateEngineersList() {
         var employees = window.RevOpsStore ? (window.RevOpsStore.getCollection('employees') || []) : [];

@@ -229,10 +229,7 @@
             <div>
               <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">AMC Contract Tier *</label>
               <select id="amc-inp-tier" required class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white font-semibold focus:outline-none focus:border-amber-500">
-                <option value="Comprehensive">Comprehensive (Spares + Labor + Calibration)</option>
-                <option value="Non-Comprehensive" selected>Non-Comprehensive (Preventive + Labor Only)</option>
-                <option value="High-Temp Crane Scale">High-Temp Crane Scale AMC</option>
-                <option value="Weighbridge Bi-Annual">Weighbridge Bi-Annual Calibration AMC</option>
+                <!-- Populated from Master Data > AMC Contract Tier -->
               </select>
             </div>
 
@@ -244,10 +241,7 @@
             <div>
               <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Invoicing Milestone *</label>
               <select id="amc-inp-billing" required class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white font-semibold focus:outline-none focus:border-amber-500">
-                <option value="100% 1st Quarter Advance">100% 1st Quarter Advance</option>
-                <option value="50% Semi-Annual Advance">50% Semi-Annual Advance</option>
-                <option value="25% Quarterly Advance" selected>25% Quarterly Advance</option>
-                <option value="100% Full Year Advance">100% Full Year Advance</option>
+                <!-- Populated from Master Data > AMC Invoicing Milestone -->
               </select>
             </div>
           </div>
@@ -267,9 +261,7 @@
             <div>
               <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">SLA Breakdown Response *</label>
               <select id="amc-inp-sla" required class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white font-semibold focus:outline-none focus:border-amber-500">
-                <option value="4 Hours Emergency">4 Hours Emergency (Critical Plant Lines)</option>
-                <option value="8 Hours Same Day" selected>8 Hours Same Day</option>
-                <option value="24 Hours Next Business Day">24 Hours Next Business Day</option>
+                <!-- Populated from Master Data > SLA Response Policy -->
               </select>
             </div>
           </div>
@@ -286,9 +278,7 @@
             <div>
               <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">PM Visit Frequency</label>
               <select id="amc-inp-pm-freq" class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white font-semibold focus:outline-none focus:border-amber-500">
-                <option value="Quarterly (4 Visits/Year)" selected>Quarterly (4 Mandatory PM Audits / Year)</option>
-                <option value="Bi-Annual (2 Visits/Year)">Bi-Annual (2 Mandatory PM Audits / Year)</option>
-                <option value="Monthly (12 Visits/Year)">Monthly (12 High-Frequency Visits / Year)</option>
+                <!-- Populated from Master Data > PM Visit Frequency -->
               </select>
             </div>
           </div>

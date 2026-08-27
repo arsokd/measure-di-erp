@@ -778,6 +778,136 @@ Object.assign(window.RevOpsStore, {
         { id: 'currencyMaster_3', code: 'EUR', name: 'Euro', symbol: '€', isActive: true }
       ]);
     }
+
+    // ---- Service, Spares & AMC master lists (Spare Parts Hub / Service
+    // Tickets / AMC Monitoring / AMC Quotes) — previously hardcoded
+    // <option> lists duplicated (and inconsistently worded) across
+    // several pages; now one editable source each. ----
+    // Matches the categories already used by the seeded Spare Parts
+    // catalog (sparePartsMaster) exactly, so existing parts still show
+    // their correct category once this dropdown becomes master-driven.
+    seedIfEmpty('sparePartCategoryMaster', [
+      'Load Cells & Transducers', 'Sensors & Encoders', 'Displays & Terminals',
+      'Junction Boxes & Wiring', 'Optical Metrology', 'Calibration Standards',
+      'Load Cells', 'Digital Indicators', 'Junction Boxes', 'Wireless & Telemetry', 'Cables & Hardware'
+    ]);
+
+    seedIfEmpty('complaintCategoryMaster', [
+      'Load Cell Drift', 'Display Communication Failure', 'Scale Calibration Error',
+      'Hydraulic Sensor Leakage', 'Software Sync Disruption', 'Power Supply Surge', 'General Maintenance'
+    ]);
+
+    // Includes both AMC Monitoring's short tokens ("Comprehensive" etc.)
+    // and AMC Quotes' own wording ("Comprehensive AMC" etc.) alongside
+    // the fuller descriptive versions, so existing contracts AND quotes
+    // both keep their tier correctly selected once this single shared
+    // list drives both dropdowns.
+    seedIfEmpty('amcContractTierMaster', [
+      'Comprehensive', 'Non-Comprehensive', 'High-Temp Crane Scale', 'Weighbridge Bi-Annual',
+      'Comprehensive AMC', 'Non-Comprehensive AMC', 'Calibration & Testing SLA', 'Breakdown Repair SLA',
+      'Comprehensive (Spares + Labor + Calibration)', 'Non-Comprehensive (Preventive + Labor Only)',
+      'Calibration & Stamping SLA (Annual Legal Metrology Compliance)', 'Breakdown Repair Callout SLA (Guaranteed Response)'
+    ]);
+
+    // Both AMC Monitoring's wording ("Quarterly (4 Visits/Year)") and AMC
+    // Quotes' wording ("4 Visits (Quarterly PM)") are included so both
+    // pages' existing records keep their frequency correctly selected.
+    seedIfEmpty('pmVisitFrequencyMaster', [
+      'Monthly (12 Visits/Year)', 'Bi-Monthly (6 Visits/Year)', 'Quarterly (4 Visits/Year)', 'Bi-Annual (2 Visits/Year)',
+      '12 Visits (Monthly PM)', '6 Visits (Bi-Monthly PM)', '4 Visits (Quarterly PM)', '2 Visits (Semi-Annual PM)'
+    ]);
+
+    seedIfEmpty('amcInvoicingMilestoneMaster', [
+      '100% Full Year Advance', '50% Semi-Annual Advance', '25% Quarterly Advance', '100% 1st Quarter Advance'
+    ]);
+
+    // Includes AMC Quotes' short tokens ("1 Year") alongside the fuller
+    // descriptive versions for the same backward-compatibility reason.
+    seedIfEmpty('amcContractDurationMaster', [
+      '1 Year', '2 Years', '3 Years',
+      '1 Year (Annual)', '2 Years (Multi-Year Contract)', '3 Years (Long-Term Corporate SLA)'
+    ]);
+
+    // SLA Response Policy — richer than a plain name list: each severity
+    // tier carries its own target response window. This single master now
+    // drives the Service Ticket Severity dropdown (and its due-date
+    // math), AMC Monitoring's "SLA Breakdown Response", and AMC Quotes'
+    // "Target Breakdown Response SLA" — previously three separately
+    // hardcoded, inconsistently-worded lists (one of them even in days
+    // instead of hours, contradicting the published SOP).
+    var slaExisting = this.getCollection('slaResponseTierMaster');
+    if (!slaExisting || slaExisting.length === 0) {
+      this.saveCollection('slaResponseTierMaster', [
+        { id: 'sla_1', name: 'Critical', slaHours: 4, slaWindow: '4 Hours Emergency', description: 'Plant-stopping breakdown / safety-critical — emergency callout.', isActive: true },
+        { id: 'sla_2', name: 'High', slaHours: 8, slaWindow: '8 Hours Same Day', description: 'Major fault, production impacted — same-day response.', isActive: true },
+        { id: 'sla_3', name: 'Medium', slaHours: 24, slaWindow: '24 Hours Next Business Day', description: 'Degraded but operational — next business day.', isActive: true },
+        { id: 'sla_4', name: 'Low', slaHours: 48, slaWindow: '48 Hours Standard', description: 'Non-urgent / routine maintenance request.', isActive: true }
+      ]);
+    }
+
+    // Client Installed Equipment — the real, editable registry (Master
+    // Data > Installed Equipment) that Service Tickets' Customer -> Model
+    // -> Serial cascade and Warranty Management both read from. This
+    // replaces what used to be two separate hardcoded demo lists baked
+    // into those two pages' JS (so equipment added here now actually
+    // shows up when raising a ticket, instead of only existing in a
+    // registry no form could see).
+    var equipExisting = this.getCollection('clientEquipmentMaster');
+    if (!equipExisting || equipExisting.length === 0) {
+      var equipRoster = [
+        { id: 'equip_1', customerName: 'Tata Steel Long Products', modelName: 'MDI-WS-9000 Weighbridge System', equipmentModel: 'MDI-WS-9000 Weighbridge System', serialNumber: 'EQ-9042', location: 'Jamshedpur Works', vertical: 'Service/Parts', warrantyStatus: 'AMC Contract', contactEmail: 'procurement@tatasteel.com', isActive: true },
+        { id: 'equip_2', customerName: 'Tata Steel Long Products', modelName: 'MDI-WS-9000 Weighbridge System', equipmentModel: 'MDI-WS-9000 Weighbridge System', serialNumber: 'EQ-9080', location: 'Jamshedpur Works', vertical: 'Service/Parts', warrantyStatus: 'Under Warranty', contactEmail: 'maintenance@tatasteel.com', isActive: true },
+        { id: 'equip_3', customerName: 'Tata Steel Long Products', modelName: 'MDI-AX-8000 Dynamic Axle Weigher', equipmentModel: 'MDI-AX-8000 Dynamic Axle Weigher', serialNumber: 'EQ-8055', location: 'Jamshedpur Works', vertical: 'Projects', warrantyStatus: 'AMC Contract', contactEmail: 'logistics@tatasteel.com', isActive: true },
+        { id: 'equip_4', customerName: 'JSW Steel Ltd - Vijayanagar Works', modelName: 'MDI-CS-5000 Heavy Crane Scale', equipmentModel: 'MDI-CS-5000 Heavy Crane Scale', serialNumber: 'EQ-5011', location: 'Vijayanagar Plant, Toranagallu', vertical: 'Service/Parts', warrantyStatus: 'AMC Contract', contactEmail: 'stores@jsw.in', isActive: true },
+        { id: 'equip_5', customerName: 'JSW Steel Ltd - Vijayanagar Works', modelName: 'MDI-CS-5000 Heavy Crane Scale', equipmentModel: 'MDI-CS-5000 Heavy Crane Scale', serialNumber: 'EQ-5022', location: 'Vijayanagar Plant, Toranagallu', vertical: 'Service/Parts', warrantyStatus: 'Out of Warranty', contactEmail: 'hotstrip@jsw.in', isActive: true },
+        { id: 'equip_6', customerName: 'JSW Steel Ltd - Vijayanagar Works', modelName: 'Pitless Digital Truck Scale 100T', equipmentModel: 'Pitless Digital Truck Scale 100T', serialNumber: 'EQ-9088', location: 'Vijayanagar Plant, Toranagallu', vertical: 'Service/Parts', warrantyStatus: 'Under Warranty', contactEmail: 'gate@jsw.in', isActive: true },
+        { id: 'equip_7', customerName: 'JSW Cement Toranagallu', modelName: 'MDI-BS-7000 Belt Conveyor Weigher', equipmentModel: 'MDI-BS-7000 Belt Conveyor Weigher', serialNumber: 'EQ-7019', location: 'Toranagallu Plant', vertical: 'Service/Parts', warrantyStatus: 'AMC Contract', contactEmail: 'plant@jswcement.in', isActive: true },
+        { id: 'equip_8', customerName: 'JSW Cement Toranagallu', modelName: 'MDI-BS-7000 Belt Conveyor Weigher', equipmentModel: 'MDI-BS-7000 Belt Conveyor Weigher', serialNumber: 'EQ-7025', location: 'Toranagallu Plant', vertical: 'Service/Parts', warrantyStatus: 'Under Warranty', contactEmail: 'dispatch@jswcement.in', isActive: true },
+        { id: 'equip_9', customerName: 'Vedanta Ltd Jharsuguda Smelter', modelName: 'Heavy Duty High Temp Crane Scale', equipmentModel: 'Heavy Duty High Temp Crane Scale', serialNumber: 'EQ-5015', location: 'Jharsuguda Smelter', vertical: 'Service/Parts', warrantyStatus: 'AMC Contract', contactEmail: 'smelter.service@vedanta.co.in', isActive: true },
+        { id: 'equip_10', customerName: 'Vedanta Ltd Jharsuguda Smelter', modelName: 'MDI-WS-9000 Weighbridge System', equipmentModel: 'MDI-WS-9000 Weighbridge System', serialNumber: 'EQ-9055', location: 'Jharsuguda Smelter', vertical: 'Projects', warrantyStatus: 'Under Warranty', contactEmail: 'weigh@vedanta.co.in', isActive: true },
+        { id: 'equip_11', customerName: 'Hindalco Lapanga Smelter', modelName: 'MDI-CS-5000 Heavy Crane Scale', equipmentModel: 'MDI-CS-5000 Heavy Crane Scale', serialNumber: 'EQ-5030', location: 'Lapanga Smelter', vertical: 'Service/Parts', warrantyStatus: 'AMC Contract', contactEmail: 'potline@adityabirla.com', isActive: true },
+        { id: 'equip_12', customerName: 'Thermax Limited Chinchwad', modelName: 'MDI-TS-2000 Platform Scale System', equipmentModel: 'MDI-TS-2000 Platform Scale System', serialNumber: 'EQ-2001', location: 'Chinchwad Works', vertical: 'Sales', warrantyStatus: 'Under Warranty', contactEmail: 'qa@thermaxglobal.com', isActive: true },
+        { id: 'equip_13', customerName: 'Ashok Leyland Mining Fleet', modelName: 'MDI-OB-3000 Onboard Loader Scale', equipmentModel: 'MDI-OB-3000 Onboard Loader Scale', serialNumber: 'EQ-3088', location: 'Mining Fleet Depot', vertical: 'Service/Parts', warrantyStatus: 'Under Warranty', contactEmail: 'mining@ashokleyland.com', isActive: true },
+        { id: 'equip_14', customerName: 'Ashok Leyland Mining Fleet', modelName: 'MDI-OB-3000 Onboard Loader Scale', equipmentModel: 'MDI-OB-3000 Onboard Loader Scale', serialNumber: 'EQ-3090', location: 'Mining Fleet Depot', vertical: 'Service/Parts', warrantyStatus: 'Under Warranty', contactEmail: 'fleet@ashokleyland.com', isActive: true },
+        { id: 'equip_15', customerName: 'Ultratech Cement Maihar Works', modelName: 'MDI-BS-7000 Belt Conveyor Weigher', equipmentModel: 'MDI-BS-7000 Belt Conveyor Weigher', serialNumber: 'EQ-7033', location: 'Maihar Works', vertical: 'Service/Parts', warrantyStatus: 'AMC Contract', contactEmail: 'maihar@ultratechcement.com', isActive: true },
+        { id: 'equip_16', customerName: 'Ultratech Cement Maihar Works', modelName: 'Pitless Digital Truck Scale 100T', equipmentModel: 'Pitless Digital Truck Scale 100T', serialNumber: 'EQ-9092', location: 'Maihar Works', vertical: 'Service/Parts', warrantyStatus: 'Under Warranty', contactEmail: 'logistics@ultratechcement.com', isActive: true },
+        { id: 'equip_17', customerName: 'KIOCL Kudremukh Iron Ore', modelName: 'MDI-HS-4000 Hydraulic Excavator Scale', equipmentModel: 'MDI-HS-4000 Hydraulic Excavator Scale', serialNumber: 'EQ-4012', location: 'Kudremukh Works', vertical: 'Service/Parts', warrantyStatus: 'Out of Warranty', contactEmail: 'works@kioclltd.com', isActive: true },
+        { id: 'equip_18', customerName: 'Kesoram Cement Basantnagar', modelName: 'MDI-BS-7000 Belt Conveyor Weigher', equipmentModel: 'MDI-BS-7000 Belt Conveyor Weigher', serialNumber: 'EQ-7040', location: 'Basantnagar Plant', vertical: 'Service/Parts', warrantyStatus: 'AMC Contract', contactEmail: 'cement@kesoram.com', isActive: true },
+        { id: 'equip_19', customerName: 'SAIL Durgapur Steel Plant', modelName: 'Heavy Duty High Temp Crane Scale', equipmentModel: 'Heavy Duty High Temp Crane Scale', serialNumber: 'EQ-5045', location: 'Durgapur Steel Plant', vertical: 'Service/Parts', warrantyStatus: 'AMC Contract', contactEmail: 'dsp.maintenance@sail.in', isActive: true },
+        { id: 'equip_20', customerName: 'Bharat Earth Movers Ltd (BEML)', modelName: 'MDI-OB-3000 Onboard Loader Scale', equipmentModel: 'MDI-OB-3000 Onboard Loader Scale', serialNumber: 'EQ-3095', location: 'BEML Works', vertical: 'Projects', warrantyStatus: 'Under Warranty', contactEmail: 'mining@beml.co.in', isActive: true },
+        { id: 'equip_21', customerName: 'SECL Korba Coalfields', modelName: 'MDI-AX-8000 Dynamic Axle Weigher', equipmentModel: 'MDI-AX-8000 Dynamic Axle Weigher', serialNumber: 'EQ-8060', location: 'Korba Coalfields', vertical: 'Service/Parts', warrantyStatus: 'AMC Contract', contactEmail: 'korba@secl.gov.in', isActive: true },
+        { id: 'equip_22', customerName: 'Jindal Steel & Power Angul', modelName: 'MDI-WS-9000 Weighbridge System', equipmentModel: 'MDI-WS-9000 Weighbridge System', serialNumber: 'EQ-9065', location: 'Angul Plant', vertical: 'Service/Parts', warrantyStatus: 'AMC Contract', contactEmail: 'angul.service@jindalsteel.com', isActive: true },
+        { id: 'equip_23', customerName: 'Singareni Collieries Co Ltd (SCCL)', modelName: 'MDI-WS-9000 Weighbridge System', equipmentModel: 'MDI-WS-9000 Weighbridge System', serialNumber: 'EQ-9072', location: 'Kothagudem Mines', vertical: 'Service/Parts', warrantyStatus: 'AMC Contract', contactEmail: 'kothagudem@scclmines.com', isActive: true }
+      ];
+
+      // Fill in the warranty-tracking fields (Warranty Management reads
+      // these — commissioningDate/expiryDate/warrantyTier/claims/
+      // statusOverride) that don't matter for the Service Tickets
+      // cascade above but do for that page, so both real consumers of
+      // this one master work correctly instead of one silently showing
+      // blank/NaN warranty countdowns.
+      equipRoster.forEach(function(item, i) {
+        var monthsAgo = 3 + (i % 10); // stagger commissioning dates for variety
+        var commDate = new Date();
+        commDate.setMonth(commDate.getMonth() - monthsAgo);
+        item.commissioningDate = commDate.toISOString().slice(0, 10);
+
+        var expDate = new Date(commDate);
+        if (item.warrantyStatus === 'Out of Warranty') {
+          expDate.setMonth(expDate.getMonth() + 6); // already lapsed
+        } else {
+          expDate.setMonth(expDate.getMonth() + 24); // still current (Under Warranty / AMC Contract)
+        }
+        item.expiryDate = expDate.toISOString().slice(0, 10);
+
+        item.warrantyTier = 'Standard 12-Month OEM';
+        item.claims = [];
+        item.statusOverride = item.warrantyStatus === 'AMC Contract' ? 'Converted to AMC' : null;
+        item.orderRef = '';
+      });
+
+      this.saveCollection('clientEquipmentMaster', equipRoster);
+    }
   },
 
   generateNextReceiptNumber: function() {

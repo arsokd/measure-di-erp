@@ -2,6 +2,7 @@ var activeSpareParts = [];
 
       document.addEventListener('DOMContentLoaded', function() {
         renderPartsTable();
+        fillSelect('inp-part-category', 'sparePartCategoryMaster');
 
         if (window.RevOpsStore && typeof window.RevOpsStore.subscribeRealtimeSync === 'function') {
           window.RevOpsStore.subscribeRealtimeSync('sparePartsMaster', function() {
@@ -9,6 +10,22 @@ var activeSpareParts = [];
           });
         }
       });
+
+      // Populates a <select> from an admin-editable Master Data list
+      // (Master Data > relevant tab), preserving whatever value was
+      // already selected if it's still in the (possibly refreshed) list.
+      function fillSelect(selectId, collectionName) {
+        var select = document.getElementById(selectId);
+        if (!select) return;
+        var items = (window.RevOpsStore.getCollection(collectionName) || []).filter(function(it) { return it.isActive !== false; });
+        var currentVal = select.value;
+        select.innerHTML = items.map(function(it) {
+          return '<option value="' + escapeHtml(it.name) + '">' + escapeHtml(it.name) + '</option>';
+        }).join('');
+        if (currentVal && items.some(function(it) { return it.name === currentVal; })) {
+          select.value = currentVal;
+        }
+      }
 
       function getSparePartsList() {
         var list = window.RevOpsStore ? (window.RevOpsStore.getCollection('sparePartsMaster') || []) : [];

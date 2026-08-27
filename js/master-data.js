@@ -23,6 +23,13 @@ var activeMasterTab = 'products';
       var projectSectors = window.RevOpsStore.getCollection('projectSectorMaster') || [];
       var verticalClass = window.RevOpsStore.getCollection('verticalClassificationMaster') || [];
       var currencies = window.RevOpsStore.getCollection('currencyMaster') || [];
+      var sparePartCats = window.RevOpsStore.getCollection('sparePartCategoryMaster') || [];
+      var complaintCats = window.RevOpsStore.getCollection('complaintCategoryMaster') || [];
+      var slaPolicies = window.RevOpsStore.getCollection('slaResponseTierMaster') || [];
+      var amcTiers = window.RevOpsStore.getCollection('amcContractTierMaster') || [];
+      var pmFreqs = window.RevOpsStore.getCollection('pmVisitFrequencyMaster') || [];
+      var amcMilestones = window.RevOpsStore.getCollection('amcInvoicingMilestoneMaster') || [];
+      var contractDurations = window.RevOpsStore.getCollection('amcContractDurationMaster') || [];
 
       document.getElementById('count-products').innerText = prods.length;
       document.getElementById('count-equipment').innerText = equip.length;
@@ -34,6 +41,13 @@ var activeMasterTab = 'products';
       document.getElementById('count-projectsectors').innerText = projectSectors.length;
       document.getElementById('count-verticalclass').innerText = verticalClass.length;
       document.getElementById('count-currencies').innerText = currencies.length;
+      document.getElementById('count-sparepartcategories').innerText = sparePartCats.length;
+      document.getElementById('count-complaintcategories').innerText = complaintCats.length;
+      document.getElementById('count-slapolicy').innerText = slaPolicies.length;
+      document.getElementById('count-amctiers').innerText = amcTiers.length;
+      document.getElementById('count-pmfrequency').innerText = pmFreqs.length;
+      document.getElementById('count-amcmilestones').innerText = amcMilestones.length;
+      document.getElementById('count-contractdurations').innerText = contractDurations.length;
     }
 
     // Simple name-only master lists (Lead Source, Industry Vertical, Project
@@ -43,7 +57,13 @@ var activeMasterTab = 'products';
       leadsources: { collection: 'leadSourceMaster', label: 'Lead Source', idPrefix: 'lsrc' },
       industryverticals: { collection: 'industryVerticalMaster', label: 'Industry Vertical', idPrefix: 'ivert' },
       projectsectors: { collection: 'projectSectorMaster', label: 'Project Sector / Origin', idPrefix: 'psect' },
-      verticalclass: { collection: 'verticalClassificationMaster', label: 'Vertical Classification', idPrefix: 'vclass' }
+      verticalclass: { collection: 'verticalClassificationMaster', label: 'Vertical Classification', idPrefix: 'vclass' },
+      sparepartcategories: { collection: 'sparePartCategoryMaster', label: 'Spare Part Category', idPrefix: 'spcat' },
+      complaintcategories: { collection: 'complaintCategoryMaster', label: 'Complaint / Fault Category', idPrefix: 'ccat' },
+      amctiers: { collection: 'amcContractTierMaster', label: 'AMC Contract Tier', idPrefix: 'amctier' },
+      pmfrequency: { collection: 'pmVisitFrequencyMaster', label: 'PM Visit Frequency', idPrefix: 'pmfreq' },
+      amcmilestones: { collection: 'amcInvoicingMilestoneMaster', label: 'AMC Invoicing Milestone', idPrefix: 'amcmile' },
+      contractdurations: { collection: 'amcContractDurationMaster', label: 'Contract Duration', idPrefix: 'cdur' }
     };
 
     function masterCollectionNameForTab(tabKey) {
@@ -53,6 +73,7 @@ var activeMasterTab = 'products';
       if (tabKey === 'clients') return 'clientsMaster';
       if (tabKey === 'projects') return 'projectsMaster';
       if (tabKey === 'currencies') return 'currencyMaster';
+      if (tabKey === 'slapolicy') return 'slaResponseTierMaster';
       if (SIMPLE_MASTER_TABS[tabKey]) return SIMPLE_MASTER_TABS[tabKey].collection;
       return null;
     }
@@ -181,7 +202,7 @@ var activeMasterTab = 'products';
             <td class="py-3 px-4 text-slate-200">${escapeHtml(eq.modelName || eq.equipmentModel)}</td>
             <td class="py-3 px-4 font-mono text-indigo-300">${escapeHtml(eq.serialNumber)}</td>
             <td class="py-3 px-4 text-slate-400">${escapeHtml(eq.location || eq.siteLocation || 'Plant')}</td>
-            <td class="py-3 px-4 text-center text-amber-400 font-semibold">${escapeHtml(eq.warrantyExpiry || eq.amcExpiry || 'Active')}</td>
+            <td class="py-3 px-4 text-center text-amber-400 font-semibold">${escapeHtml(eq.warrantyExpiry || eq.amcExpiry || eq.expiryDate || 'Active')}</td>
             <td class="py-3 px-4 text-center">
               <button onclick="editMasterRecord('${eq.id}')" class="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg"><i class="fa-solid fa-pen-to-square"></i></button>
               <button onclick="deleteMasterRecord('${eq.id}')" class="p-1.5 bg-slate-800 hover:bg-rose-900/60 text-rose-400 rounded-lg ml-1"><i class="fa-solid fa-trash-can"></i></button>
@@ -289,6 +310,33 @@ var activeMasterTab = 'products';
           `;
           body.appendChild(tr);
         });
+      } else if (activeMasterTab === 'slapolicy') {
+        header.innerHTML = `
+          <tr>
+            <th class="py-3 px-4">Severity Level</th>
+            <th class="py-3 px-4 text-center">Target Response Window</th>
+            <th class="py-3 px-4">Description</th>
+            <th class="py-3 px-4 text-center">Status</th>
+            <th class="py-3 px-4 text-center">Actions</th>
+          </tr>
+        `;
+        filtered.forEach(function(s) {
+          var tr = document.createElement('tr');
+          tr.className = "hover:bg-slate-800/40 transition-colors";
+          tr.innerHTML = `
+            <td class="py-3 px-4 font-bold text-white">${escapeHtml(s.name || '')}</td>
+            <td class="py-3 px-4 text-center font-black text-rose-400">${escapeHtml(s.slaWindow || (s.slaHours ? s.slaHours + ' Hours' : ''))}</td>
+            <td class="py-3 px-4 text-slate-400 text-[11px]">${escapeHtml(s.description || '')}</td>
+            <td class="py-3 px-4 text-center">
+              <span class="px-2 py-0.5 rounded text-[10px] font-bold ${s.isActive === false ? 'bg-slate-800 text-slate-400' : 'bg-emerald-950 text-emerald-300 border border-emerald-800/60'}">${s.isActive === false ? 'Inactive' : 'Active'}</span>
+            </td>
+            <td class="py-3 px-4 text-center">
+              <button onclick="editMasterRecord('${s.id}')" class="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg"><i class="fa-solid fa-pen-to-square"></i></button>
+              <button onclick="deleteMasterRecord('${s.id}')" class="p-1.5 bg-slate-800 hover:bg-rose-900/60 text-rose-400 rounded-lg ml-1"><i class="fa-solid fa-trash-can"></i></button>
+            </td>
+          `;
+          body.appendChild(tr);
+        });
       } else if (SIMPLE_MASTER_TABS[activeMasterTab]) {
         var simpleLabel = SIMPLE_MASTER_TABS[activeMasterTab].label;
         header.innerHTML = `
@@ -331,7 +379,8 @@ var activeMasterTab = 'products';
         'banks': 'Company Bank Account',
         'clients': 'Client Organization',
         'projects': 'Turnkey Automation Project',
-        'currencies': 'Currency'
+        'currencies': 'Currency',
+        'slapolicy': 'SLA Response Policy'
       };
       Object.keys(SIMPLE_MASTER_TABS).forEach(function(k) { titles[k] = SIMPLE_MASTER_TABS[k].label; });
 
@@ -407,7 +456,7 @@ var activeMasterTab = 'products';
             </div>
             <div>
               <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">Warranty / AMC Expiry</label>
-              <input type="date" id="inp-rec-expiry" value="${d.warrantyExpiry || d.amcExpiry || ''}" class="w-full px-3 py-2 bg-slate-950 border border-slate-750 rounded-xl text-xs text-white" />
+              <input type="date" id="inp-rec-expiry" value="${d.warrantyExpiry || d.amcExpiry || d.expiryDate || ''}" class="w-full px-3 py-2 bg-slate-950 border border-slate-750 rounded-xl text-xs text-white" />
             </div>
           </div>
         `;
@@ -518,6 +567,33 @@ var activeMasterTab = 'products';
             </div>
           </div>
         `;
+      } else if (activeMasterTab === 'slapolicy') {
+        var d = recordData || {};
+        container.innerHTML = `
+          <div class="p-2.5 bg-rose-950/30 border border-rose-800/50 rounded-xl text-[11px] text-rose-200">
+            Shared by the Service Ticket severity dropdown (and its due-date calculation), AMC Monitoring's "SLA Breakdown Response", and AMC Quotes' "Target Breakdown Response SLA" — editing this changes it everywhere at once.
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">Severity Level Name *</label>
+              <input type="text" id="inp-rec-slaname" required value="${escapeHtml(d.name || '')}" placeholder="Critical" class="w-full px-3 py-2 bg-slate-950 border border-slate-750 rounded-xl text-xs text-white" />
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">Target Response (Hours) *</label>
+              <input type="number" id="inp-rec-slahours" required min="1" step="1" value="${d.slaHours || ''}" placeholder="4" class="w-full px-3 py-2 bg-slate-950 border border-slate-750 rounded-xl text-xs text-white" />
+            </div>
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">Description / When to Use</label>
+            <input type="text" id="inp-rec-sladesc" value="${escapeHtml(d.description || '')}" placeholder="Plant-stopping breakdown / safety-critical — emergency callout." class="w-full px-3 py-2 bg-slate-950 border border-slate-750 rounded-xl text-xs text-white" />
+          </div>
+          <div>
+            <label class="flex items-center space-x-2 cursor-pointer">
+              <input type="checkbox" id="inp-rec-slaactive" ${d.isActive === false ? '' : 'checked'} class="w-4 h-4" />
+              <span class="text-xs font-semibold text-slate-300">Active (uncheck to hide from dropdowns without deleting it)</span>
+            </label>
+          </div>
+        `;
       } else if (SIMPLE_MASTER_TABS[activeMasterTab]) {
         var d = recordData || {};
         var simpleLabel = SIMPLE_MASTER_TABS[activeMasterTab].label;
@@ -583,7 +659,10 @@ var activeMasterTab = 'products';
           serialNumber: document.getElementById('inp-rec-serial').value.trim(),
           location: document.getElementById('inp-rec-loc').value.trim(),
           siteLocation: document.getElementById('inp-rec-loc').value.trim(),
-          warrantyExpiry: document.getElementById('inp-rec-expiry').value
+          warrantyExpiry: document.getElementById('inp-rec-expiry').value,
+          // Warranty Management reads expiryDate specifically for its
+          // countdown/status badge — keep it in sync with this same field.
+          expiryDate: document.getElementById('inp-rec-expiry').value
         };
       } else if (activeMasterTab === 'banks') {
         colName = 'bankDetailsMaster';
@@ -625,6 +704,17 @@ var activeMasterTab = 'products';
           name: document.getElementById('inp-rec-curname').value.trim(),
           symbol: document.getElementById('inp-rec-cursymbol').value.trim(),
           isActive: true
+        };
+      } else if (activeMasterTab === 'slapolicy') {
+        colName = 'slaResponseTierMaster';
+        var slaHoursVal = Number(document.getElementById('inp-rec-slahours').value) || 0;
+        recordObj = {
+          id: docId || ('sla_' + Date.now()),
+          name: document.getElementById('inp-rec-slaname').value.trim(),
+          slaHours: slaHoursVal,
+          slaWindow: slaHoursVal + ' Hours',
+          description: document.getElementById('inp-rec-sladesc').value.trim(),
+          isActive: document.getElementById('inp-rec-slaactive').checked
         };
       } else if (SIMPLE_MASTER_TABS[activeMasterTab]) {
         colName = SIMPLE_MASTER_TABS[activeMasterTab].collection;
@@ -710,7 +800,7 @@ var activeMasterTab = 'products';
         return;
       }
 
-      if (SIMPLE_MASTER_TABS[activeMasterTab] || activeMasterTab === 'currencies') {
+      if (SIMPLE_MASTER_TABS[activeMasterTab] || activeMasterTab === 'currencies' || activeMasterTab === 'slapolicy') {
         alert("Bulk CSV upload isn't available for this category yet — these are small lists, please add records one at a time using \"+ Add Master Record\".");
         return;
       }
@@ -750,6 +840,11 @@ var activeMasterTab = 'products';
     }
 
     function downloadActiveTemplate() {
+      if (SIMPLE_MASTER_TABS[activeMasterTab] || activeMasterTab === 'slapolicy') {
+        alert("These are small lists maintained directly in the app — there's no CSV template for this category. Use \"+ Add Master Record\" instead.");
+        return;
+      }
+
       var csvContent = "";
       var filename = activeMasterTab + "_template.csv";
 
