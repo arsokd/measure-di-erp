@@ -217,6 +217,7 @@
           var isPrimaryApprover = false;
           var isDirector = false;
           var isFinanceHead = false;
+          var isMasterDataAdmin = false;
           try {
             if (window.db) {
               var userDoc = await window.db.collection('users').doc(uid).get();
@@ -227,6 +228,7 @@
                 isPrimaryApprover = userData.isPrimaryApprover === true;
                 isDirector = userData.isDirector === true;
                 isFinanceHead = userData.isFinanceHead === true;
+                isMasterDataAdmin = userData.isMasterDataAdmin === true;
               }
             }
           } catch (eUserDoc) {
@@ -260,6 +262,7 @@
           localStorage.setItem('isPrimaryApprover', String(isPrimaryApprover || (employeeRecord && employeeRecord.isPrimaryApprover === true)));
           localStorage.setItem('isDirector', String(isDirector || (employeeRecord && employeeRecord.isDirector === true)));
           localStorage.setItem('isFinanceHead', String(isFinanceHead || (employeeRecord && employeeRecord.isFinanceHead === true)));
+          localStorage.setItem('isMasterDataAdmin', String(isMasterDataAdmin || (employeeRecord && employeeRecord.isMasterDataAdmin === true)));
 
           if (role === 'super_admin' || role === 'admin' || role === 'manager') {
             window.location.href = 'dashboard.html';

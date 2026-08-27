@@ -36,6 +36,16 @@ service cloud.firestore {
       return signedIn() && myUserData().isFinanceHead == true;
     }
 
+    // Master Data (Master Data Hub — Products, Client Equipment, Bank
+    // Details, Clients, Projects, and every dropdown list it manages) is
+    // deliberately restricted to a named few, not the whole admin/
+    // leadership roster — assigned per-person on the Employees page
+    // ("Approval Authority" section) same as the other three flags.
+    // Director retains universal authority as with every other gate.
+    function isMasterDataAdmin() {
+      return signedIn() && (myUserData().isMasterDataAdmin == true || myUserData().isDirector == true);
+    }
+
     // True if the caller owns this record (matches on employeeId) or is admin/leadership.
     function isOwnerOrAdmin() {
       return isLeadershipOrAdmin() ||
@@ -67,7 +77,11 @@ service cloud.firestore {
     }
 
     match /bankDetailsMaster/{docId} {
-      allow read, write: if isLeadershipOrAdmin();
+      // Read stays open to any signed-in user — Invoices needs it to
+      // auto-populate company bank details on generated invoices for
+      // whoever is raising them, not just Master Data Admins.
+      allow read: if signedIn();
+      allow write: if isMasterDataAdmin();
     }
 
     // ---- Audit trail: anyone signed in may create an entry (their own action),
@@ -104,17 +118,27 @@ service cloud.firestore {
     match /budgets/{docId}             { allow read: if signedIn(); allow write: if isLeadershipOrAdmin(); }
     match /travelPolicyMaster/{docId}  { allow read: if signedIn(); allow write: if isLeadershipOrAdmin(); }
     match /travelApprovals/{docId}     { allow read: if signedIn(); allow create: if canCreateOwnRecord(); allow update, delete: if isOwnerOrAdmin(); }
-    match /productsMaster/{docId}      { allow read: if signedIn(); allow write: if isLeadershipOrAdmin(); }
-    match /sparePartsMaster/{docId}    { allow read: if signedIn(); allow write: if isLeadershipOrAdmin(); }
-    match /clientEquipmentMaster/{docId}{ allow read: if signedIn(); allow write: if isLeadershipOrAdmin(); }
-    match /clientsMaster/{docId}       { allow read: if signedIn(); allow write: if isLeadershipOrAdmin(); }
-    match /clients/{docId}             { allow read: if signedIn(); allow write: if isLeadershipOrAdmin(); }
-    match /projectsMaster/{docId}      { allow read: if signedIn(); allow write: if isLeadershipOrAdmin(); }
-    match /leadSourceMaster/{docId}          { allow read: if signedIn(); allow write: if isLeadershipOrAdmin(); }
-    match /industryVerticalMaster/{docId}    { allow read: if signedIn(); allow write: if isLeadershipOrAdmin(); }
-    match /projectSectorMaster/{docId}       { allow read: if signedIn(); allow write: if isLeadershipOrAdmin(); }
-    match /verticalClassificationMaster/{docId} { allow read: if signedIn(); allow write: if isLeadershipOrAdmin(); }
-    match /currencyMaster/{docId}            { allow read: if signedIn(); allow write: if isLeadershipOrAdmin(); }
+    // Everyone reads (leads/orders/quotations/tickets/etc all need these
+    // for their dropdowns); only a Master Data Admin (or Director) may
+    // create, edit, or delete a master record itself.
+    match /productsMaster/{docId}      { allow read: if signedIn(); allow write: if isMasterDataAdmin(); }
+    match /sparePartsMaster/{docId}    { allow read: if signedIn(); allow write: if isMasterDataAdmin(); }
+    match /clientEquipmentMaster/{docId}{ allow read: if signedIn(); allow write: if isMasterDataAdmin(); }
+    match /clientsMaster/{docId}       { allow read: if signedIn(); allow write: if isMasterDataAdmin(); }
+    match /clients/{docId}             { allow read: if signedIn(); allow write: if isMasterDataAdmin(); }
+    match /projectsMaster/{docId}      { allow read: if signedIn(); allow write: if isMasterDataAdmin(); }
+    match /leadSourceMaster/{docId}          { allow read: if signedIn(); allow write: if isMasterDataAdmin(); }
+    match /industryVerticalMaster/{docId}    { allow read: if signedIn(); allow write: if isMasterDataAdmin(); }
+    match /projectSectorMaster/{docId}       { allow read: if signedIn(); allow write: if isMasterDataAdmin(); }
+    match /verticalClassificationMaster/{docId} { allow read: if signedIn(); allow write: if isMasterDataAdmin(); }
+    match /currencyMaster/{docId}            { allow read: if signedIn(); allow write: if isMasterDataAdmin(); }
+    match /sparePartCategoryMaster/{docId}   { allow read: if signedIn(); allow write: if isMasterDataAdmin(); }
+    match /complaintCategoryMaster/{docId}   { allow read: if signedIn(); allow write: if isMasterDataAdmin(); }
+    match /slaResponseTierMaster/{docId}     { allow read: if signedIn(); allow write: if isMasterDataAdmin(); }
+    match /amcContractTierMaster/{docId}     { allow read: if signedIn(); allow write: if isMasterDataAdmin(); }
+    match /pmVisitFrequencyMaster/{docId}    { allow read: if signedIn(); allow write: if isMasterDataAdmin(); }
+    match /amcInvoicingMilestoneMaster/{docId} { allow read: if signedIn(); allow write: if isMasterDataAdmin(); }
+    match /amcContractDurationMaster/{docId} { allow read: if signedIn(); allow write: if isMasterDataAdmin(); }
 
     // ---- Safety net for any collection not explicitly listed above ----
     // Requires sign-in at minimum; this app has more modules than this file

@@ -43,7 +43,7 @@
           <i class="fa-solid fa-shield-halved text-sm text-indigo-400"></i>
           <span>View Audit Trail</span>
         </a>
-        <button onclick="openBulkUploadModal()" class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-emerald-900/30 flex items-center gap-2 cursor-pointer">
+        <button id="btn-bulk-upload" onclick="openBulkUploadModal()" class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-emerald-900/30 flex items-center gap-2 cursor-pointer">
           <i class="fa-solid fa-file-csv text-sm"></i>
           <span>Bulk Upload CSV</span>
         </button>
@@ -51,11 +51,17 @@
           <i class="fa-solid fa-download text-sm"></i>
           <span>Download Template</span>
         </button>
-        <button onclick="openAddSingleModal()" class="px-3.5 py-2 bg-[#982B68] hover:bg-[#802256] text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-[#982B68]/30 flex items-center gap-2 cursor-pointer">
+        <button id="btn-add-record" onclick="openAddSingleModal()" class="px-3.5 py-2 bg-[#982B68] hover:bg-[#802256] text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-[#982B68]/30 flex items-center gap-2 cursor-pointer">
           <i class="fa-solid fa-plus text-sm"></i>
           <span>+ Add Master Record</span>
         </button>
       </div>
+    </div>
+
+    <!-- Read-only notice for signed-in users without Master Data Admin authority -->
+    <div id="master-readonly-notice" class="hidden bg-amber-950/40 border border-amber-800/60 text-amber-200 text-xs font-semibold rounded-xl p-3.5 flex items-center gap-2.5">
+      <i class="fa-solid fa-lock text-amber-400"></i>
+      <span>You can view master data here, but only a designated <strong>Master Data Admin</strong> (or the Director) can add, edit, delete, or bulk-upload records. Ask your admin to assign this on the Employees page if you need it.</span>
     </div>
 
     <!-- Master Data Selector Tabs & Metrics Bar (10 Master Categories) -->

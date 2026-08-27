@@ -10,6 +10,24 @@ var activeMasterTab = 'products';
     function initMasterHub() {
       updateTabBadges();
       switchMasterTab('products');
+
+      // Master data entry is restricted to a named few (Master Data
+      // Admin flag, or Director) — everyone signed in can still view
+      // these lists, but only they can add/edit/delete/bulk-upload.
+      // Enforced for real server-side in firestore.rules; this just
+      // keeps the UI honest about what will actually be allowed.
+      if (!canEditMasterData()) {
+        var addBtn = document.getElementById('btn-add-record');
+        var bulkBtn = document.getElementById('btn-bulk-upload');
+        var notice = document.getElementById('master-readonly-notice');
+        if (addBtn) addBtn.classList.add('hidden');
+        if (bulkBtn) bulkBtn.classList.add('hidden');
+        if (notice) notice.classList.remove('hidden');
+      }
+    }
+
+    function canEditMasterData() {
+      return typeof hasApprovalAuthority === 'function' && hasApprovalAuthority('isMasterDataAdmin');
     }
 
     function updateTabBadges() {
@@ -94,6 +112,10 @@ var activeMasterTab = 'products';
     }
 
     function deleteMasterRecord(id) {
+      if (!canEditMasterData()) {
+        alert("Only a designated Master Data Admin (or the Director) can delete master records. Ask your admin to assign this on the Employees page if this is incorrect.");
+        return;
+      }
       var colName = masterCollectionNameForTab(activeMasterTab);
       if (!colName) return;
       if (!confirm("Delete this master record? This cannot be undone, and any place that already references it (existing leads, quotes, orders, invoices) will keep the value it already has.")) return;
@@ -369,6 +391,10 @@ var activeMasterTab = 'products';
     }
 
     function openAddSingleModal(recordData) {
+      if (!canEditMasterData()) {
+        alert("Only a designated Master Data Admin (or the Director) can add or edit master records. Ask your admin to assign this on the Employees page if this is incorrect.");
+        return;
+      }
       var modal = document.getElementById('single-record-modal');
       var container = document.getElementById('dynamic-form-fields');
       document.getElementById('rec-doc-id').value = recordData ? recordData.id : '';
@@ -628,6 +654,10 @@ var activeMasterTab = 'products';
 
     function handleSaveSingleRecord(e) {
       e.preventDefault();
+      if (!canEditMasterData()) {
+        alert("Only a designated Master Data Admin (or the Director) can save master records.");
+        return;
+      }
       var docId = document.getElementById('rec-doc-id').value;
 
       var colName = 'productsMaster';
@@ -744,6 +774,10 @@ var activeMasterTab = 'products';
     }
 
     function openBulkUploadModal() {
+      if (!canEditMasterData()) {
+        alert("Only a designated Master Data Admin (or the Director) can bulk-upload master records. Ask your admin to assign this on the Employees page if this is incorrect.");
+        return;
+      }
       var modal = document.getElementById('bulk-upload-modal');
       var label = document.getElementById('bulk-modal-target-label');
       label.innerText = 'Importing dataset into ' + activeMasterTab.toUpperCase() + ' Master';
@@ -795,6 +829,10 @@ var activeMasterTab = 'products';
     }
 
     function executeBulkUpload() {
+      if (!canEditMasterData()) {
+        alert("Only a designated Master Data Admin (or the Director) can bulk-upload master records.");
+        return;
+      }
       if (parsedCsvData.length === 0) {
         alert("Please select and parse a valid CSV file first.");
         return;

@@ -199,7 +199,7 @@ function checkAuth(allowedRoles) {
     // directly on its users/{uid} Firestore doc, not via the Employees
     // page), leave localStorage alone rather than stomping the correct
     // value login.html just loaded from users/{uid} back to "false".
-    ['isPrimaryApprover', 'isDirector', 'isFinanceHead'].forEach(function(flagKey) {
+    ['isPrimaryApprover', 'isDirector', 'isFinanceHead', 'isMasterDataAdmin'].forEach(function(flagKey) {
       if (currentEmp[flagKey] === undefined) return;
       var flagVal = String(currentEmp[flagKey] === true);
       if (localStorage.getItem(flagKey) !== flagVal) {
@@ -286,7 +286,6 @@ function renderRevOpsNavbar(userName, userRole, hasDirectReports) {
     { title: "Equipment Orders", path: "orders.html", desc: "Capital equipment customer purchase orders & contracts", icon: "📦", show: true },
     { title: "Equipment Invoices", path: "invoices.html", desc: "Equipment commercial invoices, senior approval & dispatch", icon: "🧾", show: true },
     { title: "Payments & Collections", path: "payments.html", desc: "AR collections, BG/PG tracking & milestone invoicing", icon: "💳", show: true },
-    { title: "Master Data & Bulk Upload", path: "master-data.html", desc: "Product Specs, Clients, Equipment & Bank Master Hub", icon: "🗄️", show: true },
     { title: "Audit & Activity Trail", path: "audit-logs.html", desc: "Universal ledger of all entries, edits, timestamps & actor diffs", icon: "🛡️", show: isAdmin }
   ];
 
@@ -1145,7 +1144,10 @@ function getRevOpsNavigationHtml(userName, userRole, employeeId, userEmail, role
             ${computeMyPendingApprovalCount() > 0 ? `<span class="px-1.5 py-0.5 rounded-full text-[9px] font-black bg-amber-500 text-slate-900">${computeMyPendingApprovalCount()}</span>` : ''}
           </a>
         ` : ''}
-        ${renderTopDropdown("Sales", "📈", salesItems, ['leads.html', 'quotations.html', 'orders.html', 'invoices.html', 'payments.html', 'master-data.html', 'audit-logs.html'])}
+        ${(isAdmin || (typeof hasApprovalAuthority === 'function' && hasApprovalAuthority('isMasterDataAdmin'))) ? `
+          <a href="master-data.html" class="${currentPath === 'master-data.html' ? 'px-2.5 py-1.5 rounded-lg text-xs font-bold bg-[#982B68] text-white shadow-xs' : 'px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-300 hover:bg-slate-800 hover:text-white transition-all'}">🗄️ Master Data</a>
+        ` : ''}
+        ${renderTopDropdown("Sales", "📈", salesItems, ['leads.html', 'quotations.html', 'orders.html', 'invoices.html', 'payments.html', 'audit-logs.html'])}
         ${renderTopDropdown("Service & Quality", "🛠️", serviceItems, ['service-tickets.html', 'amc-contracts.html', 'service-leads.html', 'amc-quotes.html', 'amc-orders.html', 'amc-invoices.html', 'parts-sales.html', 'warranty-management.html'])}
         ${renderTopDropdown("Finance", "💰", financeItems, ['expenses.html', 'payroll.html'])}
         ${renderTopDropdown("People & HR", "👥", hrItems, ['employees.html', 'attendance.html', 'my-team.html'])}
@@ -1447,6 +1449,13 @@ function getRevOpsNavigationHtml(userName, userRole, employeeId, userEmail, role
                 <a href="approvals.html" onclick="toggleMobileNavDrawer()" class="flex items-center justify-between p-2.5 rounded-xl ${currentPath === 'approvals.html' ? 'bg-[#982B68] text-white font-bold' : 'bg-slate-800/60 text-slate-200'}">
                   <span class="flex items-center space-x-2.5"><span>✅</span><span class="text-xs font-bold">Approvals</span></span>
                   ${computeMyPendingApprovalCount() > 0 ? `<span class="px-1.5 py-0.5 rounded-full text-[9px] font-black bg-amber-500 text-slate-900">${computeMyPendingApprovalCount()}</span>` : ''}
+                </a>
+              </div>
+            ` : ''}
+            ${(isAdmin || (typeof hasApprovalAuthority === 'function' && hasApprovalAuthority('isMasterDataAdmin'))) ? `
+              <div>
+                <a href="master-data.html" onclick="toggleMobileNavDrawer()" class="flex items-center space-x-2.5 p-2.5 rounded-xl ${currentPath === 'master-data.html' ? 'bg-[#982B68] text-white font-bold' : 'bg-slate-800/60 text-slate-200'}">
+                  <span>🗄️</span><span class="text-xs font-bold">Master Data</span>
                 </a>
               </div>
             ` : ''}
