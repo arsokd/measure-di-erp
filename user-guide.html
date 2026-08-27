@@ -55,10 +55,16 @@
       </div>
       
       <div class="flex flex-wrap items-center gap-3 shrink-0">
-        <a href="Measure_DI_RevOps_Client_Demo_Guide.pdf" download="Measure_DI_RevOps_Client_Demo_Guide.pdf" onclick="downloadClientDemoGuidePDF(event)" target="_blank" class="px-4 py-2.5 bg-sky-600 hover:bg-sky-500 text-white font-extrabold text-xs rounded-xl shadow-lg transition-all flex items-center space-x-2 cursor-pointer border border-sky-400">
+        <a href="demo-playbook.html" id="btn-demo-playbook-link" class="hidden px-4 py-2.5 bg-sky-600 hover:bg-sky-500 text-white font-extrabold text-xs rounded-xl shadow-lg transition-all items-center space-x-2 cursor-pointer border border-sky-400" title="Developer-only presenter's script — never shown to the client">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 11v6m0 0l-3-3m3 3l3-3"/></svg>
-          <span>📊 Client Demo Guide (PDF)</span>
+          <span>🔒 Demo Playbook</span>
         </a>
+        <script>
+          if (localStorage.getItem('employeeId') === 'E-DEV') {
+            var _demoLinkEl = document.getElementById('btn-demo-playbook-link');
+            if (_demoLinkEl) { _demoLinkEl.classList.remove('hidden'); _demoLinkEl.classList.add('flex'); }
+          }
+        </script>
         <button id="btn-download-pdf" onclick="generateUserGuidePDF()" class="px-4 py-2.5 bg-[#982B68] hover:bg-[#7e2356] text-white font-extrabold text-xs rounded-xl shadow-lg transition-all flex items-center space-x-2 cursor-pointer border border-[#be3b85]">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
           <span>Download PDF Manual</span>
@@ -153,20 +159,14 @@
       </div>
       
       <section id="sec-nav-map" class="bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 border border-indigo-800/80 rounded-2xl p-6 shadow-2xl space-y-6 print-card">
-        <div class="flex flex-col md:flex-row items-start md:items-center justify-between border-b border-indigo-900/60 pb-4 gap-3">
-          <div class="flex items-center space-x-3">
-            <div class="w-10 h-10 rounded-xl bg-indigo-600 text-white font-black flex items-center justify-center text-lg shadow-md border border-indigo-400">📋</div>
-            <div>
-              <h3 class="text-xl font-black text-white flex items-center gap-2">
-                <span>Sidebar Navigation & Sequential Menu Demonstration Order</span>
-              </h3>
-              <p class="text-xs text-indigo-200">Every top-nav main menu and every submenu beneath it, in exact left-to-right nav sequence — with who is allowed to see each one, so anybody using the app instantly knows what's coming under which menu.</p>
-            </div>
+        <div class="flex items-center space-x-3 border-b border-indigo-900/60 pb-4">
+          <div class="w-10 h-10 rounded-xl bg-indigo-600 text-white font-black flex items-center justify-center text-lg shadow-md border border-indigo-400">📋</div>
+          <div>
+            <h3 class="text-xl font-black text-white flex items-center gap-2">
+              <span>Sidebar Navigation & Sequential Menu Demonstration Order</span>
+            </h3>
+            <p class="text-xs text-indigo-200">Every top-nav main menu and every submenu beneath it, in exact left-to-right nav sequence — with who is allowed to see each one, so anybody using the app instantly knows what's coming under which menu.</p>
           </div>
-          <a href="Measure_DI_RevOps_Client_Demo_Guide.pdf" download="Measure_DI_RevOps_Client_Demo_Guide.pdf" onclick="downloadClientDemoGuidePDF(event)" class="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center space-x-2 border border-indigo-400 shrink-0">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-            <span>Download Demo PDF with Screen Diagrams</span>
-          </a>
         </div>
         
         <div class="flex flex-wrap items-center gap-1.5 text-[10px] font-bold">

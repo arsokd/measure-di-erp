@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>K-30_ERP - Demo Playbook (Developer Only)</title>
+  <link rel="stylesheet" href="/src/index.css">
+  <script src="js/firebase-init.js" defer></script>
+  <script src="js/store.js" defer></script>
+  <script src="js/seed-data.js" defer></script>
+  <script src="auth-guard.js" defer></script>
+  <style>
+    @media print {
+      body { background-color: white !important; color: black !important; }
+      .no-print { display: none !important; }
+      .print-break-before { page-break-before: always; }
+      .print-card {
+        border: 1px solid #cbd5e1 !important;
+        box-shadow: none !important;
+        background: #ffffff !important;
+        color: #0f172a !important;
+      }
+      .print-card * { color: #0f172a !important; }
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans min-h-screen antialiased flex flex-col">
+
+  <div id="navbar-container"></div>
+
+  <main class="flex-1 max-w-5xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+
+    <div class="no-print bg-amber-950/40 border border-amber-700/60 rounded-2xl p-4 text-xs text-amber-200 flex items-center gap-3">
+      <span class="text-xl">🔒</span>
+      <div>
+        <strong class="block text-amber-300">Developer-only page. Never share this link or its content with the client.</strong>
+        This is your personal presenter's script for running the app demo confidently — not a client-facing deliverable. It is not listed in the client's navigation and only renders for the developer login.
+      </div>
+    </div>
+
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4 no-print">
+      <div>
+        <h1 class="text-2xl sm:text-3xl font-black text-white tracking-tight">🎤 Client Demo Playbook</h1>
+        <p class="text-xs text-slate-400 mt-1">Your run-of-show for presenting Measure DI RevOps professionally — what to click, what to say, what to highlight, in order.</p>
+      </div>
+      <button onclick="window.print()" class="px-4 py-2.5 bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs rounded-xl shadow-lg transition-all flex items-center space-x-2 cursor-pointer border border-sky-400">
+        <span>🖨️ Print / Save as PDF</span>
+      </button>
+    </div>
+
+    <!-- 1. Pre-demo checklist -->
+    <section class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-3 print-card">
+      <h2 class="text-lg font-black text-white flex items-center gap-2">✅ 1. Pre-Demo Checklist</h2>
+      <ul class="list-disc list-inside text-xs text-slate-300 space-y-1.5 leading-relaxed">
+        <li>Log in fresh (log out and back in) so the session isn't carrying stale test edits from a previous practice run.</li>
+        <li>Decide which login to demo from — <strong>Director (Ravichandran)</strong> shows every menu including Dashboard, Approvals, Reports, Payroll; a <strong>staff</strong> login is only worth using if the client specifically wants to see role restrictions in action.</li>
+        <li>Confirm real data is in place: open <strong>My Scorecard</strong> and <strong>AOP Targets</strong> at FY 2026-27 and check the real ₹20 Cr company target and the 8-person KRA cascade are showing (not the old placeholder numbers).</li>
+        <li>Check your internet connection — live Firestore sync needs it; a flaky connection mid-demo will show a "saved locally" banner that's confusing to explain live.</li>
+        <li>Pick <strong>one client story</strong> to walk end-to-end (a Lead that became a Quote, an Order, an Invoice, a Payment) rather than jumping between unrelated random records — a connected story is far more convincing than isolated screens.</li>
+        <li>Close any other browser tabs with admin tools, GitHub, or Netlify open — screen-share hygiene.</li>
+      </ul>
+    </section>
+
+    <!-- 2. Suggested flow -->
+    <section class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-5 print-card">
+      <h2 class="text-lg font-black text-white flex items-center gap-2">🗺️ 2. Suggested Demo Flow, In Order</h2>
+      <p class="text-xs text-slate-400">Follow the app's real top-nav order — it reads as one coherent system, not a list of disconnected features.</p>
+
+      <div class="space-y-4">
+        <div class="p-4 bg-slate-800/60 rounded-xl border border-slate-700/80 space-y-1.5">
+          <h3 class="font-bold text-fuchsia-300 text-sm">📊 Open on: Executive Dashboard</h3>
+          <p class="text-xs text-slate-300">Say: "Everything you'll see today rolls up to this one screen — pipeline conversion, revenue vs target, ratio-scaled across the week, month, quarter, or full year." Switch the FY selector once (2024-25 → 2026-27) to show multi-year history isn't a one-off — it's structural.</p>
+        </div>
+
+        <div class="p-4 bg-slate-800/60 rounded-xl border border-slate-700/80 space-y-1.5">
+          <h3 class="font-bold text-rose-300 text-sm">✅ Approvals Hub</h3>
+          <p class="text-xs text-slate-300">Say: "Approval authority is assigned to named people, not job titles — so it's exactly who you choose, and one person can hold it all if needed." Point at the live pending-count badge in the nav bar before opening it.</p>
+        </div>
+
+        <div class="p-4 bg-slate-800/60 rounded-xl border border-slate-700/80 space-y-1.5">
+          <h3 class="font-bold text-teal-300 text-sm">🗄️ Master Data (quick touch, don't dwell)</h3>
+          <p class="text-xs text-slate-300">Say: "Every dropdown across the app — clients, products, spare parts, service SLA tiers — comes from here, so a change here reflects everywhere instantly. Editing it is restricted to named people you choose, enforced at the database level, not just hidden on screen." Open one list (e.g. AMC Contract Tier) to show it's genuinely editable, not hardcoded.</p>
+        </div>
+
+        <div class="p-4 bg-emerald-950/30 rounded-xl border border-emerald-800/60 space-y-2 print-break-before">
+          <h3 class="font-bold text-emerald-300 text-sm">📈 Sales & Revenue — walk ONE client's full story here</h3>
+          <ol class="list-decimal list-inside text-xs text-slate-300 space-y-1.5">
+            <li><strong>Leads:</strong> show the 8-stage funnel and that Source/Vertical/Sector are picked from Master Data, not typed.</li>
+            <li><strong>Quotations:</strong> lead-locks to the chosen customer, one active quote per lead (try adding a duplicate to show it's blocked), 2-stage sign-off before it can even be emailed.</li>
+            <li><strong>Orders — the differentiator, don't rush this:</strong> click "Book New Order," pick the customer, show the "Pending Approved Quotation" dropdown only lists <em>that customer's</em> approved quotes. Select one — valuation, tax, and 1st advance auto-fill and lock. Try editing the value to show it's rejected. Then point at the Sales Contribution Split field: "this is the one thing entered manually, and it directly drives that person's Target Achievement on their scorecard — not a separate manual entry anywhere."</li>
+            <li><strong>Invoices:</strong> every invoice, any value, same 2-stage gate before client dispatch.</li>
+            <li><strong>Payments & Write-Offs — good "wow" moment:</strong> open a pending-AR client, show the invoice dropdown is strictly limited to that client's actual pending invoices. Then open a write-off/goodwill request already awaiting approval, approve it live if you can, and immediately flip to <strong>Expenses → P&L / Balance Sheet / Cash Flow</strong> to show the number move in real time.</li>
+          </ol>
+        </div>
+
+        <div class="p-4 bg-orange-950/30 rounded-xl border border-orange-800/60 space-y-2 print-break-before">
+          <h3 class="font-bold text-orange-300 text-sm">🛠️ Service & Quality — explain the grouping before opening it</h3>
+          <p class="text-xs text-slate-300">Say: "This menu is organized around your three revenue-generating verticals — Service, Spare Parts, AMC — all fed by one shared lead intake, so nothing falls through the cracks between them."</p>
+          <ol class="list-decimal list-inside text-xs text-slate-300 space-y-1.5">
+            <li><strong>Service Tickets:</strong> equipment is picked from the real installed-equipment registry, not typed; SLA response time is computed live from the Master Data SLA tier, not hardcoded.</li>
+            <li><strong>Warranty & Equipment Health:</strong> show the 1-click AMC conversion once a warranty lapses — this is a good cross-sell talking point.</li>
+            <li><strong>Spare Parts Sales Hub:</strong> inventory, pricing, margin % per part.</li>
+            <li><strong>AMC Contracts/Quotes/Orders/Invoices:</strong> PM visit frequency and billing milestones both come from Master Data too — contract terms can change without touching code.</li>
+          </ol>
+        </div>
+
+        <div class="p-4 bg-slate-800/60 rounded-xl border border-slate-700/80 space-y-1.5">
+          <h3 class="font-bold text-indigo-300 text-sm">💰 Finance</h3>
+          <p class="text-xs text-slate-300">Expenses & Profit Center (this is where the write-off you approved earlier showed up), Payroll & CTC.</p>
+        </div>
+
+        <div class="p-4 bg-slate-800/60 rounded-xl border border-slate-700/80 space-y-1.5">
+          <h3 class="font-bold text-sky-300 text-sm">👥 People & HR</h3>
+          <p class="text-xs text-slate-300">Employee Directory — point out the 4 approval-authority flags (Primary Approver, Director Ratifier, Finance Head, Master Data Admin) are set per-person here, not hardcoded to a role. Attendance, My Team.</p>
+        </div>
+
+        <div class="p-4 bg-pink-950/30 rounded-xl border border-pink-800/60 space-y-2 print-break-before">
+          <h3 class="font-bold text-pink-300 text-sm">🎯 Performance & Strategy — close strong here</h3>
+          <p class="text-xs text-slate-300">This is your best trust-building moment: <strong>My Scorecard</strong> and <strong>KRA/AOP Targets</strong> at FY 2026-27 are now showing the real numbers from the client's own Employee Role & Target Input Form — not made-up demo figures. Say: "These aren't placeholder numbers — this is your actual ₹20 Cr commitment and your team's real KRAs, already loaded and cascading correctly." Also mention SOP & User Guide are auto-generated PDFs that stay current with every app change.</p>
+        </div>
+
+        <div class="p-4 bg-slate-800/60 rounded-xl border border-slate-700/80 space-y-1.5">
+          <h3 class="font-bold text-purple-300 text-sm">📈 Reports — end here</h3>
+          <p class="text-xs text-slate-300">Cross-functional exports, one-click PDF/CSV. Good closing line: "Everything you saw today can leave this screen as a PDF or spreadsheet whenever you need it outside the app."</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. Don't forget to show -->
+    <section class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-3 print-card print-break-before">
+      <h2 class="text-lg font-black text-white flex items-center gap-2">⭐ 3. Recently Built — Don't Let These Get Lost in the Flow</h2>
+      <p class="text-xs text-slate-400">Easy to skip past quickly if you're moving fast. Slow down for these specifically — they're the newest, most differentiating work.</p>
+      <ul class="list-disc list-inside text-xs text-slate-300 space-y-1.5 leading-relaxed">
+        <li><strong>Quote-locked order booking</strong> — an Order's valuation/tax/advance cannot mismatch its source Quote. Show the rejection, not just the happy path.</li>
+        <li><strong>Sales Contribution Split → Target Achievement</strong> — the manual split is the only manual figure; it drives real KRA/AOP achievement automatically.</li>
+        <li><strong>AR write-off → live P&L / Balance Sheet / Cash Flow</strong> — approval isn't just a status change, it visibly moves the financial statements.</li>
+        <li><strong>Master Data restricted authority</strong> — enforced in the database (Firestore rules), not just a hidden button. Mention this if asked about data governance/security.</li>
+        <li><strong>Service & Quality's 3-vertical grouping</strong> — a structural, not cosmetic, reorganization around how the client actually generates revenue.</li>
+        <li><strong>Real KRA/AOP cascade</strong> — sourced from the client's own sheet, re-keyed onto correct employees, cross-verified to the rupee.</li>
+      </ul>
+    </section>
+
+    <!-- 4. Anticipated Q&A -->
+    <section class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-3 print-card">
+      <h2 class="text-lg font-black text-white flex items-center gap-2">❓ 4. Anticipated Questions & Suggested Answers</h2>
+      <div class="space-y-3 text-xs">
+        <div>
+          <p class="font-bold text-slate-200">"What if two people both need to approve the same thing?"</p>
+          <p class="text-slate-400">Multiple people can hold the same authority flag — any one of them clears the gate; it doesn't require all of them unless it's specifically a 3-way sign-off item like a write-off.</p>
+        </div>
+        <div>
+          <p class="font-bold text-slate-200">"Can we change who has approval or Master Data authority later?"</p>
+          <p class="text-slate-400">Yes — it's a checkbox per employee on the Employee Directory page, takes effect immediately, no code change.</p>
+        </div>
+        <div>
+          <p class="font-bold text-slate-200">"Where does our data actually live? Is it backed up?"</p>
+          <p class="text-slate-400">Google Firebase/Firestore — the same infrastructure Google's own products run on. Every record is timestamped and versioned in the Audit Trail.</p>
+        </div>
+        <div>
+          <p class="font-bold text-slate-200">"What happens if the internet drops while someone's working?"</p>
+          <p class="text-slate-400">The app is local-first — it keeps working offline and syncs automatically once the connection returns; a banner tells the user if something couldn't sync yet.</p>
+        </div>
+        <div>
+          <p class="font-bold text-slate-200">"Can we get this data out into Excel or a PDF for our own records?"</p>
+          <p class="text-slate-400">Yes — Reports has one-click PDF/CSV exports, and the User Guide itself compiles into a live PDF on demand.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 5. Post-demo -->
+    <section class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-3 print-card">
+      <h2 class="text-lg font-black text-white flex items-center gap-2">📋 5. Post-Demo Follow-Up</h2>
+      <ul class="list-disc list-inside text-xs text-slate-300 space-y-1.5 leading-relaxed">
+        <li>Send the SOP and User Guide links so the client can revisit anything shown today at their own pace.</li>
+        <li>Write down any feature request or objection raised live, verbatim, while it's fresh — don't rely on memory afterward.</li>
+        <li>If the demo used a shared/test login, schedule provisioning real individual logins for the client's own team next.</li>
+        <li>Update this playbook itself afterward if the flow that worked live differed from what's written here — keep it a living document, not a one-time script.</li>
+      </ul>
+    </section>
+
+  </main>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      if (!checkAuth([])) return;
+      // Hard gate: developer-only, regardless of role. super_admin alone
+      // (Director, Murugan) is NOT sufficient — checkAuth() exempts every
+      // super_admin from role restrictions, so this check has to be explicit
+      // and independent of the role system entirely.
+      if (localStorage.getItem('employeeId') !== 'E-DEV') {
+        window.location.href = 'dashboard.html';
+      }
+    });
+  </script>
+</body>
+</html>

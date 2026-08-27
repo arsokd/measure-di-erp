@@ -242,31 +242,6 @@
       }
     }
 
-    function downloadClientDemoGuidePDF(e) {
-      if (e) e.preventDefault();
-      fetch('Measure_DI_RevOps_Client_Demo_Guide.pdf')
-        .then(res => {
-          if (!res.ok) throw new Error('HTTP status ' + res.status);
-          return res.blob();
-        })
-        .then(blob => {
-          const url = window.URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = 'Measure_DI_RevOps_Client_Demo_Guide.pdf';
-          document.body.appendChild(a);
-          a.click();
-          setTimeout(() => {
-            a.remove();
-            window.URL.revokeObjectURL(url);
-          }, 100);
-        })
-        .catch(err => {
-          console.warn('Direct Blob fetch failed, opening fallback link:', err);
-          window.open('Measure_DI_RevOps_Client_Demo_Guide.pdf', '_blank');
-        });
-    }
-
     // Auto-check auth and render header
     document.addEventListener('DOMContentLoaded', function() {
       checkAuth([]);

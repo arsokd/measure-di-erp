@@ -90,9 +90,15 @@
             <a href="audit-logs.html" class="px-2.5 py-1 text-[11px] font-bold bg-slate-800 hover:bg-slate-700 text-fuchsia-300 border border-fuchsia-500/40 rounded-lg transition-all flex items-center space-x-1 cursor-pointer ml-1 shadow-sm flex-shrink-0" title="Universal Audit Trail (Director & Super Admin)">
               <span>🛡️ Activity & Audit Trail</span>
             </a>
-            <a href="Measure_DI_RevOps_Client_Demo_Guide.pdf" download="Measure_DI_RevOps_Client_Demo_Guide.pdf" onclick="downloadClientDemoGuidePDF(event)" target="_blank" class="px-2.5 py-1 text-[11px] font-black bg-sky-600 hover:bg-sky-500 text-white border border-sky-400 rounded-lg transition-all flex items-center space-x-1 cursor-pointer ml-1 shadow-sm flex-shrink-0">
-              <span>📊 Demo Guide (PDF)</span>
+            <a href="demo-playbook.html" id="btn-demo-playbook-link" class="hidden px-2.5 py-1 text-[11px] font-black bg-sky-600 hover:bg-sky-500 text-white border border-sky-400 rounded-lg transition-all items-center space-x-1 cursor-pointer ml-1 shadow-sm flex-shrink-0" title="Developer-only presenter's script — never shown to the client">
+              <span>🔒 Demo Playbook</span>
             </a>
+            <script>
+              if (localStorage.getItem('employeeId') === 'E-DEV') {
+                var _demoLinkEl2 = document.getElementById('btn-demo-playbook-link');
+                if (_demoLinkEl2) { _demoLinkEl2.classList.remove('hidden'); _demoLinkEl2.classList.add('flex'); }
+              }
+            </script>
           </div>
 
           <!-- Dropdown Filters Grid -->
