@@ -372,7 +372,7 @@ var currentEditingQuoteId = null;
           else if (funnelStage.indexOf("Lost") !== -1) funnelBadgeClass = "bg-rose-50 text-rose-700 border-rose-300";
 
           var canApprove = (hasApprovalAuthority('isPrimaryApprover')) && q.status === 'Pending Approval';
-          var canRatify = (localStorage.getItem('isDirector') === 'true') && q.status === 'Approved' && q.directorRatificationStatus === 'Pending';
+          var canRatify = hasApprovalAuthority('isFinalApprover') && q.status === 'Approved' && q.directorRatificationStatus === 'Pending';
           var canConvert = (q.status === 'Approved' || q.status === 'Sent to Customer') && !q.convertedOrderId;
           var canSend = (q.status === 'Approved' || q.status === 'Sent to Customer' || q.status === 'Converted to Order');
           var fileCount = (q.attachments && Array.isArray(q.attachments)) ? q.attachments.length : 0;
@@ -438,8 +438,8 @@ var currentEditingQuoteId = null;
                   </button>
                 ` : ''}
                 ${canRatify ? `
-                  <button onclick="ratifyQuoteDirect('${q.id}')" class="px-2 py-1 bg-purple-100 hover:bg-purple-200 text-purple-800 rounded-md text-[10px] font-bold shadow-xs transition-colors" title="Director Ratification">
-                    👑 Ratify
+                  <button onclick="ratifyQuoteDirect('${q.id}')" class="px-2 py-1 bg-purple-100 hover:bg-purple-200 text-purple-800 rounded-md text-[10px] font-bold shadow-xs transition-colors" title="Final Approval (Murugan or Director)">
+                    ✅ Final Approve
                   </button>
                 ` : ''}
                 ${canConvert ? `
@@ -474,8 +474,8 @@ var currentEditingQuoteId = null;
               ✅ Approved
             </span>
             ${q.directorRatificationStatus === 'Ratified' ?
-              `<span class="text-[9px] text-purple-700 mt-0.5 font-bold">👑 Ratified by ${escapeHtml(q.directorRatifiedBy || 'Director')}</span>` :
-              `<span class="text-[9px] text-amber-600 mt-0.5 font-semibold">Pending Director Ratification</span>`}
+              `<span class="text-[9px] text-purple-700 mt-0.5 font-bold">✅ Final approved by ${escapeHtml(q.directorRatifiedBy || 'Director')}</span>` :
+              `<span class="text-[9px] text-amber-600 mt-0.5 font-semibold">Pending Final Approval</span>`}
           </div>`;
         } else if (q.status === 'Sent to Customer') {
           return `<div class="inline-flex flex-col items-center">
@@ -1106,9 +1106,11 @@ var currentEditingQuoteId = null;
 
         // Every quotation requires the Primary Approver's sign-off before it
         // can be sent to the client — regardless of discount level or who
-        // raised it. There is no auto-approve shortcut for any role,
-        // including super_admin, so this can't be bypassed by role alone.
-        var status = "Pending Approval";
+        // raised it, EXCEPT a Primary Approver (Subhashini/Dipa/Anitha, or
+        // the Director) raising their own quotation, who needs no sign-off
+        // at all — senior self-exemption.
+        var isSelfExempt = hasApprovalAuthority('isPrimaryApprover');
+        var status = isSelfExempt ? "Approved" : "Pending Approval";
         var requiredApproverRole = "none";
 
         var quotes = getQuotationsList();
@@ -1157,14 +1159,21 @@ var currentEditingQuoteId = null;
                 approverId: myEmpId,
                 approverName: myEmpObj.fullName,
                 approverRole: userRole,
-                action: status === 'Approved' ? 'Created & Approved' : 'Submitted for Approval',
+                action: isSelfExempt ? 'Created & Auto-Approved' : 'Submitted for Approval',
                 timestamp: getFormattedToday() + ' ' + new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
-                remarks: remarks || (status === 'Approved' ? 'Auto-approved discount within policy threshold.' : 'Special discount submitted for approval.')
+                remarks: remarks || (isSelfExempt ? 'Auto-approved — raised by a Primary Approver, no separate sign-off required.' : 'Submitted for Primary Approver sign-off.')
               }
             ],
             termsAndConditions: terms,
             convertedOrderId: null
           };
+
+          if (isSelfExempt) {
+            // Senior self-exemption covers both stages — no final approval
+            // left pending either, so it never sits waiting on Murugan/Director.
+            window.RevOpsStore.approvePrimaryStage(newRecord, myEmpObj.fullName, myEmpId, 'Auto-approved — raised by a Primary Approver, no separate sign-off required.');
+            window.RevOpsStore.ratifyByDirector(newRecord, myEmpObj.fullName, myEmpId, 'Auto (self-exempt senior — no final approval required).');
+          }
 
           quotes.push(newRecord);
         } else {
@@ -1197,7 +1206,13 @@ var currentEditingQuoteId = null;
             quotes[idx].termsAndConditions = terms;
             
             if (quotes[idx].status !== 'Approved' && quotes[idx].status !== 'Sent to Customer' && quotes[idx].status !== 'Converted to Order') {
-              quotes[idx].status = 'Pending Approval';
+              if (isSelfExempt) {
+                quotes[idx].status = 'Approved';
+                window.RevOpsStore.approvePrimaryStage(quotes[idx], myEmpObj.fullName, myEmpId, 'Auto-approved — edited by a Primary Approver, no separate sign-off required.');
+                window.RevOpsStore.ratifyByDirector(quotes[idx], myEmpObj.fullName, myEmpId, 'Auto (self-exempt senior — no final approval required).');
+              } else {
+                quotes[idx].status = 'Pending Approval';
+              }
             }
           }
         }
@@ -1210,7 +1225,11 @@ var currentEditingQuoteId = null;
         closeQuoteModal();
         renderQuotations();
 
-        alert("Quotation " + quoteId + " saved and submitted for approval. It cannot be sent to the client until the Primary Approver signs off.");
+        if (isSelfExempt) {
+          alert("Quotation " + quoteId + " saved and approved immediately — no sign-off needed since you're a designated Primary Approver.");
+        } else {
+          alert("Quotation " + quoteId + " saved and submitted for approval. It cannot be sent to the client until the Primary Approver signs off.");
+        }
       }
 
       function approveQuoteDirect(quoteId) {
@@ -1286,9 +1305,9 @@ var currentEditingQuoteId = null;
 
       function ratifyQuoteDirect(quoteId) {
         var myEmpId = localStorage.getItem('employeeId') || '';
-        var myName = localStorage.getItem('userName') || 'Director';
-        if (localStorage.getItem('isDirector') !== 'true') {
-          alert("Only the designated Director can ratify quotation approvals.");
+        var myName = localStorage.getItem('userName') || 'Final Approver';
+        if (!hasApprovalAuthority('isFinalApprover')) {
+          alert("Only Murugan or the Director can give final approval on quotations.");
           return;
         }
 
@@ -1297,18 +1316,18 @@ var currentEditingQuoteId = null;
         if (!q) return;
 
         if (q.status !== 'Approved' || q.directorRatificationStatus !== 'Pending') {
-          alert("This quotation isn't awaiting director ratification.");
+          alert("This quotation isn't awaiting final approval.");
           return;
         }
 
-        var remarks = prompt("Enter ratification remarks (optional):", "Ratified.");
+        var remarks = prompt("Enter approval remarks (optional):", "Approved.");
         if (remarks === null) return;
 
         window.RevOpsStore.ratifyByDirector(q, myName, myEmpId, remarks);
         q.approvalHistory.push({
           approverId: myEmpId,
           approverName: myName,
-          approverRole: 'Director',
+          approverRole: 'Final Approver',
           action: 'Ratified',
           timestamp: getFormattedToday() + ' ' + new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
           remarks: remarks
@@ -1319,7 +1338,7 @@ var currentEditingQuoteId = null;
           window.RevOpsStore.syncAllToFirestore();
         }
         renderQuotations();
-        alert("Quote " + q.quoteNumber + " ratified by Director.");
+        alert("Quote " + q.quoteNumber + " given final approval by " + myName + ".");
       }
 
       function createQuoteRevision(quoteId) {

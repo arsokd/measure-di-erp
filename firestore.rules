@@ -36,6 +36,15 @@ service cloud.firestore {
       return signedIn() && myUserData().isFinanceHead == true;
     }
 
+    // Final Approver — gives the same non-blocking final sign-off on
+    // quotations/orders/invoices as the Director Ratifier, for anyone else
+    // who should also hold that role (e.g. Murugan alongside the Director,
+    // per the 3-senior-first-approver / either-Murugan-or-Director-final
+    // approval model).
+    function isFinalApprover() {
+      return signedIn() && myUserData().isFinalApprover == true;
+    }
+
     // Master Data (Master Data Hub — Products, Client Equipment, Bank
     // Details, Clients, Projects, and every dropdown list it manages) is
     // deliberately restricted to a named few, not the whole admin/

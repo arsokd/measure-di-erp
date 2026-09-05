@@ -121,6 +121,7 @@ document.addEventListener('DOMContentLoaded', function() {
         updateRoleAccessHint();
         document.getElementById('inp-is-primary-approver').checked = false;
         document.getElementById('inp-is-director-ratifier').checked = false;
+        document.getElementById('inp-is-final-approver').checked = false;
         document.getElementById('inp-is-finance-head').checked = false;
         document.getElementById('inp-is-master-data-admin').checked = false;
         document.getElementById('inp-aop-target').value = 10000000;
@@ -171,6 +172,7 @@ document.addEventListener('DOMContentLoaded', function() {
         updateRoleAccessHint();
         document.getElementById('inp-is-primary-approver').checked = !!emp.isPrimaryApprover;
         document.getElementById('inp-is-director-ratifier').checked = !!emp.isDirector;
+        document.getElementById('inp-is-final-approver').checked = !!emp.isFinalApprover;
         document.getElementById('inp-is-finance-head').checked = !!emp.isFinanceHead;
         document.getElementById('inp-is-master-data-admin').checked = !!emp.isMasterDataAdmin;
         document.getElementById('inp-aop-target').value = (emp.primaryAopTarget !== undefined && emp.primaryAopTarget !== null) ? emp.primaryAopTarget : 0;
@@ -251,6 +253,7 @@ document.addEventListener('DOMContentLoaded', function() {
           role: document.getElementById('inp-role').value,
           isPrimaryApprover: document.getElementById('inp-is-primary-approver').checked,
           isDirector: document.getElementById('inp-is-director-ratifier').checked,
+          isFinalApprover: document.getElementById('inp-is-final-approver').checked,
           isFinanceHead: document.getElementById('inp-is-finance-head').checked,
           isMasterDataAdmin: document.getElementById('inp-is-master-data-admin').checked,
           primaryAopTarget: document.getElementById('inp-aop-target').value !== "" ? Number(document.getElementById('inp-aop-target').value) : 0,
@@ -283,6 +286,7 @@ document.addEventListener('DOMContentLoaded', function() {
               role: empData.role,
               isPrimaryApprover: empData.isPrimaryApprover,
               isDirector: empData.isDirector,
+              isFinalApprover: empData.isFinalApprover,
               isFinanceHead: empData.isFinanceHead,
               isMasterDataAdmin: empData.isMasterDataAdmin
             }, { merge: true }).catch(function(err) {

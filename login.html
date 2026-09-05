@@ -163,6 +163,7 @@
           var employeeId = '';
           var isPrimaryApprover = false;
           var isDirector = false;
+          var isFinalApprover = false;
           var isFinanceHead = false;
           var isMasterDataAdmin = false;
           try {
@@ -174,6 +175,7 @@
                 employeeId = userData.employeeId || employeeId;
                 isPrimaryApprover = userData.isPrimaryApprover === true;
                 isDirector = userData.isDirector === true;
+                isFinalApprover = userData.isFinalApprover === true;
                 isFinanceHead = userData.isFinanceHead === true;
                 isMasterDataAdmin = userData.isMasterDataAdmin === true;
               }
@@ -208,6 +210,7 @@
           // the Employees page (see employees.html "Approval Authority").
           localStorage.setItem('isPrimaryApprover', String(isPrimaryApprover || (employeeRecord && employeeRecord.isPrimaryApprover === true)));
           localStorage.setItem('isDirector', String(isDirector || (employeeRecord && employeeRecord.isDirector === true)));
+          localStorage.setItem('isFinalApprover', String(isFinalApprover || (employeeRecord && employeeRecord.isFinalApprover === true)));
           localStorage.setItem('isFinanceHead', String(isFinanceHead || (employeeRecord && employeeRecord.isFinanceHead === true)));
           localStorage.setItem('isMasterDataAdmin', String(isMasterDataAdmin || (employeeRecord && employeeRecord.isMasterDataAdmin === true)));
 

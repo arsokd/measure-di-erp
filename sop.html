@@ -202,7 +202,7 @@
             <li><strong>Mandatory CC:</strong> Every quotation email automatically CCs <code>measuredichennai@gmail.com</code> — this is enforced by the system and cannot be removed.</li>
             <li>Discounts can be entered as absolute value (₹) with auto % calculation. Up to 10 PDF/ZIP attachments and delivery commitment lead-time are supported. A <strong>First Advance %</strong> is captured on the quote (defaults 50%) and later flows straight into the Order — see 2.3.</li>
           </ul>
-          <p class="text-slate-300 pt-1">Every quotation — regardless of discount level — goes through the same 2-stage sign-off before it can be emailed to the client:</p>
+          <p class="text-slate-300 pt-1">Every quotation — regardless of discount level — goes through the same 2-stage sign-off before it can be emailed to the client, <strong>unless the Primary Approver is raising it themselves</strong> (see the self-exemption note below):</p>
           <div class="overflow-x-auto">
             <table class="w-full text-left text-xs border border-slate-700 rounded-lg overflow-hidden mt-2">
               <thead class="bg-slate-900 text-slate-200">
@@ -216,19 +216,20 @@
               <tbody class="divide-y divide-slate-800 text-slate-300">
                 <tr class="bg-slate-850">
                   <td class="p-2.5 font-bold text-indigo-400">1. Primary Approval</td>
-                  <td class="p-2.5 font-semibold text-white">The employee flagged "Primary Approver"</td>
+                  <td class="p-2.5 font-semibold text-white">Any one employee flagged "Primary Approver" — currently Subhashini, Dipa & Anitha (see Procedure 2.5)</td>
                   <td class="p-2.5 font-bold text-rose-400">Yes — blocking</td>
-                  <td class="p-2.5">Quotation cannot be emailed to the client until this sign-off happens, for every discount level.</td>
+                  <td class="p-2.5">Quotation cannot be emailed to the client until one of them signs off, for every discount level.</td>
                 </tr>
                 <tr class="bg-rose-950/20">
-                  <td class="p-2.5 font-bold text-purple-400">2. Director Ratification</td>
-                  <td class="p-2.5 font-semibold text-white">The employee flagged "Director"</td>
+                  <td class="p-2.5 font-bold text-purple-400">2. Final Approval</td>
+                  <td class="p-2.5 font-semibold text-white">Any one employee flagged "Director" or "Final Approver" — currently Ravichandran or Murugan, whichever acts first</td>
                   <td class="p-2.5 font-bold text-emerald-400">No — non-blocking</td>
                   <td class="p-2.5">Recorded for the record after the fact; does not hold up sending the quote or booking the order.</td>
                 </tr>
               </tbody>
             </table>
           </div>
+          <p class="text-[11px] text-amber-300/90 mt-1"><strong>Senior self-exemption:</strong> if a Primary Approver (Subhashini, Dipa, Anitha, or the Director) raises a quotation themselves, both stages are skipped entirely — it's approved and final-approved instantly, no sign-off needed from anyone. This only applies to their own quotations; anything raised by staff reporting to them still goes through both stages above.</p>
           <p class="text-[11px] text-slate-400 mt-1">Pending-approval quotations always sort to the top of the registry. Already-invoiced quotations are hidden from the default list (still reachable via search or the "Show already-invoiced" toggle) to keep the working list short.</p>
         </div>
 
@@ -239,7 +240,7 @@
             <li><strong>Everything locks to the Quotation:</strong> Order Value, GST rate/amount, Total, and 1st Advance % & amount are pulled straight from the selected quote and shown read-only — they cannot be typed in or overridden. If the customer's real PO doesn't match, the fix is either to get the PO corrected by the client, or to edit the Quotation itself to match the PO and re-select it — the app will not save a mismatched order.</li>
             <li><strong>Mandatory 100% Contribution Split:</strong> Add all contributing sales engineers and allocate percentage effort (summing to exactly 100%) — entered manually, not auto-filled. This split now correctly drives each contributor's revenue in AOP / <code>my-scorecard.html</code> / <code>my-team.html</code> once the order is booked.</li>
             <li>Bank / Performance Guarantee (BG/PG) amount and expiry date are entered manually if required by the customer contract.</li>
-            <li>Order confirmation follows the same 2-stage sign-off as quotations (Primary Approver blocking, Director ratification non-blocking) before it counts as "Booked" and reconciles the linked Lead.</li>
+            <li>Order confirmation follows the same 2-stage sign-off as quotations (Primary Approver blocking, Final Approver non-blocking — see Procedure 2.5, including the senior self-exemption) before it counts as "Booked" and reconciles the linked Lead.</li>
             <li>Already-invoiced orders are hidden from the default list (reachable via search or "Show already-invoiced").</li>
           </ul>
         </div>
@@ -249,7 +250,7 @@
           <ul class="list-disc list-inside text-slate-300 space-y-1">
             <li><strong>Role Restriction:</strong> Commercial Invoices (Tax & Proforma) are raised strictly by the <strong>Accounting and Finance Department</strong> (and Director / Super Admin). Sales engineers can view invoice statuses and balance dues.</li>
             <li>Invoices auto-populate line items and GST details directly from confirmed POs.</li>
-            <li><strong>Every invoice</strong> (no value threshold) requires the same 2-stage sign-off as quotations/orders — Primary Approver blocking, Director ratification non-blocking — before it can be dispatched to the client.</li>
+            <li><strong>Every invoice</strong> (no value threshold) requires the same 2-stage sign-off as quotations/orders — Primary Approver blocking, Final Approver non-blocking, with the same senior self-exemption — see Procedure 2.5 — before it can be dispatched to the client.</li>
             <li>Official invoices feature company bank details from <code>bankDetailsMaster</code> and the authorized signatory seal and digital signature of <strong>Mr. Ravichandran (Director)</strong>.</li>
             <li>All activities across Leads, Quotes, Orders, Invoices, and Master Data are logged into the <strong>Universal Audit Trail</strong> viewable exclusively by the Director and Super Admin.</li>
           </ul>
@@ -258,9 +259,12 @@
         <div class="p-4 bg-slate-800/60 rounded-xl border border-purple-800/60 space-y-2">
           <h4 class="font-bold text-purple-300 text-sm">Procedure 2.5: Approval Authority Model & the "✅ Approvals" Hub</h4>
           <ul class="list-disc list-inside text-slate-300 space-y-1.5 leading-relaxed">
-            <li>Four named, assignable authority flags drive every approval and restricted-edit gate in the app: <strong>Primary Approver</strong>, <strong>Director Ratifier</strong>, <strong>Finance Head</strong>, and <strong>Master Data Admin</strong>. They are assigned per employee on the <strong>Employees</strong> page ("Approval Authority" section on Add/Edit) — not hardcoded to any one person.</li>
-            <li><strong>Mr. Ravichandran (Director) holds universal authority</strong> — as the ultimate authority of the organization, his sign-off satisfies any of the four gates (Primary Approver, Finance Head, Director, or Master Data Admin) across the entire app, so nothing can ever get stuck waiting on someone else if he needs to act.</li>
-            <li>Anyone holding the Primary Approver, Finance Head, or Director flag sees a standalone <strong>"✅ Approvals"</strong> menu item in the top navigation, with a live count badge. This is the single place to see everything awaiting your sign-off — quotations, orders, invoices, payment verifications, and write-off/goodwill requests — grouped by category, with a direct link into the source record to act on it.</li>
+            <li>Five named, assignable authority flags drive every approval and restricted-edit gate in the app: <strong>Primary Approver</strong>, <strong>Director Ratifier</strong>, <strong>Final Approver</strong>, <strong>Finance Head</strong>, and <strong>Master Data Admin</strong>. They are assigned per employee on the <strong>Employees</strong> page ("Approval Authority" section on Add/Edit) — not hardcoded to any one person.</li>
+            <li><strong>Mr. Ravichandran (Director) holds universal authority</strong> — as the ultimate authority of the organization, his sign-off satisfies any of the five gates across the entire app, so nothing can ever get stuck waiting on someone else if he needs to act.</li>
+            <li><strong>Primary Approver — currently Subhashini, Dipa & Anitha</strong> (any one of the three; this replaced Murugan holding it alone). First-stage, blocking sign-off on quotations/orders/invoices — see Procedure 2.2.</li>
+            <li><strong>Final Approver — currently Murugan (in addition to the Director)</strong>. Second-stage, non-blocking sign-off — functionally identical to Director Ratifier, just held by an additional named person. Either Murugan or the Director acting is enough; there is no need for both.</li>
+            <li><strong>Senior self-exemption:</strong> a Primary Approver (Subhashini, Dipa, Anitha, or the Director) raising their own quotation/order/invoice needs no sign-off at all from anyone — both stages are skipped and it's approved instantly. This does not apply to records raised by anyone reporting to them, which still go through the full 2-stage process above.</li>
+            <li>Anyone holding the Primary Approver, Finance Head, Director, or Final Approver flag sees a standalone <strong>"✅ Approvals"</strong> menu item in the top navigation, with a live count badge. This is the single place to see everything awaiting your sign-off — quotations, orders, invoices, payment verifications, and write-off/goodwill requests — grouped by category, with a direct link into the source record to act on it.</li>
             <li>The <strong>Master Data Admin</strong> flag is a standing edit-authority, not a per-item approval queue — it does not appear in the Approvals Hub. It instead controls who may Add/Edit/Delete/Bulk-Upload on the <strong>🗄️ Master Data</strong> menu (see Procedure 5). Currently held by the Director and two named senior staff — see Procedure 5.1.</li>
           </ul>
         </div>

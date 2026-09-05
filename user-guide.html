@@ -44,7 +44,7 @@
       <div class="space-y-1">
         <div class="flex items-center space-x-2">
           <span class="px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider rounded-md bg-[#982B68] text-white">Official Documentation</span>
-          <span class="px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider rounded-md bg-emerald-950/80 text-emerald-400 border border-emerald-800/80">Auto-Updating SOP v3.2</span>
+          <span class="px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider rounded-md bg-emerald-950/80 text-emerald-400 border border-emerald-800/80">Auto-Updating SOP v3.3</span>
         </div>
         <h1 class="text-2xl sm:text-3xl font-black text-white tracking-tight flex items-center space-x-2">
           <span>📖 K-30_ERP User Guide & SOP</span>
@@ -416,7 +416,7 @@
                   <span class="font-extrabold text-white group-hover:text-sky-300">20. Employee Directory</span>
                   <span class="text-[10px] text-slate-400 font-mono shrink-0">employees.html</span>
                 </div>
-                <p class="text-[11px] text-slate-400 mt-1">Staff roster, supervisor mapping, active headcount master & all 4 approval-authority flags (Primary Approver, Director Ratifier, Finance Head, Master Data Admin).</p>
+                <p class="text-[11px] text-slate-400 mt-1">Staff roster, supervisor mapping, active headcount master & all 5 approval-authority flags (Primary Approver, Director Ratifier, Final Approver, Finance Head, Master Data Admin).</p>
                 <span class="inline-block mt-1.5 px-1.5 py-0.5 rounded bg-amber-950 text-amber-300 text-[9px] font-bold uppercase tracking-wide">Admin / Leadership Only</span>
               </a>
               <a href="attendance.html" class="block p-2 bg-slate-800/80 hover:bg-slate-800 rounded-lg border border-slate-700/80 transition-all hover:border-sky-500 group">
@@ -627,7 +627,7 @@
         </div>
         <div class="p-3.5 bg-purple-950/30 border border-purple-800/60 rounded-xl text-xs text-purple-100 leading-relaxed">
           <strong class="text-purple-300 block mb-1">🔐 Approval & Master Data Authority (independent of Role):</strong>
-          Four named flags — <strong>Primary Approver</strong>, <strong>Director Ratifier</strong>, <strong>Finance Head</strong>, and <strong>Master Data Admin</strong> — are assigned per employee on the Employees page. The first three drive every approval gate (quotations, orders, invoices, payment verification, write-offs/goodwill) and surface in the "✅ Approvals" menu with a live pending-count badge. <strong>Master Data Admin</strong> is different — it's a standing edit-authority (not a per-item queue) that controls who can Add/Edit/Delete/Bulk-Upload on the standalone "🗄️ Master Data" menu; everyone else can still view every list, just not change it. All four flags are separate from Super Admin / Admin / Manager / Staff roles — an Admin does not automatically hold any of them unless flagged. <strong>Mr. Ravichandran (Director) holds universal authority</strong>: his sign-off/edit satisfies any of the four gates. As of this revision, Master Data Admin is held by the Director plus two named senior staff (Mr. Murugan, Mrs. Anitha).
+          Five named flags — <strong>Primary Approver</strong>, <strong>Director Ratifier</strong>, <strong>Final Approver</strong>, <strong>Finance Head</strong>, and <strong>Master Data Admin</strong> — are assigned per employee on the Employees page. The first, second and third drive the 2-stage approval gate on quotations/orders/invoices (Primary Approver = blocking stage 1, Director Ratifier/Final Approver = non-blocking stage 2 — either one is enough), <strong>Finance Head</strong> covers payment verification and write-off sign-off, and all four surface in the "✅ Approvals" menu with a live pending-count badge. <strong>Senior self-exemption:</strong> if a Primary Approver raises their own quotation/order/invoice, both approval stages are skipped entirely and it's approved instantly — this does not extend to records raised by their own staff. <strong>Master Data Admin</strong> is different — it's a standing edit-authority (not a per-item queue) that controls who can Add/Edit/Delete/Bulk-Upload on the standalone "🗄️ Master Data" menu; everyone else can still view every list, just not change it. All five flags are separate from Super Admin / Admin / Manager / Staff roles — an Admin does not automatically hold any of them unless flagged. <strong>Mr. Ravichandran (Director) holds universal authority</strong>: his sign-off/edit satisfies any of the five gates. As of this revision, Primary Approver is held by Subhashini, Dipa & Anitha; Final Approver by Murugan (alongside the Director); Master Data Admin by the Director plus Murugan and Anitha.
         </div>
       </section>
 
@@ -663,7 +663,7 @@
             <ul class="list-disc list-inside text-slate-400 space-y-1 pt-1">
               <li>Search & link a Lead — Customer, Contact, Email/Mobile, Vertical auto-fill and lock.</li>
               <li>One active quotation per Lead — a duplicate cannot be raised.</li>
-              <li><strong>Stage 1 (blocking):</strong> Primary Approver sign-off required before the quote can be emailed. <strong>Stage 2 (non-blocking):</strong> Director ratification recorded afterward.</li>
+              <li><strong>Stage 1 (blocking):</strong> Primary Approver (Subhashini, Dipa, or Anitha) sign-off required before the quote can be emailed. <strong>Stage 2 (non-blocking):</strong> Final Approver (Murugan or the Director) sign-off recorded afterward. A Primary Approver raising their own quote skips both stages instantly.</li>
               <li>Every quote email auto-CCs <code>measuredichennai@gmail.com</code>. Pending-approval quotes always sort to the top; already-invoiced ones hide by default (searchable).</li>
             </ul>
           </div>

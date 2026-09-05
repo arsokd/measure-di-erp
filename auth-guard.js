@@ -199,7 +199,7 @@ function checkAuth(allowedRoles) {
     // directly on its users/{uid} Firestore doc, not via the Employees
     // page), leave localStorage alone rather than stomping the correct
     // value login.html just loaded from users/{uid} back to "false".
-    ['isPrimaryApprover', 'isDirector', 'isFinanceHead', 'isMasterDataAdmin'].forEach(function(flagKey) {
+    ['isPrimaryApprover', 'isDirector', 'isFinalApprover', 'isFinanceHead', 'isMasterDataAdmin'].forEach(function(flagKey) {
       if (currentEmp[flagKey] === undefined) return;
       var flagVal = String(currentEmp[flagKey] === true);
       if (localStorage.getItem(flagKey) !== flagVal) {
@@ -1026,7 +1026,7 @@ function computeMyPendingApprovalCount() {
       count += orders.filter(function(o) { return o.status === 'Pending Primary Approval'; }).length;
       count += invoices.filter(function(i) { return i.status === 'Pending Senior Approval'; }).length;
     }
-    if (hasApprovalAuthority('isDirector')) {
+    if (hasApprovalAuthority('isFinalApprover')) {
       count += quotes.filter(function(q) { return q.status === 'Approved' && q.directorRatificationStatus === 'Pending'; }).length;
       count += orders.filter(function(o) { return o.status === 'Booked' && o.directorRatificationStatus === 'Pending'; }).length;
       count += invoices.filter(function(i) { return (i.status === 'Approved' || i.status === 'Issued') && i.directorRatificationStatus === 'Pending'; }).length;
@@ -1157,7 +1157,7 @@ function getRevOpsNavigationHtml(userName, userRole, employeeId, userEmail, role
       <!-- Middle: Horizontal Category Dropdown Menus (Desktop / Tablet) -->
       <nav class="hidden md:flex items-center space-x-1.5">
         ${isAdmin ? `<a href="dashboard.html" class="${currentPath === 'dashboard.html' ? 'px-2.5 py-1.5 rounded-lg text-xs font-bold bg-[#982B68] text-white shadow-xs' : 'px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-300 hover:bg-slate-800 hover:text-white transition-all'}">📊 Dashboard</a>` : ''}
-        ${(typeof hasApprovalAuthority === 'function' && (hasApprovalAuthority('isPrimaryApprover') || hasApprovalAuthority('isFinanceHead') || hasApprovalAuthority('isDirector'))) ? `
+        ${(typeof hasApprovalAuthority === 'function' && (hasApprovalAuthority('isPrimaryApprover') || hasApprovalAuthority('isFinanceHead') || hasApprovalAuthority('isDirector') || hasApprovalAuthority('isFinalApprover'))) ? `
           <a href="approvals.html" class="${currentPath === 'approvals.html' ? 'px-2.5 py-1.5 rounded-lg text-xs font-bold bg-[#982B68] text-white shadow-xs flex items-center gap-1.5' : 'px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-300 hover:bg-slate-800 hover:text-white transition-all flex items-center gap-1.5'}">
             <span>✅ Approvals</span>
             ${computeMyPendingApprovalCount() > 0 ? `<span class="px-1.5 py-0.5 rounded-full text-[9px] font-black bg-amber-500 text-slate-900">${computeMyPendingApprovalCount()}</span>` : ''}
@@ -1463,7 +1463,7 @@ function getRevOpsNavigationHtml(userName, userRole, employeeId, userEmail, role
                 </a>
               </div>
             ` : ''}
-            ${(typeof hasApprovalAuthority === 'function' && (hasApprovalAuthority('isPrimaryApprover') || hasApprovalAuthority('isFinanceHead') || hasApprovalAuthority('isDirector'))) ? `
+            ${(typeof hasApprovalAuthority === 'function' && (hasApprovalAuthority('isPrimaryApprover') || hasApprovalAuthority('isFinanceHead') || hasApprovalAuthority('isDirector') || hasApprovalAuthority('isFinalApprover'))) ? `
               <div>
                 <a href="approvals.html" onclick="toggleMobileNavDrawer()" class="flex items-center justify-between p-2.5 rounded-xl ${currentPath === 'approvals.html' ? 'bg-[#982B68] text-white font-bold' : 'bg-slate-800/60 text-slate-200'}">
                   <span class="flex items-center space-x-2.5"><span>✅</span><span class="text-xs font-bold">Approvals</span></span>

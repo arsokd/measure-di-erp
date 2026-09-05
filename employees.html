@@ -171,7 +171,11 @@
             </label>
             <label class="flex items-center space-x-2 text-xs font-semibold text-slate-700 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
               <input type="checkbox" id="inp-is-director-ratifier" class="w-4 h-4" />
-              <span>Director Ratifier — ratifies the Primary Approver's decision on quotations/orders/invoices, and gives final sign-off on payment write-offs (does not block the team)</span>
+              <span>Director Ratifier — ratifies the Primary Approver's decision on quotations/orders/invoices, and gives final sign-off on payment write-offs (does not block the team). Also universally satisfies every other approval authority below, including Final Approver.</span>
+            </label>
+            <label class="flex items-center space-x-2 text-xs font-semibold text-slate-700 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
+              <input type="checkbox" id="inp-is-final-approver" class="w-4 h-4" />
+              <span>Final Approver — gives the final, non-blocking sign-off on quotations/orders/invoices after a Primary Approver has approved (same role the Director Ratifier plays; assign this to anyone else who should also be able to give that final sign-off, e.g. Murugan alongside the Director)</span>
             </label>
             <label class="flex items-center space-x-2 text-xs font-semibold text-slate-700 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
               <input type="checkbox" id="inp-is-finance-head" class="w-4 h-4" />

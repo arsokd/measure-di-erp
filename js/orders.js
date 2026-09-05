@@ -682,8 +682,8 @@ var currentSplits = [];
                   <button onclick="rejectOrderDirect('${o.id}')" class="px-2 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-md text-[10px] font-bold cursor-pointer">❌ Reject</button>
                 </div>
               ` : ''}
-              ${o.status === 'Booked' && o.directorRatificationStatus === 'Pending' && localStorage.getItem('isDirector') === 'true' ? `
-                <button onclick="ratifyOrderDirect('${o.id}')" class="px-2 py-1 bg-purple-700 hover:bg-purple-800 text-white rounded-md text-[10px] font-bold cursor-pointer">👑 Ratify</button>
+              ${o.status === 'Booked' && o.directorRatificationStatus === 'Pending' && hasApprovalAuthority('isFinalApprover') ? `
+                <button onclick="ratifyOrderDirect('${o.id}')" class="px-2 py-1 bg-purple-700 hover:bg-purple-800 text-white rounded-md text-[10px] font-bold cursor-pointer">✅ Final Approve</button>
               ` : ''}
               <button onclick="editOrder('${o.id}')" class="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white rounded-lg transition-colors cursor-pointer" title="Edit Order Details">
                 <i class="fa-solid fa-pen-to-square text-xs"></i>
@@ -788,11 +788,15 @@ var currentSplits = [];
           // Order confirmation (which reconciles the linked quotation/lead
           // and books it) requires the Primary Approver's sign-off — see
           // approveOrderDirect(). Saving here only records the raw PO entry.
+          // Exception: a Primary Approver raising their OWN order needs no
+          // approval at all (senior self-exemption) — finalized below.
           status: existingOrder && (existingOrder.status === 'Booked' || existingOrder.status === 'Rejected') ? existingOrder.status : 'Pending Primary Approval',
           createdDate: existingOrder ? existingOrder.createdDate : getFormattedToday(),
           createdAt: existingOrder ? existingOrder.createdAt : new Date().toISOString(),
           updatedAt: new Date().toISOString()
         };
+
+        var isNewSelfExemptOrder = !existingOrder && newOrder.status === 'Pending Primary Approval' && hasApprovalAuthority('isPrimaryApprover');
 
         window.RevOpsStore.saveRecord('orders', newOrder);
 
@@ -809,10 +813,25 @@ var currentSplits = [];
         }
 
         closeOrderModal();
-        renderOrdersTable();
 
-        if (newOrder.status === 'Pending Primary Approval') {
-          alert("Order saved and submitted for approval. It will not be booked (and the linked quotation/lead will not update) until the Primary Approver signs off.");
+        if (isNewSelfExemptOrder) {
+          // Senior self-exemption: the Primary Approver pool (Subhashini/
+          // Dipa/Anitha) needs no separate sign-off on their own orders —
+          // finalize immediately, same side effects as a manual approval.
+          var myName = localStorage.getItem('userName') || 'Primary Approver';
+          var myEmpId = localStorage.getItem('employeeId') || '';
+          finalizeOrderPrimaryApproval(newOrder, myName, myEmpId, 'Auto-approved — raised by a Primary Approver, no separate sign-off required.');
+          // Self-exemption covers both stages — no final approval left
+          // pending either, so it never sits waiting on Murugan/Director.
+          window.RevOpsStore.ratifyByDirector(newOrder, myName, myEmpId, 'Auto (self-exempt senior — no final approval required).');
+          window.RevOpsStore.saveRecord('orders', newOrder);
+          renderOrdersTable();
+          alert("Order " + (newOrder.poNumber || newOrder.id) + " booked immediately — no approval needed since you're a designated Primary Approver.");
+        } else {
+          renderOrdersTable();
+          if (newOrder.status === 'Pending Primary Approval') {
+            alert("Order saved and submitted for approval. It will not be booked (and the linked quotation/lead will not update) until the Primary Approver signs off.");
+          }
         }
       }
 
@@ -831,10 +850,20 @@ var currentSplits = [];
 
         var myName = localStorage.getItem('userName') || 'Primary Approver';
         var myEmpId = localStorage.getItem('employeeId') || '';
+        finalizeOrderPrimaryApproval(o, myName, myEmpId, remarks);
+        alert("Order " + (o.poNumber || o.id) + " approved and booked! (Final approval by Murugan or the Director is still pending, but does not block anything.)");
+      }
+
+      // Core state-mutation + side effects for booking an order once it has
+      // primary-approver sign-off — shared by the manual approveOrderDirect()
+      // above and the silent auto-approval path for senior self-exempt
+      // creators (see handleSaveOrder). Never call this without already
+      // having verified the approval itself is authorized/legitimate.
+      function finalizeOrderPrimaryApproval(o, approverName, approverEmpId, remarks) {
         var val = Number(o.orderValue) || Number(o.value) || 0;
 
         o.status = 'Booked';
-        window.RevOpsStore.approvePrimaryStage(o, myName, myEmpId, remarks);
+        window.RevOpsStore.approvePrimaryStage(o, approverName, approverEmpId, remarks);
 
         // MARK LINKED QUOTATION AS BOOKED — its valuation/tax/advance were
         // already the single source of truth for this order (locked at
@@ -897,7 +926,6 @@ var currentSplits = [];
 
         window.RevOpsStore.saveRecord('orders', o);
         renderOrdersTable();
-        alert("Order " + (o.poNumber || o.id) + " approved and booked! (Director ratification is still pending, but does not block anything.)");
       }
 
       function rejectOrderDirect(orderId) {
@@ -920,23 +948,23 @@ var currentSplits = [];
       }
 
       function ratifyOrderDirect(orderId) {
-        if (localStorage.getItem('isDirector') !== 'true') {
-          alert("Only the designated Director can ratify order approvals.");
+        if (!hasApprovalAuthority('isFinalApprover')) {
+          alert("Only Murugan or the Director can give final approval on orders.");
           return;
         }
         var orders = window.RevOpsStore.getCollection('orders') || [];
         var o = orders.find(function(it) { return it.id === orderId; });
         if (!o || o.status !== 'Booked' || o.directorRatificationStatus !== 'Pending') {
-          alert("This order isn't awaiting director ratification.");
+          alert("This order isn't awaiting final approval.");
           return;
         }
         var remarks = prompt("Enter ratification remarks (optional):", "Ratified.");
         if (remarks === null) return;
 
-        var myName = localStorage.getItem('userName') || 'Director';
+        var myName = localStorage.getItem('userName') || 'Final Approver';
         var myEmpId = localStorage.getItem('employeeId') || '';
         window.RevOpsStore.ratifyByDirector(o, myName, myEmpId, remarks);
         window.RevOpsStore.saveRecord('orders', o);
         renderOrdersTable();
-        alert("Order " + (o.poNumber || o.id) + " ratified by Director.");
+        alert("Order " + (o.poNumber || o.id) + " given final approval by " + myName + ".");
       }

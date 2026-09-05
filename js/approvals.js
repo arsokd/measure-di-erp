@@ -35,11 +35,11 @@
           });
         }
 
-        if (hasApprovalAuthority('isDirector')) {
+        if (hasApprovalAuthority('isFinalApprover')) {
           sections.push({
             key: 'quote-ratify',
-            title: 'Quotations — Director Ratification',
-            icon: '👑',
+            title: 'Quotations — Final Approval',
+            icon: '✅',
             items: quotes.filter(function(q) { return q.status === 'Approved' && q.directorRatificationStatus === 'Pending'; }),
             rowFn: function(q) {
               return {
@@ -73,11 +73,11 @@
           });
         }
 
-        if (hasApprovalAuthority('isDirector')) {
+        if (hasApprovalAuthority('isFinalApprover')) {
           sections.push({
             key: 'order-ratify',
-            title: 'Orders — Director Ratification',
-            icon: '👑',
+            title: 'Orders — Final Approval',
+            icon: '✅',
             items: orders.filter(function(o) { return o.status === 'Booked' && o.directorRatificationStatus === 'Pending'; }),
             rowFn: function(o) {
               return {
@@ -111,11 +111,11 @@
           });
         }
 
-        if (hasApprovalAuthority('isDirector')) {
+        if (hasApprovalAuthority('isFinalApprover')) {
           sections.push({
             key: 'invoice-ratify',
-            title: 'Invoices — Director Ratification',
-            icon: '👑',
+            title: 'Invoices — Final Approval',
+            icon: '✅',
             items: invoices.filter(function(i) { return (i.status === 'Approved' || i.status === 'Issued') && i.directorRatificationStatus === 'Pending'; }),
             rowFn: function(i) {
               return {

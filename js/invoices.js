@@ -357,11 +357,11 @@ var currentTab = 'All';
           } else if (inv.approvalInfo && inv.approvalInfo.approvedBy) {
             approvalCell = `<div class="text-[10px] text-emerald-700 font-semibold">✓ ${escapeHtml(inv.approvalInfo.approvedBy)}</div>`;
             if (inv.directorRatificationStatus === 'Ratified') {
-              approvalCell += `<div class="text-[9px] text-purple-700 font-bold">👑 Ratified by ${escapeHtml(inv.directorRatifiedBy || 'Director')}</div>`;
-            } else if (inv.directorRatificationStatus === 'Pending' && localStorage.getItem('isDirector') === 'true') {
-              approvalCell += `<button onclick="ratifyInvoiceDirect('${escapeHtml(inv.id)}')" class="mt-1 px-2 py-0.5 bg-purple-100 hover:bg-purple-200 text-purple-800 rounded text-[9px] font-bold cursor-pointer">👑 Ratify</button>`;
+              approvalCell += `<div class="text-[9px] text-purple-700 font-bold">✅ Final approved by ${escapeHtml(inv.directorRatifiedBy || 'Director')}</div>`;
+            } else if (inv.directorRatificationStatus === 'Pending' && hasApprovalAuthority('isFinalApprover')) {
+              approvalCell += `<button onclick="ratifyInvoiceDirect('${escapeHtml(inv.id)}')" class="mt-1 px-2 py-0.5 bg-purple-100 hover:bg-purple-200 text-purple-800 rounded text-[9px] font-bold cursor-pointer">✅ Final Approve</button>`;
             } else if (inv.directorRatificationStatus === 'Pending') {
-              approvalCell += `<div class="text-[9px] text-amber-600 font-semibold">Pending Ratification</div>`;
+              approvalCell += `<div class="text-[9px] text-amber-600 font-semibold">Pending Final Approval</div>`;
             }
           }
 
@@ -738,10 +738,17 @@ var currentTab = 'All';
         var selectedOrderId = document.getElementById('inp-inv-order-source').value;
 
         // Every invoice requires the Primary Approver's sign-off before it can
-        // be dispatched to the client — there is no auto-approve shortcut for
-        // any role, including admin/super_admin.
-        var initialStatus = 'Pending Senior Approval';
-        var approvalInfo = null;
+        // be dispatched to the client, EXCEPT a Primary Approver (Subhashini/
+        // Dipa/Anitha, or the Director) raising their own invoice, who needs
+        // no sign-off at all — senior self-exemption.
+        var isSelfExemptInvoice = !docId && hasApprovalAuthority('isPrimaryApprover');
+        var initialStatus = isSelfExemptInvoice ? 'Approved' : 'Pending Senior Approval';
+        var approvalInfo = isSelfExemptInvoice ? {
+          approvedBy: myName + ' (' + myEmpId + ')',
+          action: 'Approved',
+          approvedDate: getFormattedToday() + ' ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          seniorRemarks: 'Auto-approved — raised by a Primary Approver, no separate sign-off required.'
+        } : null;
 
         var invData = {
           invoiceNumber: document.getElementById('inp-inv-number').value.trim(),
@@ -779,6 +786,13 @@ var currentTab = 'All';
           employeeName: myName,
           updatedAt: new Date().toISOString()
         };
+
+        if (isSelfExemptInvoice) {
+          // Senior self-exemption covers both stages — no final approval
+          // left pending either, so it never sits waiting on Murugan/Director.
+          window.RevOpsStore.approvePrimaryStage(invData, myName, myEmpId, 'Auto-approved — raised by a Primary Approver, no separate sign-off required.');
+          window.RevOpsStore.ratifyByDirector(invData, myName, myEmpId, 'Auto (self-exempt senior — no final approval required).');
+        }
 
         if (docId) {
           // Preserve existing paid amounts on edit
@@ -935,26 +949,26 @@ var currentTab = 'All';
       }
 
       function ratifyInvoiceDirect(invId) {
-        if (localStorage.getItem('isDirector') !== 'true') {
-          alert("Only the designated Director can ratify invoice approvals.");
+        if (!hasApprovalAuthority('isFinalApprover')) {
+          alert("Only Murugan or the Director can give final approval on invoices.");
           return;
         }
         var invoices = window.RevOpsStore.getCollection('invoices') || [];
         var inv = invoices.find(function(it) { return it.id === invId; });
         if (!inv || (inv.status !== 'Approved' && inv.status !== 'Issued') || inv.directorRatificationStatus !== 'Pending') {
-          alert("This invoice isn't awaiting director ratification.");
+          alert("This invoice isn't awaiting final approval.");
           return;
         }
-        var remarks = prompt("Enter ratification remarks (optional):", "Ratified.");
+        var remarks = prompt("Enter approval remarks (optional):", "Approved.");
         if (remarks === null) return;
 
-        var myName = localStorage.getItem('userName') || 'Director';
+        var myName = localStorage.getItem('userName') || 'Final Approver';
         var myEmpId = localStorage.getItem('employeeId') || '';
         var updates = {};
         window.RevOpsStore.ratifyByDirector(updates, myName, myEmpId, remarks);
         window.RevOpsStore.updateItem('invoices', invId, updates);
         renderInvoicesTable();
-        alert("Invoice " + inv.invoiceNumber + " ratified by Director.");
+        alert("Invoice " + inv.invoiceNumber + " given final approval by " + myName + ".");
       }
 
       // Email Client Dispatch Modal Functions
