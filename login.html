@@ -44,12 +44,12 @@
 
         <form id="login-form" class="space-y-5" onsubmit="handleLoginSubmit(event)">
           <div>
-            <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">Mobile Number or Email</label>
+            <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">Email</label>
             <div class="relative">
-              <input type="text" id="login-id" required placeholder="9840629928 or ars.okd@gmail.com" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-[#982B68] focus:bg-white transition-all pl-10 font-medium" />
-              <svg class="w-5 h-5 text-slate-400 absolute left-3 top-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+              <input type="email" id="login-id" required placeholder="you@measuredi.com" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-[#982B68] focus:bg-white transition-all pl-10 font-medium" />
+              <svg class="w-5 h-5 text-slate-400 absolute left-3 top-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207"/></svg>
             </div>
-            <p class="text-[11px] text-slate-500 mt-1">💡 Login using your 10-digit Mobile Number or Gmail ID</p>
+            <p class="text-[11px] text-slate-500 mt-1">💡 Login using your registered email address</p>
           </div>
 
           <div>
@@ -118,55 +118,16 @@
         }
       }
 
-      // Resolve a typed mobile number to the employee's registered login email.
-      // Real authentication itself always happens against Firebase Auth below —
-      // this only translates "mobile number" into the email Firebase Auth needs.
-      async function resolveLoginEmailByMobile(digitsOnly) {
-        function findIn(list) {
-          return list.find(function(emp) {
-            if (!emp) return false;
-            var empMobileDigits = (emp.mobile || '').replace(/\D/g, '');
-            return empMobileDigits && digitsOnly && empMobileDigits === digitsOnly;
-          });
-        }
-
-        var employees = [];
-        try {
-          employees = (window.RevOpsStore && typeof window.RevOpsStore.getCollection === 'function')
-            ? (window.RevOpsStore.getCollection('employees') || [])
-            : [];
-        } catch (e) { employees = []; }
-
-        var match = findIn(employees);
-        if (match && match.email) return match;
-
-        if (window.db && typeof window.db.collection === 'function') {
-          try {
-            var snapshot = await window.db.collection('employees').get();
-            var fsEmployees = [];
-            snapshot.forEach(function(doc) {
-              var data = doc.data() || {};
-              data.docId = doc.id;
-              fsEmployees.push(data);
-            });
-            return findIn(fsEmployees) || null;
-          } catch (e) {
-            return null;
-          }
-        }
-        return null;
-      }
-
       async function handleLoginSubmit(e) {
         e.preventDefault();
         hideError();
         setLoading(true);
 
-        var loginInput = (document.getElementById('login-id').value || '').trim();
+        var loginEmail = (document.getElementById('login-id').value || '').trim();
         var passwordInput = (document.getElementById('login-password').value || '').trim();
 
-        if (!loginInput) {
-          showError("Please enter your Mobile Number or Email.");
+        if (!loginEmail) {
+          showError("Please enter your email.");
           setLoading(false);
           return;
         }
@@ -176,11 +137,8 @@
           return;
         }
 
-        var digitsOnly = loginInput.replace(/\D/g, '');
-        var isEmailInput = loginInput.indexOf('@') !== -1;
-
-        if (!isEmailInput && digitsOnly.length < 10) {
-          showError("Please enter a valid 10-digit mobile number or your email.");
+        if (loginEmail.indexOf('@') === -1) {
+          showError("Please enter a valid email address.");
           setLoading(false);
           return;
         }
@@ -194,17 +152,6 @@
         try {
           if (window.RevOpsStore && typeof window.RevOpsStore.initSeedData === 'function') {
             try { window.RevOpsStore.initSeedData(); } catch (errInit) {}
-          }
-
-          var loginEmail = loginInput;
-          if (!isEmailInput) {
-            var mobileMatch = await resolveLoginEmailByMobile(digitsOnly);
-            if (!mobileMatch || !mobileMatch.email) {
-              showError("This mobile number is not registered. Please contact your Admin.");
-              setLoading(false);
-              return;
-            }
-            loginEmail = mobileMatch.email;
           }
 
           // Real, verified sign-in — this is the only path that grants access.

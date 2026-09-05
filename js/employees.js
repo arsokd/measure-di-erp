@@ -37,13 +37,14 @@ document.addEventListener('DOMContentLoaded', function() {
             </button>
           `;
 
-          // Login Management Buttons (Mobile ID & Password Access)
-          var mobileDisplay = escapeHtml(emp.mobile || 'No Mobile ID');
+          // Login Management Buttons (Password Access) — login is by email;
+          // mobile number is contact info only, not a credential.
+          var mobileDisplay = escapeHtml(emp.mobile || 'No Mobile');
           var userRole = (typeof localStorage !== 'undefined') ? localStorage.getItem('userRole') : null;
           var canResetPass = (userRole === 'super_admin' || userRole === 'admin');
           var loginMgmtHtml = `
             <div class="flex flex-col items-center space-y-1">
-              <span class="px-2 py-0.5 bg-slate-100 text-slate-800 border border-slate-200 rounded font-mono font-bold text-[10px]" title="Mobile ID">${mobileDisplay}</span>
+              <span class="px-2 py-0.5 bg-slate-100 text-slate-800 border border-slate-200 rounded font-mono font-bold text-[10px]" title="Mobile (contact only, not for login)">${mobileDisplay}</span>
               ${canResetPass ? `
                 <button onclick="openSetPasswordModalPrompt('${escapeHtml(emp.id)}')" class="px-2 py-0.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 font-bold text-[10px] rounded shadow-2xs transition-colors cursor-pointer flex items-center space-x-1">
                   <span>🔑 Reset Password</span>
@@ -519,7 +520,7 @@ document.addEventListener('DOMContentLoaded', function() {
           saveBtn.innerText = origText;
         }
 
-        alert("✅ Password Successfully Saved!\n\nEmployee: " + emp.fullName + "\nMobile ID: " + (emp.mobile || 'N/A') + "\nEmail: " + (emp.email || 'N/A') + "\nNew Password: " + newPass + "\n\nThe employee can now log in using their Mobile Number and this New Password.");
+        alert("✅ Password Successfully Saved!\n\nEmployee: " + emp.fullName + "\nEmail (Login ID): " + (emp.email || 'N/A') + "\nNew Password: " + newPass + "\n\nThe employee can now log in using their Email and this New Password.");
         closeSetPasswordModal();
         renderEmployeesTable();
       }
