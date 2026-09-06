@@ -472,9 +472,23 @@ document.addEventListener('DOMContentLoaded', function() {
           });
         }
 
-        // 2. Attempt Firebase Auth secondaryApp or Netlify function sync in background
+        // 2. Actually reset (or create) the real Firebase Auth login via the
+        // server-side Netlify function — this is the only path that can
+        // genuinely change what a person logs in with, and it's the only
+        // one we trust to report success. (The old client-side fallback
+        // here tried createUserWithEmailAndPassword() when no uid was
+        // cached, which fails with EMAIL_EXISTS for every employee who
+        // already has a login — i.e. almost everyone — and that failure
+        // was silently swallowed while the app still claimed success. The
+        // function below resolves the account by email server-side instead,
+        // so it works whether or not we have their uid cached.)
         var authSuccess = false;
-        if (emp.uid && typeof firebase !== 'undefined' && firebase.auth && firebase.auth().currentUser) {
+        var authErrorMsg = '';
+        if (!emp.email) {
+          authErrorMsg = 'This employee has no email on file, so no real login can be reset for them.';
+        } else if (typeof firebase === 'undefined' || !firebase.auth || !firebase.auth().currentUser) {
+          authErrorMsg = 'Your own session is not fully signed in to Firebase — please refresh and try again.';
+        } else {
           try {
             var currentUser = firebase.auth().currentUser;
             var idToken = await currentUser.getIdToken(true);
@@ -485,37 +499,22 @@ document.addEventListener('DOMContentLoaded', function() {
                 'Authorization': 'Bearer ' + idToken
               },
               body: JSON.stringify({
-                targetUid: emp.uid,
+                targetUid: emp.uid || null,
+                targetEmail: emp.email,
                 newPassword: newPass
               })
             });
             var resData = await response.json();
             if (response.ok && resData.success) {
               authSuccess = true;
+              if (resData.uid && resData.uid !== emp.uid) {
+                window.RevOpsStore.updateItem('employees', docId, { uid: resData.uid });
+              }
+            } else {
+              authErrorMsg = resData.error || ('Server responded with status ' + response.status + '.');
             }
           } catch(err) {
-            console.warn("Netlify password reset function call ignored/failed:", err);
-          }
-        }
-
-        // Also try creating/updating Firebase Auth via secondaryApp if email is available
-        if (!authSuccess && emp.email && typeof firebase !== 'undefined' && firebase.initializeApp) {
-          try {
-            var secondaryApp = firebase.initializeApp(firebaseConfig, "PassReset_" + Date.now());
-            var secondaryAuth = secondaryApp.auth();
-            secondaryAuth.createUserWithEmailAndPassword(emp.email, newPass)
-              .then(function(cred) {
-                var newUid = cred.user ? cred.user.uid : null;
-                if (newUid) {
-                  window.RevOpsStore.updateItem('employees', docId, { uid: newUid });
-                }
-                secondaryAuth.signOut().then(function() { secondaryApp.delete(); });
-              })
-              .catch(function(err) {
-                secondaryApp.delete();
-              });
-          } catch(e) {
-            console.warn("Secondary app auth error:", e);
+            authErrorMsg = err.message || String(err);
           }
         }
 
@@ -524,7 +523,11 @@ document.addEventListener('DOMContentLoaded', function() {
           saveBtn.innerText = origText;
         }
 
-        alert("✅ Password Successfully Saved!\n\nEmployee: " + emp.fullName + "\nEmail (Login ID): " + (emp.email || 'N/A') + "\nNew Password: " + newPass + "\n\nThe employee can now log in using their Email and this New Password.");
-        closeSetPasswordModal();
-        renderEmployeesTable();
+        if (authSuccess) {
+          alert("✅ Password Successfully Reset!\n\nEmployee: " + emp.fullName + "\nEmail (Login ID): " + (emp.email || 'N/A') + "\nNew Password: " + newPass + "\n\nThe employee can now log in using their Email and this New Password.");
+          closeSetPasswordModal();
+          renderEmployeesTable();
+        } else {
+          alert("❌ Password reset FAILED — the employee's actual login was NOT changed.\n\nEmployee: " + emp.fullName + "\nEmail: " + (emp.email || 'N/A') + "\nReason: " + authErrorMsg + "\n\nPlease try again, or contact support if this keeps happening.");
+        }
       }

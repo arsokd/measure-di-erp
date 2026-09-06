@@ -113,13 +113,13 @@ export async function handler(event) {
     };
   }
 
-  const { targetUid, newPassword } = body || {};
+  const { targetUid, targetEmail, newPassword } = body || {};
 
-  if (!targetUid || typeof targetUid !== 'string') {
+  if ((!targetUid || typeof targetUid !== 'string') && (!targetEmail || typeof targetEmail !== 'string')) {
     return {
       statusCode: 400,
       headers,
-      body: JSON.stringify({ error: 'Target employee UID (targetUid) is required.' })
+      body: JSON.stringify({ error: 'Target employee UID or email is required.' })
     };
   }
 
@@ -132,17 +132,46 @@ export async function handler(event) {
   }
 
   try {
-    await getAuth().updateUser(targetUid, { password: newPassword });
+    var uidToUpdate = targetUid || null;
+    var createdFresh = false;
+
+    // No known UID (e.g. the employee record was never tagged with one,
+    // or this is the very first login being set up for them) — resolve it
+    // by email instead. This is what the old client-side fallback tried to
+    // do with createUserWithEmailAndPassword() and always failed at: that
+    // call rejects with EMAIL_EXISTS the moment the email already has a
+    // real account, which is true for almost every existing employee, so
+    // the "reset" silently did nothing while the app still reported
+    // success. Doing the lookup server-side with the Admin SDK lets us
+    // tell the two cases apart correctly and handle both.
+    if (!uidToUpdate) {
+      try {
+        var existingUser = await getAuth().getUserByEmail(targetEmail);
+        uidToUpdate = existingUser.uid;
+      } catch (lookupErr) {
+        if (lookupErr.code === 'auth/user-not-found') {
+          var newUser = await getAuth().createUser({ email: targetEmail, password: newPassword });
+          return {
+            statusCode: 200,
+            headers,
+            body: JSON.stringify({ success: true, uid: newUser.uid, created: true, message: 'New login created for ' + targetEmail })
+          };
+        }
+        throw lookupErr;
+      }
+    }
+
+    await getAuth().updateUser(uidToUpdate, { password: newPassword });
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({ success: true, message: 'Password reset successfully for UID ' + targetUid })
+      body: JSON.stringify({ success: true, uid: uidToUpdate, created: false, message: 'Password reset successfully for UID ' + uidToUpdate })
     };
   } catch (err) {
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ error: 'Failed to update user password in Firebase Auth: ' + (err.message || err) })
+      body: JSON.stringify({ error: 'Failed to reset password in Firebase Auth: ' + (err.message || err) })
     };
   }
 }
