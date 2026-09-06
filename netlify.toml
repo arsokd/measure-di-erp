@@ -6,6 +6,20 @@
 [build.environment]
   NODE_VERSION = "20"
 
+# firebase-admin (and its deep dependency tree: google-auth-library, gaxios,
+# gcp-metadata, google-gax, protobufjs, etc.) trips a known esbuild bundling
+# hazard when Netlify's function bundler tries to statically inline it - it
+# can end up pulling in two different module instances of the same class
+# (an ESM/CJS interop edge case), which crashes at runtime with "Class
+# extends value ... is not a constructor or null" the moment the Admin SDK
+# tries to use its credential. Marking it "external" tells esbuild to leave
+# it untouched and just copy the real node_modules/firebase-admin folder
+# into the deployed function, so Node's own require/import resolves it
+# exactly as it would locally - no bundling, no interop bug.
+[functions]
+  node_bundler = "esbuild"
+  external_node_modules = ["firebase-admin"]
+
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/:splat"
