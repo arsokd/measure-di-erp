@@ -132,24 +132,30 @@ export async function handler(event) {
   }
 
   try {
-    var uidToUpdate = targetUid || null;
-    var createdFresh = false;
+    var uidToUpdate = null;
 
-    // No known UID (e.g. the employee record was never tagged with one,
-    // or this is the very first login being set up for them) — resolve it
-    // by email instead. This is what the old client-side fallback tried to
-    // do with createUserWithEmailAndPassword() and always failed at: that
-    // call rejects with EMAIL_EXISTS the moment the email already has a
-    // real account, which is true for almost every existing employee, so
-    // the "reset" silently did nothing while the app still reported
-    // success. Doing the lookup server-side with the Admin SDK lets us
-    // tell the two cases apart correctly and handle both.
-    if (!uidToUpdate) {
+    // Resolve by EMAIL first, whenever an email is given — email is the
+    // sole real login identifier now (login is email-only), so it's the
+    // only thing guaranteed to be current. A client-cached targetUid can
+    // be stale (e.g. left over from an earlier broken attempt, or never
+    // refreshed after some other change) and silently point at the WRONG
+    // Firebase Auth account — updating that account's password would
+    // report success while doing nothing for the account the person
+    // actually logs in with. Only fall back to the client-supplied
+    // targetUid when no email was provided at all.
+    if (targetEmail) {
       try {
         var existingUser = await getAuth().getUserByEmail(targetEmail);
         uidToUpdate = existingUser.uid;
       } catch (lookupErr) {
         if (lookupErr.code === 'auth/user-not-found') {
+          // No real account for this email — this is what the old
+          // client-side fallback (createUserWithEmailAndPassword) tried
+          // and always failed at for anyone who already had a real
+          // account, since that call rejects with EMAIL_EXISTS the
+          // moment the email is already registered. Doing this
+          // server-side with the Admin SDK lets us tell "genuinely new"
+          // and "already exists" apart correctly and handle both.
           var newUser = await getAuth().createUser({ email: targetEmail, password: newPassword });
           return {
             statusCode: 200,
@@ -159,6 +165,16 @@ export async function handler(event) {
         }
         throw lookupErr;
       }
+    } else if (targetUid) {
+      uidToUpdate = targetUid;
+    }
+
+    if (!uidToUpdate) {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ error: 'Could not resolve which account to reset.' })
+      };
     }
 
     await getAuth().updateUser(uidToUpdate, { password: newPassword });
