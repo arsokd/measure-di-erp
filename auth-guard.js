@@ -214,6 +214,49 @@ function checkAuth(allowedRoles) {
     }
   }
 
+  // Self-heal users/{uid} — the doc server-side functions (e.g. the
+  // reset-password Netlify function) actually trust for authorization.
+  // It's normally only written once, by the "Create Login" flow on My
+  // Team — any account whose login predates that flow, or was created
+  // outside it, can be missing this doc (or holding a stale role)
+  // entirely, so a person can look like "Super Admin" everywhere in the
+  // UI yet be rejected server-side with "Forbidden." Firestore rules let
+  // a signed-in user write their own users/{uid} doc unconditionally
+  // (request.auth.uid == userId), so this is always safe to attempt —
+  // it can only ever correct this user's own record, never anyone else's.
+  try {
+    if (typeof firebase !== 'undefined' && firebase.auth && firebase.auth().currentUser && window.db) {
+      var realUid = firebase.auth().currentUser.uid;
+      var desiredUserDoc = {
+        role: userRole,
+        employeeId: employeeId,
+        isPrimaryApprover: localStorage.getItem('isPrimaryApprover') === 'true',
+        isDirector: localStorage.getItem('isDirector') === 'true',
+        isFinalApprover: localStorage.getItem('isFinalApprover') === 'true',
+        isFinanceHead: localStorage.getItem('isFinanceHead') === 'true',
+        isMasterDataAdmin: localStorage.getItem('isMasterDataAdmin') === 'true'
+      };
+      window.db.collection('users').doc(realUid).get().then(function(snap) {
+        var existing = snap.exists ? snap.data() : {};
+        var needsWrite = !snap.exists;
+        if (!needsWrite) {
+          Object.keys(desiredUserDoc).forEach(function(k) {
+            if (existing[k] !== desiredUserDoc[k]) needsWrite = true;
+          });
+        }
+        if (needsWrite) {
+          window.db.collection('users').doc(realUid).set(desiredUserDoc, { merge: true })
+            .then(function() { console.log('Self-healed users/' + realUid + ' authorization doc.'); })
+            .catch(function(errWrite) { console.warn('users/{uid} self-heal write failed:', errWrite); });
+        }
+      }).catch(function(errRead) {
+        console.warn('users/{uid} self-heal read failed:', errRead);
+      });
+    }
+  } catch (eSelfHeal) {
+    console.warn('users/{uid} self-heal skipped:', eSelfHeal);
+  }
+
   if (currentEmp && currentEmp.isActive === false) {
     if (typeof auth !== 'undefined' && auth && auth.signOut) {
       auth.signOut();
