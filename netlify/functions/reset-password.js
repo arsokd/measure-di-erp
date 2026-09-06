@@ -131,6 +131,39 @@ export async function handler(event) {
     };
   }
 
+  // Whatever Firebase Auth account we end up resetting/creating, make sure
+  // its users/{uid} authorization doc actually matches this person's real
+  // employee record. Without this, a brand-new account (e.g. someone's
+  // first login under a newly-assigned domain email) authenticates fine
+  // but has no role/employeeId anywhere the app can find — it renders as
+  // a generic "User"/"staff" account with none of their real access,
+  // even though the password reset itself succeeded. This also quietly
+  // self-heals an EXISTING account whose users/{uid} doc was missing or
+  // stale, the same way an admin resetting a password already fixes it.
+  async function syncUsersDocFromEmployeeRecord(uid, email) {
+    try {
+      var empSnap = await getFirestore().collection('employees')
+        .where('email', '==', email)
+        .limit(1)
+        .get();
+      if (empSnap.empty) return;
+      var emp = empSnap.docs[0].data() || {};
+      await getFirestore().collection('users').doc(uid).set({
+        role: emp.role || 'staff',
+        employeeId: emp.employeeId || '',
+        isPrimaryApprover: emp.isPrimaryApprover === true,
+        isDirector: emp.isDirector === true,
+        isFinalApprover: emp.isFinalApprover === true,
+        isFinanceHead: emp.isFinanceHead === true,
+        isMasterDataAdmin: emp.isMasterDataAdmin === true
+      }, { merge: true });
+    } catch (errSync) {
+      // Never let this block the actual password reset — worst case the
+      // login-time self-heal in the app itself catches it on next sign-in.
+      console.warn('Could not sync users/{uid} from employee record:', errSync);
+    }
+  }
+
   try {
     var uidToUpdate = null;
 
@@ -157,6 +190,7 @@ export async function handler(event) {
           // server-side with the Admin SDK lets us tell "genuinely new"
           // and "already exists" apart correctly and handle both.
           var newUser = await getAuth().createUser({ email: targetEmail, password: newPassword });
+          await syncUsersDocFromEmployeeRecord(newUser.uid, targetEmail);
           return {
             statusCode: 200,
             headers,
@@ -178,6 +212,9 @@ export async function handler(event) {
     }
 
     await getAuth().updateUser(uidToUpdate, { password: newPassword });
+    if (targetEmail) {
+      await syncUsersDocFromEmployeeRecord(uidToUpdate, targetEmail);
+    }
     return {
       statusCode: 200,
       headers,
