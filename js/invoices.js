@@ -112,16 +112,10 @@ var currentTab = 'All';
           });
         }
 
-        var quoteSelect = document.getElementById('inp-inv-quote-source');
-        if (quoteSelect) {
-          quoteSelect.innerHTML = `<option value="">-- Custom Invoice (No Quote) --</option>`;
-          quotes.forEach(function(q) {
-            var opt = document.createElement('option');
-            opt.value = q.id;
-            opt.innerText = (q.quoteNumber || 'Q-') + ' - ' + q.customerName + ' (' + formatINR(q.grandTotal) + ')';
-            quoteSelect.appendChild(opt);
-          });
-        }
+        // No customer picked yet (no PO selected) - show every customer's
+        // not-yet-ordered quotations. filterInvoiceQuoteSourceByCustomer()
+        // re-scopes this down to one customer the moment a PO is picked.
+        filterInvoiceQuoteSourceByCustomer(null);
       }
 
       function toggleInvoiceBgFields() {
@@ -589,14 +583,49 @@ var currentTab = 'All';
         calculateInvoiceTotals();
       }
 
+      // Once a PO/Order is picked, the "OR Select Approved Quotation" box
+      // (the alternative, no-PO way to auto-fill this invoice) is narrowed
+      // to just that same customer's quotations - and only the ones not
+      // already spoken for: a quotation that's already been converted
+      // into an order should be invoiced via that order's PO instead, not
+      // picked again here as if it were still a fresh, un-invoiced source.
+      function filterInvoiceQuoteSourceByCustomer(customerName) {
+        var quoteSelect = document.getElementById('inp-inv-quote-source');
+        if (!quoteSelect) return;
+
+        var quotes = window.RevOpsStore.getCollection('quotations') || [];
+        var orders = window.RevOpsStore.getCollection('orders') || [];
+
+        var filtered = quotes.filter(function(q) {
+          if (customerName && (q.customerName || '').trim().toLowerCase() !== customerName.trim().toLowerCase()) return false;
+          if (q.convertedOrderId) return false;
+          return !orders.some(function(o) { return o.quotationId === q.id && o.status !== 'Rejected'; });
+        });
+
+        quoteSelect.innerHTML = '<option value="">-- Custom Invoice (No Quote) --</option>';
+        filtered.forEach(function(q) {
+          var opt = document.createElement('option');
+          opt.value = q.id;
+          opt.innerText = (q.quoteNumber || 'Q-') + ' - ' + q.customerName + ' (' + formatINR(q.grandTotal) + ')';
+          quoteSelect.appendChild(opt);
+        });
+      }
+
       function autoPopulateFromOrder(orderId) {
-        if (!orderId) return;
+        if (!orderId) {
+          // PO selection cleared - lift the customer scoping back off the
+          // quotation box so it shows every customer's quotations again.
+          filterInvoiceQuoteSourceByCustomer(null);
+          return;
+        }
         var orders = window.RevOpsStore.getCollection('orders') || [];
         var quotes = window.RevOpsStore.getCollection('quotations') || [];
         var leads = window.RevOpsStore.getCollection('leads') || [];
 
         var ord = orders.find(function(item) { return item.id === orderId; });
         if (!ord) return;
+
+        filterInvoiceQuoteSourceByCustomer(ord.customerName);
 
         // Auto fill basic customer & commercial data
         document.getElementById('inp-inv-customer').value = ord.customerName || '';
