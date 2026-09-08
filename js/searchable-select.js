@@ -63,7 +63,17 @@
       // option's state back onto them. Without disconnecting first, that
       // write would immediately re-trigger this very callback, forever.
       observer.disconnect();
-      try { instance.sync(); } catch (e) {}
+      try {
+        // sync() alone is add-only — it rebuilds Tom Select's option
+        // cache from the select's current DOM but never removes entries
+        // that are no longer there, so a customer-filtered dropdown
+        // would keep showing every option it had ever seen, layered on
+        // top of each other. clearOptions() first drops everything
+        // except the currently-selected item, so sync() then rebuilds
+        // a genuinely fresh list matching the select's real state.
+        instance.clearOptions();
+        instance.sync();
+      } catch (e) {}
       setTimeout(function () {
         try {
           observer.observe(select, { childList: true, subtree: true });
