@@ -188,9 +188,14 @@ var currentEditingQuoteId = null;
 
         // Arriving from the Approvals hub's "Review & Approve" link -
         // reset the filters that could hide the target row (the FY
-        // filter defaults to the current year only) and scroll straight
-        // to it, highlighted, so the existing Approve/Final Approve
-        // button already on that row is immediately obvious.
+        // filter defaults to the current year only), scroll to it so
+        // it's visible either way, AND immediately trigger the same
+        // approval prompt its own on-row button would (Primary or
+        // Final, whichever the quote is actually waiting on) - matching
+        // Invoices, which opens its review modal automatically. Just
+        // scrolling to a highlighted row and leaving the viewer to find
+        // and click a separate button themselves was exactly the
+        // "nothing happened" feeling this was meant to fix.
         var approveId = params.get('approveId');
         if (approveId) {
           var fyEl = document.getElementById('quote-fy-filter');
@@ -206,7 +211,15 @@ var currentEditingQuoteId = null;
               row.classList.add('ring-2', 'ring-amber-400', 'bg-amber-50');
               setTimeout(function() { row.classList.remove('ring-2', 'ring-amber-400', 'bg-amber-50'); }, 4000);
             }
-          }, 100);
+            var quotesNow = getQuotationsList();
+            var target = quotesNow.find(function(it) { return it.id === approveId; });
+            if (!target) return;
+            if (target.status === 'Pending Approval' && hasApprovalAuthority('isPrimaryApprover')) {
+              approveQuoteDirect(approveId);
+            } else if (target.status === 'Approved' && target.directorRatificationStatus === 'Pending' && hasApprovalAuthority('isFinalApprover')) {
+              ratifyQuoteDirect(approveId);
+            }
+          }, 150);
         }
       });
 

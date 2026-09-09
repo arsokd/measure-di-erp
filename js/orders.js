@@ -42,11 +42,15 @@ var currentSplits = [];
         // link used to just dump the viewer on this whole list with no
         // indication of which of potentially dozens of orders it actually
         // meant. Reset the filters that could otherwise hide the target
-        // (the FY filter defaults to the current year only) and scroll
-        // straight to that exact row, highlighted, so the existing
-        // ✅ Approve / ✅ Final Approve button already on it is immediately
-        // obvious - the actual approval action still requires that
-        // deliberate click, this just makes sure the right row is found.
+        // (the FY filter defaults to the current year only), scroll
+        // straight to that exact row so it's visible either way, AND
+        // immediately trigger the same approval prompt its own on-row
+        // button would (Primary or Final, whichever the order is
+        // actually waiting on) — matching Invoices, which opens its
+        // review-and-sign modal automatically the same way. Landing on
+        // the list and still having to separately hunt down and click
+        // the right button was exactly the "nothing happened" feeling
+        // this was meant to fix in the first place.
         var approveId = urlParams.get('approveId');
         if (approveId) {
           document.getElementById('order-fy-filter').value = 'All';
@@ -60,7 +64,15 @@ var currentSplits = [];
               row.classList.add('ring-2', 'ring-amber-400', 'bg-amber-950/30');
               setTimeout(function() { row.classList.remove('ring-2', 'ring-amber-400', 'bg-amber-950/30'); }, 4000);
             }
-          }, 100);
+            var orders = window.RevOpsStore.getCollection('orders') || [];
+            var target = orders.find(function(it) { return it.id === approveId; });
+            if (!target) return;
+            if (target.status === 'Pending Primary Approval' && hasApprovalAuthority('isPrimaryApprover')) {
+              approveOrderDirect(approveId);
+            } else if (target.status === 'Booked' && target.directorRatificationStatus === 'Pending' && hasApprovalAuthority('isFinalApprover')) {
+              ratifyOrderDirect(approveId);
+            }
+          }, 150);
         }
       }
 
