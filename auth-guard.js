@@ -770,6 +770,16 @@ function downloadCSVTemplate() {
     csvContent = "orderId,customerName,vertical,amount,financialYear,orderDate,status\nORD-2026-99,JSW Steel,Sales,1500000,2026-27,02/08/2026,Booked\n";
   } else if (col === 'invoices') {
     csvContent = "invoiceNumber,invoiceType,customerName,customerGstin,vertical,taxableValue,taxAmount,grandTotal,status,dueDate\nINV/2026-27/088,Tax Invoice,Tata Steel Limited,20AAACT2702H1ZQ,Projects,500000,90000,590000,Approved,30/09/2026\n";
+  } else if (col === 'leads') {
+    // Matches the real field names leads.js itself writes on every lead
+    // record (see handleLeadSubmit's newLead object) - so an imported
+    // row behaves identically to one entered by hand through the Leads
+    // form, including showing up correctly on the funnel, dashboard, and
+    // per-rep filters.
+    csvContent =
+      "leadNumber,customerName,leadSource,industry,projectSector,vertical,productName,hsnCode,currency,estimatedValue,expectedValue,targetDate,stage,contactPerson,contactPhone,contactEmail,notes,employeeId,employeeName,createdDate,createdAt\n" +
+      "LD-2026-1001,JSW Steel Limited,Existing Client,Project,Steel,Projects,Dynamic In-Motion Train Weigher (IMW-500),90318000,INR,4500000,4500000,2026-06-30,Commercial Offer Submitted,Mr. Raghunath Verma,9840112233,r.verma@jsw.in,Follow-up after site visit,E-002,Mr. Murugan V,15/04/2026,2026-04-15T10:30:00.000Z\n" +
+      "LD-2026-1002,Ambuja Cements,Tender / E-Procurement Portal,Project,Cement,Projects,Wireless Crane Scale 50T (CS-50W),84238900,INR,2400000,2400000,2026-07-15,Lead Qualified,Ms. Priya Nair,9840556677,priya.nair@ambuja.com,,E-004,Mrs. Subhashini,02/05/2026,2026-05-02T09:00:00.000Z\n";
   } else {
     csvContent = "id,title,category,date,status,employeeId\n101,Customer Site Visit,Service/Parts,02/08/2026,Completed,E-004\n";
   }

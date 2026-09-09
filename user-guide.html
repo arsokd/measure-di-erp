@@ -44,7 +44,7 @@
       <div class="space-y-1">
         <div class="flex items-center space-x-2">
           <span class="px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider rounded-md bg-[#982B68] text-white">Official Documentation</span>
-          <span class="px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider rounded-md bg-emerald-950/80 text-emerald-400 border border-emerald-800/80">Auto-Updating SOP v3.5</span>
+          <span class="px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider rounded-md bg-emerald-950/80 text-emerald-400 border border-emerald-800/80">Auto-Updating SOP v3.6</span>
         </div>
         <h1 class="text-2xl sm:text-3xl font-black text-white tracking-tight flex items-center space-x-2">
           <span>📖 K-30_ERP User Guide & SOP</span>
@@ -948,6 +948,10 @@
           </p>
           <div class="p-3.5 bg-amber-950/40 border border-amber-800/60 rounded-xl text-amber-200">
             <strong>⚠️ Reload Notice:</strong> Clicking "Reload 2-Yr Data" re-initializes all collections in LocalStorage (employees, leads, orders, payments, expenses, payroll, attendance, KRAs, reviews, AOP) with calibrated test data while preserving active user login credentials.
+          </div>
+          <div class="p-3.5 bg-sky-950/30 border border-sky-800/60 rounded-xl text-sky-100">
+            <strong class="text-sky-300 block mb-1">📥 Bulk-importing real historical data (e.g. backfilling Leads):</strong>
+            Use the <strong>"Data Center"</strong> button in the top nav (not the Master Data page's own Bulk Upload, which only covers master reference lists like Products/Clients) &mdash; it can import into <strong>any</strong> collection, including Leads, Orders, and Invoices. Pick the target collection, click <strong>"Template CSV"</strong> to download a correctly-headed starter file with a sample row, fill in your real records (one row per lead/order/etc.), then upload it back. To backdate imported records so they show up correctly on the dashboard/reports for when they actually happened, fill in <code>createdDate</code> (DD/MM/YYYY) and <code>createdAt</code> (ISO timestamp, e.g. <code>2026-04-15T10:30:00.000Z</code>) with the real historical date &mdash; leaving them blank stamps the record as created today.
           </div>
         </div>
       </section>

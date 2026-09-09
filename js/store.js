@@ -1168,6 +1168,37 @@ Object.assign(window.RevOpsStore, {
     return sanitized;
   },
 
+  // A CSV file has no concept of "number" - every cell arrives as plain
+  // text. Left as a string, a value like "4500000" is invisible in a
+  // preview but silently breaks arithmetic wherever the rest of the app
+  // expects a real number (dashboard/report totals do `total += x`, which
+  // string-concatenates instead of adding once x is a string). Only
+  // applied to a fixed, explicit list of known money/quantity field
+  // names per collection - deliberately NOT a blanket "anything that
+  // looks numeric" rule, since that would also mangle phone numbers,
+  // PO/invoice numbers, pincodes, and GSTIN-adjacent fields that happen
+  // to be all-digit text but must never lose a leading zero or become a
+  // Number. Used only by the CSV bulk-import path, not the normal
+  // form-save path (which already sends correctly-typed numbers itself).
+  CSV_NUMERIC_FIELDS: {
+    leads: ['estimatedValue', 'expectedValue'],
+    orders: ['amount'],
+    invoices: ['taxableValue', 'taxAmount', 'grandTotal'],
+    projectsMaster: ['projectValue', 'budgetINR'],
+    sparePartsMaster: ['unitPrice', 'gstPercent', 'stockQty', 'minReorderLevel', 'leadTimeDays'],
+    clientsMaster: ['creditPeriodDays']
+  },
+  coerceCsvNumericFields: function(colName, record) {
+    var fields = this.CSV_NUMERIC_FIELDS[colName];
+    if (!fields) return record;
+    fields.forEach(function(f) {
+      if (typeof record[f] === 'string' && record[f].trim() !== '' && !isNaN(Number(record[f]))) {
+        record[f] = Number(record[f]);
+      }
+    });
+    return record;
+  },
+
   bulkUploadItems: function(colName, recordArray, callback) {
     if (!Array.isArray(recordArray) || recordArray.length === 0) {
       if (typeof callback === 'function') callback(0, "No valid records provided.");
@@ -1177,11 +1208,23 @@ Object.assign(window.RevOpsStore, {
     var currentItems = this.getCollection(colName);
     var count = 0;
 
-    recordArray.forEach(function(rawRecord) {
-      var record = self.sanitizeRecord(rawRecord);
+    // Resolve each row to its final record (with a real assigned id)
+    // exactly ONCE, and reuse that same resolved array for both the local
+    // cache and the Firestore batch below - sanitizeRecord() previously
+    // got called a second time from the original raw row for Firestore,
+    // which (for any row with no id column) assigned a brand new random
+    // id there, different from the one already saved locally, leaving
+    // local storage and Firestore with two different ids for what should
+    // be the same record.
+    var resolvedRecords = recordArray.map(function(rawRecord) {
+      var record = self.coerceCsvNumericFields(colName, self.sanitizeRecord(rawRecord));
       if (!record.id) {
         record.id = colName.substring(0, 3) + '_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4);
       }
+      return record;
+    });
+
+    resolvedRecords.forEach(function(record) {
       currentItems.push(record);
       count++;
     });
@@ -1191,8 +1234,7 @@ Object.assign(window.RevOpsStore, {
     if (this.isFirebaseAvailable()) {
       try {
         var batch = window.db.batch();
-        recordArray.forEach(function(rawRecord) {
-          var record = self.sanitizeRecord(rawRecord);
+        resolvedRecords.forEach(function(record) {
           var docRef = window.db.collection(colName).doc(record.id);
           batch.set(docRef, record, { merge: true });
         });
