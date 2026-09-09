@@ -69,25 +69,18 @@ var currentLeadContacts = [];
         }
       }
 
-      // Product Name cascades by Industry Vertical + Project Sector (master
-      // data tagged on each productsMaster record). Falls back to filtering
-      // by Vertical Classification alone if nothing is tagged yet for that
-      // specific combination, so the dropdown is never left empty while the
-      // catalog is still being tagged.
+      // Product Name is filtered by Vertical Classification - the only tag
+      // the Products Master page's own form actually captures on a product
+      // (see master-data.js: productName/technicalSpec/hsnCode/unitPrice/
+      // vertical, nothing else). This used to also try matching Industry
+      // Vertical + Project Sector, but since no product record has ever
+      // been able to carry those tags in the first place, that check
+      // (`!p.industryVertical || ...`) was true for every single product,
+      // silently defeating the filter entirely - every product showed up
+      // for every vertical. Filtering on vertical alone is what actually
+      // works with the data that exists.
       function getProductsForLeadCascade(industryVertical, projectSector, vertical) {
-        var masterProducts = window.RevOpsStore.getCollection('productsMaster') || [];
-        if (masterProducts.length === 0) {
-          return getProductsByVertical(vertical);
-        }
-
-        var matched = masterProducts.filter(function(p) {
-          var industryOk = !p.industryVertical || p.industryVertical === industryVertical;
-          var sectorOk = !p.projectSector || p.projectSector === projectSector;
-          return industryOk && sectorOk;
-        });
-
-        if (matched.length > 0) return matched;
-        return masterProducts.filter(function(p) { return p.vertical === vertical; });
+        return getProductsByVertical(vertical);
       }
 
       function getCurrentLeadCascadeValues() {
@@ -646,6 +639,9 @@ var currentLeadContacts = [];
           document.getElementById('inp-lead-industry').value = 'Project';
           handleIndustryChange();
           document.getElementById('inp-lead-vertical').value = 'Projects';
+          // Explicit, not left to form.reset()'s default-option guess -
+          // a new lead always starts at the first funnel stage.
+          document.getElementById('inp-lead-stage').value = 'Customer Contacted / Contact Attempted';
           currentLeadProducts = [];
           addProductRow();
           currentLeadContacts = [{ name: '', designation: '', phone: '', email: '', autoCc: true }];

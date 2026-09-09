@@ -154,6 +154,29 @@
       }
     });
     pageObserver.observe(document.body, { childList: true, subtree: true });
+
+    // form.reset() (used by every "open modal for a new record" flow in
+    // this app - Leads, Quotations, Orders, Invoices, ...) resets each
+    // native <select>'s real value correctly, but Tom Select has no
+    // built-in listener for the form's 'reset' event at all, so its own
+    // displayed UI is left showing whatever it displayed before the
+    // reset - e.g. opening a brand-new lead right after editing one that
+    // was "Order Confirmed" would still show "Order Confirmed" in the
+    // Stage dropdown's visible UI, even though the underlying field was
+    // correctly reset. By the time this listener runs the native reset
+    // has already completed (dispatched after values are recomputed, per
+    // spec), so re-reading each select's now-correct value and pushing
+    // it into its Tom Select instance brings the visible UI back in sync.
+    document.addEventListener('reset', function (e) {
+      if (!e.target || e.target.tagName !== 'FORM') return;
+      var selects = e.target.querySelectorAll('select');
+      for (var i = 0; i < selects.length; i++) {
+        var select = selects[i];
+        if (select.tomselect) {
+          try { select.tomselect.setValue(select.value, true); } catch (err) {}
+        }
+      }
+    });
   }
 
   if (document.readyState === 'loading') {
