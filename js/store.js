@@ -489,14 +489,21 @@ Object.assign(window.RevOpsStore, {
       },
       spareParts: {
         filename: "measure_di_spare_parts_master_template.csv",
-        headers: "partNumber,partName,category,compatibleModel,hsnCode,unitPrice,gstPercent,uom,stockQty,minReorderLevel,leadTimeDays",
+        // "vertical" added - must be one of Projects/Onboard/Crane/
+        // Service and Parts (Master Data > Vertical Classification), the
+        // same list Products Master uses, so both catalogs are tagged
+        // consistently. Nearly everything in this catalog is a
+        // replacement/service component, so "Service and Parts" is the
+        // right default for most rows regardless of which equipment
+        // vertical the part happens to fit.
+        headers: "partNumber,partName,vertical,category,compatibleModel,hsnCode,unitPrice,gstPercent,uom,stockQty,minReorderLevel,leadTimeDays",
         sampleRows: [
-          "SP-LC-50T,High Precision 50-Ton Shear Beam Load Cell,Load Cells,Crane Scales CS-50T,90318000,45000,18,Nos,24,5,7",
-          "SP-ENC-1000,Optical Rotary Encoder 1000 PPR Stainless Steel,Sensors & Encoders,In-Motion Rail Weighers,90319000,18500,18,Nos,40,10,5",
-          "SP-DISP-7S,Industrial High-Brightness 6-Digit LED Display Indicator,Displays & Terminals,All Measure DI Weighers,85285900,28000,18,Nos,18,4,10",
-          "SP-JB-04IP,IP68 Stainless Steel 4-Channel Analog Junction Box,Junction Boxes,Weighbridges & Hoppers,85369090,6500,18,Nos,55,15,3",
-          "SP-LAS-SCAN,High-Speed Multi-Line Laser Surface Profiler Head,Optical Metrology,Laser Scanners LS-200,90314900,145000,18,Sets,8,2,21",
-          "SP-CAL-20T,Certified Class M1 20-Ton Heavy Calibration Test Block,Calibration Standards,Crane & Weighbridge,90319000,85000,18,Nos,6,1,14"
+          "SP-LC-50T,High Precision 50-Ton Shear Beam Load Cell,Service and Parts,Load Cells,Crane Scales CS-50T,90318000,45000,18,Nos,24,5,7",
+          "SP-ENC-1000,Optical Rotary Encoder 1000 PPR Stainless Steel,Service and Parts,Sensors & Encoders,In-Motion Rail Weighers,90319000,18500,18,Nos,40,10,5",
+          "SP-DISP-7S,Industrial High-Brightness 6-Digit LED Display Indicator,Service and Parts,Displays & Terminals,All Measure DI Weighers,85285900,28000,18,Nos,18,4,10",
+          "SP-JB-04IP,IP68 Stainless Steel 4-Channel Analog Junction Box,Service and Parts,Junction Boxes,Weighbridges & Hoppers,85369090,6500,18,Nos,55,15,3",
+          "SP-LAS-SCAN,High-Speed Multi-Line Laser Surface Profiler Head,Service and Parts,Optical Metrology,Laser Scanners LS-200,90314900,145000,18,Sets,8,2,21",
+          "SP-CAL-20T,Certified Class M1 20-Ton Heavy Calibration Test Block,Service and Parts,Calibration Standards,Crane & Weighbridge,90319000,85000,18,Nos,6,1,14"
         ]
       }
     };

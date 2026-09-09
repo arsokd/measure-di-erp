@@ -756,7 +756,7 @@ function downloadCSVTemplate() {
       csvContent = tmpl.headers + "\n" + tmpl.sampleRows.join("\n");
       filename = tmpl.filename;
     } else {
-      csvContent = "partNumber,partName,category,compatibleModel,hsnCode,unitPrice,gstPercent,uom,stockQty,minReorderLevel,leadTimeDays\nSP-LC-50T,High Precision 50-Ton Shear Beam Load Cell,Load Cells,Crane Scales CS-50T,90318000,45000,18,Nos,24,5,7\n";
+      csvContent = "partNumber,partName,vertical,category,compatibleModel,hsnCode,unitPrice,gstPercent,uom,stockQty,minReorderLevel,leadTimeDays\nSP-LC-50T,High Precision 50-Ton Shear Beam Load Cell,Service and Parts,Load Cells,Crane Scales CS-50T,90318000,45000,18,Nos,24,5,7\n";
     }
   } else if (col === 'employees') {
     var tmpl = window.RevOpsStore?.getPrescribedCsvTemplate ? window.RevOpsStore.getPrescribedCsvTemplate('employees') : null;

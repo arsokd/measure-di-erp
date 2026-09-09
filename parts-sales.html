@@ -206,8 +206,15 @@
             </div>
           </div>
 
-          <!-- Row 2: Category & Compatible Model -->
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <!-- Row 2: Vertical, Category & Compatible Model -->
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Vertical *</label>
+              <select id="inp-part-vertical" required class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white font-semibold focus:outline-none focus:border-emerald-500">
+                <!-- Populated from Master Data > Vertical Classification, same list Products Master uses -->
+              </select>
+            </div>
+
             <div>
               <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Category *</label>
               <select id="inp-part-category" required class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white font-semibold focus:outline-none focus:border-emerald-500">

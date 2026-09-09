@@ -2,6 +2,7 @@ var activeSpareParts = [];
 
       document.addEventListener('DOMContentLoaded', function() {
         renderPartsTable();
+        fillSelect('inp-part-vertical', 'verticalClassificationMaster');
         fillSelect('inp-part-category', 'sparePartCategoryMaster');
 
         if (window.RevOpsStore && typeof window.RevOpsStore.subscribeRealtimeSync === 'function') {
@@ -35,6 +36,7 @@ var activeSpareParts = [];
               id: "sp_001",
               partNumber: "SP-LC-50T",
               partName: "50-Ton Shear Beam Class C3 Stainless Steel Load Cell",
+              vertical: "Service and Parts",
               category: "Load Cells",
               compatibleModel: "Crane Scale CS-50W / CS-50HT",
               hsnCode: "90318000",
@@ -49,6 +51,7 @@ var activeSpareParts = [];
               id: "sp_002",
               partNumber: "SP-IND-MDI9000",
               partName: "MDI-9000 High Precision Stainless Steel IP68 Weight Indicator",
+              vertical: "Service and Parts",
               category: "Digital Indicators",
               compatibleModel: "Pitless Weighbridge WB-100T / Slag Yard ASW-2000",
               hsnCode: "84239020",
@@ -63,6 +66,7 @@ var activeSpareParts = [];
               id: "sp_003",
               partNumber: "SP-JB-04IP",
               partName: "IP68 Stainless Steel 4-Channel Trimming Summing Junction Box",
+              vertical: "Service and Parts",
               category: "Junction Boxes",
               compatibleModel: "Weighbridges & Heavy Platform Scales",
               hsnCode: "85369090",
@@ -77,6 +81,7 @@ var activeSpareParts = [];
               id: "sp_004",
               partNumber: "SP-TEL-RF433",
               partName: "433MHz Industrial Wireless RF Telemetry Transmitter & Handheld Receiver",
+              vertical: "Service and Parts",
               category: "Wireless & Telemetry",
               compatibleModel: "Wireless Crane Scale CS-50W",
               hsnCode: "85176290",
@@ -91,6 +96,7 @@ var activeSpareParts = [];
               id: "sp_005",
               partNumber: "SP-ENC-1000",
               partName: "Optical High-Resolution Rotary Encoder 1000 PPR Heavy Duty",
+              vertical: "Service and Parts",
               category: "Cables & Hardware",
               compatibleModel: "In-Motion Train Weigher IMW-500",
               hsnCode: "90319000",
@@ -105,6 +111,7 @@ var activeSpareParts = [];
               id: "sp_006",
               partNumber: "SP-CBL-HT20M",
               partName: "20-Meter High-Temperature Armored Silicone Load Cell Cable Harness",
+              vertical: "Service and Parts",
               category: "Cables & Hardware",
               compatibleModel: "Ladle Turret LTW-350 / Smelter Scales",
               hsnCode: "85444990",
@@ -216,7 +223,10 @@ var activeSpareParts = [];
           tr.innerHTML = `
             <td class="py-3 px-4">
               <div class="font-black text-emerald-400 font-mono">${escapeHtml(p.partNumber)}</div>
-              <span class="inline-block mt-1 px-1.5 py-0.2 rounded text-[9px] font-extrabold uppercase bg-slate-800 text-slate-300 border border-slate-700">${escapeHtml(p.category)}</span>
+              <div class="mt-1 flex flex-wrap gap-1">
+                <span class="inline-block px-1.5 py-0.2 rounded text-[9px] font-extrabold uppercase bg-indigo-950 text-indigo-300 border border-indigo-800">${escapeHtml(p.vertical || 'Service and Parts')}</span>
+                <span class="inline-block px-1.5 py-0.2 rounded text-[9px] font-extrabold uppercase bg-slate-800 text-slate-300 border border-slate-700">${escapeHtml(p.category)}</span>
+              </div>
             </td>
             <td class="py-3 px-4">
               <div class="font-bold text-white text-xs">${escapeHtml(p.partName)}</div>
@@ -262,6 +272,9 @@ var activeSpareParts = [];
         form.reset();
         document.getElementById('part-doc-id').value = '';
         document.getElementById('part-modal-title').textContent = "Add Spare Part Catalog Item";
+        // Explicit, not left to form.reset()'s default-option guess -
+        // most catalog items added here are Service/Parts by nature.
+        document.getElementById('inp-part-vertical').value = 'Service and Parts';
         updateMarginPreview();
         document.getElementById('part-modal').classList.remove('hidden');
       }
@@ -279,6 +292,7 @@ var activeSpareParts = [];
         document.getElementById('part-modal-title').textContent = "Edit Spare Part (" + p.partNumber + ")";
         document.getElementById('inp-part-number').value = p.partNumber || '';
         document.getElementById('inp-part-name').value = p.partName || '';
+        document.getElementById('inp-part-vertical').value = p.vertical || 'Service and Parts';
         document.getElementById('inp-part-category').value = p.category || 'Load Cells';
         document.getElementById('inp-part-compat').value = p.compatibleModel || '';
         document.getElementById('inp-part-cost').value = p.costPrice || '';
@@ -302,6 +316,7 @@ var activeSpareParts = [];
           id: docId || ('sp_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4)),
           partNumber: document.getElementById('inp-part-number').value.trim().toUpperCase(),
           partName: document.getElementById('inp-part-name').value.trim(),
+          vertical: document.getElementById('inp-part-vertical').value,
           category: document.getElementById('inp-part-category').value,
           compatibleModel: document.getElementById('inp-part-compat').value.trim(),
           costPrice: Number(document.getElementById('inp-part-cost').value) || 0,
@@ -339,7 +354,7 @@ var activeSpareParts = [];
           return;
         }
 
-        var headers = ["PartNumber", "PartName", "Category", "CompatibleModel", "HSN", "CostPrice", "SellingPrice", "GrossMarginPct", "GST_Percent", "StockQty", "MinReorderLevel", "LeadTimeDays"];
+        var headers = ["PartNumber", "PartName", "Vertical", "Category", "CompatibleModel", "HSN", "CostPrice", "SellingPrice", "GrossMarginPct", "GST_Percent", "StockQty", "MinReorderLevel", "LeadTimeDays"];
         var rows = parts.map(function(p) {
           var cost = p.costPrice || Math.round(p.unitPrice * 0.55);
           var price = p.unitPrice || 0;
@@ -347,6 +362,7 @@ var activeSpareParts = [];
           return [
             p.partNumber,
             '"' + (p.partName || '').replace(/"/g, '""') + '"',
+            p.vertical || 'Service and Parts',
             p.category,
             '"' + (p.compatibleModel || '').replace(/"/g, '""') + '"',
             p.hsnCode,
