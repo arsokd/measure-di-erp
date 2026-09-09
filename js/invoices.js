@@ -45,6 +45,38 @@ var currentTab = 'All';
         populateBankDropdown();
         populateQuoteAndOrderSources();
         renderInvoicesTable();
+
+        // Arriving from the Approvals hub's "Review & Approve" link -
+        // reset filters that could hide the target row (the FY filter
+        // defaults to the current year, and a leftover tab selection
+        // could exclude it), then either open the actual review-and-sign
+        // modal directly (Primary Approval stage - that button opens a
+        // modal anyway, so there's nothing lost by opening it for them)
+        // or scroll to and highlight the row (Final Approval stage,
+        // which approves via a direct on-row button, not a modal).
+        var invUrlParams = new URLSearchParams(window.location.search);
+        var approveId = invUrlParams.get('approveId');
+        if (approveId) {
+          currentTab = 'All';
+          document.getElementById('invoice-fy-filter').value = 'All';
+          document.getElementById('invoice-search-input').value = '';
+          renderInvoicesTable();
+          window.history.replaceState({}, '', 'invoices.html');
+          setTimeout(function() {
+            var invoices = window.RevOpsStore.getCollection('invoices') || [];
+            var target = invoices.find(function(it) { return it.id === approveId; });
+            if (target && target.status === 'Pending Senior Approval') {
+              openSeniorReviewModal(approveId);
+              return;
+            }
+            var row = document.getElementById('invoice-row-' + approveId);
+            if (row) {
+              row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              row.classList.add('ring-2', 'ring-amber-400', 'bg-amber-50');
+              setTimeout(function() { row.classList.remove('ring-2', 'ring-amber-400', 'bg-amber-50'); }, 4000);
+            }
+          }, 100);
+        }
       }
 
       function populateBankDropdown() {
@@ -339,8 +371,9 @@ var currentTab = 'All';
           else if (inv.status === 'Overdue') statusPill = "bg-rose-100 text-rose-800 font-black";
 
           var tr = document.createElement('tr');
+          tr.id = 'invoice-row-' + inv.id;
           tr.className = "hover:bg-slate-50 transition-colors";
-          
+
           var approvalCell = `<span class="text-slate-400 text-[11px]">--</span>`;
           if (inv.status === 'Pending Senior Approval') {
             if (hasApprovalAuthority('isPrimaryApprover')) {

@@ -37,6 +37,31 @@ var currentSplits = [];
           // Clean the URL so a page refresh doesn't reopen the modal.
           window.history.replaceState({}, '', 'orders.html');
         }
+
+        // Arriving from the Approvals hub's "Review & Approve" link — that
+        // link used to just dump the viewer on this whole list with no
+        // indication of which of potentially dozens of orders it actually
+        // meant. Reset the filters that could otherwise hide the target
+        // (the FY filter defaults to the current year only) and scroll
+        // straight to that exact row, highlighted, so the existing
+        // ✅ Approve / ✅ Final Approve button already on it is immediately
+        // obvious - the actual approval action still requires that
+        // deliberate click, this just makes sure the right row is found.
+        var approveId = urlParams.get('approveId');
+        if (approveId) {
+          document.getElementById('order-fy-filter').value = 'All';
+          document.getElementById('order-search-input').value = '';
+          renderOrdersTable();
+          window.history.replaceState({}, '', 'orders.html');
+          setTimeout(function() {
+            var row = document.getElementById('order-row-' + approveId);
+            if (row) {
+              row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              row.classList.add('ring-2', 'ring-amber-400', 'bg-amber-950/30');
+              setTimeout(function() { row.classList.remove('ring-2', 'ring-amber-400', 'bg-amber-950/30'); }, 4000);
+            }
+          }, 100);
+        }
       }
 
       function toggleBgFields() {
@@ -627,6 +652,7 @@ var currentSplits = [];
           ` : `<span class="text-slate-500 text-[10px]">No file</span>`;
 
           var tr = document.createElement('tr');
+          tr.id = 'order-row-' + o.id;
           tr.className = "hover:bg-slate-800/40 transition-colors";
           tr.innerHTML = `
             <td class="py-3 px-4">

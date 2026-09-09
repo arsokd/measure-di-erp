@@ -185,6 +185,29 @@ var currentEditingQuoteId = null;
 
           openQuoteModal(null, prefillLead);
         }
+
+        // Arriving from the Approvals hub's "Review & Approve" link -
+        // reset the filters that could hide the target row (the FY
+        // filter defaults to the current year only) and scroll straight
+        // to it, highlighted, so the existing Approve/Final Approve
+        // button already on that row is immediately obvious.
+        var approveId = params.get('approveId');
+        if (approveId) {
+          var fyEl = document.getElementById('quote-fy-filter');
+          if (fyEl) fyEl.value = 'All';
+          var searchEl = document.getElementById('quote-search-input');
+          if (searchEl) searchEl.value = '';
+          renderQuotations();
+          window.history.replaceState({}, '', 'quotations.html');
+          setTimeout(function() {
+            var row = document.getElementById('quote-row-' + approveId);
+            if (row) {
+              row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              row.classList.add('ring-2', 'ring-amber-400', 'bg-amber-50');
+              setTimeout(function() { row.classList.remove('ring-2', 'ring-amber-400', 'bg-amber-50'); }, 4000);
+            }
+          }, 100);
+        }
       });
 
       function setupQuotePageFilters() {
@@ -356,6 +379,7 @@ var currentEditingQuoteId = null;
 
         filtered.forEach(function(q) {
           var tr = document.createElement('tr');
+          tr.id = 'quote-row-' + q.id;
           tr.className = "hover:bg-slate-50 transition-colors";
 
           var statusBadge = getQuoteStatusBadgeHtml(q);

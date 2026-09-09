@@ -29,7 +29,7 @@
                 amount: q.grandTotal,
                 by: q.employeeName,
                 date: q.createdDate,
-                link: 'quotations.html'
+                link: 'quotations.html?approveId=' + encodeURIComponent(q.id)
               };
             }
           });
@@ -48,7 +48,7 @@
                 amount: q.grandTotal,
                 by: q.primaryApprovedBy,
                 date: q.primaryApprovedAt,
-                link: 'quotations.html'
+                link: 'quotations.html?approveId=' + encodeURIComponent(q.id)
               };
             }
           });
@@ -67,7 +67,7 @@
                 amount: o.orderValue || o.value,
                 by: o.employeeName,
                 date: o.createdDate,
-                link: 'orders.html'
+                link: 'orders.html?approveId=' + encodeURIComponent(o.id)
               };
             }
           });
@@ -86,7 +86,7 @@
                 amount: o.orderValue || o.value,
                 by: o.primaryApprovedBy,
                 date: o.primaryApprovedAt,
-                link: 'orders.html'
+                link: 'orders.html?approveId=' + encodeURIComponent(o.id)
               };
             }
           });
@@ -105,7 +105,7 @@
                 amount: i.grandTotal,
                 by: i.employeeName,
                 date: i.invoiceDate,
-                link: 'invoices.html'
+                link: 'invoices.html?approveId=' + encodeURIComponent(i.id)
               };
             }
           });
@@ -124,7 +124,7 @@
                 amount: i.grandTotal,
                 by: i.approvalInfo ? i.approvalInfo.approvedBy : '',
                 date: i.invoiceDate,
-                link: 'invoices.html'
+                link: 'invoices.html?approveId=' + encodeURIComponent(i.id)
               };
             }
           });
@@ -143,7 +143,7 @@
                 amount: p.amount,
                 by: p.employeeName,
                 date: p.paymentDate,
-                link: 'payments.html'
+                link: 'payments.html?approveId=' + encodeURIComponent(p.id)
               };
             }
           });
@@ -167,7 +167,7 @@
                 amount: adj.adjustmentAmount,
                 by: adj.requestedBy,
                 date: adj.requestedDate,
-                link: 'payments.html?action=adjustments'
+                link: 'payments.html?action=adjustments&approveId=' + encodeURIComponent(adj.id)
               };
             }
           });
