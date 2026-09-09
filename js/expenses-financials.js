@@ -170,11 +170,16 @@
 
         // Update Aggregate Summary Cards
         var overallMargin = aggregateRev > 0 ? Math.round((aggregateProfit / aggregateRev) * 100) : 0;
-        document.getElementById('split-total-rev').innerText = formatINR(aggregateRev);
-        document.getElementById('split-total-exp').innerText = formatINR(aggregateTotalExp);
-        document.getElementById('split-total-profit').innerText = formatINR(aggregateProfit);
-        document.getElementById('split-avg-margin').innerText = overallMargin + "%";
-        document.getElementById('split-pending-rev').innerText = formatINR(aggregatePending);
+        document.getElementById('spl-total-rev').innerText = formatINR(aggregateRev);
+        document.getElementById('spl-invoiced-rev').innerText = formatINR(aggregateInvoiced);
+        document.getElementById('spl-received-rev').innerText = formatINR(aggregateReceived);
+        document.getElementById('spl-pending-rev').innerText = formatINR(aggregatePending);
+        document.getElementById('spl-direct-exp').innerText = formatINR(aggregateDirectExp);
+        document.getElementById('spl-shared-exp').innerText = formatINR(aggregateAllocatedExp);
+        document.getElementById('spl-total-exp').innerText = formatINR(aggregateTotalExp);
+        document.getElementById('spl-gross-profit').innerText = formatINR(aggregateProfit);
+        var marginEl = document.getElementById('spl-avg-margin');
+        if (marginEl) marginEl.innerText = overallMargin + "%";
 
         // Populate Checkboxes for Simulator and Expense Modal
         populateSimulatorProjectCheckboxes();
@@ -226,7 +231,8 @@
       /* SIMULATOR CALCULATION ENGINE */
       function runSimSplitCalc() {
         var amount = Number(document.getElementById('sim-amount').value) || 0;
-        var mode = document.getElementById('sim-mode').value;
+        var checkedModeEl = document.querySelector('input[name="sim-mode"]:checked');
+        var mode = checkedModeEl ? checkedModeEl.value : 'equal';
         var checkedCbs = Array.from(document.querySelectorAll('#sim-project-checkboxes input:checked'));
         var selectedCodes = checkedCbs.map(function(cb) { return cb.value; });
 
@@ -320,9 +326,9 @@
         var checkedCbs = Array.from(document.querySelectorAll('#exp-form-projects-container input:checked'));
         var selectedCodes = checkedCbs.map(function(cb) { return cb.value; });
 
-        var container = document.getElementById('exp-split-config-container');
+        var container = document.getElementById('exp-form-splits-table-wrapper');
         var tbody = document.getElementById('exp-form-splits-tbody');
-        var badge = document.getElementById('exp-split-validation-badge');
+        var badge = document.getElementById('exp-split-badge');
         if (!tbody || !container) return;
 
         if (mode === 'direct' || selectedCodes.length === 0) {
@@ -361,7 +367,7 @@
         var amount = Number(document.getElementById('exp-amount').value) || 0;
         var pctInputs = Array.from(document.querySelectorAll('.exp-split-pct-input'));
         var amtInputs = Array.from(document.querySelectorAll('.exp-split-amt-input'));
-        var badge = document.getElementById('exp-split-validation-badge');
+        var badge = document.getElementById('exp-split-badge');
 
         var totalAllocated = 0;
         amtInputs.forEach(function(inp) { totalAllocated += Number(inp.value) || 0; });

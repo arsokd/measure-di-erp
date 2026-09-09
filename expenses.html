@@ -76,6 +76,20 @@
       </div>
       
       <div id="sec-travel-app" class="hidden space-y-6">
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
+            <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Pending Manager Approval</div>
+            <div class="text-2xl font-extrabold text-amber-600 mt-1" id="stat-preapp-pending">0 Requests</div>
+          </div>
+          <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
+            <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Approved</div>
+            <div class="text-2xl font-extrabold text-emerald-600 mt-1" id="stat-preapp-approved">0 Authorized</div>
+          </div>
+          <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
+            <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Trip Extensions</div>
+            <div class="text-2xl font-extrabold text-purple-600 mt-1" id="stat-preapp-extended">0 Extended Trips</div>
+          </div>
+        </div>
         <div class="bg-white p-6 rounded-2xl shadow-xs border border-slate-200">
           <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
             <div>
@@ -86,6 +100,15 @@
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
               <span>Request New Travel Approval</span>
             </button>
+          </div>
+          <div class="flex flex-wrap items-center gap-3 mb-4">
+            <select id="flt-preapp-status" onchange="renderTravelApprovals()" class="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold">
+              <option value="All">All Statuses</option>
+              <option value="Pending Manager Approval">Pending Manager Approval</option>
+              <option value="Approved">Approved</option>
+              <option value="Rejected">Rejected</option>
+            </select>
+            <input type="text" id="flt-preapp-search" oninput="renderTravelApprovals()" placeholder="Search employee, places, client..." class="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs w-56 focus:outline-none focus:ring-2 focus:ring-sky-500" />
           </div>
           <div class="overflow-x-auto border border-slate-200 rounded-xl">
             <table class="w-full text-left border-collapse">
@@ -100,8 +123,8 @@
                   <th class="py-3 px-4 text-center">Action</th>
                 </tr>
               </thead>
-              <tbody id="travel-app-tbody" class="divide-y divide-slate-100 text-xs">
-                
+              <tbody id="travel-approvals-tbody" class="divide-y divide-slate-100 text-xs">
+
               </tbody>
             </table>
           </div>
@@ -227,7 +250,7 @@
             </div>
           </div>
           
-          <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
+          <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-9 gap-3">
             <div class="bg-slate-50 p-3 rounded-xl border border-slate-200">
               <div class="text-[10px] font-bold text-slate-500 uppercase">Total Revenue</div>
               <div class="text-base font-extrabold text-slate-900 mt-1" id="spl-total-rev">Rs.0</div>
@@ -259,6 +282,10 @@
             <div class="bg-emerald-50 p-3 rounded-xl border border-emerald-200">
               <div class="text-[10px] font-bold text-emerald-900 uppercase">Gross Profit</div>
               <div class="text-base font-extrabold text-emerald-800 mt-1" id="spl-gross-profit">Rs.0</div>
+            </div>
+            <div class="bg-emerald-50 p-3 rounded-xl border border-emerald-200">
+              <div class="text-[10px] font-bold text-emerald-900 uppercase">Avg Margin %</div>
+              <div class="text-base font-extrabold text-emerald-800 mt-1" id="spl-avg-margin">0%</div>
             </div>
           </div>
           
@@ -558,6 +585,7 @@
     
     
 <div id="expenses-modals-container"></div>
+  <script src="js/expenses-modals.js"></script>
   <script src="js/expenses-travel.js"></script>
   <script src="js/expenses-financials.js"></script>
   
