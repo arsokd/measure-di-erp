@@ -178,6 +178,16 @@ function checkAuth(allowedRoles) {
       currentEmp.role = 'super_admin';
       empUpdated = true;
     }
+    // Murugan holds every approval capability Ravichandran (the Director)
+    // does - isDirector is the one flag hasApprovalAuthority() treats as
+    // "passes every approval check, no exceptions" (see comment at the
+    // top of this file), so granting it here mirrors the Director's full
+    // authority across Quotations/Orders/Invoices/Payments/Travel exactly,
+    // with nothing left to individually keep in sync as new flags appear.
+    if (currentEmp.employeeId === 'E-002' && currentEmp.isDirector !== true) {
+      currentEmp.isDirector = true;
+      empUpdated = true;
+    }
 
     // Keep active session role, name, email and ID synchronized
     if (currentEmp.role && localStorage.getItem('userRole') !== currentEmp.role) {
