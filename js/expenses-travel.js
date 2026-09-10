@@ -347,9 +347,10 @@ var currentTab = 'travel-app';
             clientSelect.innerHTML += `<option value="Vedanta Aluminium & Power">Vedanta Aluminium & Power</option>`;
           } else {
             clients.forEach(function(c) {
+              var displayName = c.customerName || c.companyName || c.clientName || c.name || 'Client';
               var opt = document.createElement('option');
-              opt.value = c.companyName || c.clientName || c.name || 'Client';
-              opt.innerText = c.companyName || c.clientName || c.name || 'Client';
+              opt.value = displayName;
+              opt.innerText = displayName + (c.city ? (" - " + c.city) : "");
               clientSelect.appendChild(opt);
             });
           }
@@ -743,15 +744,21 @@ var currentTab = 'travel-app';
           }
         }
 
-        // Populate client select
+        // Populate client select (deduplicated by client name - a client
+        // with multiple lead records should still appear only once in
+        // this master list)
         var clients = window.RevOpsStore.getCollection('leads') || [];
         var clientSelect = document.getElementById('preapp-existing-client');
         if (clientSelect) {
           clientSelect.innerHTML = `<option value="">-- Select Existing Client --</option>`;
+          var seenClientNames = {};
           clients.forEach(function(c) {
+            var displayName = c.customerName || c.companyName || c.name;
+            if (!displayName || seenClientNames[displayName]) return;
+            seenClientNames[displayName] = true;
             var opt = document.createElement('option');
-            opt.value = c.companyName || c.name || c.id;
-            opt.innerText = (c.companyName || c.name) + (c.city ? (" - " + c.city) : "");
+            opt.value = displayName;
+            opt.innerText = displayName + (c.city ? (" - " + c.city) : "");
             clientSelect.appendChild(opt);
           });
         }
@@ -832,6 +839,36 @@ var currentTab = 'travel-app';
         } else {
           document.getElementById('client-existing-box').classList.remove('hidden');
           document.getElementById('client-new-box').classList.add('hidden');
+        }
+      }
+
+      // Auto-fill the Key Contact Person field from the master Leads/Clients
+      // record when an existing client is picked in the Travel Pre-Approval
+      // form, so the requester doesn't have to re-type details already on file.
+      function populateClientContactFromMaster() {
+        var clientSelect = document.getElementById('preapp-existing-client');
+        var contactInput = document.getElementById('preapp-contact-person');
+        if (!clientSelect || !contactInput) return;
+
+        var selectedName = clientSelect.value;
+        if (!selectedName) {
+          contactInput.value = '';
+          return;
+        }
+
+        var leads = window.RevOpsStore.getCollection('leads') || [];
+        var clients = window.RevOpsStore.getCollection('clients') || [];
+        var match = leads.find(function(c) { return (c.customerName || c.companyName || c.name) === selectedName; })
+          || clients.find(function(c) { return (c.customerName || c.companyName || c.clientName || c.name) === selectedName; });
+
+        if (!match) return;
+
+        var personName = match.contactPerson || '';
+        var phone = match.contactPhone || match.phone || match.mobile || '';
+        if (personName && phone) {
+          contactInput.value = personName + ' (' + phone + ')';
+        } else if (personName) {
+          contactInput.value = personName;
         }
       }
 
