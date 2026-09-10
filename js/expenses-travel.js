@@ -6,6 +6,12 @@ var currentTab = 'travel-app';
       // that expense record's id so Save updates it in place instead of
       // creating a duplicate.
       var editingTravelClaimExpenseId = null;
+      // Non-null while the Travel Pre-Approval modal is editing an
+      // existing, still-pending request rather than creating a new one -
+      // holds that request's original record so Save can update it in
+      // place (preserving its id, whether it's an extension, and which
+      // trip it extends) instead of creating a duplicate.
+      var editingPreApprovalOriginal = null;
 
       document.addEventListener('DOMContentLoaded', function() {
         if (checkAuth()) {
@@ -539,6 +545,15 @@ var currentTab = 'travel-app';
             ? `<button onclick="openTravelClaimForApprovedPreApp('${app.id}')" class="px-2 py-1 bg-sky-50 hover:bg-sky-100 text-sky-800 font-bold text-[11px] rounded-lg border border-sky-300 transition-colors cursor-pointer">Submit Claim</button>`
             : (app.status === 'Approved' ? `<span class="px-2 py-1 text-slate-400 text-[11px] font-semibold">Claimed</span>` : '');
 
+          // Only the person who submitted this request can correct or
+          // withdraw it, and only while it's still waiting on someone
+          // else's approval - once either stage has signed off, it's a
+          // decided record.
+          var editDeletePreAppBtns = canEditOrDeletePreApproval(app)
+            ? `<button onclick="editPreApproval('${app.id}')" class="px-2 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-[11px] rounded-lg border border-indigo-200 transition-colors cursor-pointer">Edit</button>
+               <button onclick="deletePreApproval('${app.id}')" class="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-[11px] rounded-lg border border-rose-200 transition-colors cursor-pointer">Delete</button>`
+            : '';
+
           var tr = document.createElement('tr');
           tr.id = 'travel-row-' + app.id;
           tr.className = "hover:bg-slate-50 transition-colors";
@@ -569,6 +584,7 @@ var currentTab = 'travel-app';
               ${approveBtn}
               ${extendBtn}
               ${claimBtn}
+              ${editDeletePreAppBtns}
             </td>
           `;
           tbody.appendChild(tr);
@@ -861,6 +877,11 @@ var currentTab = 'travel-app';
 
       /* PRE-APPROVAL MODAL LOGIC */
       function openPreApprovalModal() {
+        editingPreApprovalOriginal = null;
+        var titleEl = document.getElementById('preapp-modal-title');
+        if (titleEl) titleEl.innerText = 'Travel Pre-Approval & Extension Request';
+        var submitLabelEl = document.getElementById('btn-submit-preapp-label');
+        if (submitLabelEl) submitLabelEl.innerText = 'Submit Travel Authorization Request';
         document.getElementById('preapp-id').value = "";
         document.getElementById('preapp-start-date').value = new Date().toISOString().split('T')[0];
         document.getElementById('preapp-end-date').value = new Date().toISOString().split('T')[0];
@@ -927,7 +948,83 @@ var currentTab = 'travel-app';
       }
 
       function closePreApprovalModal() {
+        editingPreApprovalOriginal = null;
         document.getElementById('modal-pre-approval').classList.add('hidden');
+      }
+
+      // Only the person who submitted a Travel Pre-Approval request can
+      // edit or delete it, and only while it's still waiting on someone
+      // else's approval - once either stage has signed off, it's a
+      // decided record, not something to quietly change out from under
+      // that approval.
+      function canEditOrDeletePreApproval(app) {
+        if (!app) return false;
+        if (app.status !== 'Pending Manager Approval' && app.status !== 'Pending Director Approval') return false;
+        var myEmpId = localStorage.getItem('employeeId');
+        return !!(myEmpId && app.empId === myEmpId);
+      }
+
+      function editPreApproval(appId) {
+        var preApps = window.RevOpsStore.getCollection('travelApprovals') || [];
+        var app = preApps.find(function(a) { return a.id === appId; });
+        if (!app) return;
+        if (!canEditOrDeletePreApproval(app)) {
+          alert("Only the person who submitted this request can edit it, and only while it's still awaiting approval.");
+          return;
+        }
+
+        openPreApprovalModal();
+        editingPreApprovalOriginal = app;
+
+        var titleEl = document.getElementById('preapp-modal-title');
+        if (titleEl) titleEl.innerText = 'Edit Travel Pre-Approval Request — ' + app.id;
+        var submitLabelEl = document.getElementById('btn-submit-preapp-label');
+        if (submitLabelEl) submitLabelEl.innerText = 'Update Travel Authorization Request';
+
+        // Editing corrects the details of THIS request directly - not a
+        // new extension of something else - so the mode stays on "New"
+        // and the extend-selector/reason box stay hidden regardless of
+        // whether this particular request happens to itself be an
+        // extension; its isExtension/refId/extensionReason are carried
+        // over unchanged in handleSavePreApproval rather than re-exposed
+        // here for editing.
+        var modeRadios = document.getElementsByName('preapp-mode');
+        if (modeRadios[0]) modeRadios[0].checked = true;
+        togglePreAppMode();
+
+        document.getElementById('preapp-emp-id').value = app.empId || '';
+        document.getElementById('preapp-start-date').value = app.startDate || '';
+        document.getElementById('preapp-end-date').value = app.endDate || '';
+        document.getElementById('preapp-places').value = app.places || '';
+        document.getElementById('preapp-purpose').value = app.purpose || '';
+        document.getElementById('preapp-budget').value = app.estimatedBudget || '';
+
+        var cType = app.clientType === 'new' ? 'new' : 'existing';
+        document.getElementById('preapp-client-type').value = cType;
+        toggleClientType();
+        if (cType === 'new') {
+          document.getElementById('preapp-new-client-name').value = app.clientName || '';
+          document.getElementById('preapp-new-contact-person').value = app.contactPerson || '';
+        } else {
+          var clientSelect = document.getElementById('preapp-existing-client');
+          if (clientSelect) clientSelect.value = app.clientName || '';
+          document.getElementById('preapp-contact-person').value = app.contactPerson || '';
+        }
+      }
+
+      function deletePreApproval(appId) {
+        var preApps = window.RevOpsStore.getCollection('travelApprovals') || [];
+        var app = preApps.find(function(a) { return a.id === appId; });
+        if (!app) return;
+        if (!canEditOrDeletePreApproval(app)) {
+          alert("Only the person who submitted this request can delete it, and only while it's still awaiting approval.");
+          return;
+        }
+        if (!confirm("Delete travel request " + app.id + " (" + app.places + ", " + formatINR(app.estimatedBudget) + ")? This cannot be undone.")) return;
+
+        window.RevOpsStore.deleteItem('travelApprovals', appId);
+        renderTravelApprovals();
+        alert("Travel request " + app.id + " deleted.");
       }
 
       function togglePreAppMode() {
@@ -1048,7 +1145,8 @@ var currentTab = 'travel-app';
 
       function handleSavePreApproval(evt) {
         evt.preventDefault();
-        var isExtend = document.querySelector('input[name="preapp-mode"]:checked').value === 'extend';
+        var editing = editingPreApprovalOriginal;
+        var isExtend = editing ? !!editing.isExtension : (document.querySelector('input[name="preapp-mode"]:checked').value === 'extend');
         var empId = document.getElementById('preapp-emp-id').value;
         var startDate = document.getElementById('preapp-start-date').value;
         var endDate = document.getElementById('preapp-end-date').value;
@@ -1073,11 +1171,7 @@ var currentTab = 'travel-app';
         var empName = emp ? emp.fullName : empId;
         var vert = emp ? emp.vertical : 'Sales';
 
-        var appCount = (window.RevOpsStore.getCollection('travelApprovals') || []).length + 101;
-        var appId = isExtend ? ('TRV-EXT-' + appCount) : ('TRV-APP-' + appCount);
-
-        var newPreApp = {
-          id: appId,
+        var preAppFields = {
           empId: empId,
           employeeName: empName,
           vertical: vert,
@@ -1090,16 +1184,35 @@ var currentTab = 'travel-app';
           contactPerson: contactPerson,
           estimatedBudget: budget,
           isExtension: isExtend,
-          refId: isExtend ? document.getElementById('preapp-ref-id').value : '',
-          status: 'Pending Manager Approval',
-          appliedDate: new Date().toISOString().split('T')[0],
-          extensionReason: isExtend ? document.getElementById('preapp-extension-reason').value : ''
+          refId: isExtend ? (editing ? editing.refId : document.getElementById('preapp-ref-id').value) : '',
+          extensionReason: isExtend ? (editing ? editing.extensionReason : document.getElementById('preapp-extension-reason').value) : ''
         };
 
-        window.RevOpsStore.addItem('travelApprovals', newPreApp);
-        closePreApprovalModal();
-        renderTravelApprovals();
-        alert("Travel Authorization Request " + newPreApp.id + " submitted and routed for Reporting Manager Approval!");
+        if (editing) {
+          // Updating an existing, still-pending request - the details
+          // just changed, so any sign-off already given on the old
+          // details no longer applies and this goes back to needing the
+          // Reporting Manager's approval fresh, same as a new request.
+          preAppFields.status = 'Pending Manager Approval';
+          preAppFields.managerApprovedBy = null;
+          preAppFields.managerApprovedAt = null;
+          preAppFields.directorApprovedBy = null;
+          preAppFields.directorApprovedAt = null;
+          window.RevOpsStore.updateItem('travelApprovals', editing.id, preAppFields);
+          closePreApprovalModal();
+          renderTravelApprovals();
+          alert("Travel Authorization Request " + editing.id + " updated and re-submitted for Reporting Manager Approval!");
+        } else {
+          var appCount = (window.RevOpsStore.getCollection('travelApprovals') || []).length + 101;
+          preAppFields.id = isExtend ? ('TRV-EXT-' + appCount) : ('TRV-APP-' + appCount);
+          preAppFields.status = 'Pending Manager Approval';
+          preAppFields.appliedDate = new Date().toISOString().split('T')[0];
+
+          window.RevOpsStore.addItem('travelApprovals', preAppFields);
+          closePreApprovalModal();
+          renderTravelApprovals();
+          alert("Travel Authorization Request " + preAppFields.id + " submitted and routed for Reporting Manager Approval!");
+        }
       }
 
       /* COMPREHENSIVE MULTI-PAGE TRAVEL CLAIM WIZARD LOGIC */
