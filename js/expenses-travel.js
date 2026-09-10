@@ -409,6 +409,7 @@ var currentTab = 'travel-app';
         var preApps = window.RevOpsStore.getCollection('travelApprovals') || [];
         var statusFlt = document.getElementById('flt-preapp-status').value;
         var search = document.getElementById('flt-preapp-search').value.toLowerCase();
+        var todayStr = new Date().toISOString().split('T')[0];
 
         var pendingCount = 0, approvedCount = 0, extendedCount = 0;
         preApps.forEach(function(a) {
@@ -447,7 +448,11 @@ var currentTab = 'travel-app';
             ? `<button onclick="approvePreApproval('${app.id}')" class="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] rounded-lg transition-colors cursor-pointer shadow-xs">Approve</button>`
             : '';
 
-          var extendBtn = (app.status === 'Approved')
+          // Only a trip that hasn't finished yet (not yet started, or
+          // currently in progress) can sensibly be extended/modified -
+          // a trip that's already over is done, not "extendable".
+          var notYetEnded = app.endDate && app.endDate >= todayStr;
+          var extendBtn = (app.status === 'Approved' && notYetEnded)
             ? `<button onclick="openPreApprovalModalForExtension('${app.id}')" class="px-2 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 font-bold text-[11px] rounded-lg border border-amber-300 transition-colors cursor-pointer">Extend Trip</button>`
             : '';
 
@@ -806,8 +811,14 @@ var currentTab = 'travel-app';
         var preApps = window.RevOpsStore.getCollection('travelApprovals') || [];
         var refSelect = document.getElementById('preapp-ref-id');
         refSelect.innerHTML = `<option value="">-- Select Approved Travel to Extend --</option>`;
+
+        // Only a trip that hasn't finished yet (not yet started, or
+        // currently in progress) makes sense to extend/modify - a trip
+        // whose end date has already passed is done, not "extendable".
+        var todayStr = new Date().toISOString().split('T')[0];
+
         preApps.forEach(function(a) {
-          if (a.status === 'Approved') {
+          if (a.status === 'Approved' && a.endDate && a.endDate >= todayStr) {
             var opt = document.createElement('option');
             opt.value = a.id;
             opt.innerText = a.id + ": " + a.employeeName + " (" + a.places + " | " + a.startDate + ")";
@@ -829,6 +840,30 @@ var currentTab = 'travel-app';
         document.getElementById('preapp-places').value = ref.places;
         document.getElementById('preapp-purpose').value = ref.purpose;
         document.getElementById('preapp-budget').value = ref.estimatedBudget;
+
+        // Carry over the client & contact details from the original
+        // approved trip too - an extension/modification is still the
+        // same client visit, so all of it should be pre-filled, with
+        // the requester free to edit anything if it has genuinely
+        // changed (e.g. an added stop with a different contact).
+        var cType = ref.clientType === 'new' ? 'new' : 'existing';
+        var clientTypeEl = document.getElementById('preapp-client-type');
+        if (clientTypeEl) {
+          clientTypeEl.value = cType;
+          toggleClientType();
+        }
+
+        if (cType === 'new') {
+          var newNameEl = document.getElementById('preapp-new-client-name');
+          var newContactEl = document.getElementById('preapp-new-contact-person');
+          if (newNameEl) newNameEl.value = ref.clientName || '';
+          if (newContactEl) newContactEl.value = ref.contactPerson || '';
+        } else {
+          var clientSelect = document.getElementById('preapp-existing-client');
+          var contactEl = document.getElementById('preapp-contact-person');
+          if (clientSelect) clientSelect.value = ref.clientName || '';
+          if (contactEl) contactEl.value = ref.contactPerson || '';
+        }
       }
 
       function toggleClientType() {
