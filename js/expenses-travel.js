@@ -427,12 +427,25 @@ var currentTab = 'travel-app';
         }
       }
 
+      // Which approved travel pre-approvals already have a travel claim
+      // voucher filed against them (a trip can only be claimed once).
+      // Returns an object keyed by travelApprovals id for O(1) lookups.
+      function getClaimedPreApprovalIds() {
+        var allExpenses = window.RevOpsStore.getCollection('expenses') || [];
+        var claimedIds = {};
+        allExpenses.forEach(function(e) {
+          if (e.category === 'Travelling' && e.preAppRefId) claimedIds[e.preAppRefId] = true;
+        });
+        return claimedIds;
+      }
+
       /* RENDER TRAVEL PRE-APPROVALS */
       function renderTravelApprovals() {
         var preApps = window.RevOpsStore.getCollection('travelApprovals') || [];
         var statusFlt = document.getElementById('flt-preapp-status').value;
         var search = document.getElementById('flt-preapp-search').value.toLowerCase();
         var todayStr = new Date().toISOString().split('T')[0];
+        var claimedPreAppIds = getClaimedPreApprovalIds();
 
         var pendingCount = 0, pendingDirectorCount = 0, approvedCount = 0, extendedCount = 0;
         preApps.forEach(function(a) {
@@ -493,9 +506,11 @@ var currentTab = 'travel-app';
             ? `<button onclick="openPreApprovalModalForExtension('${app.id}')" class="px-2 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 font-bold text-[11px] rounded-lg border border-amber-300 transition-colors cursor-pointer">Extend Trip</button>`
             : '';
 
-          var claimBtn = (app.status === 'Approved')
+          // A trip that already has a travel claim filed against it
+          // shouldn't offer "Submit Claim" again - it's already billed.
+          var claimBtn = (app.status === 'Approved' && !claimedPreAppIds[app.id])
             ? `<button onclick="openTravelClaimForApprovedPreApp('${app.id}')" class="px-2 py-1 bg-sky-50 hover:bg-sky-100 text-sky-800 font-bold text-[11px] rounded-lg border border-sky-300 transition-colors cursor-pointer">Submit Claim</button>`
-            : '';
+            : (app.status === 'Approved' ? `<span class="px-2 py-1 text-slate-400 text-[11px] font-semibold">Claimed</span>` : '');
 
           var tr = document.createElement('tr');
           tr.id = 'travel-row-' + app.id;
@@ -1087,12 +1102,16 @@ var currentTab = 'travel-app';
           }
         }
 
-        // Populate pre-app dropdown in claim
+        // Populate pre-app dropdown in claim - only approved trips that
+        // don't already have a travel claim filed against them. A trip
+        // can only be claimed once; once its bill is raised it should
+        // drop out of this list.
         var preApps = window.RevOpsStore.getCollection('travelApprovals') || [];
+        var claimedPreAppIds = getClaimedPreApprovalIds();
         var preLinkSelect = document.getElementById('trv-preapp-link');
         preLinkSelect.innerHTML = `<option value="">-- Direct Travel Claim (No Pre-Approval) --</option>`;
         preApps.forEach(function(a) {
-          if (a.status === 'Approved') {
+          if (a.status === 'Approved' && !claimedPreAppIds[a.id]) {
             var opt = document.createElement('option');
             opt.value = a.id;
             opt.innerText = a.id + " (" + a.employeeName + " - " + a.places + ")";
