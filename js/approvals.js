@@ -13,6 +13,7 @@
         var invoices = window.RevOpsStore.getCollection('invoices') || [];
         var payments = window.RevOpsStore.getCollection('payments') || [];
         var arAdjustments = window.RevOpsStore.getCollection('arAdjustments') || [];
+        var travelApprovals = window.RevOpsStore.getCollection('travelApprovals') || [];
 
         var sections = [];
 
@@ -130,6 +131,44 @@
           });
         }
 
+        if (hasApprovalAuthority('isPrimaryApprover')) {
+          sections.push({
+            key: 'travel-primary',
+            title: 'Travel Pre-Approvals — Reporting Manager Approval',
+            icon: '✈️',
+            items: travelApprovals.filter(function(t) { return t.status === 'Pending Manager Approval'; }),
+            rowFn: function(t) {
+              return {
+                ref: t.id,
+                customer: t.places,
+                amount: t.estimatedBudget,
+                by: t.employeeName,
+                date: t.appliedDate,
+                link: 'expenses.html?tab=travel-app&approveId=' + encodeURIComponent(t.id)
+              };
+            }
+          });
+        }
+
+        if (hasApprovalAuthority('isFinalApprover')) {
+          sections.push({
+            key: 'travel-ratify',
+            title: 'Travel Pre-Approvals — Director Approval',
+            icon: '✅',
+            items: travelApprovals.filter(function(t) { return t.status === 'Pending Director Approval'; }),
+            rowFn: function(t) {
+              return {
+                ref: t.id,
+                customer: t.places,
+                amount: t.estimatedBudget,
+                by: t.managerApprovedBy || t.employeeName,
+                date: t.startDate,
+                link: 'expenses.html?tab=travel-app&approveId=' + encodeURIComponent(t.id)
+              };
+            }
+          });
+        }
+
         if (hasApprovalAuthority('isFinanceHead')) {
           sections.push({
             key: 'payment-verify',
@@ -186,7 +225,14 @@
         var noAuthorityNotice = document.getElementById('no-authority-notice');
         var totalBadge = document.getElementById('approvals-total-badge');
 
-        var isAnyApprover = hasApprovalAuthority('isPrimaryApprover') || hasApprovalAuthority('isFinanceHead') || hasApprovalAuthority('isDirector');
+        // This gate decides whether the Approvals hub shows anything at
+        // all - it must cover every flag any section below is gated by
+        // (isFinalApprover included), or a holder of ONLY that flag (e.g.
+        // Murugan, who signs off Orders/Quotes/Invoices/Travel at the
+        // final stage but isn't a Primary Approver, Finance Head, or the
+        // Director) sees "no authority" and every one of their pending
+        // approvals silently vanishes from view.
+        var isAnyApprover = hasApprovalAuthority('isPrimaryApprover') || hasApprovalAuthority('isFinalApprover') || hasApprovalAuthority('isFinanceHead') || hasApprovalAuthority('isDirector');
         if (!isAnyApprover) {
           noAuthorityNotice.classList.remove('hidden');
           container.innerHTML = '';

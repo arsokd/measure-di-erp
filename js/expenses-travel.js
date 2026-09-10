@@ -18,6 +18,29 @@ var currentTab = 'travel-app';
           if (tabParam) {
             switchMainTab(tabParam);
           }
+
+          // Arriving from the Approvals hub's "Review & Approve" link -
+          // scroll straight to the exact request so it's never lost among
+          // other rows. Unlike Orders/Invoices, travel approval has no
+          // review step of its own before finalizing, so this deliberately
+          // only highlights the row rather than auto-clicking Approve -
+          // the approver still reviews the trip and clicks it themselves.
+          var approveId = urlParams.get('approveId');
+          if (approveId) {
+            document.getElementById('flt-preapp-status').value = 'All';
+            document.getElementById('flt-preapp-search').value = '';
+            switchMainTab('travel-app');
+            renderTravelApprovals();
+            window.history.replaceState({}, '', 'expenses.html');
+            setTimeout(function() {
+              var row = document.getElementById('travel-row-' + approveId);
+              if (row) {
+                row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                row.classList.add('ring-2', 'ring-amber-400', 'bg-amber-50');
+                setTimeout(function() { row.classList.remove('ring-2', 'ring-amber-400', 'bg-amber-50'); }, 4000);
+              }
+            }, 150);
+          }
         }
       });
 
@@ -411,14 +434,17 @@ var currentTab = 'travel-app';
         var search = document.getElementById('flt-preapp-search').value.toLowerCase();
         var todayStr = new Date().toISOString().split('T')[0];
 
-        var pendingCount = 0, approvedCount = 0, extendedCount = 0;
+        var pendingCount = 0, pendingDirectorCount = 0, approvedCount = 0, extendedCount = 0;
         preApps.forEach(function(a) {
           if (a.status === 'Pending Manager Approval') pendingCount++;
+          if (a.status === 'Pending Director Approval') pendingDirectorCount++;
           if (a.status === 'Approved') approvedCount++;
           if (a.isExtension) extendedCount++;
         });
 
         document.getElementById('stat-preapp-pending').innerText = pendingCount + " Requests";
+        var pendingDirectorEl = document.getElementById('stat-preapp-pending-director');
+        if (pendingDirectorEl) pendingDirectorEl.innerText = pendingDirectorCount + " Requests";
         document.getElementById('stat-preapp-approved').innerText = approvedCount + " Authorized";
         document.getElementById('stat-preapp-extended').innerText = extendedCount + " Extended Trips";
 
@@ -440,11 +466,22 @@ var currentTab = 'travel-app';
           var statusBadge = 'bg-slate-100 text-slate-700 border-slate-300';
           if (app.status === 'Approved') statusBadge = 'bg-emerald-100 text-emerald-800 border-emerald-300';
           if (app.status === 'Pending Manager Approval') statusBadge = 'bg-amber-100 text-amber-800 border-amber-300';
+          if (app.status === 'Pending Director Approval') statusBadge = 'bg-indigo-100 text-indigo-800 border-indigo-300';
           if (app.status === 'Rejected') statusBadge = 'bg-rose-100 text-rose-800 border-rose-300';
 
           var extTag = app.isExtension ? `<span class="px-2 py-0.5 ml-1 rounded bg-purple-100 text-purple-800 text-[10px] font-black border border-purple-300">TRIP EXTENDED</span>` : '';
 
-          var approveBtn = app.status === 'Pending Manager Approval'
+          // Every travel request needs BOTH the Reporting Manager and the
+          // Director to sign off, in that order - so the Approve button
+          // only shows to whoever's authority actually covers the stage
+          // this specific request is waiting on, and never to the
+          // traveler approving their own request.
+          var isOwnRequest = app.empId && app.empId === localStorage.getItem('employeeId');
+          var canActOnThis = !isOwnRequest && (
+            (app.status === 'Pending Manager Approval' && hasApprovalAuthority('isPrimaryApprover')) ||
+            (app.status === 'Pending Director Approval' && hasApprovalAuthority('isFinalApprover'))
+          );
+          var approveBtn = canActOnThis
             ? `<button onclick="approvePreApproval('${app.id}')" class="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] rounded-lg transition-colors cursor-pointer shadow-xs">Approve</button>`
             : '';
 
@@ -461,6 +498,7 @@ var currentTab = 'travel-app';
             : '';
 
           var tr = document.createElement('tr');
+          tr.id = 'travel-row-' + app.id;
           tr.className = "hover:bg-slate-50 transition-colors";
           tr.innerHTML = `
             <td class="py-3 px-4 font-semibold text-slate-900">
@@ -495,10 +533,69 @@ var currentTab = 'travel-app';
         });
       }
 
+      // Every travel request must be signed off by BOTH the Reporting
+      // Manager and the Director, in that order, before it's considered
+      // Approved - never by just one or the other. The Director's own
+      // approval always counts for both stages at once (per this app's
+      // standing rule that the Director's authority can act in place of
+      // anyone), so they never have to sign the same request twice.
       function approvePreApproval(appId) {
-        window.RevOpsStore.updateItem('travelApprovals', appId, { status: 'Approved' });
-        renderTravelApprovals();
-        alert("Travel Pre-Approval " + appId + " approved by Reporting Manager.");
+        var preApps = window.RevOpsStore.getCollection('travelApprovals') || [];
+        var app = preApps.find(function(a) { return a.id === appId; });
+        if (!app) return;
+
+        var myEmpId = localStorage.getItem('employeeId');
+        var myName = localStorage.getItem('userName') || 'Approver';
+
+        if (myEmpId && myEmpId === app.empId) {
+          alert("You cannot approve your own travel request.");
+          return;
+        }
+
+        if (app.status === 'Pending Manager Approval') {
+          if (!hasApprovalAuthority('isPrimaryApprover')) {
+            alert("Only the Reporting Manager or the Director can approve this travel request.");
+            return;
+          }
+          if (!confirm(
+            "Approve travel request " + appId + "?\n\n" +
+            "Employee: " + app.employeeName + "\n" +
+            "Dates: " + app.startDate + " to " + app.endDate + "\n" +
+            "Places: " + app.places + "\n" +
+            "Purpose: " + app.purpose + "\n" +
+            "Estimated Budget: " + formatINR(app.estimatedBudget)
+          )) return;
+
+          var updates = { status: 'Pending Director Approval', managerApprovedBy: myName, managerApprovedAt: new Date().toISOString() };
+          if (hasApprovalAuthority('isDirector')) {
+            updates.status = 'Approved';
+            updates.directorApprovedBy = myName;
+            updates.directorApprovedAt = new Date().toISOString();
+          }
+          window.RevOpsStore.updateItem('travelApprovals', appId, updates);
+          renderTravelApprovals();
+          alert(updates.status === 'Approved'
+            ? "Travel Pre-Approval " + appId + " fully approved by the Director."
+            : "Travel Pre-Approval " + appId + " approved by the Reporting Manager. Routed to the Director for final approval.");
+        } else if (app.status === 'Pending Director Approval') {
+          if (!hasApprovalAuthority('isFinalApprover')) {
+            alert("Only the Director can give final approval on this travel request.");
+            return;
+          }
+          if (!confirm(
+            "Give final Director approval to travel request " + appId + "?\n\n" +
+            "Employee: " + app.employeeName + "\n" +
+            "Dates: " + app.startDate + " to " + app.endDate + "\n" +
+            "Places: " + app.places + "\n" +
+            "Purpose: " + app.purpose + "\n" +
+            "Estimated Budget: " + formatINR(app.estimatedBudget) + "\n" +
+            "Reporting Manager approved by: " + (app.managerApprovedBy || 'N/A')
+          )) return;
+
+          window.RevOpsStore.updateItem('travelApprovals', appId, { status: 'Approved', directorApprovedBy: myName, directorApprovedAt: new Date().toISOString() });
+          renderTravelApprovals();
+          alert("Travel Pre-Approval " + appId + " given final approval by the Director.");
+        }
       }
 
       /* MASTER POLICY RENDER (GRADE LEVEL HIERARCHY) */
