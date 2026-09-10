@@ -1,6 +1,11 @@
 var currentTab = 'travel-app';
       var currentClaimPage = 1;
       var claimItemsStore = [];
+      // Non-null while the Travel Claim modal is editing an existing,
+      // not-yet-approved voucher rather than creating a new one - holds
+      // that expense record's id so Save updates it in place instead of
+      // creating a duplicate.
+      var editingTravelClaimExpenseId = null;
 
       document.addEventListener('DOMContentLoaded', function() {
         if (checkAuth()) {
@@ -1078,6 +1083,11 @@ var currentTab = 'travel-app';
       /* COMPREHENSIVE MULTI-PAGE TRAVEL CLAIM WIZARD LOGIC */
       function openTravelClaimModal() {
         currentClaimPage = 1;
+        editingTravelClaimExpenseId = null;
+        var titleEl = document.getElementById('travel-modal-title');
+        if (titleEl) titleEl.innerText = 'Comprehensive Travel Expense Claim Voucher';
+        var submitLabelEl = document.getElementById('btn-submit-travel-claim-label');
+        if (submitLabelEl) submitLabelEl.innerText = 'Submit Travel Claim Voucher';
         claimItemsStore = [
           { date: new Date().toISOString().split('T')[0], category: 'Hotel Accommodation', desc: 'Hotel room stay', amount: 3000, receiptBase64: '' },
           { date: new Date().toISOString().split('T')[0], category: 'Daily Allowance (Food)', desc: 'Breakfast & dinner DA', amount: 1000, receiptBase64: '' }
@@ -1142,7 +1152,101 @@ var currentTab = 'travel-app';
       }
 
       function closeTravelClaimModal() {
+        editingTravelClaimExpenseId = null;
         document.getElementById('modal-travel').classList.add('hidden');
+      }
+
+      // Reopens the Travel Claim wizard pre-filled with an existing,
+      // not-yet-approved claim so a mistake can be corrected in place -
+      // Save then updates that same voucher instead of creating a new
+      // one. Trip dates/places/purpose aren't stored as their own fields
+      // on the expense record (only folded into its remarks text when
+      // first saved), so they're recovered here from that same fixed
+      // format; if a record predates this or doesn't match, those three
+      // fields are just left blank for the requester to re-enter - the
+      // itemized lines and amounts (the far more common source of a
+      // mistake) are always recovered exactly, since those ARE stored.
+      function editTravelClaim(expId) {
+        var expenses = window.RevOpsStore.getCollection('expenses') || [];
+        var exp = expenses.find(function(e) { return e.id === expId; });
+        if (!exp) return;
+        if (exp.category !== 'Travelling') return;
+        if (exp.status !== 'Pending Manager Approval') {
+          alert("Only a travel claim that hasn't been approved yet can be edited.");
+          return;
+        }
+
+        openTravelClaimModal();
+        editingTravelClaimExpenseId = expId;
+
+        var titleEl = document.getElementById('travel-modal-title');
+        if (titleEl) titleEl.innerText = 'Edit Travel Expense Claim Voucher — ' + (exp.voucherNo || expId);
+        var submitLabelEl = document.getElementById('btn-submit-travel-claim-label');
+        if (submitLabelEl) submitLabelEl.innerText = 'Update Travel Claim Voucher';
+
+        var empSelect = document.getElementById('travel-emp-id');
+        if (empSelect) empSelect.value = exp.employeeId || '';
+
+        var places = '', purpose = '', startDate = '', endDate = '';
+        var m = (exp.remarks || '').match(/^Travel Claim: ([\s\S]*) \((\d{4}-\d{2}-\d{2}) to (\d{4}-\d{2}-\d{2})\) - Client: [\s\S]*\[Purpose: ([\s\S]*)\]$/);
+        if (m) {
+          places = m[1];
+          startDate = m[2];
+          endDate = m[3];
+          purpose = m[4];
+        }
+        document.getElementById('trv-start-date').value = startDate;
+        document.getElementById('trv-end-date').value = endDate;
+        document.getElementById('trv-places').value = places;
+        document.getElementById('trv-purpose').value = purpose;
+        document.getElementById('trv-client-name').value = exp.clientName || '';
+
+        var preLinkSelect = document.getElementById('trv-preapp-link');
+        if (preLinkSelect && exp.preAppRefId) {
+          // This claim's own linked pre-approval was excluded from the
+          // dropdown as "already claimed" (by this very claim) - add it
+          // back so editing doesn't appear to have silently unlinked it.
+          if (!Array.from(preLinkSelect.options).some(function(o) { return o.value === exp.preAppRefId; })) {
+            var preApps = window.RevOpsStore.getCollection('travelApprovals') || [];
+            var linkedApp = preApps.find(function(a) { return a.id === exp.preAppRefId; });
+            var opt = document.createElement('option');
+            opt.value = exp.preAppRefId;
+            opt.innerText = exp.preAppRefId + (linkedApp ? (" (" + linkedApp.employeeName + " - " + linkedApp.places + ")") : '');
+            preLinkSelect.appendChild(opt);
+          }
+          preLinkSelect.value = exp.preAppRefId;
+        }
+
+        claimItemsStore = (exp.items && exp.items.length > 0) ? JSON.parse(JSON.stringify(exp.items)) : claimItemsStore;
+
+        showClaimPage(2);
+      }
+
+      function deleteTravelClaim(expId) {
+        var expenses = window.RevOpsStore.getCollection('expenses') || [];
+        var exp = expenses.find(function(e) { return e.id === expId; });
+        if (!exp) return;
+        if (exp.status !== 'Pending Manager Approval') {
+          alert("Only a travel claim that hasn't been approved yet can be deleted.");
+          return;
+        }
+        if (!confirm("Delete travel claim " + (exp.voucherNo || expId) + " (" + formatINR(exp.amount) + ")? This cannot be undone.")) return;
+
+        window.RevOpsStore.deleteItem('expenses', expId);
+
+        // Clean up any project-allocation splits filed against it too,
+        // so deleting a claim doesn't leave orphaned split records
+        // still counted in project profitability.
+        var splits = window.RevOpsStore.getCollection('expenseSplits') || [];
+        splits.filter(function(s) { return s.expenseId === expId; }).forEach(function(s) {
+          window.RevOpsStore.deleteItem('expenseSplits', s.id);
+        });
+
+        renderExpensesTable();
+        renderBudgets();
+        renderProjectProfitability();
+        renderProjectRevenueAndSplitSection();
+        alert("Travel claim " + (exp.voucherNo || expId) + " deleted.");
       }
 
       function populatePreAppDetailsIntoClaim() {
@@ -1382,12 +1486,9 @@ var currentTab = 'travel-app';
 
         var policy = (window.RevOpsStore.getCollection('travelPolicyMaster') || [])[0] || { hotelLimitPerDay: 3500, daLimitPerDay: 1200 };
         var isPolicyExceeded = grandTotal > 15000 || isExtended;
-
-        var vCount = (window.RevOpsStore.getCollection('expenses') || []).length + 1001;
         var claimStatus = isPolicyExceeded ? 'Pending Manager Approval' : 'Approved';
 
-        var newClaim = {
-          voucherNo: 'TRV-' + vCount,
+        var claimFields = {
           date: new Date().toISOString().split('T')[0],
           category: 'Travelling',
           payee: empName,
@@ -1404,23 +1505,43 @@ var currentTab = 'travel-app';
           items: claimItemsStore
         };
 
-        var savedItem = window.RevOpsStore.addItem('expenses', newClaim);
+        var wasEditing = !!editingTravelClaimExpenseId;
+        var voucherNoForMessage;
 
-        if (window.db && typeof window.db.collection === 'function') {
-          var docId = (savedItem && savedItem.id) ? savedItem.id : ('exp_' + Date.now());
-          window.db.collection('expenses').doc(docId).set(newClaim, { merge: true }).catch(function(err) {
-            console.warn("Firestore save error for travel claim:", err);
-          });
+        if (wasEditing) {
+          // Updating an existing, not-yet-approved claim - keep its id
+          // and voucher number, don't create a second record.
+          var existing = (window.RevOpsStore.getCollection('expenses') || []).find(function(e) { return e.id === editingTravelClaimExpenseId; });
+          claimFields.voucherNo = existing ? existing.voucherNo : ('TRV-' + editingTravelClaimExpenseId);
+          voucherNoForMessage = claimFields.voucherNo;
+          window.RevOpsStore.updateItem('expenses', editingTravelClaimExpenseId, claimFields);
+          if (window.db && typeof window.db.collection === 'function') {
+            window.db.collection('expenses').doc(editingTravelClaimExpenseId).set(claimFields, { merge: true }).catch(function(err) {
+              console.warn("Firestore save error updating travel claim:", err);
+            });
+          }
+        } else {
+          var vCount = (window.RevOpsStore.getCollection('expenses') || []).length + 1001;
+          claimFields.voucherNo = 'TRV-' + vCount;
+          voucherNoForMessage = claimFields.voucherNo;
+          var savedItem = window.RevOpsStore.addItem('expenses', claimFields);
+          if (window.db && typeof window.db.collection === 'function') {
+            var docId = (savedItem && savedItem.id) ? savedItem.id : ('exp_' + Date.now());
+            window.db.collection('expenses').doc(docId).set(claimFields, { merge: true }).catch(function(err) {
+              console.warn("Firestore save error for travel claim:", err);
+            });
+          }
         }
 
         closeTravelClaimModal();
         renderExpensesTable();
         renderBudgets();
 
+        var verb = wasEditing ? 'updated' : 'created';
         if (isPolicyExceeded) {
-          alert("✅ Travel Expense Claim Voucher " + newClaim.voucherNo + " created!\n\nNote: Amount or extended travel exceeds threshold and has been submitted for Reporting Manager Approval.");
+          alert("✅ Travel Expense Claim Voucher " + voucherNoForMessage + " " + verb + "!\n\nNote: Amount or extended travel exceeds threshold and has been submitted for Reporting Manager Approval.");
         } else {
-          alert("✅ Travel Expense Claim Voucher " + newClaim.voucherNo + " for " + formatINR(grandTotal) + " successfully processed and approved!");
+          alert("✅ Travel Expense Claim Voucher " + voucherNoForMessage + " for " + formatINR(grandTotal) + " successfully " + (wasEditing ? 'updated' : 'processed') + " and approved!");
         }
       }
 
@@ -1507,6 +1628,15 @@ var currentTab = 'travel-app';
             ? `<button onclick="approveExpenseVoucher('${exp.id}')" class="px-2 py-1 bg-amber-600 hover:bg-amber-700 text-white font-bold text-[10px] rounded transition-colors cursor-pointer">Approve</button>`
             : '';
 
+          // A travel claim that hasn't been approved yet can be corrected
+          // in place instead of forcing a duplicate resubmission - or
+          // withdrawn entirely. Once approved, neither is offered; that's
+          // an accounting record at that point.
+          var editDeleteBtns = (exp.category === 'Travelling' && exp.status === 'Pending Manager Approval')
+            ? `<button onclick="editTravelClaim('${exp.id}')" class="px-2 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-[10px] rounded transition-colors cursor-pointer border border-indigo-200">Edit</button>
+               <button onclick="deleteTravelClaim('${exp.id}')" class="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-[10px] rounded transition-colors cursor-pointer border border-rose-200">Delete</button>`
+            : '';
+
           var tr = document.createElement('tr');
           tr.className = "hover:bg-slate-50 transition-colors";
           tr.innerHTML = `
@@ -1536,6 +1666,7 @@ var currentTab = 'travel-app';
             </td>
             <td class="py-3 px-4 text-center space-x-1">
               ${approveBtn}
+              ${editDeleteBtns}
               <button onclick="previewVoucher('${exp.id}')" class="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-[11px] rounded-lg transition-colors cursor-pointer border border-indigo-200">
                 Print Voucher
               </button>
