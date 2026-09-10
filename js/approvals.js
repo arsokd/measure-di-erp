@@ -14,8 +14,48 @@
         var payments = window.RevOpsStore.getCollection('payments') || [];
         var arAdjustments = window.RevOpsStore.getCollection('arAdjustments') || [];
         var travelApprovals = window.RevOpsStore.getCollection('travelApprovals') || [];
+        var expenses = window.RevOpsStore.getCollection('expenses') || [];
+        var employeesForReporting = window.RevOpsStore.getCollection('employees') || [];
 
         var sections = [];
+
+        // Travel expense claims ("bills") route strictly to the
+        // claimant's actual Reporting Manager (their reportsTo on the
+        // Employees master), not the broader Primary Approver flag used
+        // for Quotations/Orders/Travel Pre-Approvals - a bill should
+        // only ever be seen and signed off by that specific person. The
+        // Director can always act in their place; nobody can approve
+        // their own claim. This section is shown to anyone who is
+        // actually someone's Reporting Manager (or the Director), not
+        // gated behind a single flag, since any line manager can have
+        // reports filing travel claims regardless of whether they also
+        // hold one of the broader approval-authority flags.
+        var myEmpIdForReporting = localStorage.getItem('employeeId');
+        var iAmSomeonesManager = employeesForReporting.some(function(e) { return e.reportsTo === myEmpIdForReporting; });
+        if (iAmSomeonesManager || hasApprovalAuthority('isDirector')) {
+          sections.push({
+            key: 'travel-claim-manager',
+            title: 'Travel Expense Claims — Reporting Manager Approval',
+            icon: '🧳',
+            items: expenses.filter(function(e) {
+              if (e.category !== 'Travelling' || e.status !== 'Pending Manager Approval') return false;
+              if (myEmpIdForReporting && myEmpIdForReporting === e.employeeId) return false;
+              if (hasApprovalAuthority('isDirector')) return true;
+              var traveler = employeesForReporting.find(function(emp) { return emp.employeeId === e.employeeId; });
+              return !!(traveler && traveler.reportsTo && myEmpIdForReporting === traveler.reportsTo);
+            }),
+            rowFn: function(e) {
+              return {
+                ref: e.voucherNo || e.id,
+                customer: e.clientName || e.payee,
+                amount: e.amount,
+                by: e.payee,
+                date: e.date,
+                link: 'expenses.html?claimApproveId=' + encodeURIComponent(e.id)
+              };
+            }
+          });
+        }
 
         if (hasApprovalAuthority('isPrimaryApprover')) {
           sections.push({
@@ -231,8 +271,15 @@
         // Murugan, who signs off Orders/Quotes/Invoices/Travel at the
         // final stage but isn't a Primary Approver, Finance Head, or the
         // Director) sees "no authority" and every one of their pending
-        // approvals silently vanishes from view.
-        var isAnyApprover = hasApprovalAuthority('isPrimaryApprover') || hasApprovalAuthority('isFinalApprover') || hasApprovalAuthority('isFinanceHead') || hasApprovalAuthority('isDirector');
+        // approvals silently vanishes from view. It also covers anyone
+        // who is simply someone's Reporting Manager on the Employees
+        // master - the Travel Expense Claims section routes to that
+        // relationship directly rather than a flag, so a line manager
+        // holding none of these flags would otherwise never see it.
+        var employeesForGate = window.RevOpsStore.getCollection('employees') || [];
+        var myEmpIdForGate = localStorage.getItem('employeeId');
+        var isAnyApprover = hasApprovalAuthority('isPrimaryApprover') || hasApprovalAuthority('isFinalApprover') || hasApprovalAuthority('isFinanceHead') || hasApprovalAuthority('isDirector') ||
+          employeesForGate.some(function(e) { return e.reportsTo === myEmpIdForGate; });
         if (!isAnyApprover) {
           noAuthorityNotice.classList.remove('hidden');
           container.innerHTML = '';

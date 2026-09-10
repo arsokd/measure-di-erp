@@ -46,6 +46,28 @@ var currentTab = 'travel-app';
               }
             }, 150);
           }
+
+          // Same deep-link pattern for a Travel Expense Claim ("bill")
+          // pending its Reporting Manager's approval - a separate flow
+          // and a separate collection from the Pre-Approval above, so it
+          // gets its own param name rather than overloading approveId.
+          var claimApproveId = urlParams.get('claimApproveId');
+          if (claimApproveId) {
+            document.getElementById('flt-category').value = 'All';
+            document.getElementById('flt-vertical').value = 'All';
+            document.getElementById('flt-search').value = '';
+            switchMainTab('ledger');
+            renderExpensesTable();
+            window.history.replaceState({}, '', 'expenses.html');
+            setTimeout(function() {
+              var row = document.getElementById('expense-row-' + claimApproveId);
+              if (row) {
+                row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                row.classList.add('ring-2', 'ring-amber-400', 'bg-amber-50');
+                setTimeout(function() { row.classList.remove('ring-2', 'ring-amber-400', 'bg-amber-50'); }, 4000);
+              }
+            }, 150);
+          }
         }
       });
 
@@ -1545,10 +1567,48 @@ var currentTab = 'travel-app';
         }
       }
 
+      // A travel expense claim routes strictly to the claimant's actual
+      // Reporting Manager (their reportsTo on the Employees master) - not
+      // the broader isPrimaryApprover flag used for Quotations/Orders/
+      // Travel Pre-Approvals, since a bill should only ever be seen and
+      // signed off by that person specifically. The Director can always
+      // act in their place (per this app's standing rule), and nobody
+      // can approve their own claim.
+      function canApproveExpenseClaim(exp) {
+        if (!exp || exp.category !== 'Travelling' || exp.status !== 'Pending Manager Approval') return false;
+        var myEmpId = localStorage.getItem('employeeId');
+        if (myEmpId && myEmpId === exp.employeeId) return false;
+        if (hasApprovalAuthority('isDirector')) return true;
+        var employees = window.RevOpsStore.getCollection('employees') || [];
+        var traveler = employees.find(function(e) { return e.employeeId === exp.employeeId; });
+        return !!(traveler && traveler.reportsTo && myEmpId === traveler.reportsTo);
+      }
+
       function approveExpenseVoucher(expId) {
+        var expenses = window.RevOpsStore.getCollection('expenses') || [];
+        var exp = expenses.find(function(e) { return e.id === expId; });
+        if (!exp) return;
+
+        if (exp.category === 'Travelling') {
+          if (!canApproveExpenseClaim(exp)) {
+            var employees = window.RevOpsStore.getCollection('employees') || [];
+            var traveler = employees.find(function(e) { return e.employeeId === exp.employeeId; });
+            var managerName = traveler ? (traveler.reportsToName || traveler.reportsTo || 'their Reporting Manager') : 'their Reporting Manager';
+            alert("Only " + managerName + " (or the Director) can approve this travel claim.");
+            return;
+          }
+          if (!confirm(
+            "Approve travel claim " + (exp.voucherNo || expId) + "?\n\n" +
+            "Employee: " + exp.payee + "\n" +
+            "Amount: " + formatINR(exp.amount) + "\n" +
+            (exp.clientName ? ("Client: " + exp.clientName + "\n") : '') +
+            (exp.remarks ? ("Details: " + exp.remarks) : '')
+          )) return;
+        }
+
         window.RevOpsStore.updateItem('expenses', expId, { status: 'Approved' });
         renderExpensesTable();
-        alert("Expense Voucher " + expId + " approved by Reporting Manager.");
+        alert("Expense Voucher " + (exp.voucherNo || expId) + " approved.");
       }
 
       function renderExpensesTable() {
@@ -1624,7 +1684,16 @@ var currentTab = 'travel-app';
           var statusBadge = 'bg-emerald-100 text-emerald-800 border-emerald-300';
           if (exp.status === 'Pending Manager Approval') statusBadge = 'bg-amber-100 text-amber-800 border-amber-300';
 
-          var approveBtn = (exp.status === 'Pending Manager Approval')
+          // Travel claims route strictly to the claimant's actual
+          // Reporting Manager (or the Director) - see canApproveExpenseClaim.
+          // Other expense categories never reach "Pending Manager
+          // Approval" today (Log Expense entries are always
+          // auto-approved), but the plain status check is kept as a
+          // fallback so the button still works if that ever changes.
+          var canApproveThis = exp.category === 'Travelling'
+            ? canApproveExpenseClaim(exp)
+            : exp.status === 'Pending Manager Approval';
+          var approveBtn = canApproveThis
             ? `<button onclick="approveExpenseVoucher('${exp.id}')" class="px-2 py-1 bg-amber-600 hover:bg-amber-700 text-white font-bold text-[10px] rounded transition-colors cursor-pointer">Approve</button>`
             : '';
 
@@ -1638,6 +1707,7 @@ var currentTab = 'travel-app';
             : '';
 
           var tr = document.createElement('tr');
+          tr.id = 'expense-row-' + exp.id;
           tr.className = "hover:bg-slate-50 transition-colors";
           tr.innerHTML = `
             <td class="py-3 px-4 font-semibold text-slate-900">
