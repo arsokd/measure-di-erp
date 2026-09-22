@@ -1467,48 +1467,89 @@ var currentTab = 'travel-app';
         showClaimPage(2);
       }
 
+      // Two-tier category picker for Travel Claim line items: a group
+      // (e.g. "Travel / Conveyance") is picked first, then a second
+      // dropdown - scoped to just that group - picks the specific item.
+      // getGroupKeyForCategory() also recognizes the flat category names
+      // used before this grouping existed, so older saved claims (still
+      // holding e.g. 'Hotel Accommodation') display correctly when edited.
+      var TRAVEL_CLAIM_CATEGORY_GROUPS = [
+        { key: 'travel', label: 'Travel / Conveyance', options: [
+            { value: 'Flight', label: 'Flight' },
+            { value: 'Indian Railways', label: 'Indian Railways' },
+            { value: 'Bus', label: 'Bus' },
+            { value: 'Auto', label: 'Auto' },
+            { value: 'Cab Booking', label: 'Cab Booking' },
+            { value: 'Other Two-wheelers', label: 'Other Two-wheelers' },
+            { value: 'Travel - Others', label: 'Others' }
+        ]},
+        { key: 'perdiem', label: 'Per Diem Allowance', options: [
+            { value: 'DA', label: 'DA' },
+            { value: 'Per Diem - Others', label: 'Others' }
+        ]},
+        { key: 'spares', label: 'Spares & Consumables', options: [
+            { value: 'Spares & Consumables', label: 'Spares & Consumables (service)' },
+            { value: 'Spares - Others', label: 'Others' }
+        ]},
+        { key: 'tools', label: 'Tools & Tackles / Safety Items', options: [
+            { value: 'Tools & Tackles / Safety Items', label: 'Tools & Tackles / Safety Items (Purchase)' },
+            { value: 'Tools & Safety - Others', label: 'Others' }
+        ]},
+        { key: 'accommodation', label: 'Rent & Accommodation', options: [
+            { value: 'Rent', label: 'Rent' },
+            { value: 'Lodging & Boarding', label: 'Lodging & Boarding' },
+            { value: 'Accommodation - Others', label: 'Others' }
+        ]},
+        { key: 'other', label: 'Other', options: [
+            { value: 'Client Entertainment', label: 'Client Entertainment' }
+        ]}
+      ];
+
+      function getGroupKeyForCategory(cat) {
+        var legacyMap = {
+          'Hotel Accommodation': 'accommodation',
+          'Daily Allowance (Food)': 'perdiem',
+          'Local Conveyance / Taxi': 'travel',
+          'Flight/Train Ticket': 'travel'
+        };
+        if (legacyMap[cat]) return legacyMap[cat];
+        var found = TRAVEL_CLAIM_CATEGORY_GROUPS.find(function(g) {
+          return g.options.some(function(o) { return o.value === cat; });
+        });
+        return found ? found.key : 'accommodation';
+      }
+
+      function updateClaimItemGroup(idx, groupKey) {
+        var group = TRAVEL_CLAIM_CATEGORY_GROUPS.find(function(g) { return g.key === groupKey; });
+        claimItemsStore[idx].category = group ? group.options[0].value : claimItemsStore[idx].category;
+        renderClaimItemRows();
+        calcTravelClaimTotalsAndAudit();
+      }
+
       function renderClaimItemRows() {
         var tbody = document.getElementById('trv-items-tbody');
         tbody.innerHTML = "";
 
         claimItemsStore.forEach(function(item, idx) {
+          var groupKey = getGroupKeyForCategory(item.category);
+          var group = TRAVEL_CLAIM_CATEGORY_GROUPS.find(function(g) { return g.key === groupKey; }) || TRAVEL_CLAIM_CATEGORY_GROUPS[4];
+
           var tr = document.createElement('tr');
           tr.className = "hover:bg-slate-50";
           tr.innerHTML = `
             <td class="py-2 px-3">
               <input type="date" value="${item.date}" onchange="updateClaimItem(${idx}, 'date', this.value)" class="w-full px-2 py-1 bg-white border border-slate-200 rounded-lg text-xs font-semibold" />
             </td>
-            <td class="py-2 px-3">
+            <td class="py-2 px-3 space-y-1">
+              <select onchange="updateClaimItemGroup(${idx}, this.value)" class="w-full px-2 py-1 bg-indigo-50 border border-indigo-200 rounded-lg text-xs font-bold text-indigo-700">
+                ${TRAVEL_CLAIM_CATEGORY_GROUPS.map(function(g) {
+                  return `<option value="${g.key}" ${g.key === groupKey ? 'selected' : ''}>${g.label}</option>`;
+                }).join('')}
+              </select>
               <select onchange="updateClaimItem(${idx}, 'category', this.value)" class="w-full px-2 py-1 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-800">
-                <optgroup label="Travel / Conveyance">
-                  <option value="Flight" ${item.category === 'Flight' ? 'selected' : ''}>Flight</option>
-                  <option value="Indian Railways" ${item.category === 'Indian Railways' ? 'selected' : ''}>Indian Railways</option>
-                  <option value="Bus" ${item.category === 'Bus' ? 'selected' : ''}>Bus</option>
-                  <option value="Auto" ${item.category === 'Auto' ? 'selected' : ''}>Auto</option>
-                  <option value="Cab Booking" ${item.category === 'Cab Booking' ? 'selected' : ''}>Cab Booking</option>
-                  <option value="Other Two-wheelers" ${item.category === 'Other Two-wheelers' ? 'selected' : ''}>Other Two-wheelers</option>
-                  <option value="Travel - Others" ${item.category === 'Travel - Others' ? 'selected' : ''}>Others</option>
-                </optgroup>
-                <optgroup label="Per Diem Allowance">
-                  <option value="DA" ${item.category === 'DA' ? 'selected' : ''}>DA</option>
-                  <option value="Per Diem - Others" ${item.category === 'Per Diem - Others' ? 'selected' : ''}>Others</option>
-                </optgroup>
-                <optgroup label="Spares & Consumables">
-                  <option value="Spares & Consumables" ${item.category === 'Spares & Consumables' ? 'selected' : ''}>Spares & Consumables (service)</option>
-                  <option value="Spares - Others" ${item.category === 'Spares - Others' ? 'selected' : ''}>Others</option>
-                </optgroup>
-                <optgroup label="Tools & Tackles / Safety Items">
-                  <option value="Tools & Tackles / Safety Items" ${item.category === 'Tools & Tackles / Safety Items' ? 'selected' : ''}>Tools & Tackles / Safety Items (Purchase)</option>
-                  <option value="Tools & Safety - Others" ${item.category === 'Tools & Safety - Others' ? 'selected' : ''}>Others</option>
-                </optgroup>
-                <optgroup label="Rent & Accommodation">
-                  <option value="Rent" ${item.category === 'Rent' ? 'selected' : ''}>Rent</option>
-                  <option value="Lodging & Boarding" ${item.category === 'Lodging & Boarding' ? 'selected' : ''}>Lodging & Boarding</option>
-                  <option value="Accommodation - Others" ${item.category === 'Accommodation - Others' ? 'selected' : ''}>Others</option>
-                </optgroup>
-                <optgroup label="Other">
-                  <option value="Client Entertainment" ${item.category === 'Client Entertainment' ? 'selected' : ''}>Client Entertainment</option>
-                </optgroup>
+                ${group.options.map(function(o) {
+                  return `<option value="${o.value}" ${o.value === item.category ? 'selected' : ''}>${o.label}</option>`;
+                }).join('')}
               </select>
             </td>
             <td class="py-2 px-3">
