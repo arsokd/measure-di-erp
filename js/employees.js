@@ -306,6 +306,44 @@ document.addEventListener('DOMContentLoaded', function() {
         }
       }
 
+      async function runLegacyPasswordCleanup() {
+        var userRole = (typeof localStorage !== 'undefined') ? localStorage.getItem('userRole') : null;
+        if (userRole !== 'super_admin' && userRole !== 'admin') {
+          alert("Access denied. Only Super Admin or Admin can run this cleanup.");
+          return;
+        }
+
+        if (!confirm("This removes any old plaintext password fields left on employee records from before that was fixed. It's a one-time cleanup and safe to run - it only deletes those two fields, nothing else. Continue?")) {
+          return;
+        }
+
+        var btn = document.getElementById('btn-cleanup-legacy-passwords');
+        var origText = btn ? btn.innerHTML : '';
+        if (btn) { btn.disabled = true; btn.innerHTML = '<span>Cleaning up...</span>'; }
+
+        try {
+          if (typeof firebase === 'undefined' || !firebase.auth || !firebase.auth().currentUser) {
+            alert("Your session is not fully signed in to Firebase - please refresh and try again.");
+            return;
+          }
+          var idToken = await firebase.auth().currentUser.getIdToken(true);
+          var response = await fetch('/.netlify/functions/cleanup-legacy-passwords', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken }
+          });
+          var data = await response.json();
+          if (response.ok && data.success) {
+            alert("✅ " + data.message);
+          } else {
+            alert("❌ Cleanup failed: " + (data.error || ('Server responded with status ' + response.status + '.')));
+          }
+        } catch (err) {
+          alert("❌ Cleanup failed: " + (err.message || err));
+        } finally {
+          if (btn) { btn.disabled = false; btn.innerHTML = origText; }
+        }
+      }
+
       function openSetPasswordModalPrompt(targetDocId) {
         var userRole = (typeof localStorage !== 'undefined') ? localStorage.getItem('userRole') : null;
         if (userRole !== 'super_admin' && userRole !== 'admin') {
