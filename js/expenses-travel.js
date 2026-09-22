@@ -1488,11 +1488,11 @@ var currentTab = 'travel-app';
             { value: 'Per Diem - Others', label: 'Others' }
         ]},
         { key: 'spares', label: 'Spares & Consumables', options: [
-            { value: 'Spares & Consumables', label: 'Spares & Consumables (service)' },
+            { value: 'Spares & Consumables', label: 'Spares & Consumables' },
             { value: 'Spares - Others', label: 'Others' }
         ]},
-        { key: 'tools', label: 'Tools & Tackles / Safety Items', options: [
-            { value: 'Tools & Tackles / Safety Items', label: 'Tools & Tackles / Safety Items (Purchase)' },
+        { key: 'tools', label: 'Tools & Safety Items', options: [
+            { value: 'Tools & Tackles / Safety Items', label: 'Tools & Tackles / Safety Items' },
             { value: 'Tools & Safety - Others', label: 'Others' }
         ]},
         { key: 'accommodation', label: 'Rent & Accommodation', options: [
@@ -1541,12 +1541,12 @@ var currentTab = 'travel-app';
               <input type="date" value="${item.date}" onchange="updateClaimItem(${idx}, 'date', this.value)" class="w-full px-2 py-1 bg-white border border-slate-200 rounded-lg text-xs font-semibold" />
             </td>
             <td class="py-2 px-3 space-y-1">
-              <select onchange="updateClaimItemGroup(${idx}, this.value)" class="w-full px-2 py-1 bg-indigo-50 border border-indigo-200 rounded-lg text-xs font-bold text-indigo-700">
+              <select onchange="updateClaimItemGroup(${idx}, this.value)" title="${group.label}" class="w-full px-2 py-1 bg-indigo-50 border border-indigo-200 rounded-lg text-xs font-bold text-indigo-700">
                 ${TRAVEL_CLAIM_CATEGORY_GROUPS.map(function(g) {
                   return `<option value="${g.key}" ${g.key === groupKey ? 'selected' : ''}>${g.label}</option>`;
                 }).join('')}
               </select>
-              <select onchange="updateClaimItem(${idx}, 'category', this.value)" class="w-full px-2 py-1 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-800">
+              <select onchange="updateClaimItem(${idx}, 'category', this.value)" title="${escapeHtml((group.options.find(function(o){ return o.value === item.category; }) || {}).label || item.category || '')}" class="w-full px-2 py-1 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-800">
                 ${group.options.map(function(o) {
                   return `<option value="${o.value}" ${o.value === item.category ? 'selected' : ''}>${o.label}</option>`;
                 }).join('')}
