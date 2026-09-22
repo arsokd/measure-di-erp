@@ -339,7 +339,8 @@ function renderRevOpsNavbar(userName, userRole, hasDirectReports) {
     { title: "Equipment Orders", path: "orders.html", desc: "Capital equipment customer purchase orders & contracts", icon: "📦", show: true },
     { title: "Equipment Invoices", path: "invoices.html", desc: "Equipment commercial invoices, senior approval & dispatch", icon: "🧾", show: true },
     { title: "Payments & Collections", path: "payments.html", desc: "AR collections, BG/PG tracking & milestone invoicing", icon: "💳", show: true },
-    { title: "Audit & Activity Trail", path: "audit-logs.html", desc: "Universal ledger of all entries, edits, timestamps & actor diffs", icon: "🛡️", show: isAdmin }
+    { title: "Audit & Activity Trail", path: "audit-logs.html", desc: "Universal ledger of all entries, edits, timestamps & actor diffs", icon: "🛡️", show: isAdmin },
+    { title: "Support Tickets", path: "support-tickets.html", desc: "Problems reported by the team, plus errors the app caught automatically", icon: "🆘", show: isAdmin }
   ];
 
   var financeItems = [
@@ -1229,7 +1230,7 @@ function getRevOpsNavigationHtml(userName, userRole, employeeId, userEmail, role
         ${(isAdmin || (typeof hasApprovalAuthority === 'function' && hasApprovalAuthority('isMasterDataAdmin'))) ? `
           <a href="master-data.html" class="${currentPath === 'master-data.html' ? 'px-2.5 py-1.5 rounded-lg text-xs font-bold bg-[#982B68] text-white shadow-xs' : 'px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-300 hover:bg-slate-800 hover:text-white transition-all'}">🗄️ Master Data</a>
         ` : ''}
-        ${renderTopDropdown("Sales", "📈", salesItems, ['leads.html', 'quotations.html', 'orders.html', 'invoices.html', 'payments.html', 'audit-logs.html'])}
+        ${renderTopDropdown("Sales", "📈", salesItems, ['leads.html', 'quotations.html', 'orders.html', 'invoices.html', 'payments.html', 'audit-logs.html', 'support-tickets.html'])}
         ${renderTopDropdown("Service & Quality", "🛠️", serviceItems, ['service-tickets.html', 'amc-contracts.html', 'service-leads.html', 'amc-quotes.html', 'amc-orders.html', 'amc-invoices.html', 'parts-sales.html', 'warranty-management.html'])}
         ${renderTopDropdown("Finance", "💰", financeItems, ['expenses.html', 'payroll.html'])}
         ${renderTopDropdown("People & HR", "👥", hrItems, ['employees.html', 'attendance.html', 'my-team.html'])}

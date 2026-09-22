@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-slate-950">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Support Tickets | K-30_ERP</title>
+  <link rel="stylesheet" href="/src/index.css">
+  <script src="js/error-monitor.js"></script>
+    <script src="js/report-problem.js" defer></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+  <script src="js/firebase-init.js" defer></script>
+  <script src="js/store.js" defer></script>
+  <script src="js/seed-data.js" defer></script>
+  <script src="auth-guard.js" defer></script>
+</head>
+<body class="min-h-full bg-slate-950 text-slate-100 antialiased flex flex-col font-sans">
+  <div id="navbar-container"></div>
+
+  <main class="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-900/90 border border-slate-800 p-5 rounded-2xl shadow-xl backdrop-blur-md">
+      <div class="space-y-1">
+        <div class="flex items-center gap-2.5">
+          <span class="p-2.5 rounded-xl bg-gradient-to-br from-amber-500/20 to-rose-500/20 text-amber-400 border border-amber-500/30">
+            <i class="fa-solid fa-life-ring text-xl"></i>
+          </span>
+          <div>
+            <h1 class="text-xl sm:text-2xl font-black tracking-tight text-white">Support Tickets</h1>
+            <p class="text-xs text-slate-400">Problems reported by the team via the "Report Issue" button, and errors the app caught automatically.</p>
+          </div>
+        </div>
+      </div>
+      <button onclick="refreshTickets()" class="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-indigo-900/30 flex items-center gap-2 cursor-pointer">
+        <i class="fa-solid fa-arrows-rotate text-sm" id="refresh-icon"></i>
+        <span>Refresh</span>
+      </button>
+    </div>
+
+    <div class="grid grid-cols-2 sm:grid-cols-3 gap-4">
+      <div class="bg-slate-900/80 border border-slate-800 p-4 rounded-2xl">
+        <div class="text-slate-400 text-xs font-bold uppercase tracking-wider mb-1">Open</div>
+        <div class="text-2xl font-black text-amber-400" id="kpi-open-count">0</div>
+      </div>
+      <div class="bg-slate-900/80 border border-slate-800 p-4 rounded-2xl">
+        <div class="text-slate-400 text-xs font-bold uppercase tracking-wider mb-1">Resolved</div>
+        <div class="text-2xl font-black text-emerald-400" id="kpi-resolved-count">0</div>
+      </div>
+      <div class="bg-slate-900/80 border border-slate-800 p-4 rounded-2xl">
+        <div class="text-slate-400 text-xs font-bold uppercase tracking-wider mb-1">Total</div>
+        <div class="text-2xl font-black text-white" id="kpi-total-count">0</div>
+      </div>
+    </div>
+
+    <div class="bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden">
+      <div class="flex items-center gap-2 px-4 py-3 border-b border-slate-800">
+        <button onclick="setTicketFilter('open')" id="filter-btn-open" class="px-3 py-1.5 rounded-full text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 cursor-pointer">Open</button>
+        <button onclick="setTicketFilter('resolved')" id="filter-btn-resolved" class="px-3 py-1.5 rounded-full text-xs font-bold bg-slate-800 text-slate-400 border border-slate-700 cursor-pointer">Resolved</button>
+        <button onclick="setTicketFilter('all')" id="filter-btn-all" class="px-3 py-1.5 rounded-full text-xs font-bold bg-slate-800 text-slate-400 border border-slate-700 cursor-pointer">All</button>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-xs">
+          <thead>
+            <tr class="bg-slate-950/60 border-b border-slate-800 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+              <th class="py-2.5 px-4">Reported</th>
+              <th class="py-2.5 px-4">By</th>
+              <th class="py-2.5 px-4">Page</th>
+              <th class="py-2.5 px-4">Description</th>
+              <th class="py-2.5 px-4 text-center">Status</th>
+              <th class="py-2.5 px-4 text-center">Action</th>
+            </tr>
+          </thead>
+          <tbody id="tickets-tbody" class="divide-y divide-slate-800"></tbody>
+        </table>
+      </div>
+      <div id="tickets-empty-state" class="hidden py-10 text-center text-slate-500 text-sm">No tickets in this view.</div>
+    </div>
+  </main>
+
+  <script>
+    var allTickets = [];
+    var ticketFilter = 'open';
+
+    document.addEventListener('DOMContentLoaded', function() {
+      if (checkAuth(['super_admin', 'admin'])) {
+        refreshTickets();
+      }
+    });
+
+    function refreshTickets() {
+      var icon = document.getElementById('refresh-icon');
+      if (icon) icon.classList.add('fa-spin');
+
+      var finish = function(tickets) {
+        allTickets = tickets || [];
+        window.RevOpsStore.saveCollection('supportTickets', allTickets);
+        renderTickets();
+        if (icon) icon.classList.remove('fa-spin');
+      };
+
+      if (window.db && typeof window.db.collection === 'function') {
+        window.db.collection('supportTickets').get().then(function(snap) {
+          var tickets = [];
+          snap.forEach(function(doc) { tickets.push(Object.assign({ id: doc.id }, doc.data())); });
+          finish(tickets);
+        }).catch(function(err) {
+          console.warn("Could not fetch supportTickets from Firestore, showing local cache:", err);
+          finish(window.RevOpsStore.getCollection('supportTickets') || []);
+        });
+      } else {
+        finish(window.RevOpsStore.getCollection('supportTickets') || []);
+      }
+    }
+
+    function setTicketFilter(f) {
+      ticketFilter = f;
+      ['open', 'resolved', 'all'].forEach(function(k) {
+        var btn = document.getElementById('filter-btn-' + k);
+        if (!btn) return;
+        if (k === f) {
+          btn.className = 'px-3 py-1.5 rounded-full text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 cursor-pointer';
+        } else {
+          btn.className = 'px-3 py-1.5 rounded-full text-xs font-bold bg-slate-800 text-slate-400 border border-slate-700 cursor-pointer';
+        }
+      });
+      renderTickets();
+    }
+
+    function markTicketStatus(ticketId, newStatus) {
+      window.RevOpsStore.updateItem('supportTickets', ticketId, { status: newStatus, resolvedAt: newStatus === 'resolved' ? new Date().toISOString() : null });
+      var t = allTickets.find(function(x) { return x.id === ticketId; });
+      if (t) t.status = newStatus;
+      renderTickets();
+    }
+
+    function renderTickets() {
+      var openCount = allTickets.filter(function(t) { return t.status !== 'resolved'; }).length;
+      var resolvedCount = allTickets.filter(function(t) { return t.status === 'resolved'; }).length;
+      document.getElementById('kpi-open-count').innerText = openCount;
+      document.getElementById('kpi-resolved-count').innerText = resolvedCount;
+      document.getElementById('kpi-total-count').innerText = allTickets.length;
+
+      var filtered = allTickets.filter(function(t) {
+        if (ticketFilter === 'open') return t.status !== 'resolved';
+        if (ticketFilter === 'resolved') return t.status === 'resolved';
+        return true;
+      }).sort(function(a, b) {
+        return String(b.submittedAt || '').localeCompare(String(a.submittedAt || ''));
+      });
+
+      var tbody = document.getElementById('tickets-tbody');
+      var emptyState = document.getElementById('tickets-empty-state');
+      tbody.innerHTML = '';
+
+      if (filtered.length === 0) {
+        emptyState.classList.remove('hidden');
+        return;
+      }
+      emptyState.classList.add('hidden');
+
+      filtered.forEach(function(t) {
+        var tr = document.createElement('tr');
+        tr.className = 'hover:bg-slate-800/40';
+        var isResolved = t.status === 'resolved';
+        var statusBadge = isResolved
+          ? '<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">Resolved</span>'
+          : '<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40">Open</span>';
+        var actionBtn = isResolved
+          ? '<button onclick="markTicketStatus(\'' + t.id + '\', \'open\')" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-bold rounded-lg cursor-pointer">Reopen</button>'
+          : '<button onclick="markTicketStatus(\'' + t.id + '\', \'resolved\')" class="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold rounded-lg cursor-pointer">Mark Resolved</button>';
+
+        tr.innerHTML =
+          '<td class="py-2.5 px-4 text-slate-400 whitespace-nowrap">' + escapeHtml((t.submittedAt || '').replace('T', ' ').slice(0, 16)) + '</td>' +
+          '<td class="py-2.5 px-4 font-semibold text-slate-200 whitespace-nowrap">' + escapeHtml(t.userName || t.employeeId || 'unknown') + '</td>' +
+          '<td class="py-2.5 px-4 text-slate-400 whitespace-nowrap">' + escapeHtml((t.page || '').replace('/', '').replace('.html', '')) + '</td>' +
+          '<td class="py-2.5 px-4 text-slate-200 max-w-md">' + escapeHtml(t.description || '') + '</td>' +
+          '<td class="py-2.5 px-4 text-center">' + statusBadge + '</td>' +
+          '<td class="py-2.5 px-4 text-center">' + actionBtn + '</td>';
+        tbody.appendChild(tr);
+      });
+    }
+
+    function escapeHtml(str) {
+      var div = document.createElement('div');
+      div.textContent = str == null ? '' : String(str);
+      return div.innerHTML;
+    }
+  </script>
+</body>
+</html>
