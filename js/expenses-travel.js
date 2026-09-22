@@ -169,6 +169,8 @@ var currentTab = 'travel-app';
               localConveyancePerDay: 3000,
               flightLimitPerTrip: 25000,
               clientEntertainmentLimit: 15000,
+              sparesConsumablesLimitPerTrip: 5000,
+              toolsSafetyLimitPerTrip: 5000,
               travelModeClass: 'Air (Business/Economy) / AC Taxi / Premium Stay',
               requiresPreApproval: false,
               updatedAt: '2026-08-01'
@@ -183,6 +185,8 @@ var currentTab = 'travel-app';
               localConveyancePerDay: 2200,
               flightLimitPerTrip: 15000,
               clientEntertainmentLimit: 10000,
+              sparesConsumablesLimitPerTrip: 3500,
+              toolsSafetyLimitPerTrip: 3500,
               travelModeClass: 'Air (Economy) / Express Train AC 1st Class / Premium Cab',
               requiresPreApproval: true,
               updatedAt: '2026-08-01'
@@ -197,6 +201,8 @@ var currentTab = 'travel-app';
               localConveyancePerDay: 1600,
               flightLimitPerTrip: 10000,
               clientEntertainmentLimit: 5000,
+              sparesConsumablesLimitPerTrip: 2500,
+              toolsSafetyLimitPerTrip: 2500,
               travelModeClass: 'Air (Economy) / Train AC 2-Tier / Dedicated Taxi',
               requiresPreApproval: true,
               updatedAt: '2026-08-01'
@@ -211,6 +217,8 @@ var currentTab = 'travel-app';
               localConveyancePerDay: 1100,
               flightLimitPerTrip: 6000,
               clientEntertainmentLimit: 2000,
+              sparesConsumablesLimitPerTrip: 2000,
+              toolsSafetyLimitPerTrip: 2000,
               travelModeClass: 'Express Train AC 3-Tier / AC Bus / Auto/Taxi',
               requiresPreApproval: true,
               updatedAt: '2026-08-01'
@@ -225,6 +233,8 @@ var currentTab = 'travel-app';
               localConveyancePerDay: 800,
               flightLimitPerTrip: 0,
               clientEntertainmentLimit: 0,
+              sparesConsumablesLimitPerTrip: 1500,
+              toolsSafetyLimitPerTrip: 1500,
               travelModeClass: 'Train AC 3-Tier / Sleeper / Bus / Local Conveyance',
               requiresPreApproval: true,
               updatedAt: '2026-08-01'
@@ -301,9 +311,9 @@ var currentTab = 'travel-app';
               preAppRefId: 'TRV-APP-101',
               clientName: 'Tata Steel Long Products',
               items: [
-                { date: '2026-07-15', category: 'Flight/Train Ticket', desc: 'Flight Chennai to Jharsuguda', amount: 4400, receiptBase64: '' },
-                { date: '2026-07-16', category: 'Hotel Accommodation', desc: 'Hotel Grand Residency 2 nights', amount: 10500, receiptBase64: '' },
-                { date: '2026-07-17', category: 'Daily Allowance (Food)', desc: 'Daily allowance 3 days', amount: 3600, receiptBase64: '' }
+                { date: '2026-07-15', category: 'Flight', desc: 'Flight Chennai to Jharsuguda', amount: 4400, receiptBase64: '' },
+                { date: '2026-07-16', category: 'Lodging & Boarding', desc: 'Hotel Grand Residency 2 nights', amount: 10500, receiptBase64: '' },
+                { date: '2026-07-17', category: 'DA', desc: 'Daily allowance 3 days', amount: 3600, receiptBase64: '' }
               ]
             },
             {
@@ -724,7 +734,7 @@ var currentTab = 'travel-app';
 
               <div class="grid grid-cols-2 gap-2 text-xs pt-1">
                 <div class="p-2.5 bg-slate-50 rounded-xl border border-slate-200">
-                  <span class="text-[10px] font-bold text-slate-400 uppercase block">🏨 Hotel Stay / Day</span>
+                  <span class="text-[10px] font-bold text-slate-400 uppercase block">🏨 Rent/Lodging / Day</span>
                   <span class="font-extrabold text-slate-900 text-sm">${formatINR(p.hotelLimitPerDay)}</span>
                 </div>
                 <div class="p-2.5 bg-slate-50 rounded-xl border border-slate-200">
@@ -736,8 +746,16 @@ var currentTab = 'travel-app';
                   <span class="font-extrabold text-slate-900 text-sm">${formatINR(p.localConveyancePerDay)}</span>
                 </div>
                 <div class="p-2.5 bg-slate-50 rounded-xl border border-slate-200">
-                  <span class="text-[10px] font-bold text-slate-400 uppercase block">✈️ Flight / Transit</span>
+                  <span class="text-[10px] font-bold text-slate-400 uppercase block">✈️ Flight/Rail Fare</span>
                   <span class="font-extrabold text-indigo-900 text-sm">${p.flightLimitPerTrip > 0 ? formatINR(p.flightLimitPerTrip) : 'Train / Bus Only'}</span>
+                </div>
+                <div class="p-2.5 bg-slate-50 rounded-xl border border-slate-200">
+                  <span class="text-[10px] font-bold text-slate-400 uppercase block">🔧 Spares & Consumables</span>
+                  <span class="font-extrabold text-slate-900 text-sm">${formatINR(p.sparesConsumablesLimitPerTrip)} / trip</span>
+                </div>
+                <div class="p-2.5 bg-slate-50 rounded-xl border border-slate-200">
+                  <span class="text-[10px] font-bold text-slate-400 uppercase block">🦺 Tools & Safety</span>
+                  <span class="font-extrabold text-slate-900 text-sm">${formatINR(p.toolsSafetyLimitPerTrip)} / trip</span>
                 </div>
               </div>
 
@@ -781,6 +799,8 @@ var currentTab = 'travel-app';
           document.getElementById('pol-local-limit').value = targetPolicy.localConveyancePerDay || 0;
           document.getElementById('pol-flight-limit').value = targetPolicy.flightLimitPerTrip || 0;
           document.getElementById('pol-client-limit').value = targetPolicy.clientEntertainmentLimit || 0;
+          document.getElementById('pol-spares-limit').value = targetPolicy.sparesConsumablesLimitPerTrip || 0;
+          document.getElementById('pol-tools-limit').value = targetPolicy.toolsSafetyLimitPerTrip || 0;
           document.getElementById('pol-preapp-required').value = String(targetPolicy.requiresPreApproval !== false);
           document.getElementById('pol-travel-class').value = targetPolicy.travelModeClass || '';
         } else {
@@ -793,6 +813,8 @@ var currentTab = 'travel-app';
           document.getElementById('pol-local-limit').value = 1600;
           document.getElementById('pol-flight-limit').value = 10000;
           document.getElementById('pol-client-limit').value = 5000;
+          document.getElementById('pol-spares-limit').value = 2000;
+          document.getElementById('pol-tools-limit').value = 2000;
           document.getElementById('pol-preapp-required').value = 'true';
           document.getElementById('pol-travel-class').value = 'Air (Economy) / Train AC 2-Tier';
         }
@@ -819,6 +841,8 @@ var currentTab = 'travel-app';
             document.getElementById('pol-local-limit').value = p.localConveyancePerDay;
             document.getElementById('pol-flight-limit').value = p.flightLimitPerTrip;
             document.getElementById('pol-client-limit').value = p.clientEntertainmentLimit;
+            document.getElementById('pol-spares-limit').value = p.sparesConsumablesLimitPerTrip || 0;
+            document.getElementById('pol-tools-limit').value = p.toolsSafetyLimitPerTrip || 0;
             document.getElementById('pol-preapp-required').value = String(p.requiresPreApproval !== false);
             document.getElementById('pol-travel-class').value = p.travelModeClass || '';
           }
@@ -838,6 +862,8 @@ var currentTab = 'travel-app';
         var l = Number(document.getElementById('pol-local-limit').value);
         var f = Number(document.getElementById('pol-flight-limit').value);
         var c = Number(document.getElementById('pol-client-limit').value);
+        var sp = Number(document.getElementById('pol-spares-limit').value);
+        var tl = Number(document.getElementById('pol-tools-limit').value);
         var preapp = document.getElementById('pol-preapp-required').value === 'true';
         var travelClass = document.getElementById('pol-travel-class').value;
 
@@ -854,6 +880,8 @@ var currentTab = 'travel-app';
           localConveyancePerDay: l,
           flightLimitPerTrip: f,
           clientEntertainmentLimit: c,
+          sparesConsumablesLimitPerTrip: sp,
+          toolsSafetyLimitPerTrip: tl,
           requiresPreApproval: preapp,
           travelModeClass: travelClass,
           updatedAt: new Date().toISOString().split('T')[0]
@@ -1224,8 +1252,8 @@ var currentTab = 'travel-app';
         var submitLabelEl = document.getElementById('btn-submit-travel-claim-label');
         if (submitLabelEl) submitLabelEl.innerText = 'Submit Travel Claim Voucher';
         claimItemsStore = [
-          { date: new Date().toISOString().split('T')[0], category: 'Hotel Accommodation', desc: 'Hotel room stay', amount: 3000, receiptBase64: '' },
-          { date: new Date().toISOString().split('T')[0], category: 'Daily Allowance (Food)', desc: 'Breakfast & dinner DA', amount: 1000, receiptBase64: '' }
+          { date: new Date().toISOString().split('T')[0], category: 'Lodging & Boarding', desc: 'Hotel room stay', amount: 3000, receiptBase64: '' },
+          { date: new Date().toISOString().split('T')[0], category: 'DA', desc: 'Breakfast & dinner DA', amount: 1000, receiptBase64: '' }
         ];
 
         // Populate employee select
@@ -1452,15 +1480,39 @@ var currentTab = 'travel-app';
             </td>
             <td class="py-2 px-3">
               <select onchange="updateClaimItem(${idx}, 'category', this.value)" class="w-full px-2 py-1 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-800">
-                <option value="Hotel Accommodation" ${item.category === 'Hotel Accommodation' ? 'selected' : ''}>Hotel Accommodation</option>
-                <option value="Daily Allowance (Food)" ${item.category === 'Daily Allowance (Food)' ? 'selected' : ''}>Daily Allowance (Food)</option>
-                <option value="Local Conveyance / Taxi" ${item.category === 'Local Conveyance / Taxi' ? 'selected' : ''}>Local Conveyance / Taxi</option>
-                <option value="Flight/Train Ticket" ${item.category === 'Flight/Train Ticket' ? 'selected' : ''}>Flight/Train Ticket</option>
-                <option value="Client Entertainment" ${item.category === 'Client Entertainment' ? 'selected' : ''}>Client Entertainment</option>
+                <optgroup label="Travel / Conveyance">
+                  <option value="Flight" ${item.category === 'Flight' ? 'selected' : ''}>Flight</option>
+                  <option value="Indian Railways" ${item.category === 'Indian Railways' ? 'selected' : ''}>Indian Railways</option>
+                  <option value="Bus" ${item.category === 'Bus' ? 'selected' : ''}>Bus</option>
+                  <option value="Auto" ${item.category === 'Auto' ? 'selected' : ''}>Auto</option>
+                  <option value="Cab Booking" ${item.category === 'Cab Booking' ? 'selected' : ''}>Cab Booking</option>
+                  <option value="Other Two-wheelers" ${item.category === 'Other Two-wheelers' ? 'selected' : ''}>Other Two-wheelers</option>
+                  <option value="Travel - Others" ${item.category === 'Travel - Others' ? 'selected' : ''}>Others</option>
+                </optgroup>
+                <optgroup label="Per Diem Allowance">
+                  <option value="DA" ${item.category === 'DA' ? 'selected' : ''}>DA</option>
+                  <option value="Per Diem - Others" ${item.category === 'Per Diem - Others' ? 'selected' : ''}>Others</option>
+                </optgroup>
+                <optgroup label="Spares & Consumables">
+                  <option value="Spares & Consumables" ${item.category === 'Spares & Consumables' ? 'selected' : ''}>Spares & Consumables (service)</option>
+                  <option value="Spares - Others" ${item.category === 'Spares - Others' ? 'selected' : ''}>Others</option>
+                </optgroup>
+                <optgroup label="Tools & Tackles / Safety Items">
+                  <option value="Tools & Tackles / Safety Items" ${item.category === 'Tools & Tackles / Safety Items' ? 'selected' : ''}>Tools & Tackles / Safety Items (Purchase)</option>
+                  <option value="Tools & Safety - Others" ${item.category === 'Tools & Safety - Others' ? 'selected' : ''}>Others</option>
+                </optgroup>
+                <optgroup label="Rent & Accommodation">
+                  <option value="Rent" ${item.category === 'Rent' ? 'selected' : ''}>Rent</option>
+                  <option value="Lodging & Boarding" ${item.category === 'Lodging & Boarding' ? 'selected' : ''}>Lodging & Boarding</option>
+                  <option value="Accommodation - Others" ${item.category === 'Accommodation - Others' ? 'selected' : ''}>Others</option>
+                </optgroup>
+                <optgroup label="Other">
+                  <option value="Client Entertainment" ${item.category === 'Client Entertainment' ? 'selected' : ''}>Client Entertainment</option>
+                </optgroup>
               </select>
             </td>
             <td class="py-2 px-3">
-              <input type="text" value="${item.desc}" placeholder="Bill details..." onchange="updateClaimItem(${idx}, 'desc', this.value)" class="w-full px-2 py-1 bg-white border border-slate-200 rounded-lg text-xs" />
+              <input type="text" value="${item.desc}" placeholder="${(item.category || '').indexOf(' - Others') !== -1 ? 'Please specify this expense + bill details...' : 'Bill details...'}" onchange="updateClaimItem(${idx}, 'desc', this.value)" class="w-full px-2 py-1 bg-white border ${(item.category || '').indexOf(' - Others') !== -1 ? 'border-amber-400' : 'border-slate-200'} rounded-lg text-xs" />
             </td>
             <td class="py-2 px-3 text-right">
               <input type="number" value="${item.amount}" min="0" oninput="updateClaimItem(${idx}, 'amount', this.value)" class="w-28 px-2 py-1 bg-white border border-slate-200 rounded-lg text-xs font-bold text-right text-emerald-800" />
@@ -1479,7 +1531,7 @@ var currentTab = 'travel-app';
       function addExpenseItemRow() {
         claimItemsStore.push({
           date: document.getElementById('trv-start-date').value || new Date().toISOString().split('T')[0],
-          category: 'Hotel Accommodation',
+          category: 'Lodging & Boarding',
           desc: 'Expense description',
           amount: 1000,
           receiptBase64: ''
@@ -1501,6 +1553,9 @@ var currentTab = 'travel-app';
       function updateClaimItem(idx, key, val) {
         if (key === 'amount') val = Number(val) || 0;
         claimItemsStore[idx][key] = val;
+        if (key === 'category') {
+          renderClaimItemRows();
+        }
         calcTravelClaimTotalsAndAudit();
       }
 
@@ -1516,16 +1571,19 @@ var currentTab = 'travel-app';
 
       function calcTravelClaimTotalsAndAudit() {
         var total = 0;
-        var hotelSum = 0, daSum = 0, localSum = 0, flightSum = 0, clientSum = 0;
+        var hotelSum = 0, daSum = 0, localSum = 0, flightSum = 0, clientSum = 0, sparesSum = 0, toolsSum = 0;
 
         claimItemsStore.forEach(function(item) {
           var amt = Number(item.amount) || 0;
           total += amt;
-          if (item.category === 'Hotel Accommodation') hotelSum += amt;
-          if (item.category === 'Daily Allowance (Food)') daSum += amt;
-          if (item.category === 'Local Conveyance / Taxi') localSum += amt;
-          if (item.category === 'Flight/Train Ticket') flightSum += amt;
-          if (item.category === 'Client Entertainment') clientSum += amt;
+          var cat = item.category;
+          if (cat === 'Rent' || cat === 'Lodging & Boarding' || cat === 'Accommodation - Others') hotelSum += amt;
+          if (cat === 'DA' || cat === 'Per Diem - Others') daSum += amt;
+          if (cat === 'Bus' || cat === 'Auto' || cat === 'Cab Booking' || cat === 'Other Two-wheelers' || cat === 'Travel - Others') localSum += amt;
+          if (cat === 'Flight' || cat === 'Indian Railways') flightSum += amt;
+          if (cat === 'Client Entertainment') clientSum += amt;
+          if (cat === 'Spares & Consumables' || cat === 'Spares - Others') sparesSum += amt;
+          if (cat === 'Tools & Tackles / Safety Items' || cat === 'Tools & Safety - Others') toolsSum += amt;
         });
 
         document.getElementById('trv-grand-total-display').innerText = formatINR(total);
@@ -1542,7 +1600,7 @@ var currentTab = 'travel-app';
         var policy = policies.find(function(p) { return p.gradeCode === empGrade; });
         
         if (!policy) {
-          policy = policies[0] || { gradeCode: 'Default', gradeName: 'Standard Policy', hotelLimitPerDay: 3500, daLimitPerDay: 1200, localConveyancePerDay: 1500, flightLimitPerTrip: 10000, clientEntertainmentLimit: 5000 };
+          policy = policies[0] || { gradeCode: 'Default', gradeName: 'Standard Policy', hotelLimitPerDay: 3500, daLimitPerDay: 1200, localConveyancePerDay: 1500, flightLimitPerTrip: 10000, clientEntertainmentLimit: 5000, sparesConsumablesLimitPerTrip: 1500, toolsSafetyLimitPerTrip: 1500 };
         }
 
         var exceededReasons = [];
@@ -1566,11 +1624,17 @@ var currentTab = 'travel-app';
         if (clientSum > 0 && clientSum > policy.clientEntertainmentLimit) {
           exceededReasons.push("Client entertainment (₹" + clientSum + ") exceeds Grade " + empGrade + " limit (₹" + policy.clientEntertainmentLimit + ")");
         }
+        if (sparesSum > 0 && policy.sparesConsumablesLimitPerTrip > 0 && sparesSum > policy.sparesConsumablesLimitPerTrip) {
+          exceededReasons.push("Spares & Consumables (₹" + sparesSum + ") exceeds Grade " + empGrade + " per-trip limit (₹" + policy.sparesConsumablesLimitPerTrip + ")");
+        }
+        if (toolsSum > 0 && policy.toolsSafetyLimitPerTrip > 0 && toolsSum > policy.toolsSafetyLimitPerTrip) {
+          exceededReasons.push("Tools & Tackles/Safety Items (₹" + toolsSum + ") exceeds Grade " + empGrade + " per-trip limit (₹" + policy.toolsSafetyLimitPerTrip + ")");
+        }
 
         var badge = document.getElementById('trv-audit-status-badge');
         var notes = document.getElementById('trv-audit-notes');
 
-        var gradeInfoStr = `<div class="text-[11px] font-bold text-indigo-900 mb-1">Grade Audit Policy applied: <span class="bg-indigo-100 text-indigo-900 px-2 py-0.5 rounded font-mono font-extrabold">${empGrade}</span> - ${escapeHtml(policy.gradeName || 'Grade Policy')} (Hotel: ₹${policy.hotelLimitPerDay}/day | DA: ₹${policy.daLimitPerDay}/day | Local: ₹${policy.localConveyancePerDay}/day | Flight: ₹${policy.flightLimitPerTrip || '0'})</div>`;
+        var gradeInfoStr = `<div class="text-[11px] font-bold text-indigo-900 mb-1">Grade Audit Policy applied: <span class="bg-indigo-100 text-indigo-900 px-2 py-0.5 rounded font-mono font-extrabold">${empGrade}</span> - ${escapeHtml(policy.gradeName || 'Grade Policy')} (Accommodation: ₹${policy.hotelLimitPerDay}/day | DA: ₹${policy.daLimitPerDay}/day | Local: ₹${policy.localConveyancePerDay}/day | Flight/Rail: ₹${policy.flightLimitPerTrip || '0'} | Spares: ₹${policy.sparesConsumablesLimitPerTrip || '0'}/trip | Tools&Safety: ₹${policy.toolsSafetyLimitPerTrip || '0'}/trip)</div>`;
 
         if (exceededReasons.length > 0) {
           badge.className = "px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-rose-100 text-rose-800 border border-rose-300";
@@ -1603,6 +1667,15 @@ var currentTab = 'travel-app';
 
         if (!claimItemsStore || claimItemsStore.length === 0) {
           alert("Please add at least one daily expense line item.");
+          return;
+        }
+
+        var unspecifiedOther = claimItemsStore.find(function(i) {
+          return (i.category || '').indexOf(' - Others') !== -1 && (!i.desc || !i.desc.trim());
+        });
+        if (unspecifiedOther) {
+          alert("Please specify what the 'Others' expense item is (in the Bill Details field) before submitting.");
+          showClaimPage(2);
           return;
         }
 

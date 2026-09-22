@@ -88,7 +88,7 @@ var defaultOrders = [{"id":"ord_2026_01","customerName":"JSW Steel Works Vijayan
  
 if (!localStorage.getItem('expenses')) {
  localStorage.setItem('expenses', JSON.stringify([
- { id: 'exp_1', voucherNo: 'TRV-1001', date: '18/07/2026', category: 'Travelling', payee: 'Murugan', amount: 18500, vertical: 'Sales', projectId: '', paymentMode: 'Bank Transfer', remarks: 'Travel Claim: Jharsuguda Cluster (15/07/2026 - 18/07/2026)', status: 'Approved', receiptBase64: '', policyExceeded: false, preAppRefId: 'TRV-APP-101', clientName: 'Tata Steel Long Products', items: [{ date: '15/07/2026', category: 'Flight/Train Ticket', desc: 'Flight Chennai to Jharsuguda', amount: 4400 }, { date: '16/07/2026', category: 'Hotel Accommodation', desc: 'Hotel Grand Residency 2 nights', amount: 10500 }, { date: '17/07/2026', category: 'Daily Allowance (Food)', desc: 'Daily allowance 3 days', amount: 3600 }] },
+ { id: 'exp_1', voucherNo: 'TRV-1001', date: '18/07/2026', category: 'Travelling', payee: 'Murugan', amount: 18500, vertical: 'Sales', projectId: '', paymentMode: 'Bank Transfer', remarks: 'Travel Claim: Jharsuguda Cluster (15/07/2026 - 18/07/2026)', status: 'Approved', receiptBase64: '', policyExceeded: false, preAppRefId: 'TRV-APP-101', clientName: 'Tata Steel Long Products', items: [{ date: '15/07/2026', category: 'Flight', desc: 'Flight Chennai to Jharsuguda', amount: 4400 }, { date: '16/07/2026', category: 'Lodging & Boarding', desc: 'Hotel Grand Residency 2 nights', amount: 10500 }, { date: '17/07/2026', category: 'DA', desc: 'Daily allowance 3 days', amount: 3600 }] },
  { id: 'exp_2', voucherNo: 'VOUCH-1002', date: '14/07/2026', category: 'Project Expenses', payee: 'Universal Testing Corp', amount: 650000, vertical: 'Projects', projectId: 'PRJ-2026-101', paymentMode: 'Bank Transfer', remarks: 'Raw material load cell sensors & crane scale calibration kit for Steel Plant Project', status: 'Approved', receiptBase64: '' },
  { id: 'exp_3', voucherNo: 'VOUCH-1003', date: '18/07/2026', category: 'Admin', payee: 'Airtel Broadband & Utilities', amount: 14200, vertical: 'Overhead', projectId: '', paymentMode: 'UPI', remarks: 'Head office internet, landline & cloud server hosting bill', status: 'Approved', receiptBase64: '' },
  { id: 'exp_4', voucherNo: 'VOUCH-1004', date: '22/07/2026', category: 'Salary Advance', payee: 'Sivakumar', amount: 25000, vertical: 'Service/Parts', projectId: '', paymentMode: 'Bank Transfer', remarks: 'Temporary salary advance for field service emergency', status: 'Approved', receiptBase64: '' },
@@ -113,7 +113,7 @@ if (!localStorage.getItem('expenses')) {
  ]));
  }
  if (!localStorage.getItem('travelPolicyMaster')) {
- localStorage.setItem('travelPolicyMaster', JSON.stringify([{ id: 'pol_1', hotelLimitPerDay: 3500, daLimitPerDay: 1200, localConveyancePerDay: 1500, flightLimitPerTrip: 12000, clientEntertainmentLimit: 5000, updatedAt: '2026-07-01' }]));
+ localStorage.setItem('travelPolicyMaster', JSON.stringify([{ id: 'pol_1', hotelLimitPerDay: 3500, daLimitPerDay: 1200, localConveyancePerDay: 1500, flightLimitPerTrip: 12000, clientEntertainmentLimit: 5000, sparesConsumablesLimitPerTrip: 1500, toolsSafetyLimitPerTrip: 1500, updatedAt: '2026-07-01' }]));
  }
  if (!localStorage.getItem('travelApprovals')) {
  localStorage.setItem('travelApprovals', JSON.stringify([
