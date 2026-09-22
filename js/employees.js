@@ -384,10 +384,14 @@ document.addEventListener('DOMContentLoaded', function() {
           saveBtn.innerText = 'Saving...';
         }
 
-        // 1. Save password update directly to RevOpsStore & Firestore employees document
+        // 1. Record that a reset happened - never the plaintext password
+        // itself. The employees collection is readable by every signed-in
+        // user (dropdowns, approval routing, the directory all need that),
+        // so storing the real password there would let any of the 200
+        // users read everyone else's login credential straight out of
+        // Firestore. The actual credential only ever lives in Firebase
+        // Auth, set via the server-side function below.
         window.RevOpsStore.updateItem('employees', docId, {
-          customPassword: newPass,
-          password: newPass,
           passwordLastUpdated: new Date().toISOString()
         });
 
@@ -395,8 +399,6 @@ document.addEventListener('DOMContentLoaded', function() {
         if (window.db && typeof window.db.collection === 'function') {
           var targetId = emp.id || docId;
           window.db.collection('employees').doc(targetId).set({
-            customPassword: newPass,
-            password: newPass,
             passwordLastUpdated: new Date().toISOString()
           }, { merge: true }).catch(function(err) {
             console.warn("Error updating password in Firestore employees collection:", err);

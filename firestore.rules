@@ -120,6 +120,21 @@ service cloud.firestore {
     match /pgbgReceivables/{docId}  { allow read: if signedIn(); allow create: if canCreateOwnRecord(); allow update, delete: if isOwnerOrAdmin(); }
     match /communicationLogs/{docId}{ allow read: if signedIn(); allow create: if signedIn(); allow update, delete: if isLeadershipOrAdmin(); }
     match /reviews/{docId}          { allow read: if signedIn(); allow create: if canCreateOwnRecord(); allow update, delete: if isOwnerOrAdmin(); }
+    match /payments/{docId}         { allow read: if signedIn(); allow create: if canCreateOwnRecord(); allow update, delete: if isOwnerOrAdmin(); }
+
+    // ---- Diagnostics collections: any signed-in user may create an entry
+    // (their own error/report), only admins may read or manage the list,
+    // except a support ticket's own author may also read it back. ----
+    match /errorLogs/{docId} {
+      allow create: if signedIn();
+      allow read, update, delete: if isLeadershipOrAdmin();
+    }
+    match /supportTickets/{docId} {
+      allow create: if signedIn();
+      allow read: if isLeadershipOrAdmin() ||
+        (signedIn() && 'employeeId' in resource.data && resource.data.employeeId == myEmployeeId());
+      allow update, delete: if isLeadershipOrAdmin();
+    }
 
     // ---- Reference / master data & targets: everyone reads, only admins write ----
     match /kraTargets/{docId}          { allow read: if signedIn(); allow write: if isLeadershipOrAdmin(); }
