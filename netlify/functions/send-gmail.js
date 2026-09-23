@@ -156,7 +156,8 @@ export async function handler(event) {
       body: JSON.stringify({
         success: false,
         error: err.message,
-        notOnWorkspaceDomain: true
+        notOnWorkspaceDomain: true,
+        diagnostic: err.diagnostic || null
       })
     };
   }

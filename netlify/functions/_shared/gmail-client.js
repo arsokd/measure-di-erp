@@ -92,15 +92,19 @@ function getServiceAccountCredentials() {
 export async function getImpersonatedAccessToken(impersonatedEmail) {
   const creds = getServiceAccountCredentials();
 
-  // Diagnostic only - none of this is sensitive (no key material), but it
-  // lets us see in the function logs exactly what the code is using,
-  // including hidden whitespace/quote issues a value's bracket-wrapped
-  // length would reveal that a plain print wouldn't.
-  console.log(
-    '[gmail-client] auth attempt - client_email=[' + creds.client_email + '] (len ' + creds.client_email.length + '), ' +
-    'impersonatedEmail=[' + impersonatedEmail + '], ' +
-    'private_key starts with "' + String(creds.private_key).slice(0, 27) + '", ends with "' + String(creds.private_key).slice(-25) + '", length=' + String(creds.private_key).length
-  );
+  // Diagnostic only - none of this is sensitive (no key material). Netlify's
+  // Observability log panel isn't surfacing console output for this
+  // function, so this is attached to the thrown error instead (as
+  // err.diagnostic), which send-gmail.js includes in its JSON error
+  // response - visible in the browser's Network tab, which we know works.
+  const diagnostic = {
+    client_email_bracketed: '[' + creds.client_email + ']',
+    client_email_length: creds.client_email.length,
+    impersonated_email_bracketed: '[' + impersonatedEmail + ']',
+    private_key_starts: String(creds.private_key).slice(0, 27),
+    private_key_ends: String(creds.private_key).slice(-25),
+    private_key_length: String(creds.private_key).length
+  };
 
   const client = new JWT({
     email: creds.client_email,
@@ -113,17 +117,16 @@ export async function getImpersonatedAccessToken(impersonatedEmail) {
   try {
     tokenResponse = await client.getAccessToken();
   } catch (err) {
-    console.error('[gmail-client] getAccessToken failed - full error:', JSON.stringify({
-      message: err.message,
-      code: err.code,
-      response_data: err.response && err.response.data,
-      errors: err.errors
-    }, null, 2));
-    throw new Error(
+    const wrapped = new Error(
       'Could not authenticate as ' + impersonatedEmail + ' via domain-wide delegation: ' +
       (err.message || err) +
       '. This only works for real @measuredi.com Workspace mailboxes with delegation authorized in the Admin Console.'
     );
+    wrapped.diagnostic = Object.assign({}, diagnostic, {
+      google_error_code: err.code,
+      google_error_response_data: err.response && err.response.data
+    });
+    throw wrapped;
   }
 
   const token = tokenResponse && tokenResponse.token;
