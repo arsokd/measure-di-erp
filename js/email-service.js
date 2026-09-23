@@ -346,19 +346,10 @@
     const subject = customDetails.subject || `[Measure DI Quotation] Proposal: ${quote.quoteNumber} (Rev ${quote.revision || 1}) - ${quote.customerName}`;
     const attachments = customDetails.attachments || customDetails.attachment || quote.attachments || [];
 
-    let itemsRows = '';
-    if (quote.items && quote.items.length > 0) {
-      itemsRows = quote.items.map((item, idx) => `
-        <tr style="border-bottom: 1px solid #e2e8f0; font-size: 12px;">
-          <td style="padding: 8px 10px; text-align: center;">${idx + 1}</td>
-          <td style="padding: 8px 10px; font-weight: 600; color: #1e293b;">${escapeHtml(item.description)}</td>
-          <td style="padding: 8px 10px; text-align: center;">${item.qty || 1}</td>
-          <td style="padding: 8px 10px; text-align: right;">${formatINR(item.unitPrice)}</td>
-          <td style="padding: 8px 10px; text-align: right; font-weight: bold;">${formatINR((item.qty || 1) * (item.unitPrice || 0))}</td>
-        </tr>
-      `).join('');
-    }
-
+    // Commercial detail (line items, pricing, discounts, GST, payment/delivery
+    // terms) is deliberately left out of the email body - it lives only in
+    // the attached PDF, so a forwarded or misdirected email doesn't expose
+    // pricing on its own the way the body text used to.
     const htmlContent = `
       <!DOCTYPE html>
       <html>
@@ -369,10 +360,6 @@
           .card { max-width: 680px; margin: 0 auto; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); }
           .hdr { background: linear-gradient(135deg, #831843, #500724); color: #ffffff; padding: 24px; }
           .body { padding: 24px; font-size: 14px; line-height: 1.6; color: #334155; }
-          .table { width: 100%; border-collapse: collapse; margin: 16px 0; }
-          .table th { background: #f1f5f9; padding: 8px 10px; font-size: 11px; text-transform: uppercase; color: #475569; text-align: left; }
-          .totals-table { width: 280px; margin-left: auto; border-collapse: collapse; margin-top: 16px; font-size: 13px; }
-          .totals-table td { padding: 6px 8px; }
           .ftr { background: #f8fafc; padding: 20px 24px; font-size: 11px; color: #64748b; text-align: center; border-top: 1px solid #e2e8f0; }
         </style>
       </head>
@@ -385,44 +372,9 @@
           </div>
           <div class="body">
             <p>Dear <strong>${escapeHtml(quote.customerName || 'Valued Client')}</strong>,</p>
-            <p>Thank you for your interest in Measure DI high-precision weighing, automation, and instrumentation solutions. We are pleased to submit our formal commercial proposal as detailed below:</p>
+            <p>Thank you for your interest in Measure DI high-precision weighing, automation, and instrumentation solutions. Please find attached our official commercial quotation <strong>${escapeHtml(quote.quoteNumber)}</strong> (Version ${quote.revision || 1}), valid till ${quote.validTill || '30 Days'}.</p>
 
-            <table class="table">
-              <thead>
-                <tr>
-                  <th style="width: 30px; text-align: center;">#</th>
-                  <th>Item / Solution Description</th>
-                  <th style="width: 50px; text-align: center;">Qty</th>
-                  <th style="width: 90px; text-align: right;">Unit Price</th>
-                  <th style="width: 100px; text-align: right;">Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${itemsRows}
-              </tbody>
-            </table>
-
-            <table class="totals-table">
-              <tr>
-                <td style="color: #64748b;">Subtotal:</td>
-                <td style="text-align: right; font-weight: bold;">${formatINR(quote.subTotal || quote.grandTotal)}</td>
-              </tr>
-              <tr>
-                <td style="color: #64748b;">GST (18%):</td>
-                <td style="text-align: right; font-weight: bold;">${formatINR(quote.taxTotal || (quote.grandTotal * 0.18))}</td>
-              </tr>
-              <tr style="border-top: 2px solid #831843; font-size: 15px; color: #831843;">
-                <td style="font-weight: 800; padding-top: 8px;">Grand Total:</td>
-                <td style="text-align: right; font-weight: 800; padding-top: 8px;">${formatINR(quote.grandTotal)}</td>
-              </tr>
-            </table>
-
-            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; margin: 20px 0; font-size: 12px;">
-              <strong style="color: #0f172a;">Commercial Terms & Conditions:</strong><br>
-              • Payment Terms: ${escapeHtml(quote.paymentTerms || '30% Advance, 70% against PI / Delivery')}<br>
-              • Delivery Timeline: ${escapeHtml(quote.deliveryTerms || '3-4 Weeks from PO confirmation')}<br>
-              • Warranty: ${escapeHtml(quote.warranty || '12 Months comprehensive manufacturer warranty')}
-            </div>
+            <p style="font-size: 13px;">The attached PDF contains the complete line-item specifications, pricing, HSN tax breakdown, and commercial terms & conditions.</p>
 
             <p style="font-size: 13px;">To confirm this order or request technical clarifications, please reply to this email or contact your representative <strong>${escapeHtml(quote.employeeName || 'Measure DI Sales Team')}</strong>.</p>
           </div>
@@ -440,8 +392,9 @@
       toName: quote.customerName,
       cc,
       subject,
-      textContent: customDetails.body || `Quotation ${quote.quoteNumber} from Measure DI for ${formatINR(quote.grandTotal)}`,
+      textContent: customDetails.body || `Quotation ${quote.quoteNumber} from Measure DI - see attached PDF for full commercial details.`,
       htmlContent,
+      attachments,
       threadId: quote.gmailThreadId || '',
       inReplyTo: customDetails.inReplyTo || '',
       references: customDetails.references || ''
@@ -483,12 +436,11 @@
             <div style="background: #f1f5f9; border-radius: 8px; padding: 16px; margin: 18px 0;">
               <table style="width: 100%; font-size: 13px;">
                 <tr><td style="color: #64748b;">Invoice Reference:</td><td style="font-weight: bold;">${escapeHtml(invoice.invoiceNumber)}</td></tr>
-                <tr><td style="color: #64748b;">Total Amount:</td><td style="font-weight: 800; font-size: 16px; color: #0f172a;">${formatINR(invoice.totalAmount || invoice.grandTotal)}</td></tr>
                 <tr><td style="color: #64748b;">Status:</td><td style="font-weight: bold; color: #059669;">${escapeHtml(invoice.status || 'Issued')}</td></tr>
               </table>
             </div>
 
-            <p style="font-size: 13px;">Bank NEFT/RTGS details are listed in the attached invoice document. Kindly confirm receipt and dispatch of payment advice.</p>
+            <p style="font-size: 13px;">The attached PDF contains the full line-item breakdown, applicable taxes, total amount payable, and our bank remittance details. Kindly confirm receipt and dispatch of payment advice referencing ${escapeHtml(invoice.invoiceNumber)}.</p>
           </div>
           <div class="ftr">
             <p style="margin: 0 0 4px 0;"><strong>Measure Dynamics & Instrumentation Pvt Ltd</strong></p>

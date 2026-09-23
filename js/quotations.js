@@ -1450,7 +1450,16 @@ var currentEditingQuoteId = null;
         if (!q) return;
 
         currentPrintQuoteId = quoteId;
+        renderPrintableQuoteArea(q);
 
+        document.getElementById('printQuoteModal').classList.remove('hidden');
+      }
+
+      // Fills #printable-quote-area with the given quote's data. Called both
+      // from the print-preview modal and from the send flow (to generate the
+      // PDF attachment), so the printable area always reflects the exact
+      // quote being acted on - not whichever quote was last previewed.
+      function renderPrintableQuoteArea(q) {
         document.getElementById('pdf-quote-number').innerText = q.quoteNumber + ' (Ver ' + (q.revision || 1) + ')';
         document.getElementById('pdf-quote-date').innerText = 'Date: ' + (q.createdDate || '');
         document.getElementById('pdf-quote-expiry').innerText = 'Valid Until: ' + (q.expiryDate || '');
@@ -1519,8 +1528,6 @@ var currentEditingQuoteId = null;
         } else {
           attachBox.classList.add('hidden');
         }
-
-        document.getElementById('printQuoteModal').classList.remove('hidden');
       }
 
       function closePrintQuoteModal() {
@@ -1647,17 +1654,8 @@ var currentEditingQuoteId = null;
         var bodyInput = document.getElementById('inp-send-body');
         var bodyText = "Dear " + mainContactGreeting + ",\n\n" +
           "Greetings from Measure DI Technologies!\n\n" +
-          "We are pleased to submit our official commercial quotation Ref: " + q.quoteNumber + " (Version " + (q.revision || 1) + ") for " + q.customerName + ".\n\n" +
-          "COMMERCIAL OFFER SUMMARY:\n" +
-          "--------------------------------------------------\n" +
-          "Quotation Ref     : " + q.quoteNumber + " (Ver " + (q.revision || 1) + ")\n" +
-          "Customer Name     : " + q.customerName + "\n" +
-          "Net Taxable Value : ₹" + Math.round(q.netSubtotal || 0).toLocaleString('en-IN') + "\n" +
-          "GST Tax (18%)     : ₹" + Math.round(q.taxAmount || 0).toLocaleString('en-IN') + "\n" +
-          "Grand Total Amount: ₹" + Math.round(q.grandTotal || 0).toLocaleString('en-IN') + "\n" +
-          "Validity          : Valid until " + (q.expiryDate || '30 days') + "\n" +
-          "Payment Terms     : " + (q.termsAndConditions || 'As agreed') + "\n\n" +
-          "Attached to this email is the official commercial quotation PDF containing complete line-item specifications, HSN tax breakdowns, and authorized seal.\n\n" +
+          "We are pleased to submit our official commercial quotation Ref: " + q.quoteNumber + " (Version " + (q.revision || 1) + ") for " + q.customerName + ", valid until " + (q.expiryDate || '30 days') + ".\n\n" +
+          "Attached to this email is the official commercial quotation PDF containing complete line-item specifications, pricing, HSN tax breakdowns, and authorized seal.\n\n" +
           "Please review and feel free to contact us for any technical or commercial clarifications.\n\n" +
           "Best Regards,\n" +
           (q.employeeName || 'Sales Department') + "\n" +
@@ -1729,11 +1727,39 @@ var currentEditingQuoteId = null;
           if (!window.BrevoMailer || typeof window.BrevoMailer.sendQuotationEmail !== 'function') {
             throw new Error('Email service failed to load. Please refresh the page and try again.');
           }
+          if (!window.PdfGenerator || typeof window.PdfGenerator.generatePdfFromHtml !== 'function') {
+            throw new Error('PDF engine failed to load. Please refresh the page and try again.');
+          }
+
+          if (submitBtn) submitBtn.innerHTML = '<span>⏳ Compiling PDF...</span>';
+
+          // Re-render the printable area from this exact quote (not whatever
+          // was last previewed) and rasterize it into the actual PDF that
+          // gets attached - the "Send" button can be used directly from the
+          // list without ever opening the print preview first.
+          renderPrintableQuoteArea(q);
+          // .innerHTML only gives the children - wrap it back in a div
+          // carrying the same classes as #printable-quote-area itself
+          // (padding, spacing, text color) so the PDF capture isn't missing
+          // that styling.
+          var pdfHtml = '<div class="p-8 space-y-6 text-slate-800 bg-white">' +
+            document.getElementById('printable-quote-area').innerHTML +
+            '</div>';
+          var pdfFilename = 'Quotation_' + q.quoteNumber + '_Ver' + (q.revision || 1) + '.pdf';
+          var pdfAttachment = await window.PdfGenerator.generatePdfFromHtml(pdfHtml, pdfFilename, { width: 780 });
+
+          var technicalAttachments = (q.attachments || []).map(function(file) {
+            return { name: file.name, type: file.type || 'application/octet-stream', data: file.dataUrl };
+          });
+
+          if (submitBtn) submitBtn.innerHTML = '<span>⏳ Sending...</span>';
+
           var res = await window.BrevoMailer.sendQuotationEmail(q, {
             to: toEmail,
             cc: ccEmail,
             subject: subject,
-            body: body
+            body: body,
+            attachments: [pdfAttachment].concat(technicalAttachments)
           });
 
           var sentViaGmail = res && res.channel === 'gmail';

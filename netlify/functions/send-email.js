@@ -221,8 +221,25 @@ export async function handler(event) {
     brevoPayload.bcc = bccList;
   }
 
+  // Client-side callers (js/email-service.js) hand us attachments shaped
+  // { name, type, data } with `data` as a full `data:<mime>;base64,<...>`
+  // URI (the FileReader.readAsDataURL()/jsPDF-blob format) - Brevo's API
+  // instead wants { content, name } with `content` as bare base64 and no
+  // prefix, so strip it here rather than expecting every caller to know
+  // Brevo's specific shape.
   if (Array.isArray(attachment) && attachment.length > 0) {
-    brevoPayload.attachment = attachment;
+    const brevoAttachments = attachment
+      .map(att => {
+        const raw = (att && (att.data || att.dataUrl || att.content)) || '';
+        const match = /^data:[^;]+;base64,(.*)$/s.exec(raw);
+        const content = match ? match[1] : raw;
+        if (!content) return null;
+        return { content, name: (att && att.name) || 'attachment' };
+      })
+      .filter(Boolean);
+    if (brevoAttachments.length > 0) {
+      brevoPayload.attachment = brevoAttachments;
+    }
   }
 
   try {

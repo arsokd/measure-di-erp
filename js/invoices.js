@@ -1102,18 +1102,9 @@ var currentTab = 'All';
 
 Greetings from Measure DI Technologies Private Limited.
 
-Please find attached our official ${inv.invoiceType || 'Tax Invoice'} Ref: ${inv.invoiceNumber} dated ${inv.invoiceDate} for the total amount of ${formatINR(inv.grandTotal)}.
+Please find attached our official ${inv.invoiceType || 'Tax Invoice'} Ref: ${inv.invoiceNumber} dated ${inv.invoiceDate}.
 
-Invoice Summary:
-- Invoice Ref: ${inv.invoiceNumber}
-- Customer: ${inv.customerName}
-- Total Amount Payable: ${formatINR(inv.grandTotal)}
-- Payment Due Date: ${inv.dueDate || 'Immediate'}
-- Milestone / Purpose: ${inv.milestoneTag || 'Commercial Supply / Services'}
-${inv.bgRequired === 'Yes' ? `- Bank Guarantee / PG: ${formatINR(inv.bgAmount)} (Exp: ${inv.bgExpiryDate || '--'})\n` : ''}${inv.retentionRequired === 'Yes' ? `- Retention Clause: ${formatINR(inv.retentionAmount)} (${inv.retentionPeriod || '--'})\n` : ''}
-Remittance Bank Details:
-- Account Name: Measure DI Technologies Private Limited
-- Bank: ${inv.bankDetails || 'HDFC Bank - Current A/c No: 50200049283719, IFSC: HDFC0000123'}
+The attached PDF contains the complete line-item breakdown, applicable taxes, total amount payable, payment due date, and our bank remittance details.
 
 Kindly process the payment within the agreed credit terms and share the UTR / transaction remittance advice to measuredichennai@gmail.com for receipt issuance.
 
@@ -1171,11 +1162,34 @@ Mobile: +91 98406 29928 | Web: www.measuredi.com`;
           if (!window.BrevoMailer || typeof window.BrevoMailer.sendInvoiceEmail !== 'function') {
             throw new Error('Email service failed to load. Please refresh the page and try again.');
           }
+          if (!window.PdfGenerator || typeof window.PdfGenerator.generatePdfFromHtml !== 'function') {
+            throw new Error('PDF engine failed to load. Please refresh the page and try again.');
+          }
+
+          if (btn) btn.innerHTML = '<span>⏳ Compiling PDF...</span>';
+
+          // buildInvoicePrintableHtml() returns only the inner content (it's
+          // normally assigned to #printable-invoice-wrapper.innerHTML) - wrap
+          // it in a div carrying that same wrapper's padding/spacing/text
+          // color classes so the PDF capture isn't missing that styling.
+          var pdfHtml = '<div class="p-8 bg-white text-slate-900 space-y-6">' +
+            buildInvoicePrintableHtml(inv) +
+            '</div>';
+          var pdfFilename = (inv.invoiceNumber.replace(/\//g, '_')) + '.pdf';
+          var pdfAttachment = await window.PdfGenerator.generatePdfFromHtml(pdfHtml, pdfFilename, { width: 900 });
+
+          var technicalAttachments = (inv.attachments || []).map(function(file) {
+            return { name: file.name, type: file.type || 'application/octet-stream', data: file.data };
+          });
+
+          if (btn) btn.innerHTML = '<span>⏳ Dispatching Invoice...</span>';
+
           var res = await window.BrevoMailer.sendInvoiceEmail(inv, {
             to: toEmail,
             cc: ccEmail,
             subject: subject,
-            body: body
+            body: body,
+            attachments: [pdfAttachment].concat(technicalAttachments)
           });
 
           var sentViaGmail = res && res.channel === 'gmail';
@@ -1238,8 +1252,15 @@ Mobile: +91 98406 29928 | Web: www.measuredi.com`;
         if (!inv) return;
 
         document.getElementById('view-modal-title').innerText = `${inv.invoiceType || 'Tax Invoice'} - ${inv.invoiceNumber}`;
-        var wrapper = document.getElementById('printable-invoice-wrapper');
+        document.getElementById('printable-invoice-wrapper').innerHTML = buildInvoicePrintableHtml(inv);
+        document.getElementById('invoice-view-modal').classList.remove('hidden');
+      }
 
+      // Builds the printable Tax Invoice document HTML for the given
+      // invoice. Used both by the print-preview modal and by the send flow
+      // (to generate the actual PDF attachment) so both always show/attach
+      // an identical, fully up-to-date document for that exact invoice.
+      function buildInvoicePrintableHtml(inv) {
         var itemsHtml = '';
         if (inv.items && inv.items.length > 0) {
           inv.items.forEach(function(it, idx) {
@@ -1288,7 +1309,7 @@ Mobile: +91 98406 29928 | Web: www.measuredi.com`;
           `;
         }
 
-        wrapper.innerHTML = `
+        return `
           <!-- Header -->
           <div class="flex justify-between items-start border-b-2 border-slate-900 pb-4">
             <div>
@@ -1412,8 +1433,6 @@ Mobile: +91 98406 29928 | Web: www.measuredi.com`;
             </div>
           </div>
         `;
-
-        document.getElementById('invoice-view-modal').classList.remove('hidden');
       }
 
       function closeInvoiceViewModal() {
