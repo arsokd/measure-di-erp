@@ -12,6 +12,14 @@
 // and fall back to the existing Brevo-based sender for anyone not yet on
 // the Workspace domain.
 import { JWT } from 'google-auth-library';
+// Generated at build time by copy-assets.js from the GMAIL_SERVICE_ACCOUNT_KEY
+// env var (which is scoped to "Builds" only in Netlify, not "Functions" or
+// "Runtime"). esbuild inlines this JSON's content directly into the bundled
+// function at deploy time, so the credential never counts against the
+// combined 4KB AWS Lambda environment-variable limit every function on this
+// site shares. It's gitignored and always exists with at least `{}` by the
+// time this file is bundled - see copy-assets.js for the write step.
+import bundledGmailCredentials from './gmail-credentials.generated.json';
 
 const GMAIL_SCOPES = [
   'https://www.googleapis.com/auth/gmail.send',
@@ -23,19 +31,29 @@ let cachedCredentials = null;
 function getServiceAccountCredentials() {
   if (cachedCredentials) return cachedCredentials;
 
-  const raw = process.env.GMAIL_SERVICE_ACCOUNT_KEY;
-  if (!raw) {
-    throw new Error('GMAIL_SERVICE_ACCOUNT_KEY environment variable is missing.');
+  let raw = null;
+  let source = '';
+
+  if (bundledGmailCredentials && bundledGmailCredentials.client_email && bundledGmailCredentials.private_key) {
+    raw = bundledGmailCredentials;
+    source = 'bundled build-time file';
+  } else if (process.env.GMAIL_SERVICE_ACCOUNT_KEY) {
+    // Fallback for local dev / any environment where the build-time bundling
+    // step didn't run (e.g. `netlify dev`), so this still works there.
+    raw = process.env.GMAIL_SERVICE_ACCOUNT_KEY;
+    source = 'GMAIL_SERVICE_ACCOUNT_KEY environment variable';
+  } else {
+    throw new Error('No Gmail service account credentials found (checked the bundled build-time file and the GMAIL_SERVICE_ACCOUNT_KEY environment variable).');
   }
 
   try {
     cachedCredentials = typeof raw === 'string' ? JSON.parse(raw) : raw;
   } catch (err) {
-    throw new Error('Failed to parse GMAIL_SERVICE_ACCOUNT_KEY JSON string: ' + err.message);
+    throw new Error('Failed to parse Gmail service account credentials from ' + source + ': ' + err.message);
   }
 
   if (!cachedCredentials.client_email || !cachedCredentials.private_key) {
-    throw new Error('GMAIL_SERVICE_ACCOUNT_KEY is missing client_email or private_key.');
+    throw new Error('Gmail service account credentials (from ' + source + ') are missing client_email or private_key.');
   }
 
   return cachedCredentials;
