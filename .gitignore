@@ -8,10 +8,3 @@ coverage/
 *.lock
 .env*
 !.env.example
-
-# Generated at build time from the GMAIL_SERVICE_ACCOUNT_KEY env var (see
-# copy-assets.js) so it can be bundled straight into the Gmail functions
-# instead of being injected as a Lambda runtime env var - keeps it out of
-# the combined 4KB AWS Lambda environment-variable limit that all the
-# Netlify Functions on this site share. Never commit the real file.
-netlify/functions/_shared/gmail-credentials.generated.json

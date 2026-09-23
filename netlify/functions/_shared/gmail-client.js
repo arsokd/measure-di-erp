@@ -11,15 +11,19 @@
 // (e.g. a personal gmail.com account). Callers should catch failures here
 // and fall back to the existing Brevo-based sender for anyone not yet on
 // the Workspace domain.
+import crypto from 'crypto';
 import { JWT } from 'google-auth-library';
-// Generated at build time by copy-assets.js from the GMAIL_SERVICE_ACCOUNT_KEY
-// env var (which is scoped to "Builds" only in Netlify, not "Functions" or
-// "Runtime"). esbuild inlines this JSON's content directly into the bundled
-// function at deploy time, so the credential never counts against the
-// combined 4KB AWS Lambda environment-variable limit every function on this
-// site shares. It's gitignored and always exists with at least `{}` by the
-// time this file is bundled - see copy-assets.js for the write step.
-import bundledGmailCredentials from './gmail-credentials.generated.json';
+// The Gmail credential is committed here AES-256-GCM encrypted (safe to
+// commit - meaningless without the passphrase) rather than stored as a
+// Netlify env var. Netlify's free plan can't scope a variable away from
+// the "Functions" runtime, and every function on this site shares one
+// combined 4KB AWS Lambda environment-variable limit - the full
+// credential JSON alone (even trimmed) is too large to fit alongside
+// FIREBASE_SERVICE_ACCOUNT_KEY within that. Only the tiny decryption key
+// (GMAIL_CREDENTIALS_KEY, ~44 bytes) lives in Netlify's env vars; the
+// encrypted blob is bundled straight into the function code by esbuild's
+// JSON loader at deploy time, so it never touches the Lambda env at all.
+import encryptedGmailCredentials from './gmail-credentials.encrypted.json';
 
 const GMAIL_SCOPES = [
   'https://www.googleapis.com/auth/gmail.send',
@@ -28,22 +32,46 @@ const GMAIL_SCOPES = [
 
 let cachedCredentials = null;
 
+// Decrypts an AES-256-GCM blob produced by the browser-based encryptor
+// tool: base64(12-byte IV || ciphertext || 16-byte auth tag), using a
+// base64-encoded 32-byte key.
+function decryptCredentialBlob(blobBase64, passphraseBase64) {
+  const key = Buffer.from(passphraseBase64, 'base64');
+  const combined = Buffer.from(blobBase64, 'base64');
+  const iv = combined.subarray(0, 12);
+  const ciphertextAndTag = combined.subarray(12);
+  const authTag = ciphertextAndTag.subarray(ciphertextAndTag.length - 16);
+  const ciphertext = ciphertextAndTag.subarray(0, ciphertextAndTag.length - 16);
+
+  const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
+  decipher.setAuthTag(authTag);
+  const decrypted = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
+  return decrypted.toString('utf-8');
+}
+
 function getServiceAccountCredentials() {
   if (cachedCredentials) return cachedCredentials;
 
   let raw = null;
   let source = '';
 
-  if (bundledGmailCredentials && bundledGmailCredentials.client_email && bundledGmailCredentials.private_key) {
-    raw = bundledGmailCredentials;
-    source = 'bundled build-time file';
+  const blob = encryptedGmailCredentials && encryptedGmailCredentials.blob;
+  const passphrase = process.env.GMAIL_CREDENTIALS_KEY;
+
+  if (blob && passphrase) {
+    try {
+      raw = decryptCredentialBlob(blob, passphrase);
+      source = 'encrypted bundled credential';
+    } catch (err) {
+      throw new Error('Could not decrypt the bundled Gmail credential - check GMAIL_CREDENTIALS_KEY matches the passphrase used to encrypt it: ' + err.message);
+    }
   } else if (process.env.GMAIL_SERVICE_ACCOUNT_KEY) {
-    // Fallback for local dev / any environment where the build-time bundling
-    // step didn't run (e.g. `netlify dev`), so this still works there.
+    // Fallback for local dev, or if the encrypted-blob approach isn't set
+    // up yet - a plain (large) credential JSON directly in the env.
     raw = process.env.GMAIL_SERVICE_ACCOUNT_KEY;
     source = 'GMAIL_SERVICE_ACCOUNT_KEY environment variable';
   } else {
-    throw new Error('No Gmail service account credentials found (checked the bundled build-time file and the GMAIL_SERVICE_ACCOUNT_KEY environment variable).');
+    throw new Error('No Gmail service account credentials found (checked the encrypted bundled credential + GMAIL_CREDENTIALS_KEY, and the GMAIL_SERVICE_ACCOUNT_KEY environment variable).');
   }
 
   try {
