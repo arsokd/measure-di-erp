@@ -92,6 +92,16 @@ function getServiceAccountCredentials() {
 export async function getImpersonatedAccessToken(impersonatedEmail) {
   const creds = getServiceAccountCredentials();
 
+  // Diagnostic only - none of this is sensitive (no key material), but it
+  // lets us see in the function logs exactly what the code is using,
+  // including hidden whitespace/quote issues a value's bracket-wrapped
+  // length would reveal that a plain print wouldn't.
+  console.log(
+    '[gmail-client] auth attempt - client_email=[' + creds.client_email + '] (len ' + creds.client_email.length + '), ' +
+    'impersonatedEmail=[' + impersonatedEmail + '], ' +
+    'private_key starts with "' + String(creds.private_key).slice(0, 27) + '", ends with "' + String(creds.private_key).slice(-25) + '", length=' + String(creds.private_key).length
+  );
+
   const client = new JWT({
     email: creds.client_email,
     key: creds.private_key,
@@ -103,6 +113,12 @@ export async function getImpersonatedAccessToken(impersonatedEmail) {
   try {
     tokenResponse = await client.getAccessToken();
   } catch (err) {
+    console.error('[gmail-client] getAccessToken failed - full error:', JSON.stringify({
+      message: err.message,
+      code: err.code,
+      response_data: err.response && err.response.data,
+      errors: err.errors
+    }, null, 2));
     throw new Error(
       'Could not authenticate as ' + impersonatedEmail + ' via domain-wide delegation: ' +
       (err.message || err) +
