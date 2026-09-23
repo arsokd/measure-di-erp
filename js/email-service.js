@@ -118,7 +118,14 @@
       threadId = '',
       inReplyTo = '',
       references = '',
-      attachments = []
+      attachments = [],
+      // The email account that owns `threadId` (recorded from a previous
+      // send). Gmail thread IDs only exist inside the mailbox that created
+      // them - reusing one from a different real Gmail account 404s with
+      // "Requested entity was not found." So if the account sending *this*
+      // message isn't the same one that owns the thread, we fall back to
+      // starting a fresh thread instead of erroring.
+      expectedMailboxOwner = ''
     } = options;
 
     if (!to) throw new Error('Recipient email (to) is required.');
@@ -130,6 +137,12 @@
     if (!currentUser) throw new Error('You must be signed in to send email.');
     const idToken = await currentUser.getIdToken();
 
+    const sameMailbox = !expectedMailboxOwner ||
+      (currentUser.email && currentUser.email.toLowerCase() === expectedMailboxOwner.toLowerCase());
+    const effectiveThreadId = sameMailbox ? threadId : '';
+    const effectiveInReplyTo = sameMailbox ? inReplyTo : '';
+    const effectiveReferences = sameMailbox ? references : '';
+
     const res = await fetch('/.netlify/functions/send-gmail', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken },
@@ -139,9 +152,9 @@
         subject,
         htmlContent: payloadHtml,
         senderName: localStorage.getItem('userName') || '',
-        threadId,
-        inReplyTo,
-        references,
+        threadId: effectiveThreadId,
+        inReplyTo: effectiveInReplyTo,
+        references: effectiveReferences,
         attachments
       })
     });
@@ -397,7 +410,8 @@
       attachments,
       threadId: quote.gmailThreadId || '',
       inReplyTo: customDetails.inReplyTo || '',
-      references: customDetails.references || ''
+      references: customDetails.references || '',
+      expectedMailboxOwner: quote.gmailMailboxOwner || ''
     });
   }
 
@@ -463,7 +477,8 @@
       attachments,
       threadId: invoice.gmailThreadId || '',
       inReplyTo: customDetails.inReplyTo || '',
-      references: customDetails.references || ''
+      references: customDetails.references || '',
+      expectedMailboxOwner: invoice.gmailMailboxOwner || ''
     });
   }
 
