@@ -23,6 +23,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="js/pdf-generator.js"></script>
+    <script src="js/form-validation.js"></script>
   </head>
   <body class="bg-slate-50 min-h-screen text-slate-800">
     
@@ -194,7 +195,7 @@
           <button onclick="closeInvoiceModal()" class="text-slate-400 hover:text-slate-600 text-lg font-bold cursor-pointer">&times;</button>
         </div>
 
-        <form onsubmit="handleSaveInvoice(event)" class="p-6 space-y-5 overflow-y-auto">
+        <form onsubmit="handleSaveInvoice(event)" novalidate class="p-6 space-y-5 overflow-y-auto">
           <input type="hidden" id="inv-doc-id" />
 
           <!-- Source Selector Banner: Raise from Approved Quotation or Sales Order -->

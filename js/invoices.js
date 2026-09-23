@@ -758,6 +758,12 @@ var currentTab = 'All';
 
       function handleSaveInvoice(e) {
         e.preventDefault();
+
+        if (window.FormValidation && window.FormValidation.validateRequiredFields(e.target).length > 0) {
+          alert('Please fill in the required fields highlighted in red before saving.');
+          return;
+        }
+
         var docId = document.getElementById('inv-doc-id').value;
         var userRole = localStorage.getItem('userRole');
         var myEmpId = localStorage.getItem('employeeId');

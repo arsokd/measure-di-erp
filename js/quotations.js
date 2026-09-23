@@ -1107,6 +1107,12 @@ var currentEditingQuoteId = null;
 
       function handleQuoteSubmit(e) {
         e.preventDefault();
+
+        if (window.FormValidation && window.FormValidation.validateRequiredFields(e.target).length > 0) {
+          alert('Please fill in the required fields highlighted in red before saving.');
+          return;
+        }
+
         syncLineItemsFromDOM();
         var userRole = localStorage.getItem('userRole');
         var myEmpId = localStorage.getItem('employeeId') || 'E-001';
