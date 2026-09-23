@@ -18,7 +18,11 @@
 # exactly as it would locally - no bundling, no interop bug.
 [functions]
   node_bundler = "esbuild"
-  external_node_modules = ["firebase-admin"]
+  # google-auth-library is kept external for the same reason as
+  # firebase-admin above - it's the exact library that trips that
+  # ESM/CJS interop bundling bug, and the Gmail-sending functions
+  # depend on it directly for domain-wide-delegation impersonation.
+  external_node_modules = ["firebase-admin", "google-auth-library"]
 
 [[redirects]]
   from = "/api/*"

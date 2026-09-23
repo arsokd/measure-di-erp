@@ -461,6 +461,11 @@ var currentEditingQuoteId = null;
                 <button onclick="viewPrintQuote('${q.id}')" class="p-1.5 text-sky-600 hover:bg-sky-50 rounded-lg transition-colors" title="View / Print PDF">
                   👁️
                 </button>
+                ${q.gmailThreadId ? `
+                  <button onclick="window.openCommunicationTimeline({ threadId: '${q.gmailThreadId}', mailboxOwner: '${q.gmailMailboxOwner || ''}', title: 'Quotation ${escapeHtml(q.quoteNumber)}' })" class="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors" title="View Email Conversation with Client">
+                    💬
+                  </button>
+                ` : ''}
                 ${canSend ? `
                   <button onclick="openSendQuoteModal('${q.id}')" class="px-2 py-1 bg-sky-600 hover:bg-sky-700 text-white rounded-md text-[10px] font-bold shadow-xs transition-colors flex items-center space-x-1 cursor-pointer" title="Send Quotation to Client via Email">
                     <span>✉️ Send Client</span>
@@ -1714,7 +1719,7 @@ var currentEditingQuoteId = null;
         var originalBtnHtml = submitBtn ? submitBtn.innerHTML : '';
         if (submitBtn) {
           submitBtn.disabled = true;
-          submitBtn.innerHTML = '<span>⏳ Sending via Brevo Gateway...</span>';
+          submitBtn.innerHTML = '<span>⏳ Sending...</span>';
         }
 
         var myEmpName = localStorage.getItem('userName') || (q.employeeName || 'Sales Executive');
@@ -1731,13 +1736,15 @@ var currentEditingQuoteId = null;
             body: body
           });
 
+          var sentViaGmail = res && res.channel === 'gmail';
+
           var dispatchRecord = {
             timestamp: timestampStr,
             to: toEmail,
             cc: ccEmail,
             subject: subject,
             senderName: myEmpName,
-            status: 'Delivered (Brevo)',
+            status: sentViaGmail ? 'Delivered (Gmail - ' + res.sentAs + ')' : 'Delivered (Brevo)',
             messageId: res ? res.messageId : ''
           };
 
@@ -1748,6 +1755,16 @@ var currentEditingQuoteId = null;
           q.status = 'Sent to Customer';
           q.lastSentDate = timestampStr;
           q.email = toEmail; // ensure email is saved on quote
+
+          // Keep the same Gmail thread across repeat sends on this quote
+          // (revisions, follow-ups) so the whole negotiation stays as one
+          // conversation in the employee's real mailbox, instead of a new
+          // thread every time.
+          if (sentViaGmail) {
+            q.gmailThreadId = res.threadId || q.gmailThreadId;
+            q.gmailLastMessageId = res.messageId || '';
+            q.gmailMailboxOwner = res.sentAs || '';
+          }
 
           // Update linked lead if available
           if (q.leadId) {
@@ -1769,7 +1786,10 @@ var currentEditingQuoteId = null;
           renderQuotations();
 
           // Show Toast / Confirmation
-          alert("✅ SUCCESS!\n\nQuotation " + q.quoteNumber + " (Ver " + (q.revision || 1) + ") has been sent directly to client (" + toEmail + ") via Brevo!\n\n• Delivery Status: Dispatched & Delivered\n• Sender: Measure DI Systems (measuredichennai@gmail.com)\n• Status updated to 'Sent to Customer'\n• Linked CRM lead updated to 'Proposal Sent'");
+          var senderLine = sentViaGmail
+            ? '• Sender: ' + res.sentAs + " (your own real Gmail - client replies will land there too)"
+            : '• Sender: Measure DI Systems (measuredichennai@gmail.com)';
+          alert("✅ SUCCESS!\n\nQuotation " + q.quoteNumber + " (Ver " + (q.revision || 1) + ") has been sent directly to client (" + toEmail + ")!\n\n• Delivery Status: Dispatched & Delivered\n" + senderLine + "\n• Status updated to 'Sent to Customer'\n• Linked CRM lead updated to 'Proposal Sent'");
         } catch (err) {
           console.error('Send quote error:', err);
           var fallback = confirm("Notice during email dispatch:\n" + (err.message || err) + "\n\nWould you like to launch your local email client (Outlook/Mail) instead?");

@@ -86,17 +86,93 @@
       if (window.RevOpsStore && typeof window.RevOpsStore.addItem === 'function') {
         window.RevOpsStore.addItem('communicationLogs', {
           type: 'email',
+          channel: result.channel || 'brevo',
           to: options.to,
           cc: options.cc || '',
           subject: options.subject,
           status: 'Delivered',
           messageId: result.messageId || '',
+          threadId: result.threadId || '',
           sentAt: new Date().toISOString(),
           sentBy: localStorage.getItem('userName') || 'System'
         });
       }
     } catch (e) {
       console.warn('Could not log communication event:', e);
+    }
+  }
+
+  /**
+   * Sends as the signed-in employee's own real Gmail mailbox, via Google
+   * Workspace domain-wide delegation (see netlify/functions/send-gmail.js)
+   * - the message lands in their actual Sent folder and threads natively
+   * with the client's replies. Only works for @measuredi.com mailboxes.
+   */
+  async function sendEmailViaGmail(options) {
+    const {
+      to,
+      cc = '',
+      subject,
+      textContent = '',
+      htmlContent = '',
+      threadId = '',
+      inReplyTo = '',
+      references = '',
+      attachments = []
+    } = options;
+
+    if (!to) throw new Error('Recipient email (to) is required.');
+    if (!subject) throw new Error('Subject is required.');
+
+    const payloadHtml = htmlContent || generateDefaultHtml(subject, textContent);
+
+    const currentUser = (typeof firebase !== 'undefined' && firebase.auth) ? firebase.auth().currentUser : null;
+    if (!currentUser) throw new Error('You must be signed in to send email.');
+    const idToken = await currentUser.getIdToken();
+
+    const res = await fetch('/.netlify/functions/send-gmail', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken },
+      body: JSON.stringify({
+        to,
+        cc,
+        subject,
+        htmlContent: payloadHtml,
+        senderName: localStorage.getItem('userName') || '',
+        threadId,
+        inReplyTo,
+        references,
+        attachments
+      })
+    });
+
+    const data = await res.json();
+    if (res.ok && data.success) {
+      const result = Object.assign({}, data, { channel: 'gmail' });
+      logCommunicationEvent(options, result);
+      return result;
+    }
+    const err = new Error(data.error || 'Gmail send failed.');
+    err.notOnWorkspaceDomain = !!data.notOnWorkspaceDomain;
+    throw err;
+  }
+
+  /**
+   * Tries the real-Gmail send path first (native two-way thread
+   * continuity); if that fails specifically because the sender isn't on
+   * the measuredi.com Workspace domain yet (domain-wide delegation can
+   * only impersonate real Workspace mailboxes), falls back to the
+   * existing Brevo-based sender so nothing breaks for anyone not yet
+   * migrated. Any other Gmail failure is surfaced as-is, not swallowed.
+   */
+  async function sendViaGmailWithFallback(options) {
+    try {
+      return await sendEmailViaGmail(options);
+    } catch (gmailErr) {
+      if (!gmailErr.notOnWorkspaceDomain) throw gmailErr;
+      console.warn('[Mailer] Gmail send unavailable for this sender, falling back to Brevo:', gmailErr.message);
+      const result = await sendEmail(options);
+      return Object.assign({}, result, { channel: 'brevo', fallbackReason: gmailErr.message });
     }
   }
 
@@ -359,13 +435,16 @@
       </html>
     `;
 
-    return await sendEmail({
+    return await sendViaGmailWithFallback({
       to,
       toName: quote.customerName,
       cc,
       subject,
       textContent: customDetails.body || `Quotation ${quote.quoteNumber} from Measure DI for ${formatINR(quote.grandTotal)}`,
-      htmlContent
+      htmlContent,
+      threadId: quote.gmailThreadId || '',
+      inReplyTo: customDetails.inReplyTo || '',
+      references: customDetails.references || ''
     });
   }
 
@@ -422,20 +501,25 @@
 
     const attachments = customDetails.attachments || customDetails.attachment || invoice.attachments || [];
 
-    return await sendEmail({
+    return await sendViaGmailWithFallback({
       to,
       toName: invoice.customerName,
       cc,
       subject,
       textContent: customDetails.body || `Tax Invoice ${invoice.invoiceNumber} for ${formatINR(invoice.totalAmount)}`,
       htmlContent,
-      attachments
+      attachments,
+      threadId: invoice.gmailThreadId || '',
+      inReplyTo: customDetails.inReplyTo || '',
+      references: customDetails.references || ''
     });
   }
 
   // Export to global window scope
   window.BrevoMailer = {
     sendEmail,
+    sendEmailViaGmail,
+    sendViaGmailWithFallback,
     sendTicketEmail,
     sendQuotationEmail,
     sendInvoiceEmail

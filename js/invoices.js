@@ -438,6 +438,9 @@ var currentTab = 'All';
               ${proformaAction}
               <button onclick="viewPrintableInvoice('${escapeHtml(inv.id)}')" class="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold cursor-pointer" title="View / Print Tax Invoice PDF">👁️ View</button>
               <button onclick="openSendInvoiceModal('${escapeHtml(inv.id)}')" class="p-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-xs font-bold cursor-pointer" title="Email Invoice to Client">✉️ Send</button>
+              ${inv.gmailThreadId ? `
+                <button onclick="window.openCommunicationTimeline({ threadId: '${inv.gmailThreadId}', mailboxOwner: '${inv.gmailMailboxOwner || ''}', title: 'Invoice ${escapeHtml(inv.invoiceNumber)}' })" class="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold cursor-pointer" title="View Email Conversation with Client">💬 Thread</button>
+              ` : ''}
               ${inv.balanceDue > 0 ? `
                 <button onclick="recordInvoicePaymentRedirect('${escapeHtml(inv.id)}')" class="p-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg text-xs font-bold cursor-pointer" title="Record Partial or Full Payment">💳 Pay</button>
                 <button onclick="requestInvoiceAdjustmentRedirect('${escapeHtml(inv.id)}')" class="p-1.5 bg-purple-50 hover:bg-purple-100 text-purple-700 rounded-lg text-xs font-bold cursor-pointer" title="Request Goodwill Discount or Bad Debt Write-Off">⚖️ Adjust</button>
@@ -1161,7 +1164,7 @@ Mobile: +91 98406 29928 | Web: www.measuredi.com`;
         var originalBtnHtml = btn ? btn.innerHTML : '';
         if (btn) {
           btn.disabled = true;
-          btn.innerHTML = '<span>⏳ Dispatching Invoice via Brevo...</span>';
+          btn.innerHTML = '<span>⏳ Dispatching Invoice...</span>';
         }
 
         try {
@@ -1175,6 +1178,8 @@ Mobile: +91 98406 29928 | Web: www.measuredi.com`;
             body: body
           });
 
+          var sentViaGmail = res && res.channel === 'gmail';
+
           var history = inv.emailDispatchHistory || [];
           history.push({
             timestamp: getFormattedToday() + ' ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
@@ -1182,7 +1187,7 @@ Mobile: +91 98406 29928 | Web: www.measuredi.com`;
             cc: ccEmail,
             subject: subject,
             senderName: myName,
-            status: 'Delivered (Brevo)',
+            status: sentViaGmail ? 'Delivered (Gmail - ' + res.sentAs + ')' : 'Delivered (Brevo)',
             messageId: res ? res.messageId : ''
           });
 
@@ -1191,10 +1196,19 @@ Mobile: +91 98406 29928 | Web: www.measuredi.com`;
             status: inv.status === 'Draft' || inv.status === 'Approved' ? 'Issued' : inv.status
           };
 
+          if (sentViaGmail) {
+            updates.gmailThreadId = res.threadId || inv.gmailThreadId;
+            updates.gmailLastMessageId = res.messageId || '';
+            updates.gmailMailboxOwner = res.sentAs || '';
+          }
+
           window.RevOpsStore.updateItem('invoices', inv.id, updates);
           closeSendInvoiceModal();
           renderInvoicesTable();
-          alert("✅ SUCCESS!\n\nOfficial Invoice " + inv.invoiceNumber + " has been dispatched directly to " + toEmail + " via Brevo!\n\n• Sender: Measure DI Systems (measuredichennai@gmail.com)\n• Status: Delivered & Issued\n• Communication logged in audit ledger");
+          var senderLine = sentViaGmail
+            ? '• Sender: ' + res.sentAs + " (your own real Gmail - client replies will land there too)"
+            : '• Sender: Measure DI Systems (measuredichennai@gmail.com)';
+          alert("✅ SUCCESS!\n\nOfficial Invoice " + inv.invoiceNumber + " has been dispatched directly to " + toEmail + "!\n\n" + senderLine + "\n• Status: Delivered & Issued\n• Communication logged in audit ledger");
         } catch (err) {
           console.error('Send invoice error:', err);
           var fallback = confirm("Notice during invoice email dispatch:\n" + (err.message || err) + "\n\nWould you like to launch your local email client instead?");
