@@ -172,12 +172,16 @@
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Customer / Client Name *</label>
-              <input type="text" id="inp-quote-client" required placeholder="e.g. JSW Steel Limited" class="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-amber-500" />
+              <select id="inp-quote-client" required onchange="handleAmcQuoteCustomerChange()" class="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-amber-500">
+                <option value="">Select Customer / Client...</option>
+              </select>
             </div>
 
             <div>
               <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Plant Location / Site *</label>
-              <input type="text" id="inp-quote-site" required placeholder="e.g. Toranagallu, Ballari, Karnataka" class="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-amber-500" />
+              <select id="inp-quote-site" required onchange="handleAmcQuoteSiteChange()" class="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-amber-500">
+                <option value="">Select customer first...</option>
+              </select>
             </div>
 
             <div>
@@ -438,9 +442,9 @@
       function openAmcQuoteModal(quote) {
         document.getElementById('edit-amc-quote-id').value = quote ? quote.id : '';
         document.getElementById('amc-modal-title').innerText = quote ? 'Edit AMC Commercial Quotation' : 'New AMC Commercial Quotation';
-        
-        document.getElementById('inp-quote-client').value = quote ? quote.customerName : '';
-        document.getElementById('inp-quote-site').value = quote ? quote.plantSite : '';
+
+        populateAmcQuoteCustomerRoster(quote ? quote.customerName : '');
+        populateAmcQuoteSiteOptions(quote ? quote.customerName : '', quote ? quote.plantSite : '');
         document.getElementById('inp-quote-type').value = quote ? quote.contractType : 'Comprehensive AMC';
         document.getElementById('inp-quote-duration').value = quote ? quote.duration : '1 Year';
         document.getElementById('inp-quote-pm-frequency').value = quote ? quote.pmFrequency : '4 Visits (Quarterly PM)';
@@ -540,9 +544,120 @@
         }
       }
 
+      // "Customer / Client Name" only offers actual customers (Client
+      // Master + anyone with a real order on file) - not Leads pipeline
+      // prospects, since an AMC quotation is for an existing relationship.
+      function populateAmcQuoteCustomerRoster(selectedValue) {
+        var custSelect = document.getElementById('inp-quote-client');
+        if (!custSelect) return;
+
+        var clients = window.RevOpsStore ? (window.RevOpsStore.getCollection('clientsMaster') || []) : [];
+        var orders = window.RevOpsStore ? (window.RevOpsStore.getCollection('orders') || []) : [];
+
+        var uniqueClients = {};
+        clients.forEach(function(c) {
+          if (c && c.clientName) uniqueClients[c.clientName] = true;
+        });
+        orders.forEach(function(o) {
+          if (o && o.customerName) uniqueClients[o.customerName] = true;
+        });
+
+        var previousValue = selectedValue !== undefined ? selectedValue : custSelect.value;
+        custSelect.innerHTML = '<option value="">Select Customer / Client...</option>';
+        Object.keys(uniqueClients).sort().forEach(function(name) {
+          var opt = document.createElement('option');
+          opt.value = name;
+          opt.textContent = name;
+          custSelect.appendChild(opt);
+        });
+
+        if (previousValue && !uniqueClients[previousValue]) {
+          // Older quote recorded against a customer no longer in the
+          // roster - keep it selectable rather than silently blanking it.
+          var legacyOpt = document.createElement('option');
+          legacyOpt.value = previousValue;
+          legacyOpt.textContent = previousValue;
+          custSelect.appendChild(legacyOpt);
+        }
+
+        if (previousValue) custSelect.value = previousValue;
+      }
+
+      var ADD_NEW_SITE_VALUE = '__add_new_site__';
+
+      // Plant Location / Site is scoped to the sites on file for the
+      // selected customer (Client Equipment Master), so staff pick from
+      // known locations instead of retyping/misspelling an existing site.
+      function populateAmcQuoteSiteOptions(customerName, selectedValue) {
+        var siteSelect = document.getElementById('inp-quote-site');
+        if (!siteSelect) return;
+
+        if (!customerName) {
+          siteSelect.innerHTML = '<option value="">Select customer first...</option>';
+          return;
+        }
+
+        var equipment = window.RevOpsStore ? (window.RevOpsStore.getCollection('clientEquipmentMaster') || []) : [];
+        var sites = {};
+        equipment.forEach(function(e) {
+          if (!e || e.customerName !== customerName) return;
+          var site = e.location || e.siteLocation;
+          if (site) sites[site] = true;
+        });
+        var siteNames = Object.keys(sites).sort();
+
+        var previousValue = selectedValue !== undefined ? selectedValue : siteSelect.value;
+        siteSelect.innerHTML = siteNames.length > 0
+          ? '<option value="">Select Plant Location / Site...</option>'
+          : '<option value="">No sites on file - add one below</option>';
+        siteNames.forEach(function(name) {
+          var opt = document.createElement('option');
+          opt.value = name;
+          opt.textContent = name;
+          siteSelect.appendChild(opt);
+        });
+
+        if (previousValue && !sites[previousValue]) {
+          var legacyOpt = document.createElement('option');
+          legacyOpt.value = previousValue;
+          legacyOpt.textContent = previousValue;
+          siteSelect.appendChild(legacyOpt);
+        }
+
+        var addNewOpt = document.createElement('option');
+        addNewOpt.value = ADD_NEW_SITE_VALUE;
+        addNewOpt.textContent = '+ Add New Site / Location...';
+        siteSelect.appendChild(addNewOpt);
+
+        if (previousValue) siteSelect.value = previousValue;
+      }
+
+      function handleAmcQuoteCustomerChange() {
+        var customerName = document.getElementById('inp-quote-client').value;
+        populateAmcQuoteSiteOptions(customerName, '');
+      }
+
+      function handleAmcQuoteSiteChange() {
+        var siteSelect = document.getElementById('inp-quote-site');
+        if (siteSelect.value !== ADD_NEW_SITE_VALUE) return;
+
+        var typed = prompt('Enter the plant / site location:');
+        if (!typed || !typed.trim()) {
+          siteSelect.value = '';
+          return;
+        }
+        typed = typed.trim();
+        var opt = document.createElement('option');
+        opt.value = typed;
+        opt.textContent = typed;
+        siteSelect.insertBefore(opt, siteSelect.lastElementChild);
+        siteSelect.value = typed;
+      }
+
       document.addEventListener('DOMContentLoaded', function() {
         setTimeout(function() {
           populateAmcQuoteMasterDropdowns();
+          populateAmcQuoteCustomerRoster('');
           initSampleAmcQuotesIfEmpty();
           renderAmcQuotesTable();
         }, 100);

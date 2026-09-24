@@ -53,6 +53,111 @@ var activeServiceLeads = [];
         if (previousValue) custSelect.value = previousValue;
       }
 
+      // A dedicated "+ Add New Model..." option lets staff record a model
+      // that isn't tracked in master data yet, instead of the dropdown
+      // being a hard dead-end.
+      var ADD_NEW_MODEL_VALUE = '__add_new_model__';
+      var FALLBACK_EQUIPMENT_MODELS = [
+        'Wireless Crane Scale 50T (CS-50W)',
+        'Dynamic In-Motion Train Weigher (IMW-500)',
+        'Automated Slag Yard Weighing & Tracking (ASW-2000)',
+        'Onboard Tipper Weighing Scale (OTW-30T)',
+        'Electronic Static Pitless Weighbridge (WB-100T)',
+        'Ladle Turret Weighing System (LTW-350)'
+      ];
+
+      // Equipment Model is scoped to whatever's actually installed at the
+      // selected customer (Client Equipment Master) - a service/AMC lead is
+      // about maintaining equipment the client already has, not selling a
+      // new one. Falls back to the general Products master (or a static
+      // list) when the customer has nothing on file yet - e.g. a brand-new
+      // account being chased for a first AMC.
+      function populateServiceModelOptions(customerName, selectedValue) {
+        var modelSelect = document.getElementById('inp-srv-model');
+        if (!modelSelect) return;
+
+        var equipment = window.RevOpsStore ? (window.RevOpsStore.getCollection('clientEquipmentMaster') || []) : [];
+        var clientModels = {};
+        equipment.forEach(function(e) {
+          if (!e) return;
+          if (customerName && e.customerName !== customerName) return;
+          var model = e.modelName || e.equipmentModel;
+          if (model) clientModels[model] = true;
+        });
+
+        var modelNames = Object.keys(clientModels).sort();
+
+        if (modelNames.length === 0) {
+          var products = window.RevOpsStore ? (window.RevOpsStore.getCollection('productsMaster') || []) : [];
+          var fromProducts = {};
+          products.forEach(function(p) {
+            var name = p && (p.productName || p.name);
+            if (name) fromProducts[name] = true;
+          });
+          modelNames = Object.keys(fromProducts).sort();
+          if (modelNames.length === 0) modelNames = FALLBACK_EQUIPMENT_MODELS.slice();
+        }
+
+        var previousValue = selectedValue !== undefined ? selectedValue : modelSelect.value;
+        modelSelect.innerHTML = '<option value="">Select Equipment Model...</option>';
+        modelNames.forEach(function(name) {
+          var opt = document.createElement('option');
+          opt.value = name;
+          opt.textContent = name;
+          modelSelect.appendChild(opt);
+        });
+
+        if (previousValue && !modelNames.includes(previousValue)) {
+          var legacyOpt = document.createElement('option');
+          legacyOpt.value = previousValue;
+          legacyOpt.textContent = previousValue;
+          modelSelect.appendChild(legacyOpt);
+        }
+
+        var addNewOpt = document.createElement('option');
+        addNewOpt.value = ADD_NEW_MODEL_VALUE;
+        addNewOpt.textContent = '+ Add New / Other Model...';
+        modelSelect.appendChild(addNewOpt);
+
+        if (previousValue) modelSelect.value = previousValue;
+      }
+
+      function handleServiceModelSelectChange() {
+        var modelSelect = document.getElementById('inp-srv-model');
+        if (modelSelect.value !== ADD_NEW_MODEL_VALUE) return;
+
+        var typed = prompt('Enter the equipment model name:');
+        if (!typed || !typed.trim()) {
+          modelSelect.value = '';
+          return;
+        }
+        typed = typed.trim();
+        var opt = document.createElement('option');
+        opt.value = typed;
+        opt.textContent = typed;
+        modelSelect.insertBefore(opt, modelSelect.lastElementChild);
+        modelSelect.value = typed;
+      }
+
+      // Selecting a customer scopes Equipment Model to what's actually
+      // installed there, and auto-fills the primary contact on file for
+      // that client (Client Master) - staff can still edit it before
+      // saving, this just saves re-typing the common case.
+      function handleServiceCustomerChange() {
+        var customerName = document.getElementById('inp-srv-customer').value;
+        populateServiceModelOptions(customerName, '');
+
+        if (!customerName) return;
+        var clients = window.RevOpsStore ? (window.RevOpsStore.getCollection('clientsMaster') || []) : [];
+        var client = clients.find(function(c) { return c && (c.clientName === customerName || c.name === customerName); });
+        if (!client) return;
+
+        var nameField = document.getElementById('inp-srv-contact-name');
+        var emailField = document.getElementById('inp-srv-contact-email');
+        if (nameField && !nameField.value.trim() && client.contactPerson) nameField.value = client.contactPerson;
+        if (emailField && !emailField.value.trim() && client.email) emailField.value = client.email;
+      }
+
       function getServiceLeadsList() {
         var list = window.RevOpsStore ? (window.RevOpsStore.getCollection('serviceLeads') || []) : [];
         
@@ -466,6 +571,7 @@ var activeServiceLeads = [];
         var form = document.getElementById('service-lead-form');
         form.reset();
         populateServiceCustomerRoster();
+        populateServiceModelOptions('', '');
         document.getElementById('service-lead-doc-id').value = '';
         document.getElementById('service-lead-modal-title').textContent = "Record Service / AMC Lead";
         
@@ -505,7 +611,7 @@ var activeServiceLeads = [];
         custSelect.value = l.customerName || '';
         document.getElementById('inp-srv-source').value = l.leadSource || 'AMC Warranty Expiry Conversion';
         document.getElementById('inp-srv-type').value = l.serviceType || 'AMC Comprehensive';
-        document.getElementById('inp-srv-model').value = l.equipmentModel || '';
+        populateServiceModelOptions(l.customerName, l.equipmentModel || '');
         document.getElementById('inp-srv-serial').value = l.serialNumbers || '';
         document.getElementById('inp-srv-value').value = l.estimatedValue || 180000;
         document.getElementById('inp-srv-stage').value = l.stage || 'Inquiry Ingestion';
