@@ -170,7 +170,16 @@
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Customer Name *</label>
-              <input type="text" id="inp-order-client" required placeholder="e.g. JSW Steel Limited" class="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-amber-500" />
+              <select id="inp-order-client" required onchange="handleAmcOrderCustomerChange()" class="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-amber-500">
+                <option value="">Select Customer (with an AMC Quotation)...</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">AMC Quotation to Convert *</label>
+              <select id="inp-order-quote-ref" required onchange="handleAmcOrderQuoteSelected()" class="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-amber-500">
+                <option value="">Select customer first...</option>
+              </select>
             </div>
 
             <div>
@@ -404,21 +413,117 @@
         }).join('');
       }
 
-      function openAmcOrderModal() {
+      // Customer Name only offers customers who actually have an AMC
+      // Quotation on file - booking an order is converting a won proposal,
+      // not a free-standing entry.
+      function populateAmcOrderCustomerRoster(selectedValue) {
+        var custSelect = document.getElementById('inp-order-client');
+        if (!custSelect) return;
+
+        var quotes = window.RevOpsStore ? (window.RevOpsStore.getCollection('amcQuotations') || []) : [];
+        var uniqueCustomers = {};
+        quotes.forEach(function(q) {
+          if (q && q.customerName) uniqueCustomers[q.customerName] = true;
+        });
+
+        var previousValue = selectedValue !== undefined ? selectedValue : custSelect.value;
+        custSelect.innerHTML = '<option value="">Select Customer (with an AMC Quotation)...</option>';
+        Object.keys(uniqueCustomers).sort().forEach(function(name) {
+          var opt = document.createElement('option');
+          opt.value = name;
+          opt.textContent = name;
+          custSelect.appendChild(opt);
+        });
+
+        if (previousValue && !uniqueCustomers[previousValue]) {
+          var legacyOpt = document.createElement('option');
+          legacyOpt.value = previousValue;
+          legacyOpt.textContent = previousValue;
+          custSelect.appendChild(legacyOpt);
+        }
+
+        if (previousValue) custSelect.value = previousValue;
+      }
+
+      // Lists the selected customer's AMC Quotations so staff pick which
+      // won proposal this order is being booked against, instead of
+      // retyping everything the quotation already captured.
+      function populateAmcOrderQuoteOptions(customerName, selectedQuoteId) {
+        var quoteSelect = document.getElementById('inp-order-quote-ref');
+        if (!quoteSelect) return;
+
+        if (!customerName) {
+          quoteSelect.innerHTML = '<option value="">Select customer first...</option>';
+          return;
+        }
+
+        var quotes = window.RevOpsStore ? (window.RevOpsStore.getCollection('amcQuotations') || []) : [];
+        var custQuotes = quotes.filter(function(q) { return q && q.customerName === customerName; });
+
+        var previousValue = selectedQuoteId !== undefined ? selectedQuoteId : quoteSelect.value;
+        quoteSelect.innerHTML = custQuotes.length > 0
+          ? '<option value="">Select AMC Quotation...</option>'
+          : '<option value="">No quotations on file for this customer</option>';
+        custQuotes.forEach(function(q) {
+          var opt = document.createElement('option');
+          opt.value = q.id;
+          opt.textContent = q.quoteNumber + ' — ' + (q.plantSite || 'Site TBD') + ' (' + formatINR(q.amount) + ') [' + q.status + ']';
+          quoteSelect.appendChild(opt);
+        });
+
+        if (previousValue) quoteSelect.value = previousValue;
+      }
+
+      function handleAmcOrderCustomerChange() {
+        var customerName = document.getElementById('inp-order-client').value;
+        populateAmcOrderQuoteOptions(customerName, '');
+      }
+
+      // Pulls Plant Site, AMC Scope Type, Order Value and Equipment
+      // Coverage straight from the selected quotation - the Customer PO
+      // Number is left alone since that's the client's own reference
+      // number, which only they can supply (never something on file here).
+      function handleAmcOrderQuoteSelected() {
+        var quoteId = document.getElementById('inp-order-quote-ref').value;
+        if (!quoteId) return;
+
+        var quotes = window.RevOpsStore.getCollection('amcQuotations') || [];
+        var quote = quotes.find(function(q) { return q.id === quoteId; });
+        if (!quote) return;
+
+        document.getElementById('inp-order-site').value = quote.plantSite || '';
+        document.getElementById('inp-order-amount').value = quote.amount || '';
+        document.getElementById('inp-order-equipment').value = quote.equipmentCoverage || '';
+
+        var typeSelect = document.getElementById('inp-order-type');
+        var hasMatchingType = Array.from(typeSelect.options).some(function(o) { return o.value === quote.contractType; });
+        if (quote.contractType && !hasMatchingType) {
+          var opt = document.createElement('option');
+          opt.value = quote.contractType;
+          opt.textContent = quote.contractType;
+          typeSelect.appendChild(opt);
+        }
+        if (quote.contractType) typeSelect.value = quote.contractType;
+      }
+
+      function openAmcOrderModal(prefillQuote) {
         document.getElementById('edit-amc-order-id').value = '';
-        document.getElementById('inp-order-client').value = '';
         document.getElementById('inp-order-po').value = '';
         document.getElementById('inp-order-site').value = '';
         document.getElementById('inp-order-type').value = 'Comprehensive AMC';
         document.getElementById('inp-order-start-date').value = new Date().toISOString().slice(0, 10);
-        
+
         var nextYr = new Date();
         nextYr.setFullYear(nextYr.getFullYear() + 1);
         document.getElementById('inp-order-end-date').value = nextYr.toISOString().slice(0, 10);
-        
+
         document.getElementById('inp-order-billing-schedule').value = 'Quarterly Advance';
         document.getElementById('inp-order-amount').value = '';
         document.getElementById('inp-order-equipment').value = '';
+
+        populateAmcOrderCustomerRoster(prefillQuote ? prefillQuote.customerName : '');
+        populateAmcOrderQuoteOptions(prefillQuote ? prefillQuote.customerName : '', prefillQuote ? prefillQuote.id : '');
+        if (prefillQuote) handleAmcOrderQuoteSelected();
 
         document.getElementById('amc-order-modal').classList.remove('hidden');
       }
@@ -431,12 +536,14 @@
         e.preventDefault();
         var orders = window.RevOpsStore.getCollection('amcOrders') || [];
         var val = Number(document.getElementById('inp-order-amount').value) || 0;
+        var sourceQuoteId = document.getElementById('inp-order-quote-ref').value;
 
         var orderObj = {
           id: 'AMC-ORD-' + new Date().getFullYear() + '-' + String(orders.length + 1).padStart(3, '0'),
           orderNumber: 'AMC-ORD-' + new Date().getFullYear() + '-' + String(orders.length + 1).padStart(3, '0'),
           customerPo: document.getElementById('inp-order-po').value.trim(),
           customerName: document.getElementById('inp-order-client').value.trim(),
+          sourceQuoteId: sourceQuoteId || null,
           plantSite: document.getElementById('inp-order-site').value.trim(),
           contractType: document.getElementById('inp-order-type').value,
           startDate: document.getElementById('inp-order-start-date').value,
@@ -453,6 +560,18 @@
 
         orders.unshift(orderObj);
         window.RevOpsStore.saveCollection('amcOrders', orders);
+
+        // Close the loop on the source quotation so it can't be converted
+        // into a second, duplicate order by mistake.
+        if (sourceQuoteId) {
+          var quotes = window.RevOpsStore.getCollection('amcQuotations') || [];
+          var quote = quotes.find(function(q) { return q.id === sourceQuoteId; });
+          if (quote) {
+            quote.status = 'Converted to Order';
+            window.RevOpsStore.saveCollection('amcQuotations', quotes);
+          }
+        }
+
         closeAmcOrderModal();
         renderAmcOrdersTable();
       }
@@ -461,6 +580,16 @@
         setTimeout(function() {
           initSampleAmcOrdersIfEmpty();
           renderAmcOrdersTable();
+
+          // The "Convert to AMC Order" link on amc-quotes.html lands here
+          // with ?fromQuote=<quoteNumber> - open the booking form already
+          // populated from that quotation instead of leaving it blank.
+          var fromQuoteNumber = new URLSearchParams(window.location.search).get('fromQuote');
+          if (fromQuoteNumber) {
+            var quotes = window.RevOpsStore.getCollection('amcQuotations') || [];
+            var quote = quotes.find(function(q) { return q.quoteNumber === fromQuoteNumber; });
+            if (quote) openAmcOrderModal(quote);
+          }
         }, 100);
       });
     </script>
