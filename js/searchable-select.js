@@ -68,10 +68,17 @@
         // cache from the select's current DOM but never removes entries
         // that are no longer there, so a customer-filtered dropdown
         // would keep showing every option it had ever seen, layered on
-        // top of each other. clearOptions() first drops everything
-        // except the currently-selected item, so sync() then rebuilds
-        // a genuinely fresh list matching the select's real state.
-        instance.clearOptions();
+        // top of each other. clearOptions() with no filter keeps whatever
+        // is currently *selected* by default, which is exactly wrong for
+        // a cascading dropdown: pick customer A, pick one of its options,
+        // switch to customer B, and A's now-stale selected option stays
+        // cached and still shows up alongside B's real list. Passing a
+        // filter that always returns false drops everything unconditionally
+        // - sync() then rebuilds purely from the select's current DOM, so
+        // a value that's still genuinely present (same customer, list just
+        // refreshed) comes back via its real <option>, and one that isn't
+        // (switched to a different customer) is actually gone.
+        instance.clearOptions(function () { return false; });
         instance.sync();
       } catch (e) {}
       setTimeout(function () {
