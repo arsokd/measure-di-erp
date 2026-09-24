@@ -841,15 +841,56 @@ Object.assign(window.RevOpsStore, {
     // math), AMC Monitoring's "SLA Breakdown Response", and AMC Quotes'
     // "Target Breakdown Response SLA" — previously three separately
     // hardcoded, inconsistently-worded lists (one of them even in days
-    // instead of hours, contradicting the published SOP).
+    // instead of hours, contradicting the published SOP at the time).
+    //
+    // Switched back to days (business request) - the hour values below
+    // were themselves each already effectively same-day/next-day/etc.
+    // commitments, so slaDays is a faithful day-equivalent of what each
+    // tier already meant, not an arbitrary relabel: Critical (4h) and
+    // High (8h) were both same-business-day, so both become 0 days;
+    // Medium (24h, "Next Business Day") becomes 1; Low (48h, "Standard")
+    // becomes 2.
+    var slaDefaults = [
+      { id: 'sla_1', name: 'Critical', slaDays: 0, slaWindow: 'Same Day (Emergency)', description: 'Plant-stopping breakdown / safety-critical — emergency callout.', isActive: true },
+      { id: 'sla_2', name: 'High', slaDays: 0, slaWindow: 'Same Day', description: 'Major fault, production impacted — same-day response.', isActive: true },
+      { id: 'sla_3', name: 'Medium', slaDays: 1, slaWindow: 'Next Business Day', description: 'Degraded but operational — next business day.', isActive: true },
+      { id: 'sla_4', name: 'Low', slaDays: 2, slaWindow: '2 Days Standard', description: 'Non-urgent / routine maintenance request.', isActive: true }
+    ];
+    // The exact hour-based values these ids were seeded with before this
+    // switch - used below to recognize an untouched default record so it
+    // can be safely migrated in place, without overwriting a tier an
+    // admin has since customized via Master Data (whose intended day
+    // value we'd otherwise have no way to know).
+    var slaOldDefaultsById = {
+      sla_1: { slaHours: 4, slaWindow: '4 Hours Emergency' },
+      sla_2: { slaHours: 8, slaWindow: '8 Hours Same Day' },
+      sla_3: { slaHours: 24, slaWindow: '24 Hours Next Business Day' },
+      sla_4: { slaHours: 48, slaWindow: '48 Hours Standard' }
+    };
+
     var slaExisting = this.getCollection('slaResponseTierMaster');
     if (!slaExisting || slaExisting.length === 0) {
-      this.saveCollection('slaResponseTierMaster', [
-        { id: 'sla_1', name: 'Critical', slaHours: 4, slaWindow: '4 Hours Emergency', description: 'Plant-stopping breakdown / safety-critical — emergency callout.', isActive: true },
-        { id: 'sla_2', name: 'High', slaHours: 8, slaWindow: '8 Hours Same Day', description: 'Major fault, production impacted — same-day response.', isActive: true },
-        { id: 'sla_3', name: 'Medium', slaHours: 24, slaWindow: '24 Hours Next Business Day', description: 'Degraded but operational — next business day.', isActive: true },
-        { id: 'sla_4', name: 'Low', slaHours: 48, slaWindow: '48 Hours Standard', description: 'Non-urgent / routine maintenance request.', isActive: true }
-      ]);
+      this.saveCollection('slaResponseTierMaster', slaDefaults);
+    } else {
+      var slaMigrated = false;
+      slaExisting = slaExisting.map(function(tier) {
+        var old = tier && slaOldDefaultsById[tier.id];
+        var stillDefault = old && tier.slaHours === old.slaHours && tier.slaWindow === old.slaWindow;
+        if (!stillDefault) return tier;
+        var replacement = slaDefaults.filter(function(d) { return d.id === tier.id; })[0];
+        slaMigrated = true;
+        var migrated = Object.assign({}, tier, {
+          slaDays: replacement.slaDays,
+          slaWindow: replacement.slaWindow
+        });
+        // Object.assign would keep a stale slaHours key (Firestore's SDK
+        // rejects a literal `undefined` value, so overwriting it with one
+        // isn't safe) - delete it outright instead now that slaDays is
+        // the canonical field.
+        delete migrated.slaHours;
+        return migrated;
+      });
+      if (slaMigrated) this.saveCollection('slaResponseTierMaster', slaExisting);
     }
 
     // Client Installed Equipment — the real, editable registry (Master

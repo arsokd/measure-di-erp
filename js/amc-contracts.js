@@ -30,7 +30,9 @@ var activeAmcContracts = [];
           var tiers = (window.RevOpsStore.getCollection('slaResponseTierMaster') || []).filter(function(t) { return t.isActive !== false; });
           var currentVal = slaSelect.value;
           slaSelect.innerHTML = tiers.map(function(t) {
-            var win = t.slaWindow || ((t.slaHours || 24) + ' Hours');
+            var win = t.slaWindow || (t.slaDays !== undefined && t.slaDays !== null
+              ? (t.slaDays === 0 ? 'Same Day' : t.slaDays + (t.slaDays === 1 ? ' Day' : ' Days'))
+              : '1 Day');
             return '<option value="' + escapeHtml(win) + '">' + escapeHtml(t.name) + ' — ' + escapeHtml(win) + '</option>';
           }).join('');
           if (currentVal && tiers.some(function(t) { return (t.slaWindow || '') === currentVal; })) {

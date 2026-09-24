@@ -347,7 +347,7 @@ var activeMasterTab = 'products';
           tr.className = "hover:bg-slate-800/40 transition-colors";
           tr.innerHTML = `
             <td class="py-3 px-4 font-bold text-white">${escapeHtml(s.name || '')}</td>
-            <td class="py-3 px-4 text-center font-black text-rose-400">${escapeHtml(s.slaWindow || (s.slaHours ? s.slaHours + ' Hours' : ''))}</td>
+            <td class="py-3 px-4 text-center font-black text-rose-400">${escapeHtml(s.slaWindow || (s.slaDays !== undefined && s.slaDays !== null ? (s.slaDays === 0 ? 'Same Day' : s.slaDays + (s.slaDays === 1 ? ' Day' : ' Days')) : ''))}</td>
             <td class="py-3 px-4 text-slate-400 text-[11px]">${escapeHtml(s.description || '')}</td>
             <td class="py-3 px-4 text-center">
               <span class="px-2 py-0.5 rounded text-[10px] font-bold ${s.isActive === false ? 'bg-slate-800 text-slate-400' : 'bg-emerald-950 text-emerald-300 border border-emerald-800/60'}">${s.isActive === false ? 'Inactive' : 'Active'}</span>
@@ -609,8 +609,8 @@ var activeMasterTab = 'products';
               <input type="text" id="inp-rec-slaname" required value="${escapeHtml(d.name || '')}" placeholder="Critical" class="w-full px-3 py-2 bg-slate-950 border border-slate-750 rounded-xl text-xs text-white" />
             </div>
             <div>
-              <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">Target Response (Hours) *</label>
-              <input type="number" id="inp-rec-slahours" required min="1" step="1" value="${d.slaHours || ''}" placeholder="4" class="w-full px-3 py-2 bg-slate-950 border border-slate-750 rounded-xl text-xs text-white" />
+              <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">Target Response (Days) *</label>
+              <input type="number" id="inp-rec-sladays" required min="0" step="1" value="${d.slaDays !== undefined && d.slaDays !== null ? d.slaDays : ''}" placeholder="0 = same day" class="w-full px-3 py-2 bg-slate-950 border border-slate-750 rounded-xl text-xs text-white" />
             </div>
           </div>
           <div>
@@ -742,12 +742,12 @@ var activeMasterTab = 'products';
         };
       } else if (activeMasterTab === 'slapolicy') {
         colName = 'slaResponseTierMaster';
-        var slaHoursVal = Number(document.getElementById('inp-rec-slahours').value) || 0;
+        var slaDaysVal = Number(document.getElementById('inp-rec-sladays').value) || 0;
         recordObj = {
           id: docId || ('sla_' + Date.now()),
           name: document.getElementById('inp-rec-slaname').value.trim(),
-          slaHours: slaHoursVal,
-          slaWindow: slaHoursVal + ' Hours',
+          slaDays: slaDaysVal,
+          slaWindow: slaDaysVal === 0 ? 'Same Day' : (slaDaysVal + (slaDaysVal === 1 ? ' Day' : ' Days')),
           description: document.getElementById('inp-rec-sladesc').value.trim(),
           isActive: document.getElementById('inp-rec-slaactive').checked
         };

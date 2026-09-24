@@ -135,7 +135,9 @@ var currentViewMode = 'table';
         var tiers = (window.RevOpsStore.getCollection('slaResponseTierMaster') || []).filter(function(it) { return it.isActive !== false; });
         var currentVal = select.value;
         select.innerHTML = tiers.map(function(t) {
-          var win = t.slaWindow || ((t.slaHours || 24) + ' Hours');
+          var win = t.slaWindow || (t.slaDays !== undefined && t.slaDays !== null
+            ? (t.slaDays === 0 ? 'Same Day' : t.slaDays + (t.slaDays === 1 ? ' Day' : ' Days'))
+            : '1 Day');
           return '<option value="' + escapeHtml(t.name) + '">' + escapeHtml(t.name) + ' (SLA ' + escapeHtml(win) + ')</option>';
         }).join('');
         if (currentVal && tiers.some(function(t) { return t.name === currentVal; })) {
@@ -367,10 +369,19 @@ var currentViewMode = 'table';
 
         var tiers = window.RevOpsStore ? (window.RevOpsStore.getCollection('slaResponseTierMaster') || []) : [];
         var tier = tiers.find(function(t) { return t.name === sevVal; });
-        var slaHours = tier ? (Number(tier.slaHours) || 24) : 24;
+        // slaDays can legitimately be 0 (Same Day), so check for
+        // undefined/null explicitly rather than `|| fallback` (0 is falsy).
+        var slaDays = 1;
+        if (tier && tier.slaDays !== undefined && tier.slaDays !== null) {
+          slaDays = Number(tier.slaDays);
+        } else if (tier && tier.slaHours !== undefined && tier.slaHours !== null) {
+          // Older tier saved before the Hours -> Days switch - soft-convert
+          // for this calculation without touching the stored record.
+          slaDays = Math.ceil(Number(tier.slaHours) / 24);
+        }
 
         var targetDate = new Date();
-        targetDate.setHours(targetDate.getHours() + slaHours);
+        targetDate.setDate(targetDate.getDate() + slaDays);
         slaDateInput.value = targetDate.toISOString().slice(0, 10);
       }
 
