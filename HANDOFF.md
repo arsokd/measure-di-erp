@@ -120,9 +120,13 @@ work. `git revert` is almost always the safer choice here.
 - **No automated Firestore backups yet.** Recommended: enable
   scheduled exports via Firebase Console → Firestore Database →
   Backups.
-- **Existing production Firestore data may still have plaintext
-  password fields** on `employees` documents from before the fix
-  above — needs a one-time manual cleanup pass via Firebase Console.
+- ~~Existing production Firestore data may still have plaintext
+  password fields on `employees` documents~~ — **done**: an in-app
+  cleanup tool shipped shortly after this note was first written (see
+  the "Clean Up Legacy Passwords" button on `employees.html`, backed
+  by `netlify/functions/cleanup-legacy-passwords.js`, admin-only, safe
+  to run more than once). Someone with Super Admin/Admin still needs
+  to actually click it once in production — it doesn't run itself.
 
 ## Resuming this project with a new AI coding session
 
