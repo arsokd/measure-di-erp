@@ -1405,6 +1405,9 @@ Mobile: +91 98406 29928 | Web: www.measuredi.com`;
                 <span>Total Invoice Value:</span>
                 <span class="text-indigo-600 font-mono text-base">${formatINR(inv.grandTotal)}</span>
               </div>
+              <div class="text-left text-[10px] text-slate-600 italic leading-snug pb-1">
+                <span class="font-bold text-slate-500 uppercase not-italic">Amount in Words: </span>${escapeHtml(window.NumberToWords ? window.NumberToWords.amountInWords(Math.round(inv.grandTotal || 0)) : '')}
+              </div>
               <div class="flex justify-between text-xs text-emerald-700 pt-1">
                 <span>Cleared Payments + TDS:</span>
                 <span class="font-bold font-mono">${formatINR((inv.paidAmount || 0) + (inv.tdsDeducted || 0))}</span>

@@ -1526,6 +1526,9 @@ var currentEditingQuoteId = null;
         document.getElementById('pdf-net-subtotal').innerText = '₹' + Math.round(q.netSubtotal || 0).toLocaleString('en-IN');
         document.getElementById('pdf-tax-amount').innerText = '₹' + Math.round(q.taxAmount || 0).toLocaleString('en-IN');
         document.getElementById('pdf-grand-total').innerText = '₹' + Math.round(q.grandTotal || 0).toLocaleString('en-IN');
+        document.getElementById('pdf-grand-total-words').innerText = window.NumberToWords
+          ? window.NumberToWords.amountInWords(Math.round(q.grandTotal || 0))
+          : '';
 
         document.getElementById('pdf-terms-text').innerText = q.termsAndConditions || 'Standard commercial terms apply.';
         document.getElementById('pdf-delivery-leadtime').innerText = q.deliveryLeadTime || '3-4 Weeks from advance PO';
