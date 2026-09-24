@@ -12,6 +12,7 @@ var activeServiceLeads = [];
       document.addEventListener('DOMContentLoaded', function() {
         renderServiceFunnelBar();
         renderServiceLeadsTable();
+        populateServiceCustomerRoster();
 
         if (window.RevOpsStore && typeof window.RevOpsStore.subscribeRealtimeSync === 'function') {
           window.RevOpsStore.subscribeRealtimeSync('serviceLeads', function() {
@@ -20,6 +21,37 @@ var activeServiceLeads = [];
           });
         }
       });
+
+      // "Customer Company" must only offer actual customers (the Client
+      // Master roster, plus anyone with a real order on file) - not
+      // prospects sitting in the Leads pipeline, since a service/AMC lead
+      // is by definition about an existing client relationship.
+      function populateServiceCustomerRoster() {
+        var custSelect = document.getElementById('inp-srv-customer');
+        if (!custSelect) return;
+
+        var clients = window.RevOpsStore ? (window.RevOpsStore.getCollection('clientsMaster') || []) : [];
+        var orders = window.RevOpsStore ? (window.RevOpsStore.getCollection('orders') || []) : [];
+
+        var uniqueClients = {};
+        clients.forEach(function(c) {
+          if (c && c.clientName) uniqueClients[c.clientName] = true;
+        });
+        orders.forEach(function(o) {
+          if (o && o.customerName) uniqueClients[o.customerName] = true;
+        });
+
+        var previousValue = custSelect.value;
+        custSelect.innerHTML = '<option value="">Select Customer Company...</option>';
+        Object.keys(uniqueClients).sort().forEach(function(name) {
+          var opt = document.createElement('option');
+          opt.value = name;
+          opt.textContent = name;
+          custSelect.appendChild(opt);
+        });
+
+        if (previousValue) custSelect.value = previousValue;
+      }
 
       function getServiceLeadsList() {
         var list = window.RevOpsStore ? (window.RevOpsStore.getCollection('serviceLeads') || []) : [];
@@ -433,6 +465,7 @@ var activeServiceLeads = [];
       function openServiceLeadModal() {
         var form = document.getElementById('service-lead-form');
         form.reset();
+        populateServiceCustomerRoster();
         document.getElementById('service-lead-doc-id').value = '';
         document.getElementById('service-lead-modal-title').textContent = "Record Service / AMC Lead";
         
@@ -457,7 +490,19 @@ var activeServiceLeads = [];
 
         document.getElementById('service-lead-doc-id').value = l.id;
         document.getElementById('service-lead-modal-title').textContent = "Edit Service Lead (" + l.leadNumber + ")";
-        document.getElementById('inp-srv-customer').value = l.customerName || '';
+
+        populateServiceCustomerRoster();
+        var custSelect = document.getElementById('inp-srv-customer');
+        if (l.customerName && !Array.from(custSelect.options).some(function(o) { return o.value === l.customerName; })) {
+          // Older lead recorded against a customer no longer in the roster
+          // (e.g. removed from Client Master) - keep it selectable rather
+          // than silently blanking out existing data.
+          var opt = document.createElement('option');
+          opt.value = l.customerName;
+          opt.textContent = l.customerName;
+          custSelect.appendChild(opt);
+        }
+        custSelect.value = l.customerName || '';
         document.getElementById('inp-srv-source').value = l.leadSource || 'AMC Warranty Expiry Conversion';
         document.getElementById('inp-srv-type').value = l.serviceType || 'AMC Comprehensive';
         document.getElementById('inp-srv-model').value = l.equipmentModel || '';
