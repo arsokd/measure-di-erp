@@ -9,6 +9,33 @@ var activeServiceLeads = [];
         "Contract Won / Confirmed"
       ];
 
+      // The "Actions & Conversions" links below used to just navigate to
+      // service-tickets.html / quotations.html with query params neither
+      // page actually read - so clicking them landed on a blank form and
+      // the customer/contact/equipment had to be retyped by hand. These
+      // build the actual param names each destination page expects
+      // (fixed there to read them - see service-tickets.js and
+      // quotations.js) so the target form opens already filled in from
+      // this specific lead.
+      function serviceLeadTicketPrefillUrl(l) {
+        var params = new URLSearchParams();
+        if (l.customerName) params.set('customer', l.customerName);
+        if (l.equipmentModel) params.set('model', l.equipmentModel);
+        if (l.serialNumbers) params.set('serial', l.serialNumbers);
+        return 'service-tickets.html?' + params.toString();
+      }
+
+      function serviceLeadQuotePrefillUrl(l, quoteType) {
+        var params = new URLSearchParams();
+        params.set('quoteType', quoteType);
+        if (l.customerName) params.set('prefillCustomer', l.customerName);
+        if (l.equipmentModel) params.set('prefillModel', l.equipmentModel);
+        if (l.contactPerson) params.set('prefillContact', l.contactPerson);
+        if (l.contactPhone) params.set('prefillPhone', l.contactPhone);
+        if (l.contactEmail) params.set('prefillEmail', l.contactEmail);
+        return 'quotations.html?' + params.toString();
+      }
+
       document.addEventListener('DOMContentLoaded', function() {
         renderServiceFunnelBar();
         renderServiceLeadsTable();
@@ -541,22 +568,22 @@ var activeServiceLeads = [];
               <a href="parts-sales.html" class="p-1.5 bg-emerald-950 hover:bg-emerald-900 text-emerald-300 hover:text-white rounded-lg transition-colors border border-emerald-800/60 cursor-pointer" title="Open Spare Parts Hub">
                 <i class="fa-solid fa-gears text-xs"></i>
               </a>
-              <a href="quotations.html?quoteType=Parts&prefillCustomer=${encodeURIComponent(l.customerName)}&prefillModel=${encodeURIComponent(l.equipmentModel)}" class="p-1.5 bg-indigo-950 hover:bg-indigo-900 text-indigo-300 hover:text-white rounded-lg transition-colors border border-indigo-800/60 cursor-pointer" title="Generate Spare Parts Quotation">
+              <a href="${serviceLeadQuotePrefillUrl(l, 'Parts')}" class="p-1.5 bg-indigo-950 hover:bg-indigo-900 text-indigo-300 hover:text-white rounded-lg transition-colors border border-indigo-800/60 cursor-pointer" title="Generate Spare Parts Quotation">
                 <i class="fa-solid fa-file-invoice text-xs"></i>
               </a>
             `;
           } else if (l.serviceType === 'Paid Service Lead' || l.serviceType === 'Breakdown Repair') {
             actionButtonsHtml += `
-              <a href="service-tickets.html?prefillCustomer=${encodeURIComponent(l.customerName)}&prefillModel=${encodeURIComponent(l.equipmentModel)}" class="p-1.5 bg-sky-950 hover:bg-sky-900 text-sky-300 hover:text-white rounded-lg transition-colors border border-sky-800/60 cursor-pointer" title="Raise Paid Service Ticket">
+              <a href="${serviceLeadTicketPrefillUrl(l)}" class="p-1.5 bg-sky-950 hover:bg-sky-900 text-sky-300 hover:text-white rounded-lg transition-colors border border-sky-800/60 cursor-pointer" title="Raise Paid Service Ticket">
                 <i class="fa-solid fa-screwdriver-wrench text-xs"></i>
               </a>
-              <a href="quotations.html?quoteType=Service&prefillCustomer=${encodeURIComponent(l.customerName)}&prefillModel=${encodeURIComponent(l.equipmentModel)}" class="p-1.5 bg-indigo-950 hover:bg-indigo-900 text-indigo-300 hover:text-white rounded-lg transition-colors border border-indigo-800/60 cursor-pointer" title="Generate Paid Service Quotation">
+              <a href="${serviceLeadQuotePrefillUrl(l, 'Service')}" class="p-1.5 bg-indigo-950 hover:bg-indigo-900 text-indigo-300 hover:text-white rounded-lg transition-colors border border-indigo-800/60 cursor-pointer" title="Generate Paid Service Quotation">
                 <i class="fa-solid fa-file-invoice text-xs"></i>
               </a>
             `;
           } else {
             actionButtonsHtml += `
-              <a href="quotations.html?quoteType=AMC&prefillCustomer=${encodeURIComponent(l.customerName)}&prefillModel=${encodeURIComponent(l.equipmentModel)}" class="p-1.5 bg-indigo-950 hover:bg-indigo-900 text-indigo-300 hover:text-white rounded-lg transition-colors border border-indigo-800/60 cursor-pointer" title="Generate AMC Quotation">
+              <a href="${serviceLeadQuotePrefillUrl(l, 'AMC')}" class="p-1.5 bg-indigo-950 hover:bg-indigo-900 text-indigo-300 hover:text-white rounded-lg transition-colors border border-indigo-800/60 cursor-pointer" title="Generate AMC Quotation">
                 <i class="fa-solid fa-file-invoice text-xs"></i>
               </a>
               <a href="amc-contracts.html" class="p-1.5 bg-amber-950 hover:bg-amber-900 text-amber-300 hover:text-white rounded-lg transition-colors border border-amber-800/60 cursor-pointer" title="Register to AMC Contracts">

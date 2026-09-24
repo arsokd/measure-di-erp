@@ -228,6 +228,13 @@ var currentViewMode = 'table';
           modelKeys = ['MDI-WS-9000 Weighbridge System', 'MDI-CS-5000 Heavy Crane Scale', 'MDI-BS-7000 Belt Conveyor Weigher'];
         }
 
+        // A model pre-filled from elsewhere (e.g. a Service Lead) might not
+        // be among this customer's registered equipment yet - show it
+        // anyway rather than leaving the dropdown looking unselected.
+        if (preSelectedModel && modelKeys.indexOf(preSelectedModel) === -1) {
+          modelKeys = [preSelectedModel].concat(modelKeys);
+        }
+
         var modelOptions = `<option value="">-- Select Equipment Model (${modelKeys.length} available) --</option>`;
         modelKeys.forEach(function(m) {
           var isSel = (preSelectedModel && preSelectedModel === m) ? 'selected' : '';
@@ -1156,6 +1163,19 @@ var currentViewMode = 'table';
         if (preCust) {
           var custSelect = document.getElementById('input-customer-name');
           if (custSelect) {
+            // Arriving here (e.g. from a Service Lead's "Raise Ticket"
+            // action) doesn't guarantee this customer has equipment
+            // already on file in Client Equipment Master - the dropdown
+            // is only ever built from that registry, so without this the
+            // field would just silently show nothing selected instead of
+            // the customer we were actually sent here for.
+            var hasOption = Array.from(custSelect.options).some(function(o) { return o.value === preCust; });
+            if (!hasOption) {
+              var opt = document.createElement('option');
+              opt.value = preCust;
+              opt.textContent = preCust;
+              custSelect.appendChild(opt);
+            }
             custSelect.value = preCust;
             handleCustomerSelectChange(preCust, preModel, preSerial);
           }

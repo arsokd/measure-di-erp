@@ -184,6 +184,28 @@ var currentEditingQuoteId = null;
           }
 
           openQuoteModal(null, prefillLead);
+        } else if (params.get('prefillCustomer')) {
+          // Arriving from a Service/AMC Lead's "Generate Quotation" action
+          // (service-leads.html) - a standalone quote (not linked to any
+          // CRM Lead record, since Service Leads are a separate
+          // collection), pre-filled with that lead's customer, contact and
+          // equipment instead of opening blank and making staff retype it.
+          openQuoteModal(null, null);
+
+          var prefillCustomer = params.get('prefillCustomer') || '';
+          var prefillModel = params.get('prefillModel') || '';
+          var prefillContact = params.get('prefillContact') || '';
+          var prefillPhone = params.get('prefillPhone') || '';
+          var prefillEmail = params.get('prefillEmail') || '';
+
+          if (prefillCustomer) document.getElementById('inp-quote-customer').value = prefillCustomer;
+          if (prefillContact) document.getElementById('inp-quote-contact').value = prefillContact;
+          if (prefillPhone) document.getElementById('inp-quote-mobile').value = prefillPhone;
+          if (prefillEmail) document.getElementById('inp-quote-email').value = prefillEmail;
+          if (prefillModel && activeQuoteItems.length > 0) {
+            activeQuoteItems[0].description = prefillModel;
+            renderQuoteLineItems();
+          }
         }
 
         // Arriving from the Approvals hub's "Review & Approve" link -
