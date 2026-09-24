@@ -40,3 +40,26 @@
       X-Frame-Options = "SAMEORIGIN"
       X-Content-Type-Options = "nosniff"
       Referrer-Policy = "strict-origin-when-cross-origin"
+
+# HTML and the app's own JS carry no version/hash in their filenames
+# (unlike a typical bundled SPA build), so without this, a browser that
+# already cached quotations.html or js/service-leads.js has no reason to
+# ever ask the server for a newer copy - it just keeps serving the stale
+# version it has, silently, with nothing in DevTools' Network tab even
+# hinting a request was skipped. That's produced real confusion more than
+# once: a fix verified working against the deployed files still appeared
+# "not working" for a user whose browser was still running the JS from
+# before that deploy. no-cache (despite the name) still caches, but
+# forces a revalidation round-trip on every load - the server responds
+# 304 Not Modified when nothing changed, so this costs a small request,
+# not the full download, while guaranteeing every deploy takes effect on
+# the very next page load instead of waiting on a manual hard-refresh.
+[[headers]]
+  for = "/*.html"
+    [headers.values]
+      Cache-Control = "no-cache"
+
+[[headers]]
+  for = "/js/*"
+    [headers.values]
+      Cache-Control = "no-cache"
