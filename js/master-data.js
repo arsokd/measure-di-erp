@@ -275,7 +275,7 @@ var activeMasterTab = 'products';
           tr.innerHTML = `
             <td class="py-3 px-4 font-bold text-white">${escapeHtml(c.clientName || c.name)}</td>
             <td class="py-3 px-4 font-mono text-indigo-300">${escapeHtml(c.gstin || 'N/A')}</td>
-            <td class="py-3 px-4 text-slate-300">${escapeHtml(c.contactPerson || '')} <span class="text-slate-500 text-[10px] block">${escapeHtml(c.email || c.phone || '')}</span></td>
+            <td class="py-3 px-4 text-slate-300">${escapeHtml(c.contactPerson || '')} <span class="text-slate-500 text-[10px] block">${escapeHtml([c.phone, c.email].filter(Boolean).join(' • '))}</span></td>
             <td class="py-3 px-4 text-slate-400">${escapeHtml(c.city || 'India')}</td>
             <td class="py-3 px-4 text-center">
               <button onclick="editMasterRecord('${c.id}')" class="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg"><i class="fa-solid fa-pen-to-square"></i></button>
@@ -537,9 +537,13 @@ var activeMasterTab = 'products';
               <input type="text" id="inp-rec-clcontact" value="${escapeHtml(d.contactPerson || '')}" placeholder="Mr. Rajesh" class="w-full px-3 py-2 bg-slate-950 border border-slate-750 rounded-xl text-xs text-white" />
             </div>
             <div>
-              <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">Email</label>
-              <input type="email" id="inp-rec-clemail" value="${escapeHtml(d.email || '')}" placeholder="procurement@tatasteel.com" class="w-full px-3 py-2 bg-slate-950 border border-slate-750 rounded-xl text-xs text-white" />
+              <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">Contact Phone / Mobile</label>
+              <input type="text" id="inp-rec-clphone" value="${escapeHtml(d.phone || '')}" placeholder="9840112233" class="w-full px-3 py-2 bg-slate-950 border border-slate-750 rounded-xl text-xs text-white" />
             </div>
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">Email</label>
+            <input type="email" id="inp-rec-clemail" value="${escapeHtml(d.email || '')}" placeholder="procurement@tatasteel.com" class="w-full px-3 py-2 bg-slate-950 border border-slate-750 rounded-xl text-xs text-white" />
           </div>
         `;
       } else if (activeMasterTab === 'projects') {
@@ -714,6 +718,7 @@ var activeMasterTab = 'products';
           gstin: document.getElementById('inp-rec-clgst').value.trim().toUpperCase(),
           city: document.getElementById('inp-rec-clcity').value.trim(),
           contactPerson: document.getElementById('inp-rec-clcontact').value.trim(),
+          phone: document.getElementById('inp-rec-clphone').value.trim(),
           email: document.getElementById('inp-rec-clemail').value.trim()
         };
       } else if (activeMasterTab === 'projects') {

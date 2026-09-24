@@ -153,8 +153,10 @@ var activeServiceLeads = [];
         if (!client) return;
 
         var nameField = document.getElementById('inp-srv-contact-name');
+        var phoneField = document.getElementById('inp-srv-contact-phone');
         var emailField = document.getElementById('inp-srv-contact-email');
         if (nameField && !nameField.value.trim() && client.contactPerson) nameField.value = client.contactPerson;
+        if (phoneField && !phoneField.value.trim() && client.phone) phoneField.value = client.phone;
         if (emailField && !emailField.value.trim() && client.email) emailField.value = client.email;
       }
 
