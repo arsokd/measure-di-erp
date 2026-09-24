@@ -162,17 +162,23 @@
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Customer / Client Name *</label>
-              <input type="text" id="inp-inv-client" required placeholder="e.g. JSW Steel Limited" class="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-amber-500" />
+              <select id="inp-inv-client" required onchange="handleAmcInvoiceCustomerChange()" class="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-amber-500">
+                <option value="">Select Customer (with a confirmed AMC PO)...</option>
+              </select>
             </div>
 
             <div>
               <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Customer GSTIN *</label>
-              <input type="text" id="inp-inv-gstin" required placeholder="29AAACJ1011A1Z2" class="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white uppercase focus:outline-none focus:border-amber-500" />
+              <select id="inp-inv-gstin" required onchange="handleAmcInvoiceGstinSelectChange()" class="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white uppercase focus:outline-none focus:border-amber-500">
+                <option value="">Select customer first...</option>
+              </select>
             </div>
 
             <div>
               <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Linked AMC Order # / PO *</label>
-              <input type="text" id="inp-inv-order" required placeholder="AMC-ORD-2026-001" class="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-amber-500" />
+              <select id="inp-inv-order" required class="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-amber-500">
+                <option value="">Select customer first...</option>
+              </select>
             </div>
 
             <div>
@@ -182,7 +188,22 @@
 
             <div>
               <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Milestone Billing Description *</label>
-              <input type="text" id="inp-inv-desc" required placeholder="Q1 Advance AMC Charges for Period Apr 2026 - Jun 2026" class="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-amber-500" />
+              <select id="inp-inv-desc" required onchange="handleAmcInvoiceDescSelectChange()" class="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-amber-500">
+                <option value="Q1 Advance AMC Charges (Apr - Jun)">Q1 Advance AMC Charges (Apr - Jun)</option>
+                <option value="Q2 Advance AMC Charges (Jul - Sep)">Q2 Advance AMC Charges (Jul - Sep)</option>
+                <option value="Q3 Advance AMC Charges (Oct - Dec)">Q3 Advance AMC Charges (Oct - Dec)</option>
+                <option value="Q4 Advance AMC Charges (Jan - Mar)">Q4 Advance AMC Charges (Jan - Mar)</option>
+                <option value="H1 Advance AMC Charges (Apr - Sep)">H1 Advance AMC Charges (Apr - Sep)</option>
+                <option value="H2 Advance AMC Charges (Oct - Mar)">H2 Advance AMC Charges (Oct - Mar)</option>
+                <option value="100% Annual Advance AMC Charges (Full Year)">100% Annual Advance AMC Charges (Full Year)</option>
+                <option value="Monthly AMC Service Charges">Monthly AMC Service Charges</option>
+                <option value="Breakdown Call-Out Charges (Chargeable / Non-AMC)">Breakdown Call-Out Charges (Chargeable / Non-AMC)</option>
+                <option value="Spare Parts Replacement Charges (Under AMC)">Spare Parts Replacement Charges (Under AMC)</option>
+                <option value="Calibration & Certification Charges">Calibration & Certification Charges</option>
+                <option value="Retention / Final Settlement Amount">Retention / Final Settlement Amount</option>
+                <option value="__others__">Others (Type Manually)...</option>
+              </select>
+              <input type="text" id="inp-inv-desc-other" placeholder="Type the milestone billing description..." class="hidden mt-1.5 w-full px-3 py-2 bg-slate-950 border border-amber-700/60 rounded-xl text-xs text-white focus:outline-none focus:border-amber-500" />
             </div>
 
             <div>
@@ -366,12 +387,164 @@
         }).join('');
       }
 
+      // Customer Name only offers customers with a confirmed AMC Order on
+      // file (i.e. we actually have their PO) - an invoice is billing
+      // against a confirmed order, not a quotation still in negotiation.
+      function populateAmcInvoiceCustomerRoster() {
+        var custSelect = document.getElementById('inp-inv-client');
+        if (!custSelect) return;
+
+        var orders = window.RevOpsStore ? (window.RevOpsStore.getCollection('amcOrders') || []) : [];
+        var uniqueCustomers = {};
+        orders.forEach(function(o) {
+          if (o && o.customerName) uniqueCustomers[o.customerName] = true;
+        });
+
+        custSelect.innerHTML = '<option value="">Select Customer (with a confirmed AMC PO)...</option>';
+        Object.keys(uniqueCustomers).sort().forEach(function(name) {
+          var opt = document.createElement('option');
+          opt.value = name;
+          opt.textContent = name;
+          custSelect.appendChild(opt);
+        });
+      }
+
+      var ADD_NEW_GSTIN_VALUE = '__add_new_gstin__';
+
+      // GSTIN is captured once in Client Master (at quotation time) - this
+      // just offers whatever's on file for the selected customer instead
+      // of retyping a legal tax ID by hand each time. A client with
+      // multiple registered branches/GSTINs shows all of them.
+      function populateAmcInvoiceGstinOptions(customerName, selectedValue) {
+        var gstinSelect = document.getElementById('inp-inv-gstin');
+        if (!gstinSelect) return;
+
+        if (!customerName) {
+          gstinSelect.innerHTML = '<option value="">Select customer first...</option>';
+          return;
+        }
+
+        var clients = window.RevOpsStore ? (window.RevOpsStore.getCollection('clientsMaster') || []) : [];
+        var gstins = {};
+        clients.forEach(function(c) {
+          if (!c) return;
+          if ((c.clientName || c.name) !== customerName) return;
+          if (c.gstin) gstins[c.gstin.toUpperCase()] = true;
+        });
+        var gstinList = Object.keys(gstins).sort();
+
+        var previousValue = selectedValue !== undefined ? selectedValue : gstinSelect.value;
+        gstinSelect.innerHTML = gstinList.length > 0
+          ? '<option value="">Select GSTIN...</option>'
+          : '<option value="">No GSTIN on file - add one below</option>';
+        gstinList.forEach(function(g) {
+          var opt = document.createElement('option');
+          opt.value = g;
+          opt.textContent = g;
+          gstinSelect.appendChild(opt);
+        });
+
+        if (previousValue && !gstins[previousValue]) {
+          var legacyOpt = document.createElement('option');
+          legacyOpt.value = previousValue;
+          legacyOpt.textContent = previousValue;
+          gstinSelect.appendChild(legacyOpt);
+        }
+
+        var addNewOpt = document.createElement('option');
+        addNewOpt.value = ADD_NEW_GSTIN_VALUE;
+        addNewOpt.textContent = '+ Add New GSTIN...';
+        gstinSelect.appendChild(addNewOpt);
+
+        if (previousValue) gstinSelect.value = previousValue;
+      }
+
+      function handleAmcInvoiceGstinSelectChange() {
+        var gstinSelect = document.getElementById('inp-inv-gstin');
+        if (gstinSelect.value !== ADD_NEW_GSTIN_VALUE) return;
+
+        var typed = prompt('Enter the customer\'s GSTIN:');
+        if (!typed || !typed.trim()) {
+          gstinSelect.value = '';
+          return;
+        }
+        typed = typed.trim().toUpperCase();
+        var opt = document.createElement('option');
+        opt.value = typed;
+        opt.textContent = typed;
+        gstinSelect.insertBefore(opt, gstinSelect.lastElementChild);
+        gstinSelect.value = typed;
+      }
+
+      // Linked AMC Order is scoped to the selected customer's own booked
+      // orders (where their real PO number lives), so staff pick the exact
+      // order this milestone invoice is billing against.
+      function populateAmcInvoiceOrderOptions(customerName, selectedValue) {
+        var orderSelect = document.getElementById('inp-inv-order');
+        if (!orderSelect) return;
+
+        if (!customerName) {
+          orderSelect.innerHTML = '<option value="">Select customer first...</option>';
+          return;
+        }
+
+        var orders = window.RevOpsStore ? (window.RevOpsStore.getCollection('amcOrders') || []) : [];
+        var custOrders = orders.filter(function(o) { return o && o.customerName === customerName; });
+
+        var previousValue = selectedValue !== undefined ? selectedValue : orderSelect.value;
+        orderSelect.innerHTML = custOrders.length > 0
+          ? '<option value="">Select AMC Order...</option>'
+          : '<option value="">No AMC orders on file for this customer</option>';
+        custOrders.forEach(function(o) {
+          var opt = document.createElement('option');
+          opt.value = o.orderNumber;
+          opt.textContent = o.orderNumber + ' — PO: ' + (o.customerPo || 'N/A') + ' (' + formatINR(o.amount) + ')';
+          orderSelect.appendChild(opt);
+        });
+
+        if (previousValue && !custOrders.some(function(o) { return o.orderNumber === previousValue; })) {
+          var legacyOpt = document.createElement('option');
+          legacyOpt.value = previousValue;
+          legacyOpt.textContent = previousValue;
+          orderSelect.appendChild(legacyOpt);
+        }
+
+        if (previousValue) orderSelect.value = previousValue;
+      }
+
+      function handleAmcInvoiceCustomerChange() {
+        var customerName = document.getElementById('inp-inv-client').value;
+        populateAmcInvoiceGstinOptions(customerName, '');
+        populateAmcInvoiceOrderOptions(customerName, '');
+      }
+
+      function handleAmcInvoiceDescSelectChange() {
+        var descSelect = document.getElementById('inp-inv-desc');
+        var otherInput = document.getElementById('inp-inv-desc-other');
+        var isOther = descSelect.value === '__others__';
+        otherInput.classList.toggle('hidden', !isOther);
+        otherInput.required = isOther;
+        if (isOther) otherInput.focus();
+      }
+
+      function getAmcInvoiceDescriptionValue() {
+        var descSelect = document.getElementById('inp-inv-desc');
+        if (descSelect.value === '__others__') {
+          return document.getElementById('inp-inv-desc-other').value.trim();
+        }
+        return descSelect.value;
+      }
+
       function openAmcInvoiceModal() {
+        populateAmcInvoiceCustomerRoster();
         document.getElementById('inp-inv-client').value = '';
-        document.getElementById('inp-inv-gstin').value = '';
-        document.getElementById('inp-inv-order').value = '';
+        populateAmcInvoiceGstinOptions('', '');
+        populateAmcInvoiceOrderOptions('', '');
         document.getElementById('inp-inv-date').value = new Date().toISOString().slice(0, 10);
-        document.getElementById('inp-inv-desc').value = '';
+        document.getElementById('inp-inv-desc').selectedIndex = 0;
+        document.getElementById('inp-inv-desc-other').value = '';
+        document.getElementById('inp-inv-desc-other').classList.add('hidden');
+        document.getElementById('inp-inv-desc-other').required = false;
         document.getElementById('inp-inv-taxable').value = '';
 
         document.getElementById('amc-invoice-modal').classList.remove('hidden');
@@ -388,6 +561,12 @@
         var gst = Math.round(taxable * 0.18);
         var grand = taxable + gst;
 
+        var description = getAmcInvoiceDescriptionValue();
+        if (!description) {
+          alert('Please enter the milestone billing description.');
+          return;
+        }
+
         var invNum = 'INV/AMC/' + getFinancialYear() + '/' + String(invoices.length + 1).padStart(3, '0');
 
         var invObj = {
@@ -397,7 +576,7 @@
           customerGstin: document.getElementById('inp-inv-gstin').value.trim().toUpperCase(),
           orderRef: document.getElementById('inp-inv-order').value.trim(),
           invoiceDate: document.getElementById('inp-inv-date').value,
-          description: document.getElementById('inp-inv-desc').value.trim(),
+          description: description,
           sacCode: '998717',
           taxableAmount: taxable,
           gstAmount: gst,
