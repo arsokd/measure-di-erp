@@ -139,25 +139,64 @@ var activeServiceLeads = [];
         modelSelect.value = typed;
       }
 
+      // Finds the best contact details on file for a customer name, since
+      // most customers in this app were never actually entered into
+      // Client Master (that list only has a handful of records) - the
+      // real contact info usually lives on a CRM Lead or a past Service
+      // Lead for that same customer instead. Checked in order of how much
+      // we'd trust each source, and merged field-by-field so e.g. a phone
+      // number from one source can fill a gap left by another.
+      function findBestCustomerContact(customerName) {
+        var result = { name: '', phone: '', email: '' };
+        if (!customerName) return result;
+
+        function take(name, phone, email) {
+          if (!result.name && name) result.name = name;
+          if (!result.phone && phone) result.phone = phone;
+          if (!result.email && email) result.email = email;
+        }
+
+        var clients = window.RevOpsStore ? (window.RevOpsStore.getCollection('clientsMaster') || []) : [];
+        var client = clients.find(function(c) { return c && (c.clientName === customerName || c.name === customerName); });
+        if (client) take(client.contactPerson, client.phone, client.email);
+
+        if (!(result.name && result.phone && result.email)) {
+          var svcLeads = window.RevOpsStore ? (window.RevOpsStore.getCollection('serviceLeads') || []) : [];
+          var svcMatch = svcLeads.find(function(l) { return l && l.customerName === customerName && (l.contactPerson || l.contactPhone || l.contactEmail); });
+          if (svcMatch) take(svcMatch.contactPerson, svcMatch.contactPhone, svcMatch.contactEmail);
+        }
+
+        if (!(result.name && result.phone && result.email)) {
+          var crmLeads = window.RevOpsStore ? (window.RevOpsStore.getCollection('leads') || []) : [];
+          var leadMatch = crmLeads.find(function(l) { return l && l.customerName === customerName; });
+          if (leadMatch) {
+            var primary = (leadMatch.contacts && leadMatch.contacts.length > 0) ? leadMatch.contacts[0] : null;
+            if (primary) take(primary.name, primary.phone, primary.email);
+            take(leadMatch.contactPerson, leadMatch.contactPhone, leadMatch.contactEmail);
+          }
+        }
+
+        return result;
+      }
+
       // Selecting a customer scopes Equipment Model to what's actually
-      // installed there, and auto-fills the primary contact on file for
-      // that client (Client Master) - staff can still edit it before
-      // saving, this just saves re-typing the common case.
+      // installed there, and auto-fills the best contact details found on
+      // file for that customer (Client Master, a past Service Lead, or a
+      // CRM Lead, in that order) - staff can still edit it before saving,
+      // this just saves re-typing the common case.
       function handleServiceCustomerChange() {
         var customerName = document.getElementById('inp-srv-customer').value;
         populateServiceModelOptions(customerName, '');
 
         if (!customerName) return;
-        var clients = window.RevOpsStore ? (window.RevOpsStore.getCollection('clientsMaster') || []) : [];
-        var client = clients.find(function(c) { return c && (c.clientName === customerName || c.name === customerName); });
-        if (!client) return;
+        var contact = findBestCustomerContact(customerName);
 
         var nameField = document.getElementById('inp-srv-contact-name');
         var phoneField = document.getElementById('inp-srv-contact-phone');
         var emailField = document.getElementById('inp-srv-contact-email');
-        if (nameField && !nameField.value.trim() && client.contactPerson) nameField.value = client.contactPerson;
-        if (phoneField && !phoneField.value.trim() && client.phone) phoneField.value = client.phone;
-        if (emailField && !emailField.value.trim() && client.email) emailField.value = client.email;
+        if (nameField && !nameField.value.trim() && contact.name) nameField.value = contact.name;
+        if (phoneField && !phoneField.value.trim() && contact.phone) phoneField.value = contact.phone;
+        if (emailField && !emailField.value.trim() && contact.email) emailField.value = contact.email;
       }
 
       function getServiceLeadsList() {
