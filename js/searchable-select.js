@@ -46,7 +46,26 @@
         },
         set: function (v) {
           desc.set.call(select, v);
-          try { instance.setValue(desc.get.call(select), true); } catch (e) {}
+          var actual = desc.get.call(select);
+          try {
+            // If the caller just appended a brand-new <option> and set
+            // .value= to it in the same synchronous tick (the standard
+            // "keep this record's saved value selectable even if it's
+            // fallen out of the current option list" pattern used across
+            // the app), the real underlying <select> already has the
+            // right value at this point - but Tom Select's own internal
+            // option cache doesn't know about that new <option> yet,
+            // since that only happens via the MutationObserver below,
+            // which runs asynchronously. setValue() then silently fails
+            // to visually select a value it doesn't recognize, even
+            // though the native select is already correct. Sync from the
+            // DOM right now, synchronously, whenever that's the case -
+            // cheap, and skipped entirely once the value is already known.
+            if (actual && !instance.options[actual]) {
+              instance.sync();
+            }
+            instance.setValue(actual, true);
+          } catch (e) {}
         }
       });
     } catch (e) {
