@@ -30,7 +30,13 @@ function isIgnorable(message) {
   return IGNORABLE_MESSAGE_PATTERNS.some(function (re) { return re.test(message); });
 }
 
+// Every standalone page in the app - originally just the 8 "core" ones,
+// widened to all of them after noticing the other 26 had zero automated
+// coverage: a missing script tag or dangling element id on any of these
+// would previously only surface when a user happened to click into that
+// specific page.
 const PAGES_TO_CHECK = [
+  'index.html',
   'login.html',
   'dashboard.html',
   'expenses.html',
@@ -38,7 +44,32 @@ const PAGES_TO_CHECK = [
   'approvals.html',
   'quotations.html',
   'invoices.html',
-  'attendance.html'
+  'attendance.html',
+  'amc-contracts.html',
+  'amc-invoices.html',
+  'amc-orders.html',
+  'amc-quotes.html',
+  'aop-targets.html',
+  'audit-logs.html',
+  'demo-playbook.html',
+  'dwm.html',
+  'kra-targets.html',
+  'leads.html',
+  'master-data.html',
+  'my-scorecard.html',
+  'my-team.html',
+  'orders.html',
+  'parts-sales.html',
+  'payments.html',
+  'payroll.html',
+  'reports.html',
+  'reviews.html',
+  'service-leads.html',
+  'service-tickets.html',
+  'sop.html',
+  'support-tickets.html',
+  'user-guide.html',
+  'warranty-management.html'
 ];
 
 async function checkPage(browser, path) {
@@ -117,7 +148,10 @@ async function checkTravelClaimFlow(browser) {
 }
 
 (async () => {
-  const browser = await chromium.launch();
+  // Local/dev override only - CI always installs the exact matching
+  // browser via `npx playwright install`, so this stays unset there and
+  // chromium.launch() uses its normal default.
+  const browser = await chromium.launch(process.env.PLAYWRIGHT_CHROMIUM_PATH ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH } : {});
   let allErrors = [];
 
   for (const p of PAGES_TO_CHECK) {
