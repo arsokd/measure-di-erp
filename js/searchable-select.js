@@ -107,6 +107,24 @@
 
       if (select.disabled) instance.disable();
 
+      // Every cascading-dropdown feature in this app (pick a customer,
+      // scope the next field to it, auto-fill a third from a lookup, ...)
+      // is wired through a plain onchange="..." attribute on the real
+      // <select>, which only fires from a genuine native 'change' Event.
+      // Whether Tom Select's own UI reliably dispatches one when the user
+      // clicks an option (as opposed to only updating its own internal
+      // display) isn't something to leave to chance - especially with
+      // bridgeValueProperty below overriding this select's `value`
+      // property, which could plausibly intercept part of Tom Select's own
+      // internal sync path. Firing a real event here on every value change
+      // Tom Select itself reports guarantees onchange handlers actually
+      // run; setValue(..., true) calls elsewhere (silent, used to mirror
+      // an external .value= write back into Tom Select's UI) don't fire
+      // this, so it doesn't loop back on itself.
+      instance.on('change', function () {
+        select.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+
       watchForOptionChanges(select, instance);
       bridgeValueProperty(select, instance);
     } catch (e) {
