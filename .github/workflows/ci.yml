@@ -35,3 +35,6 @@ jobs:
 
       - name: Run smoke tests
         run: node scripts/smoke-test.js http://localhost:8099
+
+      - name: Run regression tests
+        run: node scripts/regression-test.js http://localhost:8099
