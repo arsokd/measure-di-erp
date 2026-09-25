@@ -604,6 +604,29 @@ async function testVerticalListConsistency(browser) {
   await checkPageOptions('employees.html', 'inp-vertical', function () { openEmployeeModal(); }, 'Employee Vertical');
   await checkPageOptions('orders.html', 'inp-ord-vertical', function () { openOrderModal(); }, 'Order Vertical');
   await checkPageOptions('warranty-management.html', 'inp-warr-vertical', function () { openNewWarrantyModal(); }, 'Warranty Vertical');
+  await checkPageOptions('leads.html', 'inp-lead-industry', function () { openLeadModal(); }, 'Lead Industry Vertical');
+
+  // Industry Vertical and Vertical Classification are two separate fields
+  // on the same Add Lead form that both mean "vertical" - they must show
+  // literally the same option list (same master collection), not just
+  // the same 4 names independently, or they can drift in wording again.
+  // (Page/modal already open from the checkPageOptions call above.)
+  var leadDualFieldResult = await page.evaluate(function () {
+    var industryOpts = Array.from(document.getElementById('inp-lead-industry').options).map(function (o) { return o.value; });
+    var classOpts = Array.from(document.getElementById('inp-lead-vertical').options).map(function (o) { return o.value; });
+    document.getElementById('inp-lead-industry').value = 'Onboard';
+    handleIndustryChange();
+    return {
+      classOptions: classOpts,
+      identical: JSON.stringify(industryOpts) === JSON.stringify(classOpts),
+      syncedVertical: document.getElementById('inp-lead-vertical').value
+    };
+  });
+  expectedOptions.forEach(function (opt) {
+    assertIncludes(leadDualFieldResult.classOptions, opt, 'Lead Vertical Classification: has "' + opt + '" option', failures);
+  });
+  assertTrue(leadDualFieldResult.identical, 'Lead form: Industry Vertical and Vertical Classification show the exact same option list', failures);
+  assertEqual(leadDualFieldResult.syncedVertical, 'Onboard', 'Lead form: picking Industry Vertical auto-syncs Vertical Classification', failures);
 
   // Leads' own vertical filter (browsing the table, not the create form)
   // reads the same master list and must offer all 4 - it was previously a

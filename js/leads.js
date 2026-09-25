@@ -1,6 +1,19 @@
 var currentLeadContacts = [];
       var currentLeadProducts = [];
 
+      // Maps older wording ("Project", "Spare/Service" - from before
+      // Industry Vertical and Vertical Classification both read the same
+      // master list) onto the current Vertical Classification names, so an
+      // existing lead saved under the old wording still shows up selected
+      // instead of coming up blank.
+      function normalizeVerticalClassification(raw) {
+        var v = (raw || '').trim();
+        if (!v) return '';
+        if (/service|parts|spare/i.test(v)) return 'Service and Parts';
+        if (/project/i.test(v)) return 'Projects';
+        return v;
+      }
+
       document.addEventListener('DOMContentLoaded', function() {
         if (checkAuth(['admin', 'manager', 'staff'])) {
           initLeadsPage();
@@ -66,7 +79,16 @@ var currentLeadContacts = [];
         }
 
         fillSelect('inp-lead-source', 'leadSourceMaster');
-        fillSelect('inp-lead-industry', 'industryVerticalMaster');
+        // Industry Vertical now reads the SAME Master Data > Vertical
+        // Classification list as the Vertical Classification field just
+        // below it (used to read from a separate, older
+        // industryVerticalMaster list that had drifted to different
+        // wording - "Project"/"Spare/Service" vs "Projects"/"Service and
+        // Parts" - which is exactly the two-different-lists-on-one-form
+        // confusion this was meant to eliminate). getProductsForLeadCascade
+        // above already stopped using this field's value for anything but
+        // display/auto-suggest, so reading the same list here is safe.
+        fillSelect('inp-lead-industry', 'verticalClassificationMaster');
         fillSelect('inp-project-sector', 'projectSectorMaster');
         fillSelect('inp-lead-vertical', 'verticalClassificationMaster');
 
@@ -316,18 +338,19 @@ var currentLeadContacts = [];
       function handleIndustryChange() {
         var ind = document.getElementById('inp-lead-industry').value;
         var sectorBox = document.getElementById('project-sector-box');
-        if (ind === 'Project') {
+        if (ind === 'Projects') {
           sectorBox.classList.remove('hidden');
         } else {
           sectorBox.classList.add('hidden');
         }
 
-        // Suggest default vertical match
+        // Industry Vertical and Vertical Classification read the same
+        // master list now, so they're always the same set of choices -
+        // just keep Vertical Classification in sync with whatever was
+        // picked here, instead of a hardcoded old-wording -> new-wording
+        // mapping that only worked because the two lists used to differ.
         var vertSelect = document.getElementById('inp-lead-vertical');
-        if (ind === 'Project') vertSelect.value = 'Projects';
-        else if (ind === 'Onboard') vertSelect.value = 'Onboard';
-        else if (ind === 'Crane') vertSelect.value = 'Crane';
-        else if (ind === 'Spare/Service') vertSelect.value = 'Service and Parts';
+        if (ind) vertSelect.value = ind;
         handleVerticalChange();
       }
 
@@ -544,7 +567,7 @@ var currentLeadContacts = [];
             <td class="py-3 px-4">
               <div class="font-bold text-white">${escapeHtml(l.customerName)}</div>
               <div class="text-[10px] text-slate-400 mt-0.5 flex items-center gap-1">
-                <span class="text-amber-400">${escapeHtml(l.industry || 'Project')}</span>
+                <span class="text-amber-400">${escapeHtml(normalizeVerticalClassification(l.industry) || 'Projects')}</span>
                 ${l.projectSector ? `<span class="text-slate-500">&bull;</span> <span>${escapeHtml(l.projectSector)}</span>` : ''}
               </div>
             </td>
@@ -603,8 +626,8 @@ var currentLeadContacts = [];
           document.getElementById('lead-doc-id').value = leadData.id;
           document.getElementById('inp-lead-customer').value = leadData.customerName || '';
           document.getElementById('inp-lead-source').value = leadData.leadSource || 'Direct Customer Approach';
-          document.getElementById('inp-lead-industry').value = leadData.industry || 'Project';
-          
+          document.getElementById('inp-lead-industry').value = normalizeVerticalClassification(leadData.industry) || 'Projects';
+
           handleIndustryChange();
           if (leadData.projectSector) {
             var sectSelect = document.getElementById('inp-project-sector');
@@ -616,7 +639,7 @@ var currentLeadContacts = [];
             }
           }
 
-          document.getElementById('inp-lead-vertical').value = leadData.vertical || 'Projects';
+          document.getElementById('inp-lead-vertical').value = normalizeVerticalClassification(leadData.vertical) || 'Projects';
 
           // Load products
           if (leadData.products && Array.isArray(leadData.products) && leadData.products.length > 0) {
@@ -653,7 +676,7 @@ var currentLeadContacts = [];
         } else {
           document.getElementById('lead-modal-title').innerHTML = `<i class="fa-solid fa-file-signature text-[#E283BD]"></i> <span>Add New Commercial Lead</span>`;
           document.getElementById('lead-doc-id').value = '';
-          document.getElementById('inp-lead-industry').value = 'Project';
+          document.getElementById('inp-lead-industry').value = 'Projects';
           handleIndustryChange();
           document.getElementById('inp-lead-vertical').value = 'Projects';
           // Explicit, not left to form.reset()'s default-option guess -

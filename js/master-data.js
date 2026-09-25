@@ -421,7 +421,7 @@ var activeMasterTab = 'products';
               <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">Industry Vertical</label>
               <select id="inp-rec-industryvertical" class="w-full px-3 py-2 bg-slate-950 border border-slate-750 rounded-xl text-xs font-semibold text-white">
                 <option value="">-- Any --</option>
-                ${optionsHtmlForMaster('industryVerticalMaster', d.industryVertical)}
+                ${optionsHtmlForMaster('verticalClassificationMaster', d.industryVertical)}
               </select>
             </div>
             <div>

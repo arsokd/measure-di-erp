@@ -769,7 +769,13 @@ Object.assign(window.RevOpsStore, {
       'Ariba', 'OEM', 'Mail Marketing / Digital Marketing', 'Direct Customer Approach', 'Exhibition / Trade Fair'
     ]);
 
-    seedIfEmpty('industryVerticalMaster', ['Project', 'Onboard', 'Crane', 'Spare/Service']);
+    // No longer read by the Lead form or Products Master (both now read
+    // verticalClassificationMaster directly, for one single uniform
+    // vertical list instead of two that could drift apart in wording).
+    // Left seeded, with matching wording, only so its still-visible
+    // Master Data tab doesn't show stale "Project"/"Spare/Service" names
+    // for old data if anyone opens it.
+    seedIfEmpty('industryVerticalMaster', ['Projects', 'Onboard', 'Crane', 'Service and Parts']);
 
     seedIfEmpty('projectSectorMaster', [
       'Steel', 'Cement', 'Power Plant', 'Infrastructure (Roads & Highways)', 'Mining', 'Other Industries'
