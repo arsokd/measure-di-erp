@@ -605,6 +605,52 @@ async function testVerticalListConsistency(browser) {
   await checkPageOptions('orders.html', 'inp-ord-vertical', function () { openOrderModal(); }, 'Order Vertical');
   await checkPageOptions('warranty-management.html', 'inp-warr-vertical', function () { openNewWarrantyModal(); }, 'Warranty Vertical');
 
+  // Leads' own vertical filter (browsing the table, not the create form)
+  // reads the same master list and must offer all 4 - it was previously a
+  // static 3-item list that couldn't even filter down to "Service and
+  // Parts" leads at all.
+  await page.goto(BASE_URL + '/leads.html', { waitUntil: 'networkidle', timeout: 30000 });
+  await page.waitForTimeout(600);
+  var leadFilterOptions = await page.evaluate(function () {
+    var el = document.getElementById('lead-vertical-filter');
+    return el ? Array.from(el.options).map(function (o) { return o.value; }) : null;
+  });
+  assertTrue(!!leadFilterOptions, 'Leads vertical filter: select exists', failures);
+  if (leadFilterOptions) {
+    expectedOptions.forEach(function (opt) {
+      assertIncludes(leadFilterOptions, opt, 'Leads vertical filter: has "' + opt + '" option', failures);
+    });
+  }
+
+  // AOP revenue-bucket dropdowns (Dashboard x2, KRA Targets, Expenses x2)
+  // are a separate, coarser concept from Vertical Classification - kept as
+  // their own 3-way Sales/Service&Parts/Projects list (+ Overhead on
+  // Expenses) rather than switched to the 4-way list, since these values
+  // are AOP revenue-bucket keys, not equipment classifications. But their
+  // *label* for the Service/Parts bucket had drifted to three different
+  // wordings ("Service & Spares", "Service/Parts", "Service/Parts
+  // Vertical") across pages - normalized to a single consistent "Service &
+  // Parts" (Vertical)" everywhere it appears.
+  var aopBucketSpots = [
+    ['dashboard.html', 'dash-vertical-select', 'Service/Parts'],
+    ['dashboard.html', 'funnel-vertical-select', 'Service/Parts'],
+    ['kra-targets.html', 'inp-kra-aopline', 'Service/Parts'],
+    ['expenses.html', 'flt-vertical', 'Service/Parts'],
+    ['expenses.html', 'flt-project-vertical', 'Service/Parts']
+  ];
+  for (var i = 0; i < aopBucketSpots.length; i++) {
+    var spot = aopBucketSpots[i];
+    await page.goto(BASE_URL + '/' + spot[0], { waitUntil: 'networkidle', timeout: 30000 });
+    await page.waitForTimeout(500);
+    var labelText = await page.evaluate(function (args) {
+      var el = document.getElementById(args.selectId);
+      if (!el) return null;
+      var opt = Array.from(el.options).find(function (o) { return o.value === args.value; });
+      return opt ? opt.textContent : null;
+    }, { selectId: spot[1], value: spot[2] });
+    assertTrue(!!labelText && labelText.indexOf('Service & Parts') !== -1, spot[0] + ' ' + spot[1] + ': Service/Parts label reads "Service & Parts", got "' + labelText + '"', failures);
+  }
+
   // Legacy wording on an existing Equipment Master record ("Service/Parts",
   // pre-switch) should still auto-fill the ticket's Vertical field to the
   // new canonical "Service and Parts" option, not come up blank.
