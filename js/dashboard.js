@@ -9,6 +9,24 @@
       var customStartDate = null;
       var customEndDate = null;
 
+      // Classifies a record's Vertical Classification value (Projects /
+      // Onboard / Crane / Service and Parts - Master Data's
+      // verticalClassificationMaster, same list Sales Leads uses) down
+      // into the 3-way AOP revenue-line bucket this dashboard reports
+      // against (Sales / Service/Parts / Projects). Onboard and Crane are
+      // both equipment-sale product lines, same as Projects conceptually,
+      // but AOP tracks them together under "Sales" rather than as their
+      // own revenue lines - matches how aop-targets.js already buckets
+      // won orders. Checking "Service"/"Parts" before "Project" matters:
+      // it's what correctly catches "Service and Parts" and the legacy
+      // "Spare/Service" wording without a Projects-vs-Service ordering bug.
+      function classifyVerticalForAopBucket(raw) {
+        var v = raw || 'Sales';
+        if (v.indexOf('Service') !== -1 || v.indexOf('Parts') !== -1) return 'Service/Parts';
+        if (v.indexOf('Project') !== -1) return 'Projects';
+        return 'Sales';
+      }
+
       // Currency Formatting Helper
       if (typeof formatINR === 'undefined') {
         window.formatINR = function(val) {
@@ -380,10 +398,7 @@
 
             // Vertical Filter
             if (selectedVertical !== 'All') {
-              var rawV = ord.vertical || 'Sales';
-              var normV = 'Sales';
-              if (rawV.indexOf('Projects') !== -1 && rawV.indexOf('Service') === -1) normV = 'Projects';
-              else if (rawV !== 'Sales') normV = 'Service/Parts';
+              var normV = classifyVerticalForAopBucket(ord.vertical);
               if (normV !== selectedVertical) return false;
             }
 
@@ -414,10 +429,7 @@
               tot += val;
 
               // Vertical
-              var rawV = ord.vertical || "Sales";
-              var vName = "Sales";
-              if (rawV.indexOf("Projects") !== -1 && rawV.indexOf("Service") === -1) vName = "Projects";
-              else if (rawV !== "Sales") vName = "Service/Parts";
+              var vName = classifyVerticalForAopBucket(ord.vertical);
               vertMap[vName] = (vertMap[vName] || 0) + val;
 
               // Employee Share — split exactly per the Sales Contribution
@@ -471,10 +483,7 @@
             }
           }
           if (selectedVertical !== 'All') {
-            var rawV = l.vertical || 'Sales';
-            if (selectedVertical === 'Sales' && rawV !== 'Sales') return false;
-            if (selectedVertical === 'Projects' && rawV.indexOf('Projects') === -1) return false;
-            if (selectedVertical === 'Service/Parts' && rawV.indexOf('Service') === -1 && rawV.indexOf('Parts') === -1) return false;
+            if (classifyVerticalForAopBucket(l.vertical) !== selectedVertical) return false;
           }
           if (selectedEmpId !== 'All' && l.employeeId !== selectedEmpId) return false;
           return true;
@@ -846,11 +855,7 @@
 
           // Vertical Filter
           if (selectedVertical !== 'All') {
-            var rawV = ord.vertical || 'Sales';
-            var normV = 'Sales';
-            if (rawV.indexOf('Projects') !== -1 && rawV.indexOf('Service') === -1) normV = 'Projects';
-            else if (rawV !== 'Sales') normV = 'Service/Parts';
-            if (normV !== selectedVertical) return;
+            if (classifyVerticalForAopBucket(ord.vertical) !== selectedVertical) return;
           }
 
           var contribs = window.RevOpsStore.getOrderContributions(ord);

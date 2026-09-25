@@ -141,18 +141,12 @@ async function testSlaDayBasedSeedingAndMigration(browser) {
 }
 
 // ---------------------------------------------------------------------
-// Quotation "Spare/Service" vertical + ticket email subject line
+// Ticket email subject line. (The Quotation vertical dropdown's option
+// list is covered by testVerticalListConsistency below.)
 // ---------------------------------------------------------------------
 async function testQuotationVerticalAndTicketSubject(browser) {
   const failures = [];
   const { page } = await newPage(browser);
-
-  await page.goto(BASE_URL + '/quotations.html', { waitUntil: 'networkidle', timeout: 30000 });
-  await page.waitForTimeout(600);
-  const verticalOptions = await page.evaluate(function () {
-    return Array.from(document.getElementById('inp-quote-vertical').options).map(function (o) { return o.value; });
-  });
-  assertIncludes(verticalOptions, 'Spare/Service', 'Quotation vertical dropdown: has Spare/Service option', failures);
 
   await page.goto(BASE_URL + '/service-tickets.html', { waitUntil: 'networkidle', timeout: 30000 });
   await page.waitForTimeout(600);
@@ -566,16 +560,107 @@ async function testInvoiceAmountInWords(browser) {
   return failures;
 }
 
+// ---------------------------------------------------------------------
+// Vertical field consistency: every Vertical dropdown app-wide (Service
+// Tickets, Quotations, Invoices, Employees, Orders, Warranty) now reads
+// the same Master Data > Vertical Classification list Sales Leads uses,
+// instead of each page hardcoding its own (different, incomplete) list.
+// Also covers: legacy wording ("Service/Parts") on existing equipment
+// records still auto-fills correctly against the new option list, and
+// the dashboard's AOP revenue-bucket classifier still buckets the wider
+// list (Onboard/Crane) as "Sales" rather than mis-filing it under
+// "Service/Parts".
+// ---------------------------------------------------------------------
+async function testVerticalListConsistency(browser) {
+  const failures = [];
+  const { page } = await newPage(browser);
+
+  var expectedOptions = ['Projects', 'Onboard', 'Crane', 'Service and Parts'];
+
+  async function checkPageOptions(path, selectId, openModalFn, label) {
+    await page.goto(BASE_URL + '/' + path, { waitUntil: 'networkidle', timeout: 30000 });
+    await page.waitForTimeout(600);
+    if (openModalFn) {
+      await page.evaluate(openModalFn);
+      await page.waitForTimeout(300);
+    }
+    var options = await page.evaluate(function (id) {
+      var el = document.getElementById(id);
+      return el ? Array.from(el.options).map(function (o) { return o.value; }) : null;
+    }, selectId);
+    assertTrue(!!options, label + ': select exists (' + selectId + ')', failures);
+    if (options) {
+      expectedOptions.forEach(function (opt) {
+        assertIncludes(options, opt, label + ': has "' + opt + '" option', failures);
+      });
+    }
+  }
+
+  // Service Tickets populates its Vertical dropdown at page load already
+  // (not just on modal open), so no explicit open-modal call needed there.
+  await checkPageOptions('service-tickets.html', 'input-vertical', null, 'Service Ticket Vertical');
+  await checkPageOptions('quotations.html', 'inp-quote-vertical', function () { openQuoteModal(); }, 'Quotation Vertical');
+  await checkPageOptions('invoices.html', 'inp-inv-vertical', function () { openInvoiceModal(); }, 'Invoice Vertical');
+  await checkPageOptions('employees.html', 'inp-vertical', function () { openEmployeeModal(); }, 'Employee Vertical');
+  await checkPageOptions('orders.html', 'inp-ord-vertical', function () { openOrderModal(); }, 'Order Vertical');
+  await checkPageOptions('warranty-management.html', 'inp-warr-vertical', function () { openNewWarrantyModal(); }, 'Warranty Vertical');
+
+  // Legacy wording on an existing Equipment Master record ("Service/Parts",
+  // pre-switch) should still auto-fill the ticket's Vertical field to the
+  // new canonical "Service and Parts" option, not come up blank.
+  await page.goto(BASE_URL + '/service-tickets.html', { waitUntil: 'networkidle', timeout: 30000 });
+  await page.waitForTimeout(600);
+  var autofillResult = await page.evaluate(function () {
+    window.RevOpsStore.saveCollection('clientsMaster', [{ id: 'c1', clientName: 'Legacy Vertical Test Co' }]);
+    window.RevOpsStore.saveCollection('clientEquipmentMaster', [
+      { id: 'e1', customerName: 'Legacy Vertical Test Co', modelName: 'Legacy Test Model', serialNumber: 'EQ-LEGACY-01', vertical: 'Service/Parts', warrantyStatus: 'AMC Contract' }
+    ]);
+    populateCustomerDropdown();
+    document.getElementById('input-customer-name').value = 'Legacy Vertical Test Co';
+    handleCustomerSelectChange('Legacy Vertical Test Co');
+    document.getElementById('input-equipment-model').value = 'Legacy Test Model';
+    handleModelSelectChange('Legacy Test Model');
+    document.getElementById('input-equipment-serial').value = 'EQ-LEGACY-01';
+    handleSerialSelectChange('EQ-LEGACY-01');
+    return document.getElementById('input-vertical').value;
+  }).catch(function (e) { return 'ERROR: ' + e.message; });
+  assertEqual(autofillResult, 'Service and Parts', 'Service Ticket: legacy "Service/Parts" equipment tag normalizes to "Service and Parts" on auto-fill', failures);
+
+  // Dashboard's AOP revenue-bucket classifier: Onboard/Crane orders count
+  // as "Sales" (equipment sale), not mis-filed under "Service/Parts".
+  await page.goto(BASE_URL + '/dashboard.html', { waitUntil: 'networkidle', timeout: 30000 });
+  await page.waitForTimeout(600);
+  var bucketResult = await page.evaluate(function () {
+    if (typeof classifyVerticalForAopBucket !== 'function') return { error: 'classifyVerticalForAopBucket not defined' };
+    return {
+      onboard: classifyVerticalForAopBucket('Onboard'),
+      crane: classifyVerticalForAopBucket('Crane'),
+      projects: classifyVerticalForAopBucket('Projects'),
+      serviceAndParts: classifyVerticalForAopBucket('Service and Parts'),
+      legacySpareService: classifyVerticalForAopBucket('Spare/Service')
+    };
+  });
+  assertEqual(bucketResult.onboard, 'Sales', 'AOP bucket: Onboard classifies as Sales', failures);
+  assertEqual(bucketResult.crane, 'Sales', 'AOP bucket: Crane classifies as Sales', failures);
+  assertEqual(bucketResult.projects, 'Projects', 'AOP bucket: Projects classifies as Projects', failures);
+  assertEqual(bucketResult.serviceAndParts, 'Service/Parts', 'AOP bucket: Service and Parts classifies as Service/Parts', failures);
+  assertEqual(bucketResult.legacySpareService, 'Service/Parts', 'AOP bucket: legacy "Spare/Service" wording still classifies as Service/Parts', failures);
+
+  await page.close();
+  return failures;
+}
+
 const TESTS = [
   ['SLA day-based seeding, migration, severity dropdown & date math', testSlaDayBasedSeedingAndMigration],
-  ['Quotation Spare/Service vertical & ticket email subject', testQuotationVerticalAndTicketSubject],
+  ['Ticket email subject line', testQuotationVerticalAndTicketSubject],
   ['Service Lead customer dropdown scope & contact cascade', testServiceLeadCustomerCascade],
   ['AMC Quote customer -> site cascade', testAmcQuoteSiteCascade],
   ['AMC Order customer/quote cascade, deep link & save', testAmcOrderCascadeAndSave],
   ['AMC Invoice cascade, "Others" toggle & GSTIN leak fix', testAmcInvoiceCascadeAndGstinLeak],
   ['Client Master phone field', testClientMasterPhoneField],
   ['Service Lead "Raise Ticket" / "Generate Quotation" links', testServiceLeadActionLinks],
-  ['Invoice "Amount in Words"', testInvoiceAmountInWords]
+  ['Invoice "Amount in Words"', testInvoiceAmountInWords],
+  ['Vertical list consistency app-wide + AOP bucket classification', testVerticalListConsistency]
 ];
 
 (async () => {

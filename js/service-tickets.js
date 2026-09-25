@@ -106,6 +106,39 @@ var currentViewMode = 'table';
         populateCustomerDropdown();
         populateComplaintCategoryDropdown();
         populateSeverityDropdown();
+        populateVerticalDropdown();
+      }
+
+      // Vertical — same Master Data > Vertical Classification list Sales
+      // Leads uses (Projects / Onboard / Crane / Service and Parts), so a
+      // ticket's vertical always lines up with how the same customer's
+      // lead/quote/order was classified. Older records (and the Equipment
+      // Master's own vertical tag) may still carry the old 3-way wording
+      // ("Service/Parts", "Spare/Service") from before this switch -
+      // normalizeVerticalClassification maps those onto the new list so
+      // existing data keeps auto-filling correctly instead of coming up
+      // blank.
+      function normalizeVerticalClassification(raw) {
+        var v = (raw || '').trim();
+        if (!v) return '';
+        if (/service|parts|spare/i.test(v)) return 'Service and Parts';
+        if (/project/i.test(v)) return 'Projects';
+        return v;
+      }
+
+      function populateVerticalDropdown() {
+        var select = document.getElementById('input-vertical');
+        if (!select) return;
+        var items = (window.RevOpsStore.getCollection('verticalClassificationMaster') || []).filter(function(it) { return it.isActive !== false; });
+        var currentVal = normalizeVerticalClassification(select.value);
+        select.innerHTML = items.map(function(it) {
+          return '<option value="' + escapeHtml(it.name) + '">' + escapeHtml(it.name) + '</option>';
+        }).join('');
+        if (currentVal && items.some(function(it) { return it.name === currentVal; })) {
+          select.value = currentVal;
+        } else if (items.some(function(it) { return it.name === 'Service and Parts'; })) {
+          select.value = 'Service and Parts';
+        }
       }
 
       // Complaint Category — admin-editable via Master Data > Complaint
@@ -305,7 +338,7 @@ var currentViewMode = 'table';
           var warr = selOpt.getAttribute('data-warranty');
           var vert = selOpt.getAttribute('data-vertical');
           if (warr && document.getElementById('input-warranty')) document.getElementById('input-warranty').value = warr;
-          if (vert && document.getElementById('input-vertical')) document.getElementById('input-vertical').value = vert;
+          if (vert && document.getElementById('input-vertical')) document.getElementById('input-vertical').value = normalizeVerticalClassification(vert);
         }
 
         // TASK 10: 10-Day Repeat Complaint Detection

@@ -472,6 +472,34 @@ var currentTab = 'All';
         }
       }
 
+      // Vertical — same Master Data > Vertical Classification list Sales
+      // Leads uses. Older invoices may still carry the pre-switch wording
+      // ("Sales", "Service/Parts"); normalizeVerticalClassification maps
+      // those onto the current list so an old invoice's saved vertical
+      // still shows up selected instead of coming up blank.
+      function normalizeVerticalClassification(raw) {
+        var v = (raw || '').trim();
+        if (!v) return '';
+        if (/service|parts|spare/i.test(v)) return 'Service and Parts';
+        if (/project/i.test(v)) return 'Projects';
+        return v;
+      }
+
+      function populateInvoiceVerticalDropdown() {
+        var select = document.getElementById('inp-inv-vertical');
+        if (!select) return;
+        var items = (window.RevOpsStore.getCollection('verticalClassificationMaster') || []).filter(function(it) { return it.isActive !== false; });
+        var currentVal = normalizeVerticalClassification(select.value);
+        select.innerHTML = items.map(function(it) {
+          return '<option value="' + escapeHtml(it.name) + '">' + escapeHtml(it.name) + '</option>';
+        }).join('');
+        if (currentVal && items.some(function(it) { return it.name === currentVal; })) {
+          select.value = currentVal;
+        } else if (items.some(function(it) { return it.name === 'Projects'; })) {
+          select.value = 'Projects';
+        }
+      }
+
       function openInvoiceModal() {
         document.getElementById('inv-doc-id').value = "";
         document.getElementById('invoice-modal-title').innerText = "Raise Commercial Invoice";
@@ -479,7 +507,7 @@ var currentTab = 'All';
 
         document.getElementById('inp-inv-number').value = window.RevOpsStore.generateNextInvoiceNumber(false);
         document.getElementById('inp-inv-type').value = "Tax Invoice";
-        document.getElementById('inp-inv-vertical').value = "Sales";
+        populateInvoiceVerticalDropdown();
         document.getElementById('inp-inv-customer').value = "";
         document.getElementById('inp-inv-gstin').value = "";
         document.getElementById('inp-inv-email').value = "";
@@ -605,7 +633,7 @@ var currentTab = 'All';
         document.getElementById('inp-inv-gstin').value = q.customerGstin || '';
         document.getElementById('inp-inv-email').value = q.customerEmail || '';
         document.getElementById('inp-inv-contact').value = (q.customerContactPerson || '') + (q.customerPhone ? ' / ' + q.customerPhone : '');
-        document.getElementById('inp-inv-vertical').value = q.vertical || 'Sales';
+        document.getElementById('inp-inv-vertical').value = normalizeVerticalClassification(q.vertical) || 'Projects';
         
         var tbody = document.getElementById('invoice-items-tbody');
         tbody.innerHTML = "";
@@ -668,7 +696,7 @@ var currentTab = 'All';
         document.getElementById('inp-inv-gstin').value = ord.customerGstin || '';
         document.getElementById('inp-inv-email').value = ord.customerEmail || (ord.contactEmail || '');
         document.getElementById('inp-inv-contact').value = (ord.contactPerson || '') + (ord.contactPhone ? ' / ' + ord.contactPhone : '');
-        document.getElementById('inp-inv-vertical').value = ord.vertical || 'Sales';
+        document.getElementById('inp-inv-vertical').value = normalizeVerticalClassification(ord.vertical) || 'Projects';
         
         var poRefStr = (ord.poNumber || ord.orderId || '') + (ord.poDate ? ' dt. ' + ord.poDate : '');
         document.getElementById('inp-inv-poref').value = poRefStr;
@@ -906,7 +934,8 @@ var currentTab = 'All';
         document.getElementById('invoice-modal-title').innerText = "Edit Commercial Invoice";
         document.getElementById('inp-inv-number').value = inv.invoiceNumber;
         document.getElementById('inp-inv-type').value = inv.invoiceType || 'Tax Invoice';
-        document.getElementById('inp-inv-vertical').value = inv.vertical || 'Sales';
+        populateInvoiceVerticalDropdown();
+        document.getElementById('inp-inv-vertical').value = normalizeVerticalClassification(inv.vertical) || 'Projects';
         document.getElementById('inp-inv-customer').value = inv.customerName;
         document.getElementById('inp-inv-gstin').value = inv.customerGstin || '';
         document.getElementById('inp-inv-email').value = inv.customerEmail || '';

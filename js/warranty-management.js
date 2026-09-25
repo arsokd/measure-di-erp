@@ -244,12 +244,40 @@ var activeWarranties = [];
         });
       }
 
+      // Vertical — same Master Data > Vertical Classification list Sales
+      // Leads uses. normalizeVerticalClassification maps older wording
+      // onto the current list so an existing warranty record's saved
+      // vertical still shows up selected instead of coming up blank.
+      function normalizeVerticalClassification(raw) {
+        var v = (raw || '').trim();
+        if (!v) return '';
+        if (/service|parts|spare/i.test(v)) return 'Service and Parts';
+        if (/project/i.test(v)) return 'Projects';
+        return v;
+      }
+
+      function populateWarrantyVerticalDropdown() {
+        var select = document.getElementById('inp-warr-vertical');
+        if (!select) return;
+        var items = (window.RevOpsStore.getCollection('verticalClassificationMaster') || []).filter(function(it) { return it.isActive !== false; });
+        var currentVal = normalizeVerticalClassification(select.value);
+        select.innerHTML = items.map(function(it) {
+          return '<option value="' + escapeHtml(it.name) + '">' + escapeHtml(it.name) + '</option>';
+        }).join('');
+        if (currentVal && items.some(function(it) { return it.name === currentVal; })) {
+          select.value = currentVal;
+        } else if (items.some(function(it) { return it.name === 'Crane'; })) {
+          select.value = 'Crane';
+        }
+      }
+
       function openNewWarrantyModal() {
         var form = document.getElementById('warranty-form');
         form.reset();
         document.getElementById('warranty-doc-id').value = '';
         document.getElementById('warranty-modal-title').textContent = "Register Equipment Warranty";
-        
+        populateWarrantyVerticalDropdown();
+
         var today = new Date().toISOString().slice(0, 10);
         document.getElementById('inp-warr-comm-date').value = today;
         calculateWarrantyExpiryDate();
@@ -276,7 +304,8 @@ var activeWarranties = [];
         document.getElementById('inp-warr-tier').value = w.warrantyTier || 'Standard 12-Month OEM';
         document.getElementById('inp-warr-expiry-date').value = w.expiryDate || '';
         document.getElementById('inp-warr-location').value = w.location || '';
-        document.getElementById('inp-warr-vertical').value = w.vertical || 'Crane';
+        populateWarrantyVerticalDropdown();
+        document.getElementById('inp-warr-vertical').value = normalizeVerticalClassification(w.vertical) || 'Crane';
 
         document.getElementById('warranty-modal').classList.remove('hidden');
       }

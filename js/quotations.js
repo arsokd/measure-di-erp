@@ -617,10 +617,39 @@ var currentEditingQuoteId = null;
       }
 
       // MODAL CONTROLS & FORM LOGIC
+      // Vertical — same Master Data > Vertical Classification list Sales
+      // Leads uses. Older quotes may still carry the pre-switch wording
+      // ("Spare/Service"); normalizeVerticalClassification maps those onto
+      // the current list so an old quote's saved vertical still shows up
+      // selected instead of coming up blank.
+      function normalizeVerticalClassification(raw) {
+        var v = (raw || '').trim();
+        if (!v) return '';
+        if (/service|parts|spare/i.test(v)) return 'Service and Parts';
+        if (/project/i.test(v)) return 'Projects';
+        return v;
+      }
+
+      function populateQuoteVerticalDropdown() {
+        var select = document.getElementById('inp-quote-vertical');
+        if (!select) return;
+        var items = (window.RevOpsStore.getCollection('verticalClassificationMaster') || []).filter(function(it) { return it.isActive !== false; });
+        var currentVal = normalizeVerticalClassification(select.value);
+        select.innerHTML = items.map(function(it) {
+          return '<option value="' + escapeHtml(it.name) + '">' + escapeHtml(it.name) + '</option>';
+        }).join('');
+        if (currentVal && items.some(function(it) { return it.name === currentVal; })) {
+          select.value = currentVal;
+        } else if (items.some(function(it) { return it.name === 'Projects'; })) {
+          select.value = 'Projects';
+        }
+      }
+
       function openQuoteModal(quoteId, prefillLead) {
         currentEditingQuoteId = quoteId || null;
         var modal = document.getElementById('quoteModal');
         modal.classList.remove('hidden');
+        populateQuoteVerticalDropdown();
 
         // Populate Lead dropdown
         var leads = window.RevOpsStore.getCollection('leads') || [];
@@ -667,7 +696,7 @@ var currentEditingQuoteId = null;
             document.getElementById('inp-quote-email').value = q.email || '';
             document.getElementById('inp-quote-mobile').value = q.mobile || '';
             document.getElementById('inp-quote-cc').value = q.ccEmails || '';
-            document.getElementById('inp-quote-vertical').value = q.vertical || 'Projects';
+            document.getElementById('inp-quote-vertical').value = normalizeVerticalClassification(q.vertical) || 'Projects';
             document.getElementById('inp-quote-owner').value = q.employeeId || myEmpId;
             document.getElementById('inp-quote-address').value = q.address || '';
             document.getElementById('inp-quote-date').value = formatDateForInput(q.createdDate);
@@ -889,7 +918,7 @@ var currentEditingQuoteId = null;
         if (ccEl) ccEl.value = secondaryEmails.join(', ');
 
         // 3. Vertical Classification
-        var targetVertical = lead.vertical || 'Projects';
+        var targetVertical = normalizeVerticalClassification(lead.vertical) || 'Projects';
         var vertSelect = document.getElementById('inp-quote-vertical');
         if (vertSelect) {
           vertSelect.value = targetVertical;

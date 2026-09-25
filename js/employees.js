@@ -104,6 +104,35 @@ document.addEventListener('DOMContentLoaded', function() {
         }
       }
 
+      // Vertical — same Master Data > Vertical Classification list Sales
+      // Leads uses. Older employee records may still carry the pre-switch
+      // wording ("Sales", "Service/Parts", "Management" - which has no
+      // equivalent in the new list); normalizeVerticalClassification maps
+      // the recognizable ones onto the current list so an existing
+      // employee's saved vertical still shows up selected where possible.
+      function normalizeVerticalClassification(raw) {
+        var v = (raw || '').trim();
+        if (!v) return '';
+        if (/service|parts|spare/i.test(v)) return 'Service and Parts';
+        if (/project/i.test(v)) return 'Projects';
+        return v;
+      }
+
+      function populateEmployeeVerticalDropdown() {
+        var select = document.getElementById('inp-vertical');
+        if (!select) return;
+        var items = (window.RevOpsStore.getCollection('verticalClassificationMaster') || []).filter(function(it) { return it.isActive !== false; });
+        var currentVal = normalizeVerticalClassification(select.value);
+        select.innerHTML = items.map(function(it) {
+          return '<option value="' + escapeHtml(it.name) + '">' + escapeHtml(it.name) + '</option>';
+        }).join('');
+        if (currentVal && items.some(function(it) { return it.name === currentVal; })) {
+          select.value = currentVal;
+        } else if (items.some(function(it) { return it.name === 'Projects'; })) {
+          select.value = 'Projects';
+        }
+      }
+
       function openEmployeeModal() {
         document.getElementById('emp-doc-id').value = "";
         document.getElementById('emp-modal-title').innerText = "Add New Employee";
@@ -112,7 +141,7 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('inp-employee-id').value = "E-00" + (window.RevOpsStore.getCollection('employees').length + 1);
         document.getElementById('inp-full-name').value = "";
         document.getElementById('inp-designation').value = "";
-        document.getElementById('inp-vertical').value = "Sales";
+        populateEmployeeVerticalDropdown();
         document.getElementById('inp-sub-vertical').value = "";
         document.getElementById('inp-email').value = "";
         document.getElementById('inp-mobile').value = "";
@@ -163,7 +192,8 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('inp-employee-id').value = emp.employeeId;
         document.getElementById('inp-full-name').value = emp.fullName;
         document.getElementById('inp-designation').value = emp.designation;
-        document.getElementById('inp-vertical').value = emp.vertical;
+        populateEmployeeVerticalDropdown();
+        document.getElementById('inp-vertical').value = normalizeVerticalClassification(emp.vertical) || 'Projects';
         document.getElementById('inp-sub-vertical').value = emp.subVertical || '';
         document.getElementById('inp-email').value = emp.email;
         document.getElementById('inp-mobile').value = emp.mobile;

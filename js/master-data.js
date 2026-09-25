@@ -567,10 +567,7 @@ var activeMasterTab = 'products';
             <div>
               <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">Vertical</label>
               <select id="inp-rec-prjvertical" class="w-full px-3 py-2 bg-slate-950 border border-slate-750 rounded-xl text-xs text-white">
-                <option value="Projects">Projects</option>
-                <option value="Onboard">Onboard</option>
-                <option value="Crane">Crane</option>
-                <option value="Service and Parts">Service and Parts</option>
+                ${optionsHtmlForMaster('verticalClassificationMaster', d.vertical)}
               </select>
             </div>
             <div>

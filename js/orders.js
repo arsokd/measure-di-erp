@@ -401,7 +401,7 @@ var currentSplits = [];
           if (q.customerName) {
             document.getElementById('inp-ord-customer-select').value = q.customerName.trim();
           }
-          if (q.vertical) document.getElementById('inp-ord-vertical').value = q.vertical;
+          if (q.vertical) document.getElementById('inp-ord-vertical').value = normalizeVerticalClassification(q.vertical);
           document.getElementById('ord-lead-id').value = q.leadId || '';
 
           // Populate linkage details
@@ -481,12 +481,40 @@ var currentSplits = [];
         document.getElementById('po-viewer-modal').classList.add('hidden');
       }
 
+      // Vertical — same Master Data > Vertical Classification list Sales
+      // Leads uses. normalizeVerticalClassification maps older wording
+      // onto the current list so an existing order's saved vertical still
+      // shows up selected instead of coming up blank.
+      function normalizeVerticalClassification(raw) {
+        var v = (raw || '').trim();
+        if (!v) return '';
+        if (/service|parts|spare/i.test(v)) return 'Service and Parts';
+        if (/project/i.test(v)) return 'Projects';
+        return v;
+      }
+
+      function populateOrderVerticalDropdown() {
+        var select = document.getElementById('inp-ord-vertical');
+        if (!select) return;
+        var items = (window.RevOpsStore.getCollection('verticalClassificationMaster') || []).filter(function(it) { return it.isActive !== false; });
+        var currentVal = normalizeVerticalClassification(select.value);
+        select.innerHTML = items.map(function(it) {
+          return '<option value="' + escapeHtml(it.name) + '">' + escapeHtml(it.name) + '</option>';
+        }).join('');
+        if (currentVal && items.some(function(it) { return it.name === currentVal; })) {
+          select.value = currentVal;
+        } else if (items.some(function(it) { return it.name === 'Projects'; })) {
+          select.value = 'Projects';
+        }
+      }
+
       function openOrderModal(orderData, bookFromQuoteId) {
         currentSplits = [];
         activeSelectedQuote = null;
         var modal = document.getElementById('order-modal');
         var form = document.getElementById('order-form');
         form.reset();
+        populateOrderVerticalDropdown();
         removePOImageAttachment();
         document.getElementById('linkage-info-box').classList.add('hidden');
         applyQuoteLockToOrderForm(null);
@@ -502,7 +530,7 @@ var currentSplits = [];
 
           document.getElementById('inp-ord-ponum').value = orderData.poNumber || '';
           document.getElementById('inp-ord-podate').value = orderData.poDate || '';
-          document.getElementById('inp-ord-vertical').value = orderData.vertical || 'Projects';
+          document.getElementById('inp-ord-vertical').value = normalizeVerticalClassification(orderData.vertical) || 'Projects';
           document.getElementById('ord-lead-id').value = orderData.leadId || '';
 
           if (orderData.poFileData) {
