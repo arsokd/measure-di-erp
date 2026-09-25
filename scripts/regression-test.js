@@ -719,6 +719,47 @@ async function testVerticalListConsistency(browser) {
   return failures;
 }
 
+// ---------------------------------------------------------------------
+// Lead product line item Unit Price: pre-filled from Products Master but
+// editable, not locked - the team quotes the same product at different
+// prices for different customers, so a hard-locked master price was a
+// real workflow blocker, not just a UI nicety.
+// ---------------------------------------------------------------------
+async function testLeadProductPriceEditable(browser) {
+  const failures = [];
+  const { page } = await newPage(browser);
+
+  await page.goto(BASE_URL + '/leads.html', { waitUntil: 'networkidle', timeout: 30000 });
+  await page.waitForTimeout(600);
+  await page.evaluate(function () { openLeadModal(); });
+  await page.waitForTimeout(300);
+
+  const before = await page.evaluate(function () {
+    var input = document.querySelector('input[oninput*="unitPrice"]');
+    return input ? { exists: true, readonly: input.hasAttribute('readonly'), prefilled: Number(input.value) } : { exists: false };
+  });
+  assertTrue(before.exists, 'Lead product row: Unit Price input exists', failures);
+  if (before.exists) {
+    assertTrue(!before.readonly, 'Lead product row: Unit Price is NOT readonly (editable)', failures);
+    assertTrue(before.prefilled > 0, 'Lead product row: Unit Price is pre-filled from master (non-zero)', failures);
+  }
+
+  const after = await page.evaluate(function () {
+    var input = document.querySelector('input[oninput*="unitPrice"]');
+    input.value = '999999';
+    input.dispatchEvent(new Event('input'));
+    return {
+      storedPrice: currentLeadProducts[0] ? currentLeadProducts[0].unitPrice : null,
+      lineTotalText: document.querySelector('.lead-line-total-display') ? document.querySelector('.lead-line-total-display').innerText : null
+    };
+  });
+  assertEqual(after.storedPrice, 999999, 'Lead product row: manually entered price is stored', failures);
+  assertTrue(!!after.lineTotalText && after.lineTotalText.indexOf('9,99,999') !== -1, 'Lead product row: Line Total recalculates from the manually entered price, got "' + after.lineTotalText + '"', failures);
+
+  await page.close();
+  return failures;
+}
+
 const TESTS = [
   ['SLA day-based seeding, migration, severity dropdown & date math', testSlaDayBasedSeedingAndMigration],
   ['Ticket email subject line', testQuotationVerticalAndTicketSubject],
@@ -729,7 +770,8 @@ const TESTS = [
   ['Client Master phone field', testClientMasterPhoneField],
   ['Service Lead "Raise Ticket" / "Generate Quotation" links', testServiceLeadActionLinks],
   ['Invoice "Amount in Words"', testInvoiceAmountInWords],
-  ['Vertical list consistency app-wide + AOP bucket classification', testVerticalListConsistency]
+  ['Vertical list consistency app-wide + AOP bucket classification', testVerticalListConsistency],
+  ['Lead product Unit Price is pre-filled but editable', testLeadProductPriceEditable]
 ];
 
 (async () => {

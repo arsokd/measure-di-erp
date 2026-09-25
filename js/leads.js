@@ -273,8 +273,8 @@ var currentLeadContacts = [];
                 <input type="number" min="1" value="${prod.quantity || 1}" oninput="updateLeadProductField(${i}, 'quantity', this.value, this)" class="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white font-bold text-center focus:outline-none focus:border-indigo-500" />
               </div>
               <div>
-                <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Unit Price (₹, from master)</label>
-                <input type="number" value="${prod.unitPrice || 0}" readonly class="w-full px-2.5 py-1.5 bg-slate-950/60 border border-slate-800 rounded-lg text-xs text-slate-400 font-bold text-right cursor-not-allowed" />
+                <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Unit Price (₹, pre-filled from master - editable)</label>
+                <input type="number" min="0" value="${prod.unitPrice || 0}" oninput="updateLeadProductField(${i}, 'unitPrice', this.value, this)" class="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white font-bold text-right focus:outline-none focus:border-indigo-500" />
               </div>
               <div>
                 <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Line Total (₹)</label>
