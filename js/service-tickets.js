@@ -1609,7 +1609,7 @@ Service & Quality Assurance Division`;
         var originalText = btn ? btn.innerHTML : '';
         if (btn) {
           btn.disabled = true;
-          btn.innerHTML = `<span>⏳ Dispatching via Brevo...</span>`;
+          btn.innerHTML = `<span>⏳ Dispatching...</span>`;
         }
 
         var ticket = pendingCreatedTicket || activeEditTicket || {};
@@ -1625,7 +1625,23 @@ Service & Quality Assurance Division`;
             body: body,
             attachments: ticket.attachments || []
           });
-          alert(`✅ EMAIL DISPATCHED TO CLIENT!\n\nDelivered directly to: ${to}\nSender: Measure DI Systems (measuredichennai@gmail.com)\n\nService Ticket: ${ticket.ticketNumber || 'Confirmed'}\nMessage ID: ${res.messageId || 'Delivered'}\n\nThe record has been synchronized in the company communication registry.`);
+
+          // Keep the same Gmail thread across repeat emails on this ticket
+          // (follow-ups, resolution notice) so the whole conversation stays
+          // one thread in the engineer's real mailbox, same as Quotations
+          // and Invoices already do.
+          if (res && res.channel === 'gmail' && ticket.id && window.RevOpsStore && window.RevOpsStore.updateItem) {
+            var threadUpdates = {
+              gmailThreadId: res.threadId || ticket.gmailThreadId,
+              gmailLastMessageId: res.messageId || '',
+              gmailMailboxOwner: res.sentAs || ''
+            };
+            window.RevOpsStore.updateItem('serviceTickets', ticket.id, threadUpdates);
+            Object.assign(ticket, threadUpdates);
+          }
+
+          var sentVia = res && res.channel === 'gmail' ? ('Gmail - ' + (res.sentAs || 'measuredichennai@gmail.com')) : 'Brevo';
+          alert(`✅ EMAIL DISPATCHED TO CLIENT!\n\nDelivered directly to: ${to}\nSent via: ${sentVia}\n\nService Ticket: ${ticket.ticketNumber || 'Confirmed'}\nMessage ID: ${res.messageId || 'Delivered'}\n\nThe record has been synchronized in the company communication registry.`);
           closeSendTicketEmailModal();
         } catch (err) {
           console.error('Email dispatch error:', err);

@@ -1,9 +1,10 @@
 /**
- * Measure DI - Universal Email Dispatch Service (Brevo API)
- * Automatically dispatches professional transactional emails for:
- * 1. Service Tickets (Created, Assigned, SLA updates, Resolved)
- * 2. Sales & Service Quotations
- * 3. Invoices & Payment Reminders
+ * Measure DI - Universal Email Dispatch Service
+ * Every client-facing email - Service Tickets, Quotations, Invoices -
+ * sends from the employee's own real @measuredi.com Gmail mailbox first
+ * (native two-way thread continuity via Google Workspace domain-wide
+ * delegation), falling back to Brevo only if that specific send fails
+ * for any reason, so the client still receives it either way.
  */
 
 (function () {
@@ -172,18 +173,20 @@
 
   /**
    * Tries the real-Gmail send path first (native two-way thread
-   * continuity); if that fails specifically because the sender isn't on
-   * the measuredi.com Workspace domain yet (domain-wide delegation can
-   * only impersonate real Workspace mailboxes), falls back to the
-   * existing Brevo-based sender so nothing breaks for anyone not yet
-   * migrated. Any other Gmail failure is surfaced as-is, not swallowed.
+   * continuity via the sender's own @measuredi.com Workspace mailbox).
+   * If that fails for ANY reason - not on Workspace yet, an expired
+   * credential, a transient Google API error, a send quota, anything -
+   * falls back to Brevo so the client still receives the email rather
+   * than getting nothing. This is a deliberate safety net, not a
+   * silent failure: the fallback reason is kept on the result so it's
+   * still visible (communication log, console) for someone to notice
+   * and fix the underlying Gmail issue.
    */
   async function sendViaGmailWithFallback(options) {
     try {
       return await sendEmailViaGmail(options);
     } catch (gmailErr) {
-      if (!gmailErr.notOnWorkspaceDomain) throw gmailErr;
-      console.warn('[Mailer] Gmail send unavailable for this sender, falling back to Brevo:', gmailErr.message);
+      console.warn('[Mailer] Gmail send failed, falling back to Brevo:', gmailErr.message);
       const result = await sendEmail(options);
       return Object.assign({}, result, { channel: 'brevo', fallbackReason: gmailErr.message });
     }
@@ -331,14 +334,18 @@
 
     const attachments = customDetails.attachments || customDetails.attachment || ticket.attachments || [];
 
-    return await sendEmail({
+    return await sendViaGmailWithFallback({
       to,
       toName: ticket.customerName,
       cc,
       subject,
       textContent: customDetails.body || `Ticket ${ticket.ticketNumber} registered for ${ticket.customerName}. Assigned to ${ticket.assignedToName}. SLA: ${ticket.targetSlaDate}`,
       htmlContent,
-      attachments
+      attachments,
+      threadId: ticket.gmailThreadId || '',
+      inReplyTo: customDetails.inReplyTo || '',
+      references: customDetails.references || '',
+      expectedMailboxOwner: ticket.gmailMailboxOwner || ''
     });
   }
 

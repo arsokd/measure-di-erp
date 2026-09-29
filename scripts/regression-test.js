@@ -837,6 +837,64 @@ async function testServicePartsPagesDeclareRoleGate(browser) {
   return failures;
 }
 
+// ---------------------------------------------------------------------
+// All client-facing email (Tickets, Quotations, Invoices) routes through
+// Gmail first, falling back to Brevo only if Gmail fails for any reason
+// - not just the narrow "sender not on Workspace domain yet" case, but
+// any failure at all, so the client still gets the email.
+// ---------------------------------------------------------------------
+async function testEmailRoutesGmailFirstWithBrevoFallback(browser) {
+  const failures = [];
+  const { page } = await newPage(browser);
+
+  await page.goto(BASE_URL + '/service-tickets.html', { waitUntil: 'networkidle', timeout: 30000 });
+  await page.waitForTimeout(600);
+
+  const gmailSuccessResult = await page.evaluate(async function () {
+    var calls = [];
+    window.fetch = async function (url) {
+      calls.push(url);
+      if (url.indexOf('send-gmail') !== -1) {
+        return { ok: true, json: async function () { return { success: true, messageId: 'gmail-msg-1', threadId: 'thread-1', sentAs: 'murugan@measuredi.com' }; } };
+      }
+      return { ok: false, json: async function () { return {}; } };
+    };
+    window.firebase = { auth: function () { return { currentUser: { email: 'murugan@measuredi.com', getIdToken: async function () { return 'fake-token'; } } }; } };
+    var ticket = { id: 'tkt_regr_1', ticketNumber: 'TKT-REGR-1', customerName: 'Test Co', equipmentModel: 'X', equipmentSerial: 'Y' };
+    var res = await window.BrevoMailer.sendTicketEmail(ticket, { to: 'client@test.com', subject: 'Test', body: 'Test body' });
+    return { calls: calls, channel: res.channel };
+  });
+  assertEqual(gmailSuccessResult.calls, ['/.netlify/functions/send-gmail'], 'Ticket email: tries Gmail first (send-gmail endpoint), not Brevo', failures);
+  assertEqual(gmailSuccessResult.channel, 'gmail', 'Ticket email: successful send reports channel gmail', failures);
+
+  const fallbackResult = await page.evaluate(async function () {
+    var calls = [];
+    window.fetch = async function (url) {
+      calls.push(url);
+      if (url.indexOf('send-gmail') !== -1) {
+        // A generic Gmail failure - deliberately NOT the narrow "not on
+        // workspace domain" case - to prove the fallback isn't scoped to
+        // just that one reason.
+        return { ok: false, json: async function () { return { success: false, error: 'Google API rate limit exceeded' }; } };
+      }
+      if (url.indexOf('send-email') !== -1) {
+        return { ok: true, json: async function () { return { success: true, messageId: 'brevo-msg-1' }; } };
+      }
+      return { ok: false, json: async function () { return {}; } };
+    };
+    window.firebase = { auth: function () { return { currentUser: { email: 'murugan@measuredi.com', getIdToken: async function () { return 'fake-token'; } } }; } };
+    var ticket = { id: 'tkt_regr_2', ticketNumber: 'TKT-REGR-2', customerName: 'Test Co', equipmentModel: 'X', equipmentSerial: 'Y' };
+    var res = await window.BrevoMailer.sendTicketEmail(ticket, { to: 'client@test.com', subject: 'Test', body: 'Test body' });
+    return { calls: calls, channel: res.channel, fallbackReason: res.fallbackReason };
+  });
+  assertEqual(fallbackResult.calls, ['/.netlify/functions/send-gmail', '/.netlify/functions/send-email'], 'Ticket email: falls back to Brevo after a generic (non-"not on workspace") Gmail failure', failures);
+  assertEqual(fallbackResult.channel, 'brevo', 'Ticket email fallback: reports channel brevo', failures);
+  assertTrue(!!fallbackResult.fallbackReason, 'Ticket email fallback: keeps the failure reason for diagnostics', failures);
+
+  await page.close();
+  return failures;
+}
+
 const TESTS = [
   ['SLA day-based seeding, migration, severity dropdown & date math', testSlaDayBasedSeedingAndMigration],
   ['Ticket email subject line', testQuotationVerticalAndTicketSubject],
@@ -850,7 +908,8 @@ const TESTS = [
   ['Vertical list consistency app-wide + AOP bucket classification', testVerticalListConsistency],
   ['Lead product Unit Price is pre-filled but editable', testLeadProductPriceEditable],
   ['Master Data edit access is Super Admin / Admin role only', testMasterDataAdminRoleOnly],
-  ['Service/Parts pages declare explicit role gate', testServicePartsPagesDeclareRoleGate]
+  ['Service/Parts pages declare explicit role gate', testServicePartsPagesDeclareRoleGate],
+  ['Client email routes Gmail-first with Brevo fallback on any failure', testEmailRoutesGmailFirstWithBrevoFallback]
 ];
 
 (async () => {
