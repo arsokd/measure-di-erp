@@ -760,6 +760,42 @@ async function testLeadProductPriceEditable(browser) {
   return failures;
 }
 
+// ---------------------------------------------------------------------
+// Master Data edit access: Super Admin / Admin roles only, by explicit
+// business decision - not the old per-person "Master Data Admin" flag
+// (now retired), and not a manager or staff role either.
+// ---------------------------------------------------------------------
+async function testMasterDataAdminRoleOnly(browser) {
+  const failures = [];
+
+  async function checkRoleAccess(employeeId, userEmail, userName, userRole, expectedCanEdit, label) {
+    const page = await browser.newPage();
+    const pageErrors = [];
+    page.on('pageerror', function (err) { pageErrors.push(err.message); });
+    await page.addInitScript(function (creds) {
+      localStorage.setItem('userRole', creds.userRole);
+      localStorage.setItem('userEmail', creds.userEmail);
+      localStorage.setItem('userName', creds.userName);
+      localStorage.setItem('employeeId', creds.employeeId);
+    }, { employeeId: employeeId, userEmail: userEmail, userName: userName, userRole: userRole });
+    await page.goto(BASE_URL + '/master-data.html', { waitUntil: 'networkidle', timeout: 30000 });
+    await page.waitForTimeout(500);
+    const canEdit = await page.evaluate(function () { return canEditMasterData(); });
+    assertEqual(canEdit, expectedCanEdit, label, failures);
+    assertTrue(pageErrors.length === 0, label + ': no page errors, got ' + JSON.stringify(pageErrors), failures);
+    await page.close();
+  }
+
+  // E-006 and E-011 are real staff/manager-role seed employees (not E-001,
+  // whose own role would just get resynced back to super_admin by
+  // checkAuth's own-record lookup regardless of what's set here).
+  await checkRoleAccess('E-006', 'techsupport@measuredi.com', 'Mrs. Krithika', 'staff', false, 'Master Data: staff role cannot edit');
+  await checkRoleAccess('E-011', 'accounts@measuredi.com', 'Mrs. Vijayalakshmi', 'manager', false, 'Master Data: manager role cannot edit');
+  await checkRoleAccess('E-001', 'ravi@measuredi.com', 'Mr. Ravichandran', 'super_admin', true, 'Master Data: super_admin role can edit');
+
+  return failures;
+}
+
 const TESTS = [
   ['SLA day-based seeding, migration, severity dropdown & date math', testSlaDayBasedSeedingAndMigration],
   ['Ticket email subject line', testQuotationVerticalAndTicketSubject],
@@ -771,7 +807,8 @@ const TESTS = [
   ['Service Lead "Raise Ticket" / "Generate Quotation" links', testServiceLeadActionLinks],
   ['Invoice "Amount in Words"', testInvoiceAmountInWords],
   ['Vertical list consistency app-wide + AOP bucket classification', testVerticalListConsistency],
-  ['Lead product Unit Price is pre-filled but editable', testLeadProductPriceEditable]
+  ['Lead product Unit Price is pre-filled but editable', testLeadProductPriceEditable],
+  ['Master Data edit access is Super Admin / Admin role only', testMasterDataAdminRoleOnly]
 ];
 
 (async () => {

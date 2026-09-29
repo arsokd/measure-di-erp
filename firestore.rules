@@ -47,12 +47,12 @@ service cloud.firestore {
 
     // Master Data (Master Data Hub — Products, Client Equipment, Bank
     // Details, Clients, Projects, and every dropdown list it manages) is
-    // deliberately restricted to a named few, not the whole admin/
-    // leadership roster — assigned per-person on the Employees page
-    // ("Approval Authority" section) same as the other three flags.
-    // Director retains universal authority as with every other gate.
+    // restricted to Super Admin / Admin roles only, by explicit business
+    // decision — nobody else in the organization, including a manager or
+    // staff member individually flagged for it, or a Director not
+    // otherwise holding one of these two roles.
     function isMasterDataAdmin() {
-      return signedIn() && (myUserData().isMasterDataAdmin == true || myUserData().isDirector == true);
+      return isLeadershipOrAdmin();
     }
 
     // True if the caller owns this record (matches on employeeId) or is admin/leadership.

@@ -209,7 +209,7 @@ function checkAuth(allowedRoles) {
     // directly on its users/{uid} Firestore doc, not via the Employees
     // page), leave localStorage alone rather than stomping the correct
     // value login.html just loaded from users/{uid} back to "false".
-    ['isPrimaryApprover', 'isDirector', 'isFinalApprover', 'isFinanceHead', 'isMasterDataAdmin'].forEach(function(flagKey) {
+    ['isPrimaryApprover', 'isDirector', 'isFinalApprover', 'isFinanceHead'].forEach(function(flagKey) {
       if (currentEmp[flagKey] === undefined) return;
       var flagVal = String(currentEmp[flagKey] === true);
       if (localStorage.getItem(flagKey) !== flagVal) {
@@ -243,8 +243,7 @@ function checkAuth(allowedRoles) {
         isPrimaryApprover: localStorage.getItem('isPrimaryApprover') === 'true',
         isDirector: localStorage.getItem('isDirector') === 'true',
         isFinalApprover: localStorage.getItem('isFinalApprover') === 'true',
-        isFinanceHead: localStorage.getItem('isFinanceHead') === 'true',
-        isMasterDataAdmin: localStorage.getItem('isMasterDataAdmin') === 'true'
+        isFinanceHead: localStorage.getItem('isFinanceHead') === 'true'
       };
       window.db.collection('users').doc(realUid).get().then(function(snap) {
         var existing = snap.exists ? snap.data() : {};
@@ -1227,7 +1226,7 @@ function getRevOpsNavigationHtml(userName, userRole, employeeId, userEmail, role
             ${computeMyPendingApprovalCount() > 0 ? `<span class="px-1.5 py-0.5 rounded-full text-[9px] font-black bg-amber-500 text-slate-900">${computeMyPendingApprovalCount()}</span>` : ''}
           </a>
         ` : ''}
-        ${(isAdmin || (typeof hasApprovalAuthority === 'function' && hasApprovalAuthority('isMasterDataAdmin'))) ? `
+        ${isAdmin ? `
           <a href="master-data.html" class="${currentPath === 'master-data.html' ? 'px-2.5 py-1.5 rounded-lg text-xs font-bold bg-[#982B68] text-white shadow-xs' : 'px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-300 hover:bg-slate-800 hover:text-white transition-all'}">🗄️ Master Data</a>
         ` : ''}
         ${renderTopDropdown("Sales", "📈", salesItems, ['leads.html', 'quotations.html', 'orders.html', 'invoices.html', 'payments.html', 'audit-logs.html', 'support-tickets.html'])}
@@ -1535,7 +1534,7 @@ function getRevOpsNavigationHtml(userName, userRole, employeeId, userEmail, role
                 </a>
               </div>
             ` : ''}
-            ${(isAdmin || (typeof hasApprovalAuthority === 'function' && hasApprovalAuthority('isMasterDataAdmin'))) ? `
+            ${isAdmin ? `
               <div>
                 <a href="master-data.html" onclick="toggleMobileNavDrawer()" class="flex items-center space-x-2.5 p-2.5 rounded-xl ${currentPath === 'master-data.html' ? 'bg-[#982B68] text-white font-bold' : 'bg-slate-800/60 text-slate-200'}">
                   <span>🗄️</span><span class="text-xs font-bold">Master Data</span>

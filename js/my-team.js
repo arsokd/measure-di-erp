@@ -238,7 +238,6 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('modal-is-director-ratifier').checked = !!emp.isDirector;
         document.getElementById('modal-is-final-approver').checked = !!emp.isFinalApprover;
         document.getElementById('modal-is-finance-head').checked = !!emp.isFinanceHead;
-        document.getElementById('modal-is-master-data-admin').checked = !!emp.isMasterDataAdmin;
         document.getElementById('create-login-modal').classList.remove('hidden');
       }
 
@@ -264,7 +263,6 @@ document.addEventListener('DOMContentLoaded', function() {
         var isDirector = document.getElementById('modal-is-director-ratifier').checked;
         var isFinalApprover = document.getElementById('modal-is-final-approver').checked;
         var isFinanceHead = document.getElementById('modal-is-finance-head').checked;
-        var isMasterDataAdmin = document.getElementById('modal-is-master-data-admin').checked;
 
         var btn = document.getElementById('create-login-submit-btn');
         btn.disabled = true;
@@ -272,7 +270,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         var employees = window.RevOpsStore.getCollection('employees') || [];
         var empRec = employees.find(function(e) { return e.id === empIdDoc; }) || {};
-        var approvalFlags = { isPrimaryApprover: isPrimaryApprover, isDirector: isDirector, isFinalApprover: isFinalApprover, isFinanceHead: isFinanceHead, isMasterDataAdmin: isMasterDataAdmin };
+        var approvalFlags = { isPrimaryApprover: isPrimaryApprover, isDirector: isDirector, isFinalApprover: isFinalApprover, isFinanceHead: isFinanceHead };
 
         // Writes the users/{uid} role doc that Firestore rules and every
         // approval gate in the app actually check — without this doc the

@@ -152,7 +152,6 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('inp-is-director-ratifier').checked = false;
         document.getElementById('inp-is-final-approver').checked = false;
         document.getElementById('inp-is-finance-head').checked = false;
-        document.getElementById('inp-is-master-data-admin').checked = false;
         document.getElementById('inp-aop-target').value = 10000000;
         document.getElementById('inp-monthly-ctc').value = 75000;
         document.getElementById('inp-bank-name').value = "HDFC Bank";
@@ -204,7 +203,6 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('inp-is-director-ratifier').checked = !!emp.isDirector;
         document.getElementById('inp-is-final-approver').checked = !!emp.isFinalApprover;
         document.getElementById('inp-is-finance-head').checked = !!emp.isFinanceHead;
-        document.getElementById('inp-is-master-data-admin').checked = !!emp.isMasterDataAdmin;
         document.getElementById('inp-aop-target').value = (emp.primaryAopTarget !== undefined && emp.primaryAopTarget !== null) ? emp.primaryAopTarget : 0;
         document.getElementById('inp-monthly-ctc').value = emp.monthlyCtc || 75000;
         document.getElementById('inp-bank-name').value = emp.bankName || 'HDFC Bank';
@@ -285,7 +283,6 @@ document.addEventListener('DOMContentLoaded', function() {
           isDirector: document.getElementById('inp-is-director-ratifier').checked,
           isFinalApprover: document.getElementById('inp-is-final-approver').checked,
           isFinanceHead: document.getElementById('inp-is-finance-head').checked,
-          isMasterDataAdmin: document.getElementById('inp-is-master-data-admin').checked,
           primaryAopTarget: document.getElementById('inp-aop-target').value !== "" ? Number(document.getElementById('inp-aop-target').value) : 0,
           monthlyCtc: document.getElementById('inp-monthly-ctc').value !== "" ? Number(document.getElementById('inp-monthly-ctc').value) : 75000,
           bankName: document.getElementById('inp-bank-name').value.trim(),
@@ -317,8 +314,7 @@ document.addEventListener('DOMContentLoaded', function() {
               isPrimaryApprover: empData.isPrimaryApprover,
               isDirector: empData.isDirector,
               isFinalApprover: empData.isFinalApprover,
-              isFinanceHead: empData.isFinanceHead,
-              isMasterDataAdmin: empData.isMasterDataAdmin
+              isFinanceHead: empData.isFinanceHead
             }, { merge: true }).catch(function(err) {
               console.warn("Could not sync users/ role doc for", savedEmp.uid, err);
             });
