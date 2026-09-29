@@ -1,6 +1,7 @@
 var activeWarranties = [];
 
       document.addEventListener('DOMContentLoaded', function() {
+        if (!checkAuth(['admin', 'manager', 'staff'])) return;
         renderWarrantyTable();
 
         if (window.RevOpsStore && typeof window.RevOpsStore.subscribeRealtimeSync === 'function') {

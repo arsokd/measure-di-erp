@@ -37,6 +37,7 @@ var activeServiceLeads = [];
       }
 
       document.addEventListener('DOMContentLoaded', function() {
+        if (!checkAuth(['admin', 'manager', 'staff'])) return;
         renderServiceFunnelBar();
         renderServiceLeadsTable();
         populateServiceCustomerRoster();

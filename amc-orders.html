@@ -577,6 +577,7 @@
       }
 
       document.addEventListener('DOMContentLoaded', function() {
+        if (!checkAuth(['admin', 'manager', 'staff'])) return;
         setTimeout(function() {
           initSampleAmcOrdersIfEmpty();
           renderAmcOrdersTable();

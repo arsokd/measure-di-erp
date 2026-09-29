@@ -11,6 +11,7 @@ var currentViewMode = 'table';
       }
 
       document.addEventListener('DOMContentLoaded', function() {
+        if (!checkAuth(['admin', 'manager', 'staff'])) return;
         populateMasterDropdowns();
         renderServiceTicketsModule();
 

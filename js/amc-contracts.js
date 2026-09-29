@@ -2,6 +2,7 @@ var activeAmcContracts = [];
       var clientEquipmentRegistry = [];
 
       document.addEventListener('DOMContentLoaded', function() {
+        if (!checkAuth(['admin', 'manager', 'staff'])) return;
         populateEngineersList();
         populateCustomerRoster();
         populateAmcMasterDropdowns();

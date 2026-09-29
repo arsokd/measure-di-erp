@@ -1,6 +1,7 @@
 var activeSpareParts = [];
 
       document.addEventListener('DOMContentLoaded', function() {
+        if (!checkAuth(['admin', 'manager', 'staff'])) return;
         renderPartsTable();
         fillSelect('inp-part-vertical', 'verticalClassificationMaster');
         fillSelect('inp-part-category', 'sparePartCategoryMaster');

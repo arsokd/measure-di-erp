@@ -796,6 +796,47 @@ async function testMasterDataAdminRoleOnly(browser) {
   return failures;
 }
 
+// ---------------------------------------------------------------------
+// Service/Parts pages now explicitly declare the same role restriction
+// Sales pages already have (admin/manager/staff), instead of relying
+// silently on the global bare checkAuth() baseline - a consistency fix,
+// not a behavior change: every real role remains allowed on all of them.
+// ---------------------------------------------------------------------
+async function testServicePartsPagesDeclareRoleGate(browser) {
+  const failures = [];
+  var pages = [
+    'service-tickets.html', 'service-leads.html', 'amc-quotes.html',
+    'amc-orders.html', 'amc-invoices.html', 'amc-contracts.html',
+    'warranty-management.html', 'parts-sales.html'
+  ];
+
+  for (var i = 0; i < pages.length; i++) {
+    var p = pages[i];
+    var page = await browser.newPage();
+    var pageErrors = [];
+    page.on('pageerror', function (err) { pageErrors.push(err.message); });
+    // E-006 is a real 'staff' role seed employee - staff is an allowed
+    // role on all of these, so this must land and stay, not redirect.
+    await page.addInitScript(function () {
+      localStorage.setItem('userRole', 'staff');
+      localStorage.setItem('userEmail', 'techsupport@measuredi.com');
+      localStorage.setItem('userName', 'Mrs. Krithika');
+      localStorage.setItem('employeeId', 'E-006');
+    });
+    await page.goto(BASE_URL + '/' + p, { waitUntil: 'load', timeout: 15000 });
+    await page.waitForTimeout(600);
+    var result = await page.evaluate(function () {
+      return { finalPath: window.location.pathname, bodyLen: document.body.innerText.length };
+    });
+    assertTrue(result.finalPath.indexOf(p) !== -1, p + ': staff role stays on the page (no redirect), got ' + result.finalPath, failures);
+    assertTrue(result.bodyLen > 500, p + ': page actually renders content for staff role, got ' + result.bodyLen + ' chars', failures);
+    assertTrue(pageErrors.length === 0, p + ': no page errors for staff role, got ' + JSON.stringify(pageErrors), failures);
+    await page.close();
+  }
+
+  return failures;
+}
+
 const TESTS = [
   ['SLA day-based seeding, migration, severity dropdown & date math', testSlaDayBasedSeedingAndMigration],
   ['Ticket email subject line', testQuotationVerticalAndTicketSubject],
@@ -808,7 +849,8 @@ const TESTS = [
   ['Invoice "Amount in Words"', testInvoiceAmountInWords],
   ['Vertical list consistency app-wide + AOP bucket classification', testVerticalListConsistency],
   ['Lead product Unit Price is pre-filled but editable', testLeadProductPriceEditable],
-  ['Master Data edit access is Super Admin / Admin role only', testMasterDataAdminRoleOnly]
+  ['Master Data edit access is Super Admin / Admin role only', testMasterDataAdminRoleOnly],
+  ['Service/Parts pages declare explicit role gate', testServicePartsPagesDeclareRoleGate]
 ];
 
 (async () => {
