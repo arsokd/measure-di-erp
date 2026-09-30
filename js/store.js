@@ -294,7 +294,7 @@ Object.assign(window.RevOpsStore, {
       throw new Error("Proforma Invoice not found.");
     }
 
-    var newTaxInvNumber = this.generateNextInvoiceNumber(false);
+    var newTaxInvNumber = this.generateNextInvoiceNumber(false, pi.companyId);
     // Same as raising a fresh invoice — no auto-approve shortcut for any
     // role. The Primary Approver must sign off before this can be sent.
     var status = 'Pending Senior Approval';
@@ -990,12 +990,38 @@ Object.assign(window.RevOpsStore, {
     return prefix + String(maxNum + 1).padStart(3, '0');
   },
 
-  generateNextInvoiceNumber: function(isProforma) {
+  // Multi-company support (Measure DI + Aditya, same business, same
+  // owner/director): every document carries a companyId chosen once at
+  // Lead/Service Lead creation. Falls back to Measure DI (the pre-existing
+  // default) whenever companyId is missing, so records created before this
+  // feature existed keep behaving exactly as they always did.
+  getCompanyById: function(companyId) {
+    var companies = this.getCollection('companyMaster') || [];
+    var found = companyId && companies.find(function(c) { return c.id === companyId; });
+    return found || companies.find(function(c) { return c.id === 'company_measuredi'; }) || null;
+  },
+
+  getDefaultCompanyId: function() {
+    return 'company_measuredi';
+  },
+
+  // Invoice/Proforma numbering is kept as one continuous GST-compliant
+  // sequence per legal entity, not shared across companies - each company's
+  // own tax filings need their own unbroken number range. Measure DI keeps
+  // its original unprefixed format (INV/2026-27/xxx) for continuity with
+  // numbers already issued; any other company gets its numberCode folded
+  // into the prefix, which is all that's needed since the max-scan below
+  // already only counts invoices whose number starts with that exact prefix.
+  generateNextInvoiceNumber: function(isProforma, companyId) {
     var invoices = this.getCollection('invoices') || [];
-    var prefix = isProforma ? 'PI/2026-27/' : 'INV/2026-27/';
+    var company = this.getCompanyById(companyId);
+    var code = company && company.numberCode && company.numberCode !== 'MDI' ? company.numberCode : null;
+    var prefix = code
+      ? (isProforma ? 'PI/' + code + '/2026-27/' : 'INV/' + code + '/2026-27/')
+      : (isProforma ? 'PI/2026-27/' : 'INV/2026-27/');
     var maxNum = 0;
     invoices.forEach(function(inv) {
-      if (inv.invoiceNumber && inv.invoiceNumber.indexOf(prefix) !== -1) {
+      if (inv.invoiceNumber && inv.invoiceNumber.indexOf(prefix) === 0) {
         var numPart = parseInt(inv.invoiceNumber.replace(prefix, ''), 10);
         if (!isNaN(numPart) && numPart > maxNum) maxNum = numPart;
       }
@@ -1014,7 +1040,7 @@ Object.assign(window.RevOpsStore, {
       return { success: false, error: "Selected document is already a Tax Invoice." };
     }
 
-    var nextTaxInvNumber = this.generateNextInvoiceNumber(false);
+    var nextTaxInvNumber = this.generateNextInvoiceNumber(false, proforma.companyId);
     var nowStr = getFormattedToday();
 
     // Clone items

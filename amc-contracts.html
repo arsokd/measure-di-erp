@@ -207,6 +207,14 @@
         <form id="amc-form" onsubmit="handleSaveAmcContract(event)" class="space-y-4">
           <input type="hidden" id="amc-doc-id" value="" />
 
+          <!-- Company (Legal Entity) -->
+          <div class="bg-fuchsia-900/20 p-3 rounded-xl border border-fuchsia-700/40 space-y-1.5">
+            <label class="block text-[10px] font-bold text-fuchsia-300 uppercase tracking-wider">Company (Legal Entity) *</label>
+            <select id="amc-inp-company" required class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white font-semibold focus:outline-none focus:border-fuchsia-500">
+              <!-- Populated from Master Data > Company Master -->
+            </select>
+          </div>
+
           <!-- Row 1: Cascading Customer -> Model -> Serial Selection -->
           <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>

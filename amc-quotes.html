@@ -192,6 +192,13 @@
             </div>
 
             <div>
+              <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Company *</label>
+              <select id="inp-quote-company" required class="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs font-semibold text-white focus:outline-none focus:border-amber-500">
+                <!-- Populated from Master Data > Company Master -->
+              </select>
+            </div>
+
+            <div>
               <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Contract Duration *</label>
               <select id="inp-quote-duration" required class="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs font-semibold text-white focus:outline-none focus:border-amber-500">
                 <!-- Populated from Master Data > Contract Duration -->
@@ -445,6 +452,8 @@
 
         populateAmcQuoteCustomerRoster(quote ? quote.customerName : '');
         populateAmcQuoteSiteOptions(quote ? quote.customerName : '', quote ? quote.plantSite : '');
+        populateAmcQuoteCompanyDropdown();
+        document.getElementById('inp-quote-company').value = quote ? (quote.companyId || window.RevOpsStore.getDefaultCompanyId()) : window.RevOpsStore.getDefaultCompanyId();
         document.getElementById('inp-quote-type').value = quote ? quote.contractType : 'Comprehensive AMC';
         document.getElementById('inp-quote-duration').value = quote ? quote.duration : '1 Year';
         document.getElementById('inp-quote-pm-frequency').value = quote ? quote.pmFrequency : '4 Visits (Quarterly PM)';
@@ -479,6 +488,7 @@
           id: id || ('AMC-QUO-' + new Date().getFullYear() + '-' + String(quotes.length + 1).padStart(3, '0')),
           quoteNumber: id || ('AMC-QUO-' + new Date().getFullYear() + '-' + String(quotes.length + 1).padStart(3, '0')),
           customerName: document.getElementById('inp-quote-client').value.trim(),
+          companyId: document.getElementById('inp-quote-company').value || window.RevOpsStore.getDefaultCompanyId(),
           plantSite: document.getElementById('inp-quote-site').value.trim(),
           contractType: document.getElementById('inp-quote-type').value,
           duration: document.getElementById('inp-quote-duration').value,
@@ -516,6 +526,7 @@
         fillMasterSelect('inp-quote-type', 'amcContractTierMaster');
         fillMasterSelect('inp-quote-duration', 'amcContractDurationMaster');
         fillMasterSelect('inp-quote-pm-frequency', 'pmVisitFrequencyMaster');
+        populateAmcQuoteCompanyDropdown();
 
         var slaSelect = document.getElementById('inp-quote-response-sla');
         if (slaSelect) {
@@ -530,6 +541,23 @@
           if (currentVal && tiers.some(function(t) { return (t.slaWindow || '') === currentVal; })) {
             slaSelect.value = currentVal;
           }
+        }
+      }
+
+      // Company (legal entity) — value is the companyMaster id, not its
+      // name, so this can't reuse fillMasterSelect above.
+      function populateAmcQuoteCompanyDropdown() {
+        var select = document.getElementById('inp-quote-company');
+        if (!select) return;
+        var items = (window.RevOpsStore.getCollection('companyMaster') || []).filter(function(it) { return it.isActive !== false; });
+        var currentVal = select.value;
+        select.innerHTML = items.map(function(it) {
+          return '<option value="' + escapeHtml(it.id) + '">' + escapeHtml(it.name) + '</option>';
+        }).join('');
+        if (currentVal && items.some(function(it) { return it.id === currentVal; })) {
+          select.value = currentVal;
+        } else {
+          select.value = window.RevOpsStore.getDefaultCompanyId();
         }
       }
 

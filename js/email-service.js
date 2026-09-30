@@ -243,13 +243,27 @@
     return '₹' + n.toLocaleString('en-IN');
   }
 
+  // Company (legal entity) branding for the email header/footer text -
+  // Measure DI or Aditya, whichever this ticket/quote/invoice was raised
+  // under. The actual sending account (measuredi.com Gmail) stays the same
+  // for both companies; only the displayed name changes. Falls back to
+  // Measure DI's identity if companyMaster isn't available for any reason,
+  // matching this app's pre-existing default everywhere else.
+  function resolveCompany(record) {
+    var fallback = { name: 'Measure DI', tradeName: 'Measure Dynamics & Instrumentation Pvt Ltd', address: 'Plot No. 42, Industrial Estate, Chennai, Tamil Nadu' };
+    if (!window.RevOpsStore || typeof window.RevOpsStore.getCompanyById !== 'function') return fallback;
+    var company = window.RevOpsStore.getCompanyById(record && record.companyId);
+    return company || fallback;
+  }
+
   /**
    * Helper specifically formatted for Service Tickets
    */
   async function sendTicketEmail(ticket, customDetails = {}) {
+    const company = resolveCompany(ticket);
     const to = customDetails.to || ticket.clientEmail || 'service@client.com';
     const cc = customDetails.cc || '';
-    const subject = customDetails.subject || `[Measure DI Service] Ticket Registered: ${ticket.ticketNumber} - ${ticket.equipmentModel} (${ticket.equipmentSerial})`;
+    const subject = customDetails.subject || `[${company.name} Service] Ticket Registered: ${ticket.ticketNumber} - ${ticket.equipmentModel} (${ticket.equipmentSerial})`;
 
     const htmlContent = `
       <!DOCTYPE html>
@@ -279,7 +293,7 @@
           </div>
           <div class="body">
             <p>Dear <strong>${escapeHtml(ticket.customerName || 'Valued Customer')}</strong> Team,</p>
-            <p>Greetings from Measure Dynamics & Instrumentation (Measure DI) Customer Support. Your service request has been officially registered in our system and assigned to a certified service engineer.</p>
+            <p>Greetings from ${escapeHtml(company.tradeName || company.name)} Customer Support. Your service request has been officially registered in our system and assigned to a certified service engineer.</p>
             
             <table class="info-table">
               <tr>
@@ -324,7 +338,7 @@
             <p style="font-size: 13px;">Our service engineer will coordinate with your site plant engineers to resolve this issue in adherence to our agreed Service Level Agreement (SLA). If you have any urgent queries, reply directly to this email or call our service desk.</p>
           </div>
           <div class="ftr">
-            <p style="margin: 0 0 4px 0;"><strong>Measure Dynamics & Instrumentation Pvt Ltd</strong></p>
+            <p style="margin: 0 0 4px 0;"><strong>${escapeHtml(company.tradeName || company.name)}</strong></p>
             <p style="margin: 0;">Support Desk: measuredichennai@gmail.com • Chennai, Tamil Nadu</p>
           </div>
         </div>
@@ -353,6 +367,7 @@
    * Helper specifically formatted for Quotations
    */
   async function sendQuotationEmail(quote, customDetails = {}) {
+    const company = resolveCompany(quote);
     const to = customDetails.to || quote.email || quote.clientEmail || 'client@example.com';
     // measuredichennai@gmail.com is always CC'd on every quotation email,
     // without exception — not something the sender can remove by editing
@@ -363,7 +378,7 @@
       requestedCc.push(MANDATORY_QUOTE_CC);
     }
     const cc = requestedCc.join(', ');
-    const subject = customDetails.subject || `[Measure DI Quotation] Proposal: ${quote.quoteNumber} (Rev ${quote.revision || 1}) - ${quote.customerName}`;
+    const subject = customDetails.subject || `[${company.name} Quotation] Proposal: ${quote.quoteNumber} (Rev ${quote.revision || 1}) - ${quote.customerName}`;
     const attachments = customDetails.attachments || customDetails.attachment || quote.attachments || [];
 
     // Commercial detail (line items, pricing, discounts, GST, payment/delivery
@@ -392,14 +407,14 @@
           </div>
           <div class="body">
             <p>Dear <strong>${escapeHtml(quote.customerName || 'Valued Client')}</strong>,</p>
-            <p>Thank you for your interest in Measure DI high-precision weighing, automation, and instrumentation solutions. Please find attached our official commercial quotation <strong>${escapeHtml(quote.quoteNumber)}</strong> (Version ${quote.revision || 1}), valid till ${quote.validTill || '30 Days'}.</p>
+            <p>Thank you for your interest in ${escapeHtml(company.tradeName || company.name)}'s high-precision weighing, automation, and instrumentation solutions. Please find attached our official commercial quotation <strong>${escapeHtml(quote.quoteNumber)}</strong> (Version ${quote.revision || 1}), valid till ${quote.validTill || '30 Days'}.</p>
 
             <p style="font-size: 13px;">The attached PDF contains the complete line-item specifications, pricing, HSN tax breakdown, and commercial terms & conditions.</p>
 
-            <p style="font-size: 13px;">To confirm this order or request technical clarifications, please reply to this email or contact your representative <strong>${escapeHtml(quote.employeeName || 'Measure DI Sales Team')}</strong>.</p>
+            <p style="font-size: 13px;">To confirm this order or request technical clarifications, please reply to this email or contact your representative <strong>${escapeHtml(quote.employeeName || (company.name + ' Sales Team'))}</strong>.</p>
           </div>
           <div class="ftr">
-            <p style="margin: 0 0 4px 0;"><strong>Measure Dynamics & Instrumentation Pvt Ltd</strong></p>
+            <p style="margin: 0 0 4px 0;"><strong>${escapeHtml(company.tradeName || company.name)}</strong></p>
             <p style="margin: 0;">Industrial Automation & Heavy-Duty Dynamic Weighing Systems • measuredichennai@gmail.com</p>
           </div>
         </div>
@@ -426,9 +441,10 @@
    * Helper specifically formatted for Invoices
    */
   async function sendInvoiceEmail(invoice, customDetails = {}) {
+    const company = resolveCompany(invoice);
     const to = customDetails.to || invoice.customerEmail || 'accounts@client.com';
     const cc = customDetails.cc || '';
-    const subject = customDetails.subject || `[Measure DI Invoice] Tax Invoice: ${invoice.invoiceNumber} - ${invoice.customerName}`;
+    const subject = customDetails.subject || `[${company.name} Invoice] Tax Invoice: ${invoice.invoiceNumber} - ${invoice.customerName}`;
 
     const htmlContent = `
       <!DOCTYPE html>
@@ -452,7 +468,7 @@
           </div>
           <div class="body">
             <p>Dear <strong>${escapeHtml(invoice.customerName || 'Valued Client')}</strong> Accounts Team,</p>
-            <p>Please find attached the official Tax Invoice from Measure Dynamics & Instrumentation Pvt Ltd for services/equipment rendered.</p>
+            <p>Please find attached the official Tax Invoice from ${escapeHtml(company.tradeName || company.name)} for services/equipment rendered.</p>
             
             <div style="background: #f1f5f9; border-radius: 8px; padding: 16px; margin: 18px 0;">
               <table style="width: 100%; font-size: 13px;">
@@ -464,7 +480,7 @@
             <p style="font-size: 13px;">The attached PDF contains the full line-item breakdown, applicable taxes, total amount payable, and our bank remittance details. Kindly confirm receipt and dispatch of payment advice referencing ${escapeHtml(invoice.invoiceNumber)}.</p>
           </div>
           <div class="ftr">
-            <p style="margin: 0 0 4px 0;"><strong>Measure Dynamics & Instrumentation Pvt Ltd</strong></p>
+            <p style="margin: 0 0 4px 0;"><strong>${escapeHtml(company.tradeName || company.name)}</strong></p>
             <p style="margin: 0;">Finance & Accounts: measuredichennai@gmail.com • Chennai, Tamil Nadu</p>
           </div>
         </div>

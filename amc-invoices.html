@@ -569,12 +569,22 @@
 
         var invNum = 'INV/AMC/' + getFinancialYear() + '/' + String(invoices.length + 1).padStart(3, '0');
 
+        // Company (legal entity) is inherited from the referenced AMC
+        // Order, not independently picked here - same principle as the
+        // main Quote -> Order -> Invoice chain.
+        var orderRefVal = document.getElementById('inp-inv-order').value.trim();
+        var sourceOrderForCompany = orderRefVal
+          ? (window.RevOpsStore.getCollection('amcOrders') || []).find(function(o) { return o.orderNumber === orderRefVal; })
+          : null;
+        var invCompanyId = (sourceOrderForCompany && sourceOrderForCompany.companyId) || window.RevOpsStore.getDefaultCompanyId();
+
         var invObj = {
           id: invNum,
           invoiceNumber: invNum,
           customerName: document.getElementById('inp-inv-client').value.trim(),
+          companyId: invCompanyId,
           customerGstin: document.getElementById('inp-inv-gstin').value.trim().toUpperCase(),
-          orderRef: document.getElementById('inp-inv-order').value.trim(),
+          orderRef: orderRefVal,
           invoiceDate: document.getElementById('inp-inv-date').value,
           description: description,
           sacCode: '998717',

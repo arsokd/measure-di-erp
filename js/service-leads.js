@@ -22,6 +22,7 @@ var activeServiceLeads = [];
         if (l.customerName) params.set('customer', l.customerName);
         if (l.equipmentModel) params.set('model', l.equipmentModel);
         if (l.serialNumbers) params.set('serial', l.serialNumbers);
+        if (l.companyId) params.set('companyId', l.companyId);
         return 'service-tickets.html?' + params.toString();
       }
 
@@ -33,6 +34,7 @@ var activeServiceLeads = [];
         if (l.contactPerson) params.set('prefillContact', l.contactPerson);
         if (l.contactPhone) params.set('prefillPhone', l.contactPhone);
         if (l.contactEmail) params.set('prefillEmail', l.contactEmail);
+        if (l.companyId) params.set('companyId', l.companyId);
         return 'quotations.html?' + params.toString();
       }
 
@@ -636,14 +638,31 @@ var activeServiceLeads = [];
         });
       }
 
+      function populateServiceLeadCompanyDropdown() {
+        var select = document.getElementById('inp-srv-company');
+        if (!select) return;
+        var items = (window.RevOpsStore.getCollection('companyMaster') || []).filter(function(it) { return it.isActive !== false; });
+        var currentVal = select.value;
+        select.innerHTML = items.map(function(it) {
+          return '<option value="' + escapeHtml(it.id) + '">' + escapeHtml(it.name) + '</option>';
+        }).join('');
+        if (currentVal && items.some(function(it) { return it.id === currentVal; })) {
+          select.value = currentVal;
+        } else {
+          select.value = window.RevOpsStore.getDefaultCompanyId();
+        }
+      }
+
       function openServiceLeadModal() {
         var form = document.getElementById('service-lead-form');
         form.reset();
         populateServiceCustomerRoster();
         populateServiceModelOptions('', '');
+        populateServiceLeadCompanyDropdown();
+        document.getElementById('inp-srv-company').value = window.RevOpsStore.getDefaultCompanyId();
         document.getElementById('service-lead-doc-id').value = '';
         document.getElementById('service-lead-modal-title').textContent = "Record Service / AMC Lead";
-        
+
         var today = new Date();
         today.setDate(today.getDate() + 30);
         var yyyy = today.getFullYear();
@@ -689,6 +708,8 @@ var activeServiceLeads = [];
         document.getElementById('inp-srv-contact-phone').value = l.contactPhone || '';
         document.getElementById('inp-srv-contact-email').value = l.contactEmail || '';
         document.getElementById('inp-srv-notes').value = l.notes || '';
+        populateServiceLeadCompanyDropdown();
+        document.getElementById('inp-srv-company').value = l.companyId || window.RevOpsStore.getDefaultCompanyId();
 
         document.getElementById('service-lead-modal').classList.remove('hidden');
       }
@@ -707,6 +728,7 @@ var activeServiceLeads = [];
         var newLead = {
           id: docId || ('srv_lead_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4)),
           leadNumber: nextLeadNum,
+          companyId: document.getElementById('inp-srv-company').value || window.RevOpsStore.getDefaultCompanyId(),
           customerName: document.getElementById('inp-srv-customer').value.trim(),
           leadSource: document.getElementById('inp-srv-source').value,
           serviceType: document.getElementById('inp-srv-type').value,

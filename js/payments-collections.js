@@ -488,6 +488,11 @@
         var receiptNum = p.receiptNumber || ('REC-2026-' + p.id.slice(-3));
         document.getElementById('receipt-modal-title').innerText = `Payment Receipt Voucher - ${receiptNum}`;
 
+        // Company (legal entity) shown on this receipt must match whichever
+        // company the settled invoice was actually raised under - inherited
+        // from that invoice, same as every other document in the chain.
+        var company = window.RevOpsStore.getCompanyById(linkedInv && linkedInv.companyId);
+
         var wrapper = document.getElementById('printable-receipt-wrapper');
         var netAmt = Number(p.amount) || 0;
         var tdsAmt = Number(p.tdsAmount) || 0;
@@ -498,12 +503,12 @@
           <div class="flex justify-between items-start border-b-2 border-slate-900 pb-4">
             <div>
               <div class="flex items-center space-x-2">
-                <span class="text-2xl font-black text-indigo-950 tracking-tight">MEASURE DI TECHNOLOGIES</span>
+                <span class="text-2xl font-black text-indigo-950 tracking-tight">${escapeHtml(company.tradeName || company.name)}</span>
                 <span class="px-2 py-0.5 rounded bg-emerald-700 text-white text-[10px] font-black uppercase">PAYMENT RECEIPT</span>
               </div>
               <p class="text-xs text-slate-600 mt-1">
-                Plot No. 42, SIDCO Industrial Estate, Guindy, Chennai - 600032, Tamil Nadu<br>
-                <strong>GSTIN:</strong> 33AAACM4209L1ZT | <strong>CIN:</strong> U72900TN2020PTC135890
+                ${escapeHtml(company.address)}<br>
+                <strong>GSTIN:</strong> ${escapeHtml(company.gstin)}${company.cin ? ` | <strong>CIN:</strong> ${escapeHtml(company.cin)}` : ''}
               </p>
             </div>
             <div class="text-right">
@@ -594,7 +599,7 @@
               <div class="w-32 h-10 border-b border-slate-400 mx-auto flex items-center justify-center text-[9px] text-slate-400 italic">
                 [Authorized Accounts Seal]
               </div>
-              <span class="font-bold text-slate-900 block mt-1">MEASURE DI TECHNOLOGIES</span>
+              <span class="font-bold text-slate-900 block mt-1">${escapeHtml(company.tradeName || company.name)}</span>
               <span class="text-[10px] text-slate-500">Finance & Accounts Department</span>
             </div>
           </div>

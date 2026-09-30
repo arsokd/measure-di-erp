@@ -49,6 +49,7 @@ var activeMasterTab = 'products';
       var pmFreqs = window.RevOpsStore.getCollection('pmVisitFrequencyMaster') || [];
       var amcMilestones = window.RevOpsStore.getCollection('amcInvoicingMilestoneMaster') || [];
       var contractDurations = window.RevOpsStore.getCollection('amcContractDurationMaster') || [];
+      var companies = window.RevOpsStore.getCollection('companyMaster') || [];
 
       document.getElementById('count-products').innerText = prods.length;
       document.getElementById('count-equipment').innerText = equip.length;
@@ -67,6 +68,8 @@ var activeMasterTab = 'products';
       document.getElementById('count-pmfrequency').innerText = pmFreqs.length;
       document.getElementById('count-amcmilestones').innerText = amcMilestones.length;
       document.getElementById('count-contractdurations').innerText = contractDurations.length;
+      var companiesCountEl = document.getElementById('count-companies');
+      if (companiesCountEl) companiesCountEl.innerText = companies.length;
     }
 
     // Simple name-only master lists (Lead Source, Industry Vertical, Project
@@ -93,6 +96,7 @@ var activeMasterTab = 'products';
       if (tabKey === 'projects') return 'projectsMaster';
       if (tabKey === 'currencies') return 'currencyMaster';
       if (tabKey === 'slapolicy') return 'slaResponseTierMaster';
+      if (tabKey === 'companies') return 'companyMaster';
       if (SIMPLE_MASTER_TABS[tabKey]) return SIMPLE_MASTER_TABS[tabKey].collection;
       return null;
     }
@@ -260,6 +264,31 @@ var activeMasterTab = 'products';
           `;
           body.appendChild(tr);
         });
+      } else if (activeMasterTab === 'companies') {
+        header.innerHTML = `
+          <tr>
+            <th class="py-3 px-4">Company</th>
+            <th class="py-3 px-4">Legal / Trade Name</th>
+            <th class="py-3 px-4 font-mono text-center">GSTIN</th>
+            <th class="py-3 px-4">Registered Address</th>
+            <th class="py-3 px-4 text-center">Actions</th>
+          </tr>
+        `;
+        filtered.forEach(function(c) {
+          var tr = document.createElement('tr');
+          tr.className = "hover:bg-slate-800/40 transition-colors";
+          tr.innerHTML = `
+            <td class="py-3 px-4 font-bold text-white">${escapeHtml(c.name)} <span class="text-slate-400 text-[10px] block">${escapeHtml(c.constitution || '')}</span></td>
+            <td class="py-3 px-4 text-slate-300">${escapeHtml(c.tradeName || c.legalName || '')}</td>
+            <td class="py-3 px-4 text-center font-mono text-amber-400">${escapeHtml(c.gstin || '')}</td>
+            <td class="py-3 px-4 text-slate-400 text-[11px]">${escapeHtml(c.address || '')}</td>
+            <td class="py-3 px-4 text-center">
+              <button onclick="editMasterRecord('${c.id}')" class="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg"><i class="fa-solid fa-pen-to-square"></i></button>
+              <button onclick="deleteMasterRecord('${c.id}')" class="p-1.5 bg-slate-800 hover:bg-rose-900/60 text-rose-400 rounded-lg ml-1"><i class="fa-solid fa-trash-can"></i></button>
+            </td>
+          `;
+          body.appendChild(tr);
+        });
       } else if (activeMasterTab === 'clients') {
         header.innerHTML = `
           <tr>
@@ -407,7 +436,8 @@ var activeMasterTab = 'products';
         'clients': 'Client Organization',
         'projects': 'Turnkey Automation Project',
         'currencies': 'Currency',
-        'slapolicy': 'SLA Response Policy'
+        'slapolicy': 'SLA Response Policy',
+        'companies': 'Company (Legal Entity)'
       };
       Object.keys(SIMPLE_MASTER_TABS).forEach(function(k) { titles[k] = SIMPLE_MASTER_TABS[k].label; });
 
@@ -514,6 +544,68 @@ var activeMasterTab = 'products';
               <input type="text" id="inp-rec-bene" value="${escapeHtml(d.beneficiaryName || 'MEASURE DI TECHNOLOGIES')}" class="w-full px-3 py-2 bg-slate-950 border border-slate-750 rounded-xl text-xs text-white" />
             </div>
           </div>
+        `;
+      } else if (activeMasterTab === 'companies') {
+        var d = recordData || {};
+        container.innerHTML = `
+          <p class="text-[10px] text-slate-400 -mt-1 mb-1">Selected once on a Lead / Service Lead and carried through every downstream document - name, GSTIN, address and logo shown here appear on every Quotation, Order, Invoice, Service Ticket and AMC document raised under this company.</p>
+          <div>
+            <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">Display Name *</label>
+            <input type="text" id="inp-rec-coname" required value="${escapeHtml(d.name || '')}" placeholder="e.g. Measure DI" class="w-full px-3 py-2 bg-slate-950 border border-slate-750 rounded-xl text-xs text-white" />
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">Trade Name (shown on documents) *</label>
+              <input type="text" id="inp-rec-cotrade" required value="${escapeHtml(d.tradeName || '')}" class="w-full px-3 py-2 bg-slate-950 border border-slate-750 rounded-xl text-xs text-white" />
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">GSTIN *</label>
+              <input type="text" id="inp-rec-cogstin" required value="${escapeHtml(d.gstin || '')}" class="w-full px-3 py-2 bg-slate-950 border border-slate-750 rounded-xl text-xs font-mono uppercase text-white" />
+            </div>
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">Legal Name (as per GST registration) *</label>
+            <input type="text" id="inp-rec-colegal" required value="${escapeHtml(d.legalName || '')}" class="w-full px-3 py-2 bg-slate-950 border border-slate-750 rounded-xl text-xs text-white" />
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">Registered Address *</label>
+            <textarea id="inp-rec-coaddr" required rows="2" class="w-full px-3 py-2 bg-slate-950 border border-slate-750 rounded-xl text-xs text-white">${escapeHtml(d.address || '')}</textarea>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">Constitution</label>
+              <input type="text" id="inp-rec-coconst" value="${escapeHtml(d.constitution || '')}" placeholder="Private Limited Company / Proprietorship" class="w-full px-3 py-2 bg-slate-950 border border-slate-750 rounded-xl text-xs text-white" />
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">Proprietor Name (if applicable)</label>
+              <input type="text" id="inp-rec-coprop" value="${escapeHtml(d.proprietorName || '')}" class="w-full px-3 py-2 bg-slate-950 border border-slate-750 rounded-xl text-xs text-white" />
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">Document Number Code *</label>
+              <input type="text" id="inp-rec-conumcode" required maxlength="6" value="${escapeHtml(d.numberCode || '')}" placeholder="e.g. MDI, ADI" class="w-full px-3 py-2 bg-slate-950 border border-slate-750 rounded-xl text-xs font-mono uppercase text-white" />
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">Logo Path</label>
+              <input type="text" id="inp-rec-cologo" value="${escapeHtml(d.logoPath || '')}" placeholder="/img/logo-xxx.jpg" class="w-full px-3 py-2 bg-slate-950 border border-slate-750 rounded-xl text-xs font-mono text-white" />
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">CIN (if applicable)</label>
+              <input type="text" id="inp-rec-cocin" value="${escapeHtml(d.cin || '')}" placeholder="Corporate Identity Number, if incorporated" class="w-full px-3 py-2 bg-slate-950 border border-slate-750 rounded-xl text-xs font-mono uppercase text-white" />
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">Print Signatory Title</label>
+              <input type="text" id="inp-rec-cosigtitle" value="${escapeHtml(d.signatoryTitle || '')}" placeholder="Managing Director & CEO / Proprietor" class="w-full px-3 py-2 bg-slate-950 border border-slate-750 rounded-xl text-xs text-white" />
+            </div>
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">Print Signatory Name</label>
+            <input type="text" id="inp-rec-cosigname" value="${escapeHtml(d.signatoryName || '')}" placeholder="Name shown under the signature on Quotations/Invoices" class="w-full px-3 py-2 bg-slate-950 border border-slate-750 rounded-xl text-xs text-white" />
+          </div>
+          <p class="text-[10px] text-slate-500">Document Number Code prefixes this company's own Lead/Quotation/Order/Invoice number series, so the two companies never share or collide on numbering. Logo Path is the image file already placed in the app (ask your developer to add a new one for any company beyond these two).</p>
         `;
       } else if (activeMasterTab === 'clients') {
         var d = recordData || {};
@@ -707,6 +799,23 @@ var activeMasterTab = 'products';
           beneficiaryName: document.getElementById('inp-rec-bene').value.trim(),
           accountType: 'Current Account'
         };
+      } else if (activeMasterTab === 'companies') {
+        colName = 'companyMaster';
+        recordObj = {
+          id: docId || ('company_' + Date.now()),
+          name: document.getElementById('inp-rec-coname').value.trim(),
+          tradeName: document.getElementById('inp-rec-cotrade').value.trim(),
+          legalName: document.getElementById('inp-rec-colegal').value.trim(),
+          gstin: document.getElementById('inp-rec-cogstin').value.trim().toUpperCase(),
+          address: document.getElementById('inp-rec-coaddr').value.trim(),
+          constitution: document.getElementById('inp-rec-coconst').value.trim(),
+          proprietorName: document.getElementById('inp-rec-coprop').value.trim(),
+          numberCode: document.getElementById('inp-rec-conumcode').value.trim().toUpperCase(),
+          logoPath: document.getElementById('inp-rec-cologo').value.trim(),
+          cin: document.getElementById('inp-rec-cocin').value.trim().toUpperCase(),
+          signatoryTitle: document.getElementById('inp-rec-cosigtitle').value.trim(),
+          signatoryName: document.getElementById('inp-rec-cosigname').value.trim()
+        };
       } else if (activeMasterTab === 'clients') {
         colName = 'clientsMaster';
         recordObj = {
@@ -841,7 +950,7 @@ var activeMasterTab = 'products';
         return;
       }
 
-      if (SIMPLE_MASTER_TABS[activeMasterTab] || activeMasterTab === 'currencies' || activeMasterTab === 'slapolicy') {
+      if (SIMPLE_MASTER_TABS[activeMasterTab] || activeMasterTab === 'currencies' || activeMasterTab === 'slapolicy' || activeMasterTab === 'companies') {
         alert("Bulk CSV upload isn't available for this category yet — these are small lists, please add records one at a time using \"+ Add Master Record\".");
         return;
       }
@@ -881,7 +990,7 @@ var activeMasterTab = 'products';
     }
 
     function downloadActiveTemplate() {
-      if (SIMPLE_MASTER_TABS[activeMasterTab] || activeMasterTab === 'slapolicy') {
+      if (SIMPLE_MASTER_TABS[activeMasterTab] || activeMasterTab === 'slapolicy' || activeMasterTab === 'companies') {
         alert("These are small lists maintained directly in the app — there's no CSV template for this category. Use \"+ Add Master Record\" instead.");
         return;
       }

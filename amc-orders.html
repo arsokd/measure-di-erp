@@ -538,11 +538,20 @@
         var val = Number(document.getElementById('inp-order-amount').value) || 0;
         var sourceQuoteId = document.getElementById('inp-order-quote-ref').value;
 
+        // Company (legal entity) is inherited from the source AMC
+        // Quotation, not independently picked here - same principle as the
+        // main Quote -> Order -> Invoice chain.
+        var sourceQuoteForCompany = sourceQuoteId
+          ? (window.RevOpsStore.getCollection('amcQuotations') || []).find(function(q) { return q.id === sourceQuoteId; })
+          : null;
+        var orderCompanyId = (sourceQuoteForCompany && sourceQuoteForCompany.companyId) || window.RevOpsStore.getDefaultCompanyId();
+
         var orderObj = {
           id: 'AMC-ORD-' + new Date().getFullYear() + '-' + String(orders.length + 1).padStart(3, '0'),
           orderNumber: 'AMC-ORD-' + new Date().getFullYear() + '-' + String(orders.length + 1).padStart(3, '0'),
           customerPo: document.getElementById('inp-order-po').value.trim(),
           customerName: document.getElementById('inp-order-client').value.trim(),
+          companyId: orderCompanyId,
           sourceQuoteId: sourceQuoteId || null,
           plantSite: document.getElementById('inp-order-site').value.trim(),
           contractType: document.getElementById('inp-order-type').value,

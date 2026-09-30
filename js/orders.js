@@ -414,6 +414,7 @@ var currentSplits = [];
           }
           if (q.vertical) document.getElementById('inp-ord-vertical').value = normalizeVerticalClassification(q.vertical);
           document.getElementById('ord-lead-id').value = q.leadId || '';
+          document.getElementById('ord-company-id').value = q.companyId || window.RevOpsStore.getDefaultCompanyId();
 
           // Populate linkage details
           var netVal = q.netSubtotal || q.netTaxableAmount || 0;
@@ -543,6 +544,7 @@ var currentSplits = [];
           document.getElementById('inp-ord-podate').value = orderData.poDate || '';
           document.getElementById('inp-ord-vertical').value = normalizeVerticalClassification(orderData.vertical) || 'Projects';
           document.getElementById('ord-lead-id').value = orderData.leadId || '';
+          document.getElementById('ord-company-id').value = orderData.companyId || window.RevOpsStore.getDefaultCompanyId();
 
           if (orderData.poFileData) {
             document.getElementById('ord-po-file-data').value = orderData.poFileData;
@@ -831,6 +833,7 @@ var currentSplits = [];
         var retReq = document.getElementById('inp-ord-retreq').value;
         var quoteId = document.getElementById('inp-ord-quote').value;
         var leadId = document.getElementById('ord-lead-id').value;
+        var companyId = document.getElementById('ord-company-id').value || (activeSelectedQuote && activeSelectedQuote.companyId) || window.RevOpsStore.getDefaultCompanyId();
 
         var poFileData = document.getElementById('ord-po-file-data').value || (existingOrder ? existingOrder.poFileData : '');
         var poFileName = document.getElementById('ord-po-file-name').value || (existingOrder ? existingOrder.poFileName : '');
@@ -839,6 +842,7 @@ var currentSplits = [];
           id: docId || ('ord_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4)),
           quotationId: quoteId,
           leadId: leadId,
+          companyId: companyId,
           poNumber: poNum,
           poDate: poDate,
           customerName: customerName,

@@ -423,12 +423,32 @@ var activeAmcContracts = [];
         });
       }
 
+      // Company (legal entity) — value is the companyMaster id, not its
+      // name; not reused from a cascade since AMC Contracts have no
+      // upstream record (Quote/Order) linked to them yet.
+      function populateAmcContractCompanyDropdown() {
+        var select = document.getElementById('amc-inp-company');
+        if (!select) return;
+        var items = (window.RevOpsStore.getCollection('companyMaster') || []).filter(function(it) { return it.isActive !== false; });
+        var currentVal = select.value;
+        select.innerHTML = items.map(function(it) {
+          return '<option value="' + escapeHtml(it.id) + '">' + escapeHtml(it.name) + '</option>';
+        }).join('');
+        if (currentVal && items.some(function(it) { return it.id === currentVal; })) {
+          select.value = currentVal;
+        } else {
+          select.value = window.RevOpsStore.getDefaultCompanyId();
+        }
+      }
+
       function openNewAmcModal() {
         var form = document.getElementById('amc-form');
         form.reset();
         document.getElementById('amc-doc-id').value = '';
         document.getElementById('amc-modal-title').textContent = "Register New AMC Contract";
-        
+        populateAmcContractCompanyDropdown();
+        document.getElementById('amc-inp-company').value = window.RevOpsStore.getDefaultCompanyId();
+
         var today = new Date();
         var yyyy = today.getFullYear();
         var mm = String(today.getMonth() + 1).padStart(2, '0');
@@ -456,6 +476,8 @@ var activeAmcContracts = [];
 
         document.getElementById('amc-doc-id').value = c.id;
         document.getElementById('amc-modal-title').textContent = "Edit AMC Contract (" + c.contractNumber + ")";
+        populateAmcContractCompanyDropdown();
+        document.getElementById('amc-inp-company').value = c.companyId || window.RevOpsStore.getDefaultCompanyId();
         document.getElementById('amc-inp-customer').value = c.customerName || '';
         handleAmcCustomerChange(c.customerName);
         document.getElementById('amc-inp-model').value = c.equipmentModel || '';
@@ -488,6 +510,7 @@ var activeAmcContracts = [];
         var newContract = {
           id: docId || ('amc_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4)),
           contractNumber: nextContractNum,
+          companyId: document.getElementById('amc-inp-company').value || window.RevOpsStore.getDefaultCompanyId(),
           customerName: document.getElementById('amc-inp-customer').value,
           equipmentModel: document.getElementById('amc-inp-model').value,
           serialNumbers: document.getElementById('amc-inp-serial').value,

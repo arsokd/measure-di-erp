@@ -1074,6 +1074,49 @@ if (!localStorage.getItem('expenses')) {
  }
  ]));
  }
+ // Company Master — the two legal entities the client operates under
+ // (Measure DI, the newer Pvt Ltd; Aditya Technologies, the original
+ // proprietorship, same owner/director, same business). Every one of
+ // these fields comes straight off each company's actual GST REG-06
+ // registration certificate, not invented. Selected once at Lead /
+ // Service Lead creation and carried through every downstream document
+ // (Quotation, Order, Invoice, Service Ticket, AMC, Warranty) so the
+ // right name/address/GSTIN/logo appears everywhere consistently.
+ if (!localStorage.getItem('companyMaster') || JSON.parse(localStorage.getItem('companyMaster') || '[]').length === 0) {
+ localStorage.setItem('companyMaster', JSON.stringify([
+ {
+ id: 'company_measuredi',
+ name: 'Measure DI',
+ legalName: 'MEASUREDI TECHNOLOGIES PRIVATE LIMITED',
+ tradeName: 'MEASUREDI TECHNOLOGIES PRIVATE LIMITED',
+ constitution: 'Private Limited Company',
+ gstin: '33AAOCM5612M1Z6',
+ cin: 'U72900TN2020PTC135890',
+ address: '38/1, 12th Avenue, Ashok Nagar, Chennai, Tamil Nadu, 600083',
+ logoPath: '/img/logo-measuredi.jpg',
+ numberCode: 'MDI',
+ signatoryName: 'M. Ravichandran',
+ signatoryTitle: 'Managing Director & CEO',
+ isActive: true
+ },
+ {
+ id: 'company_aditya',
+ name: 'Aditya Technologies',
+ legalName: 'RAVICHANDRAN RAMANATHAN',
+ tradeName: 'ADITYA TECHNOLOGIES',
+ proprietorName: 'Ravichandran Ramanathan',
+ constitution: 'Proprietorship',
+ gstin: '33ABEPR5421P1ZD',
+ address: '6, Suresh Nagar, Chennai, Tamil Nadu, 600087',
+ logoPath: '/img/logo-aditya.jpg',
+ numberCode: 'ADI',
+ signatoryName: 'M. Ravichandran',
+ signatoryTitle: 'Proprietor',
+ isActive: true
+ }
+ ]));
+ }
+
  localStorage.setItem('revops_seeded_v25', 'true');
  localStorage.setItem('revops_seeded_v27', 'true');
  }

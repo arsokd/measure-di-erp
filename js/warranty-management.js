@@ -272,12 +272,32 @@ var activeWarranties = [];
         }
       }
 
+      // Company (legal entity) — value is the companyMaster id, not its
+      // name; Warranty has no upstream cascade (Order/Ticket) linked to it
+      // yet, so this is picked directly like Vertical above.
+      function populateWarrantyCompanyDropdown() {
+        var select = document.getElementById('inp-warr-company');
+        if (!select) return;
+        var items = (window.RevOpsStore.getCollection('companyMaster') || []).filter(function(it) { return it.isActive !== false; });
+        var currentVal = select.value;
+        select.innerHTML = items.map(function(it) {
+          return '<option value="' + escapeHtml(it.id) + '">' + escapeHtml(it.name) + '</option>';
+        }).join('');
+        if (currentVal && items.some(function(it) { return it.id === currentVal; })) {
+          select.value = currentVal;
+        } else {
+          select.value = window.RevOpsStore.getDefaultCompanyId();
+        }
+      }
+
       function openNewWarrantyModal() {
         var form = document.getElementById('warranty-form');
         form.reset();
         document.getElementById('warranty-doc-id').value = '';
         document.getElementById('warranty-modal-title').textContent = "Register Equipment Warranty";
         populateWarrantyVerticalDropdown();
+        populateWarrantyCompanyDropdown();
+        document.getElementById('inp-warr-company').value = window.RevOpsStore.getDefaultCompanyId();
 
         var today = new Date().toISOString().slice(0, 10);
         document.getElementById('inp-warr-comm-date').value = today;
@@ -307,6 +327,8 @@ var activeWarranties = [];
         document.getElementById('inp-warr-location').value = w.location || '';
         populateWarrantyVerticalDropdown();
         document.getElementById('inp-warr-vertical').value = normalizeVerticalClassification(w.vertical) || 'Crane';
+        populateWarrantyCompanyDropdown();
+        document.getElementById('inp-warr-company').value = w.companyId || window.RevOpsStore.getDefaultCompanyId();
 
         document.getElementById('warranty-modal').classList.remove('hidden');
       }
@@ -319,6 +341,7 @@ var activeWarranties = [];
 
         var newWarr = {
           id: docId || ('warr_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4)),
+          companyId: document.getElementById('inp-warr-company').value || window.RevOpsStore.getDefaultCompanyId(),
           serialNumber: document.getElementById('inp-warr-serial').value.trim(),
           customerName: document.getElementById('inp-warr-customer').value.trim(),
           orderRef: document.getElementById('inp-warr-order').value.trim(),

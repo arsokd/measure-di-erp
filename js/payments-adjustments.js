@@ -961,6 +961,10 @@ var currentPaymentView = 'transactions';
         document.getElementById('adj-voucher-title').innerText = `Authorization Certificate - ${adjRef}`;
         var wrapper = document.getElementById('printable-adj-wrapper');
 
+        // Company (legal entity) shown must match whichever company the
+        // adjusted invoice was actually raised under.
+        var company = window.RevOpsStore.getCompanyById(linkedInv && linkedInv.companyId);
+
         var isApproved = adj.status === 'Approved';
         var latestSignoffDate = [adj.primaryApproverSignoff, adj.financeHeadSignoff, adj.directorSignoff]
           .filter(Boolean).map(function(so) { return so.signedAt; }).pop();
@@ -971,12 +975,12 @@ var currentPaymentView = 'transactions';
             <div>
               <div class="flex items-center space-x-2">
 
-                <span class="text-2xl font-black text-purple-950 tracking-tight">MEASURE DI TECHNOLOGIES</span>
+                <span class="text-2xl font-black text-purple-950 tracking-tight">${escapeHtml(company.tradeName || company.name)}</span>
                 <span class="px-2 py-0.5 rounded bg-purple-900 text-white text-[10px] font-black uppercase">Three-Way Authorization</span>
               </div>
               <p class="text-xs text-slate-600 mt-1">
-                Plot No. 42, SIDCO Industrial Estate, Guindy, Chennai - 600032, Tamil Nadu<br>
-                <strong>GSTIN:</strong> 33AAACM4209L1ZT | <strong>CIN:</strong> U72900TN2020PTC135890
+                ${escapeHtml(company.address)}<br>
+                <strong>GSTIN:</strong> ${escapeHtml(company.gstin)}${company.cin ? ` | <strong>CIN:</strong> ${escapeHtml(company.cin)}` : ''}
               </p>
             </div>
             <div class="text-right">

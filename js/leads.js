@@ -78,6 +78,23 @@ var currentLeadContacts = [];
           }
         }
 
+        // Company (legal entity) — Measure DI or Aditya. Value is the
+        // companyMaster record's id, not its name, so this can't reuse the
+        // generic fillSelect() above (which keys options on it.name).
+        var coSelect = document.getElementById('inp-lead-company');
+        if (coSelect) {
+          var companies = (window.RevOpsStore.getCollection('companyMaster') || []).filter(function(it) { return it.isActive !== false; });
+          var currentCo = coSelect.value;
+          coSelect.innerHTML = companies.map(function(c) {
+            return '<option value="' + escapeHtml(c.id) + '">' + escapeHtml(c.name) + '</option>';
+          }).join('');
+          if (currentCo && companies.some(function(c) { return c.id === currentCo; })) {
+            coSelect.value = currentCo;
+          } else {
+            coSelect.value = window.RevOpsStore.getDefaultCompanyId();
+          }
+        }
+
         fillSelect('inp-lead-source', 'leadSourceMaster');
         // Industry Vertical now reads the SAME Master Data > Vertical
         // Classification list as the Vertical Classification field just
@@ -640,6 +657,7 @@ var currentLeadContacts = [];
           }
 
           document.getElementById('inp-lead-vertical').value = normalizeVerticalClassification(leadData.vertical) || 'Projects';
+          document.getElementById('inp-lead-company').value = leadData.companyId || window.RevOpsStore.getDefaultCompanyId();
 
           // Load products
           if (leadData.products && Array.isArray(leadData.products) && leadData.products.length > 0) {
@@ -679,6 +697,7 @@ var currentLeadContacts = [];
           document.getElementById('inp-lead-industry').value = 'Projects';
           handleIndustryChange();
           document.getElementById('inp-lead-vertical').value = 'Projects';
+          document.getElementById('inp-lead-company').value = window.RevOpsStore.getDefaultCompanyId();
           // Explicit, not left to form.reset()'s default-option guess -
           // a new lead always starts at the first funnel stage.
           document.getElementById('inp-lead-stage').value = 'Customer Contacted / Contact Attempted';
@@ -727,7 +746,15 @@ var currentLeadContacts = [];
           sector = document.getElementById('inp-other-sector').value || 'Other Industries';
         }
 
-        var nextLeadNum = existingLead ? existingLead.leadNumber : ('LD-2026-' + Math.floor(1000 + Math.random() * 9000));
+        var leadCompanyId = document.getElementById('inp-lead-company').value || window.RevOpsStore.getDefaultCompanyId();
+        // Lead numbers are random, not sequential, so there's no shared
+        // counter to split — but Aditya still gets its own numberCode
+        // folded into the prefix so its leads are visually distinguishable
+        // from Measure DI's at a glance, same as Quotation/Invoice numbers.
+        var leadCompanyObj = window.RevOpsStore.getCompanyById(leadCompanyId);
+        var leadNumCode = leadCompanyObj && leadCompanyObj.numberCode && leadCompanyObj.numberCode !== 'MDI' ? leadCompanyObj.numberCode : null;
+        var leadNumPrefix = leadNumCode ? 'LD-' + leadNumCode + '-2026-' : 'LD-2026-';
+        var nextLeadNum = existingLead ? existingLead.leadNumber : (leadNumPrefix + Math.floor(1000 + Math.random() * 9000));
 
         var validContacts = currentLeadContacts.filter(function(c) { return c.name.trim() !== ''; });
         var primaryContact = validContacts[0] || { name: 'Customer Contact', phone: '', email: '' };
@@ -745,6 +772,7 @@ var currentLeadContacts = [];
         var newLead = {
           id: docId || ('lead_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4)),
           leadNumber: nextLeadNum,
+          companyId: leadCompanyId,
           customerName: document.getElementById('inp-lead-customer').value.trim(),
           leadSource: document.getElementById('inp-lead-source').value,
           industry: document.getElementById('inp-lead-industry').value,

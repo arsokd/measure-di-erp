@@ -27,8 +27,9 @@ var currentViewMode = 'table';
         var preCustomer = urlParams.get('customer');
         var preModel = urlParams.get('model');
         var preSerial = urlParams.get('serial');
+        var preCompanyId = urlParams.get('companyId');
         if (preCustomer || preSerial) {
-          openRaiseTicketModal(preCustomer, preModel, preSerial);
+          openRaiseTicketModal(preCustomer, preModel, preSerial, preCompanyId);
         }
       });
 
@@ -108,6 +109,26 @@ var currentViewMode = 'table';
         populateComplaintCategoryDropdown();
         populateSeverityDropdown();
         populateVerticalDropdown();
+        populateTicketCompanyDropdown();
+      }
+
+      // Company (legal entity) — Measure DI or Aditya. Normally arrives
+      // already set from the Service Lead this ticket was raised from (see
+      // openRaiseTicketModal's companyId pre-fill); only manually pickable
+      // for a ticket raised directly, with no Service Lead behind it.
+      function populateTicketCompanyDropdown() {
+        var select = document.getElementById('input-company');
+        if (!select) return;
+        var items = (window.RevOpsStore.getCollection('companyMaster') || []).filter(function(it) { return it.isActive !== false; });
+        var currentVal = select.value;
+        select.innerHTML = items.map(function(it) {
+          return '<option value="' + escapeHtml(it.id) + '">' + escapeHtml(it.name) + '</option>';
+        }).join('');
+        if (currentVal && items.some(function(it) { return it.id === currentVal; })) {
+          select.value = currentVal;
+        } else {
+          select.value = window.RevOpsStore.getDefaultCompanyId();
+        }
       }
 
       // Vertical — same Master Data > Vertical Classification list Sales
@@ -1179,8 +1200,12 @@ var currentViewMode = 'table';
       }
 
       // MODAL FUNCTIONS & LIFECYCLE
-      function openRaiseTicketModal(preCust, preModel, preSerial) {
+      function openRaiseTicketModal(preCust, preModel, preSerial, preCompanyId) {
         populateMasterDropdowns();
+        if (preCompanyId) {
+          var coSelect = document.getElementById('input-company');
+          if (coSelect) coSelect.value = preCompanyId;
+        }
         ticketRaisePhotos = [];
         renderTicketRaisePhotosPreview();
 
@@ -1242,6 +1267,7 @@ var currentViewMode = 'table';
         var equipModel = document.getElementById('input-equipment-model').value;
         var equipSerial = document.getElementById('input-equipment-serial').value;
         var vert = document.getElementById('input-vertical').value;
+        var companyId = document.getElementById('input-company').value || window.RevOpsStore.getDefaultCompanyId();
         var catSelect = document.getElementById('input-category').value;
         var finalCat = catSelect === 'Other' ? (document.getElementById('input-category-other')?.value || 'Other Custom Defect') : catSelect;
         var sev = document.getElementById('input-severity').value;
@@ -1279,6 +1305,7 @@ var currentViewMode = 'table';
           equipmentModel: equipModel,
           equipmentSerial: equipSerial,
           vertical: vert,
+          companyId: companyId,
           complaintCategory: finalCat,
           complaintDescription: desc,
           severity: sev,
@@ -1548,12 +1575,13 @@ var currentViewMode = 'table';
         var bodyArea = document.getElementById('email-client-body');
         var mailtoBtn = document.getElementById('btn-email-mailto');
 
-        var subject = `[Measure DI Service] Service Ticket Registered: ${ticket.ticketNumber} - ${ticket.equipmentModel} (${ticket.equipmentSerial})`;
+        var company = window.RevOpsStore.getCompanyById(ticket.companyId);
+        var subject = `[${company.name} Service] Service Ticket Registered: ${ticket.ticketNumber} - ${ticket.equipmentModel} (${ticket.equipmentSerial})`;
         var toEmail = ticket.clientEmail || 'service@client.com';
 
         var body = `Dear ${ticket.customerName} Team,
 
-Greetings from Measure Dynamics & Instrumentation (Measure DI) Customer Support.
+Greetings from ${company.tradeName || company.name} Customer Support.
 
 Your service request has been officially registered in our system with the following details:
 
@@ -1577,7 +1605,7 @@ Our service team has been dispatched/assigned and will coordinate with your site
 For any urgent assistance or site gate pass coordination, please reach our 24x7 Helpdesk at service@measuredi.com.
 
 Best Regards,
-Measure Dynamics & Instrumentation Private Limited
+${company.tradeName || company.name}
 Service & Quality Assurance Division`;
 
         if (toInput) toInput.value = toEmail;

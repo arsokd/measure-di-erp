@@ -224,7 +224,7 @@
           </div>
 
           <!-- Basic Invoice Details -->
-          <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div>
               <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Invoice Number *</label>
               <input type="text" id="inp-inv-number" required placeholder="e.g. INV/2026-27/001" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500" />
@@ -242,6 +242,13 @@
               <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Vertical *</label>
               <select id="inp-inv-vertical" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500">
                 <!-- Populated from Master Data > Vertical Classification, same list Sales Leads uses -->
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Company *</label>
+              <select id="inp-inv-company" onchange="handleInvoiceCompanyChange()" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                <!-- Populated from Master Data > Company Master; auto-set when a Quote/PO is selected above -->
               </select>
             </div>
           </div>

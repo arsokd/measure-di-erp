@@ -458,7 +458,7 @@ var currentTab = 'All';
         var proforma = invoices.find(function(i) { return i.id === proformaId; });
         if (!proforma) return;
 
-        var nextTaxNum = window.RevOpsStore.generateNextInvoiceNumber(false);
+        var nextTaxNum = window.RevOpsStore.generateNextInvoiceNumber(false, proforma.companyId);
         var msg = "Are you sure you want to convert Proforma Invoice " + proforma.invoiceNumber + " into official GST Tax Invoice " + nextTaxNum + "?\n\nThis will clone itemization, apply senior approval gate and link the proforma reference.";
         
         if (confirm(msg)) {
@@ -500,14 +500,50 @@ var currentTab = 'All';
         }
       }
 
+      // Company (legal entity) — Measure DI or Aditya. Chosen once at Lead
+      // creation and carried through automatically via autoPopulateFromQuote/
+      // autoPopulateFromOrder below; only manually picked here for a
+      // standalone invoice raised with no quote/PO source.
+      function populateInvoiceCompanyDropdown() {
+        var select = document.getElementById('inp-inv-company');
+        if (!select) return;
+        var items = (window.RevOpsStore.getCollection('companyMaster') || []).filter(function(it) { return it.isActive !== false; });
+        var currentVal = select.value;
+        select.innerHTML = items.map(function(it) {
+          return '<option value="' + escapeHtml(it.id) + '">' + escapeHtml(it.name) + '</option>';
+        }).join('');
+        if (currentVal && items.some(function(it) { return it.id === currentVal; })) {
+          select.value = currentVal;
+        } else {
+          select.value = window.RevOpsStore.getDefaultCompanyId();
+        }
+      }
+
+      // Re-derives the invoice number for whatever type/company is now
+      // selected, but only for a brand-new invoice — an existing invoice's
+      // already-issued GST number must never be silently swapped out from
+      // under it just because someone touched the type or company field.
+      function regenerateInvoiceNumberIfNew() {
+        var docId = document.getElementById('inv-doc-id').value;
+        if (docId) return;
+        var type = document.getElementById('inp-inv-type').value;
+        var companyId = document.getElementById('inp-inv-company').value;
+        document.getElementById('inp-inv-number').value = window.RevOpsStore.generateNextInvoiceNumber(type === 'Proforma Invoice', companyId);
+      }
+
+      function handleInvoiceCompanyChange() {
+        regenerateInvoiceNumberIfNew();
+      }
+
       function openInvoiceModal() {
         document.getElementById('inv-doc-id').value = "";
         document.getElementById('invoice-modal-title').innerText = "Raise Commercial Invoice";
         document.getElementById('inv-modal-badge').innerText = "GST Tax Invoice";
 
-        document.getElementById('inp-inv-number').value = window.RevOpsStore.generateNextInvoiceNumber(false);
         document.getElementById('inp-inv-type').value = "Tax Invoice";
         populateInvoiceVerticalDropdown();
+        populateInvoiceCompanyDropdown();
+        document.getElementById('inp-inv-number').value = window.RevOpsStore.generateNextInvoiceNumber(false, document.getElementById('inp-inv-company').value);
         document.getElementById('inp-inv-customer').value = "";
         document.getElementById('inp-inv-gstin').value = "";
         document.getElementById('inp-inv-email').value = "";
@@ -616,10 +652,7 @@ var currentTab = 'All';
 
       function updateInvoiceTypeUI() {
         var type = document.getElementById('inp-inv-type').value;
-        var docId = document.getElementById('inv-doc-id').value;
-        if (!docId) {
-          document.getElementById('inp-inv-number').value = window.RevOpsStore.generateNextInvoiceNumber(type === 'Proforma Invoice');
-        }
+        regenerateInvoiceNumberIfNew();
         document.getElementById('inv-modal-badge').innerText = type === 'Proforma Invoice' ? 'Proforma Invoice (PI)' : 'GST Tax Invoice';
       }
 
@@ -634,7 +667,9 @@ var currentTab = 'All';
         document.getElementById('inp-inv-email').value = q.customerEmail || '';
         document.getElementById('inp-inv-contact').value = (q.customerContactPerson || '') + (q.customerPhone ? ' / ' + q.customerPhone : '');
         document.getElementById('inp-inv-vertical').value = normalizeVerticalClassification(q.vertical) || 'Projects';
-        
+        document.getElementById('inp-inv-company').value = q.companyId || window.RevOpsStore.getDefaultCompanyId();
+        regenerateInvoiceNumberIfNew();
+
         var tbody = document.getElementById('invoice-items-tbody');
         tbody.innerHTML = "";
         if (q.items && q.items.length > 0) {
@@ -707,7 +742,9 @@ var currentTab = 'All';
         document.getElementById('inp-inv-email').value = ord.customerEmail || (ord.contactEmail || '');
         document.getElementById('inp-inv-contact').value = (ord.contactPerson || '') + (ord.contactPhone ? ' / ' + ord.contactPhone : '');
         document.getElementById('inp-inv-vertical').value = normalizeVerticalClassification(ord.vertical) || 'Projects';
-        
+        document.getElementById('inp-inv-company').value = ord.companyId || window.RevOpsStore.getDefaultCompanyId();
+        regenerateInvoiceNumberIfNew();
+
         var poRefStr = (ord.poNumber || ord.orderId || '') + (ord.poDate ? ' dt. ' + ord.poDate : '');
         document.getElementById('inp-inv-poref').value = poRefStr;
         
@@ -863,6 +900,7 @@ var currentTab = 'All';
           invoiceNumber: document.getElementById('inp-inv-number').value.trim(),
           invoiceType: document.getElementById('inp-inv-type').value,
           vertical: document.getElementById('inp-inv-vertical').value,
+          companyId: document.getElementById('inp-inv-company').value || window.RevOpsStore.getDefaultCompanyId(),
           customerName: document.getElementById('inp-inv-customer').value.trim(),
           customerGstin: document.getElementById('inp-inv-gstin').value.trim(),
           customerEmail: document.getElementById('inp-inv-email').value.trim(),
@@ -946,6 +984,8 @@ var currentTab = 'All';
         document.getElementById('inp-inv-type').value = inv.invoiceType || 'Tax Invoice';
         populateInvoiceVerticalDropdown();
         document.getElementById('inp-inv-vertical').value = normalizeVerticalClassification(inv.vertical) || 'Projects';
+        populateInvoiceCompanyDropdown();
+        document.getElementById('inp-inv-company').value = inv.companyId || window.RevOpsStore.getDefaultCompanyId();
         document.getElementById('inp-inv-customer').value = inv.customerName;
         document.getElementById('inp-inv-gstin').value = inv.customerGstin || '';
         document.getElementById('inp-inv-email').value = inv.customerEmail || '';
@@ -1306,6 +1346,8 @@ Mobile: +91 98406 29928 | Web: www.measuredi.com`;
       // (to generate the actual PDF attachment) so both always show/attach
       // an identical, fully up-to-date document for that exact invoice.
       function buildInvoicePrintableHtml(inv) {
+        var company = window.RevOpsStore.getCompanyById(inv.companyId);
+        var constitutionBadge = (company.constitution || '').toUpperCase().indexOf('PROPRIETOR') !== -1 ? 'PROPRIETORSHIP' : 'PVT LTD';
         var itemsHtml = '';
         if (inv.items && inv.items.length > 0) {
           inv.items.forEach(function(it, idx) {
@@ -1359,12 +1401,13 @@ Mobile: +91 98406 29928 | Web: www.measuredi.com`;
           <div class="flex justify-between items-start border-b-2 border-slate-900 pb-4">
             <div>
               <div class="flex items-center space-x-2">
-                <span class="text-2xl font-black text-indigo-950 tracking-tight">MEASURE DI TECHNOLOGIES</span>
-                <span class="px-2 py-0.5 rounded bg-indigo-900 text-white text-[10px] font-black uppercase">PVT LTD</span>
+                ${company.logoPath ? `<img src="${escapeHtml(company.logoPath)}" alt="${escapeHtml(company.tradeName || company.name)} logo" class="h-8 w-auto object-contain" onerror="this.remove()" />` : ''}
+                <span class="text-2xl font-black text-indigo-950 tracking-tight">${escapeHtml(company.tradeName || company.name)}</span>
+                <span class="px-2 py-0.5 rounded bg-indigo-900 text-white text-[10px] font-black uppercase">${constitutionBadge}</span>
               </div>
               <p class="text-xs text-slate-600 mt-1 leading-relaxed">
-                Plot No. 42, SIDCO Industrial Estate, Guindy, Chennai - 600032, Tamil Nadu, India<br>
-                <strong>GSTIN:</strong> 33AAACM4209L1ZT | <strong>CIN:</strong> U72900TN2020PTC135890<br>
+                ${escapeHtml(company.address)}<br>
+                <strong>GSTIN:</strong> ${escapeHtml(company.gstin)}${company.cin ? ` | <strong>CIN:</strong> ${escapeHtml(company.cin)}` : ''}<br>
                 <strong>Email:</strong> measuredichennai@gmail.com | <strong>Phone:</strong> +91 98406 29928
               </p>
             </div>
@@ -1424,7 +1467,7 @@ Mobile: +91 98406 29928 | Web: www.measuredi.com`;
             <div class="p-4 bg-slate-50 border border-slate-200 rounded-xl text-xs space-y-2">
               <span class="font-bold text-slate-800 uppercase block text-[11px]">Bank Remittance Instructions:</span>
               <p class="text-slate-600 leading-relaxed font-mono text-[11px]">
-                <strong>Account Name:</strong> Measure DI Technologies Pvt Ltd<br>
+                <strong>Account Name:</strong> ${escapeHtml(company.tradeName || company.name)}<br>
                 <strong>Bank & Branch:</strong> ${escapeHtml(inv.bankDetails || 'HDFC Bank, Current A/c No: 50200049283719, IFSC: HDFC0000123')}<br>
                 <strong>Payment Mode:</strong> RTGS / NEFT / IMPS<br>
                 <strong>Terms:</strong> ${escapeHtml(inv.terms || 'Payment within 30 days')}
@@ -1472,12 +1515,12 @@ Mobile: +91 98406 29928 | Web: www.measuredi.com`;
             </div>
             <div class="text-center">
               <div class="w-48 py-2 px-3 bg-slate-50 border border-slate-300 rounded-lg mx-auto flex flex-col items-center justify-center">
-                <span class="text-[10px] font-serif italic text-indigo-950 font-bold tracking-wider">M. Ravichandran</span>
+                <span class="text-[10px] font-serif italic text-indigo-950 font-bold tracking-wider">${escapeHtml(company.signatoryName || 'M. Ravichandran')}</span>
                 <span class="text-[9px] text-emerald-700 font-mono font-bold">✓ Digitally Signed</span>
-                <span class="text-[8px] text-slate-400 font-mono">Cert: DSC-MDI-2026-98406</span>
+                <span class="text-[8px] text-slate-400 font-mono">Cert: DSC-${escapeHtml(company.numberCode || 'MDI')}-2026-98406</span>
               </div>
-              <span class="font-bold text-slate-900 block mt-1.5 text-xs">For MEASURE DI TECHNOLOGIES PVT LTD</span>
-              <span class="text-[10px] text-slate-600 font-semibold">M. Ravichandran, Managing Director & CEO</span>
+              <span class="font-bold text-slate-900 block mt-1.5 text-xs">For ${escapeHtml((company.tradeName || company.name || '').toUpperCase())}</span>
+              <span class="text-[10px] text-slate-600 font-semibold">${escapeHtml(company.signatoryName || 'M. Ravichandran')}, ${escapeHtml(company.signatoryTitle || 'Managing Director & CEO')}</span>
             </div>
           </div>
         `;

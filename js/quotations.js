@@ -198,10 +198,13 @@ var currentEditingQuoteId = null;
           var prefillPhone = params.get('prefillPhone') || '';
           var prefillEmail = params.get('prefillEmail') || '';
 
+          var prefillCompanyId = params.get('companyId') || '';
+
           if (prefillCustomer) document.getElementById('inp-quote-customer').value = prefillCustomer;
           if (prefillContact) document.getElementById('inp-quote-contact').value = prefillContact;
           if (prefillPhone) document.getElementById('inp-quote-mobile').value = prefillPhone;
           if (prefillEmail) document.getElementById('inp-quote-email').value = prefillEmail;
+          if (prefillCompanyId) document.getElementById('inp-quote-company').value = prefillCompanyId;
           if (prefillModel && activeQuoteItems.length > 0) {
             activeQuoteItems[0].description = prefillModel;
             renderQuoteLineItems();
@@ -645,11 +648,30 @@ var currentEditingQuoteId = null;
         }
       }
 
+      // Company (legal entity) — Measure DI or Aditya. Set once at Lead
+      // creation and carried through via onLeadSelected above; only
+      // manually pickable for a standalone quote with no linked Lead.
+      function populateQuoteCompanyDropdown() {
+        var select = document.getElementById('inp-quote-company');
+        if (!select) return;
+        var items = (window.RevOpsStore.getCollection('companyMaster') || []).filter(function(it) { return it.isActive !== false; });
+        var currentVal = select.value;
+        select.innerHTML = items.map(function(it) {
+          return '<option value="' + escapeHtml(it.id) + '">' + escapeHtml(it.name) + '</option>';
+        }).join('');
+        if (currentVal && items.some(function(it) { return it.id === currentVal; })) {
+          select.value = currentVal;
+        } else {
+          select.value = window.RevOpsStore.getDefaultCompanyId();
+        }
+      }
+
       function openQuoteModal(quoteId, prefillLead) {
         currentEditingQuoteId = quoteId || null;
         var modal = document.getElementById('quoteModal');
         modal.classList.remove('hidden');
         populateQuoteVerticalDropdown();
+        populateQuoteCompanyDropdown();
 
         // Populate Lead dropdown
         var leads = window.RevOpsStore.getCollection('leads') || [];
@@ -697,6 +719,7 @@ var currentEditingQuoteId = null;
             document.getElementById('inp-quote-mobile').value = q.mobile || '';
             document.getElementById('inp-quote-cc').value = q.ccEmails || '';
             document.getElementById('inp-quote-vertical').value = normalizeVerticalClassification(q.vertical) || 'Projects';
+            document.getElementById('inp-quote-company').value = q.companyId || window.RevOpsStore.getDefaultCompanyId();
             document.getElementById('inp-quote-owner').value = q.employeeId || myEmpId;
             document.getElementById('inp-quote-address').value = q.address || '';
             document.getElementById('inp-quote-date').value = formatDateForInput(q.createdDate);
@@ -725,6 +748,7 @@ var currentEditingQuoteId = null;
           document.getElementById('inp-quote-cc').value = "";
           document.getElementById('inp-quote-address').value = "";
           document.getElementById('inp-quote-vertical').value = "Projects";
+          document.getElementById('inp-quote-company').value = window.RevOpsStore.getDefaultCompanyId();
           document.getElementById('inp-quote-date').value = new Date().toISOString().slice(0, 10);
           document.getElementById('inp-quote-validity').value = "30";
           document.getElementById('inp-quote-leadtime').value = "3-4 Weeks from advance PO";
@@ -785,6 +809,7 @@ var currentEditingQuoteId = null;
       function setLeadLinkedFieldsLocked(locked) {
         var custInput = document.getElementById('inp-quote-customer');
         var contactInput = document.getElementById('inp-quote-contact');
+        var companySelect = document.getElementById('inp-quote-company');
         var hint = document.getElementById('quote-customer-locked-hint');
         [custInput, contactInput].forEach(function(el) {
           if (!el) return;
@@ -796,6 +821,11 @@ var currentEditingQuoteId = null;
             el.classList.remove('bg-slate-100', 'cursor-not-allowed');
           }
         });
+        if (companySelect) {
+          companySelect.disabled = !!locked;
+          companySelect.classList.toggle('bg-slate-100', !!locked);
+          companySelect.classList.toggle('cursor-not-allowed', !!locked);
+        }
         if (hint) hint.classList.toggle('hidden', !locked);
       }
 
@@ -922,6 +952,14 @@ var currentEditingQuoteId = null;
         var vertSelect = document.getElementById('inp-quote-vertical');
         if (vertSelect) {
           vertSelect.value = targetVertical;
+        }
+
+        // 3b. Company (legal entity) — set once at Lead creation, carried
+        // through unchanged; locked below via setLeadLinkedFieldsLocked so
+        // it can't drift from what the Lead recorded.
+        var companySelect = document.getElementById('inp-quote-company');
+        if (companySelect) {
+          companySelect.value = lead.companyId || window.RevOpsStore.getDefaultCompanyId();
         }
 
         // 4. Sales Representative / Owner
@@ -1181,6 +1219,7 @@ var currentEditingQuoteId = null;
         var mobile = document.getElementById('inp-quote-mobile').value.trim();
         var ccEmails = document.getElementById('inp-quote-cc').value.trim();
         var vertical = document.getElementById('inp-quote-vertical').value;
+        var companyId = document.getElementById('inp-quote-company').value || window.RevOpsStore.getDefaultCompanyId();
         var ownerEmpId = document.getElementById('inp-quote-owner').value;
 
         var ownerEmpObj = employees.find(function(emp) { return emp.employeeId === ownerEmpId; });
@@ -1215,9 +1254,23 @@ var currentEditingQuoteId = null;
         var quotes = getQuotationsList();
 
         if (!quoteId) {
-          // Generate new Quote Number
-          var nextNum = quotes.length + 1;
-          var qNumStr = 'QT-2026-' + String(nextNum).padStart(3, '0');
+          // Generate new Quote Number — scoped per company (see
+          // js/store.js generateNextInvoiceNumber for the same pattern):
+          // Measure DI keeps its original unprefixed QT-2026-xxx format for
+          // continuity, any other company folds its numberCode into the
+          // prefix, which is all that's needed to give it its own
+          // independent, non-interleaved sequence.
+          var qCompany = window.RevOpsStore.getCompanyById(companyId);
+          var qCode = qCompany && qCompany.numberCode && qCompany.numberCode !== 'MDI' ? qCompany.numberCode : null;
+          var qPrefix = qCode ? 'QT-' + qCode + '-2026-' : 'QT-2026-';
+          var qMaxNum = 0;
+          quotes.forEach(function(q) {
+            if (q.quoteNumber && q.quoteNumber.indexOf(qPrefix) === 0) {
+              var qNumPart = parseInt(q.quoteNumber.replace(qPrefix, ''), 10);
+              if (!isNaN(qNumPart) && qNumPart > qMaxNum) qMaxNum = qNumPart;
+            }
+          });
+          var qNumStr = qPrefix + String(qMaxNum + 1).padStart(3, '0');
           quoteId = qNumStr + '-R' + revision;
 
           var newRecord = {
@@ -1226,6 +1279,7 @@ var currentEditingQuoteId = null;
             revision: revision,
             parentQuoteId: parentQuoteId,
             leadId: leadId,
+            companyId: companyId,
             customerName: customerName,
             contactPerson: contactPerson,
             email: email,
@@ -1285,6 +1339,7 @@ var currentEditingQuoteId = null;
             quotes[idx].mobile = mobile;
             quotes[idx].ccEmails = ccEmails;
             quotes[idx].vertical = vertical;
+            quotes[idx].companyId = companyId;
             quotes[idx].employeeId = ownerEmpId;
             quotes[idx].employeeName = ownerName;
             quotes[idx].address = address;
@@ -1517,6 +1572,29 @@ var currentEditingQuoteId = null;
       // PDF attachment), so the printable area always reflects the exact
       // quote being acted on - not whichever quote was last previewed.
       function renderPrintableQuoteArea(q) {
+        // Company (legal entity) branding — the name, address, GSTIN and
+        // logo shown must always match whichever company this Lead/
+        // Quotation was raised under, never a fixed hardcoded identity.
+        var company = window.RevOpsStore.getCompanyById(q.companyId);
+        document.getElementById('pdf-co-name').innerText = company.tradeName || company.name;
+        document.getElementById('pdf-co-logo-badge').innerText = company.numberCode || 'MDI';
+        var logoImg = document.getElementById('pdf-co-logo');
+        var logoBadge = document.getElementById('pdf-co-logo-badge');
+        if (company.logoPath) {
+          logoImg.src = company.logoPath;
+          logoImg.classList.remove('hidden');
+          logoBadge.classList.add('hidden');
+        } else {
+          logoImg.classList.add('hidden');
+          logoBadge.classList.remove('hidden');
+        }
+        var taglineEl = document.getElementById('pdf-co-tagline');
+        taglineEl.classList.toggle('hidden', company.numberCode !== 'MDI');
+        document.getElementById('pdf-co-address-block').innerHTML =
+          escapeHtml(company.address) + '<br>' +
+          'GSTIN: ' + escapeHtml(company.gstin) + ' | Email: sales@measuredi.com | Phone: +91 98406 29928';
+        document.getElementById('pdf-co-signature-line').innerText = 'For ' + (company.tradeName || company.name).toUpperCase();
+
         document.getElementById('pdf-quote-number').innerText = q.quoteNumber + ' (Ver ' + (q.revision || 1) + ')';
         document.getElementById('pdf-quote-date').innerText = 'Date: ' + (q.createdDate || '');
         document.getElementById('pdf-quote-expiry').innerText = 'Valid Until: ' + (q.expiryDate || '');
