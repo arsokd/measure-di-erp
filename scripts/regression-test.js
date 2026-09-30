@@ -895,6 +895,53 @@ async function testEmailRoutesGmailFirstWithBrevoFallback(browser) {
   return failures;
 }
 
+// ---------------------------------------------------------------------
+// Superseded quotation revisions (R1, R2 - anything with a newer revision
+// pointing back at it via parentQuoteId) must not appear in either the
+// PO-booking quote picker (Orders) or the Invoice quote-source picker -
+// only the current, un-superseded version should be selectable.
+// ---------------------------------------------------------------------
+async function testSupersededQuoteRevisionsHidden(browser) {
+  const failures = [];
+  const { page } = await newPage(browser);
+
+  async function seedRevisionChain() {
+    await page.evaluate(function () {
+      window.RevOpsStore.saveCollection('quotations', [
+        { id: 'QUO-TEST-001', quoteNumber: 'QUO-TEST-001', customerName: 'Revision Test Co', revision: 1, parentQuoteId: null, status: 'Approved', grandTotal: 100000 },
+        { id: 'QUO-TEST-001-R2', quoteNumber: 'QUO-TEST-001', customerName: 'Revision Test Co', revision: 2, parentQuoteId: 'QUO-TEST-001', status: 'Approved', grandTotal: 110000 },
+        { id: 'QUO-TEST-001-R3', quoteNumber: 'QUO-TEST-001', customerName: 'Revision Test Co', revision: 3, parentQuoteId: 'QUO-TEST-001-R2', status: 'Approved', grandTotal: 120000 }
+      ]);
+      window.RevOpsStore.saveCollection('orders', []);
+      window.RevOpsStore.saveCollection('clientsMaster', [{ id: 'c1', clientName: 'Revision Test Co' }]);
+    });
+  }
+
+  await page.goto(BASE_URL + '/orders.html', { waitUntil: 'networkidle', timeout: 30000 });
+  await page.waitForTimeout(600);
+  await seedRevisionChain();
+  await page.evaluate(function () { openOrderModal(); });
+  await page.waitForTimeout(300);
+  await page.selectOption('#inp-ord-customer-select', 'Revision Test Co').catch(function () {});
+  await page.waitForTimeout(300);
+  const orderOptions = await page.evaluate(function () {
+    return Array.from(document.getElementById('inp-ord-quote').options).map(function (o) { return o.value; }).filter(Boolean);
+  });
+  assertEqual(orderOptions, ['QUO-TEST-001-R3'], 'PO booking: only the final (un-superseded) revision is selectable', failures);
+
+  await page.goto(BASE_URL + '/invoices.html', { waitUntil: 'networkidle', timeout: 30000 });
+  await page.waitForTimeout(600);
+  await seedRevisionChain();
+  const invoiceOptions = await page.evaluate(function () {
+    filterInvoiceQuoteSourceByCustomer('Revision Test Co');
+    return Array.from(document.getElementById('inp-inv-quote-source').options).map(function (o) { return o.value; }).filter(Boolean);
+  });
+  assertEqual(invoiceOptions, ['QUO-TEST-001-R3'], 'Invoice quote-source: only the final (un-superseded) revision is selectable', failures);
+
+  await page.close();
+  return failures;
+}
+
 const TESTS = [
   ['SLA day-based seeding, migration, severity dropdown & date math', testSlaDayBasedSeedingAndMigration],
   ['Ticket email subject line', testQuotationVerticalAndTicketSubject],
@@ -909,7 +956,8 @@ const TESTS = [
   ['Lead product Unit Price is pre-filled but editable', testLeadProductPriceEditable],
   ['Master Data edit access is Super Admin / Admin role only', testMasterDataAdminRoleOnly],
   ['Service/Parts pages declare explicit role gate', testServicePartsPagesDeclareRoleGate],
-  ['Client email routes Gmail-first with Brevo fallback on any failure', testEmailRoutesGmailFirstWithBrevoFallback]
+  ['Client email routes Gmail-first with Brevo fallback on any failure', testEmailRoutesGmailFirstWithBrevoFallback],
+  ['Superseded quotation revisions hidden from PO/Invoice pickers', testSupersededQuoteRevisionsHidden]
 ];
 
 (async () => {

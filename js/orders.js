@@ -333,6 +333,16 @@ var currentSplits = [];
         });
       }
 
+      // Creating a revision (see quotations.js createQuoteRevision) clones
+      // the quote into a brand-new record linked back via parentQuoteId,
+      // leaving the old one sitting in the collection unchanged - so a
+      // twice-revised quote otherwise leaves 2 stale "Approved" copies
+      // showing up here alongside the real, current one. A quote counts as
+      // superseded the moment any other quote's parentQuoteId points at it.
+      function isQuoteSuperseded(q, allQuotes) {
+        return allQuotes.some(function(other) { return other.parentQuoteId === q.id; });
+      }
+
       // Only a customer's APPROVED (and not-yet-booked-into-another-order)
       // quotations are offered here — never a free-text/manual entry, and
       // never a Pending/Rejected/Draft one. This is deliberately strict:
@@ -347,6 +357,7 @@ var currentSplits = [];
         var filteredQuotes = quotes.filter(function(q) {
           if (customerName && (q.customerName || '').trim().toLowerCase() !== customerName.trim().toLowerCase()) return false;
           if (q.id === selectedQuoteId) return true; // always keep the currently-linked quote visible/selectable
+          if (isQuoteSuperseded(q, quotes)) return false;
           if (q.status !== 'Approved' && q.status !== 'Sent to Customer') return false;
           if (isQuoteAlreadyOrdered(q, excludeOrderId)) return false;
           return true;

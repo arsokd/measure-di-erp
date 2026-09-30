@@ -660,9 +660,19 @@ var currentTab = 'All';
         var quotes = window.RevOpsStore.getCollection('quotations') || [];
         var orders = window.RevOpsStore.getCollection('orders') || [];
 
+        // Creating a revision (see quotations.js createQuoteRevision) clones
+        // the quote into a brand-new record linked back via parentQuoteId,
+        // leaving the old one sitting in the collection unchanged - so a
+        // revised quote otherwise leaves its stale earlier version(s)
+        // showing up here alongside the real, current one.
+        var isQuoteSuperseded = function(q) {
+          return quotes.some(function(other) { return other.parentQuoteId === q.id; });
+        };
+
         var filtered = quotes.filter(function(q) {
           if (customerName && (q.customerName || '').trim().toLowerCase() !== customerName.trim().toLowerCase()) return false;
           if (q.convertedOrderId) return false;
+          if (isQuoteSuperseded(q)) return false;
           return !orders.some(function(o) { return o.quotationId === q.id && o.status !== 'Rejected'; });
         });
 
