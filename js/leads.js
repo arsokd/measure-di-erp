@@ -56,8 +56,23 @@ var currentLeadContacts = [];
           }
         }
 
+        // Quick "add a brand-new product without leaving this Lead" button
+        // is Super Admin / Admin only - matches Master Data's own edit
+        // restriction (productsMaster write access is likewise gated to
+        // these two roles in firestore.rules), since this writes straight
+        // into the same master list.
+        var newProductBtn = document.getElementById('btn-lead-new-product');
+        if (newProductBtn) {
+          newProductBtn.classList.toggle('hidden', !canQuickAddProduct());
+        }
+
         renderFunnelBar();
         renderLeadsTable();
+      }
+
+      function canQuickAddProduct() {
+        var role = localStorage.getItem('userRole');
+        return role === 'super_admin' || role === 'admin';
       }
 
       // Populates the Lead Source / Industry Vertical / Project Sector /
@@ -183,7 +198,15 @@ var currentLeadContacts = [];
           };
           return defaults[vertical] || defaults['Projects'];
         }
-        return masterProducts.filter(function(p) { return p.vertical === vertical; });
+        // A product saved under the old pre-unification wording (e.g.
+        // "Spare/Service") would otherwise never strictly-equal the
+        // current canonical vertical name and silently vanish from every
+        // vertical's dropdown - this is exactly why the product picker
+        // can come up empty on a real account with real Master Data
+        // products, while a fresh/incognito session (zero productsMaster
+        // records, so the hardcoded defaults above are used instead)
+        // never shows the bug.
+        return masterProducts.filter(function(p) { return normalizeVerticalClassification(p.vertical) === vertical; });
       }
 
       function handleVerticalChange() {
@@ -335,6 +358,108 @@ var currentLeadContacts = [];
           currentLeadProducts[idx].hsn = found.hsn || found.hsnCode || '90318000';
           currentLeadProducts[idx].unitPrice = found.price || found.unitPrice || 0;
           renderLeadProducts();
+        }
+      }
+
+      // Quick "New Product" (Master List) - lets a Super Admin/Admin add a
+      // product straight into productsMaster without ever leaving this
+      // Lead form: no navigation, so there's nothing to "come back" from -
+      // the Lead's in-progress entry (contacts, other product rows,
+      // everything) is simply still sitting right there underneath the
+      // modal the whole time.
+      function openLeadNewProductModal() {
+        if (!canQuickAddProduct()) return;
+        var cascade = getCurrentLeadCascadeValues();
+        populateLeadNewProductDropdowns(cascade);
+        document.getElementById('inp-newprod-name').value = '';
+        document.getElementById('inp-newprod-spec').value = '';
+        document.getElementById('inp-newprod-hsn').value = '90318000';
+        document.getElementById('inp-newprod-price').value = '0';
+        document.getElementById('lead-new-product-modal').classList.remove('hidden');
+      }
+
+      function closeLeadNewProductModal() {
+        document.getElementById('lead-new-product-modal').classList.add('hidden');
+      }
+
+      function populateLeadNewProductDropdowns(cascade) {
+        function fillOptions(selectId, collectionName, includeAny) {
+          var select = document.getElementById(selectId);
+          if (!select) return;
+          var items = (window.RevOpsStore.getCollection(collectionName) || []).filter(function(it) { return it.isActive !== false; });
+          var optsHtml = items.map(function(it) {
+            return '<option value="' + escapeHtml(it.name) + '">' + escapeHtml(it.name) + '</option>';
+          }).join('');
+          select.innerHTML = (includeAny ? '<option value="">-- Any --</option>' : '') + optsHtml;
+        }
+        fillOptions('inp-newprod-industryvertical', 'verticalClassificationMaster', true);
+        fillOptions('inp-newprod-projectsector', 'projectSectorMaster', true);
+        fillOptions('inp-newprod-vertical', 'verticalClassificationMaster', false);
+
+        // Defaults to whatever this Lead is currently classified under -
+        // that's almost always exactly why a product is missing in the
+        // first place, so it saves re-picking the same values twice.
+        document.getElementById('inp-newprod-industryvertical').value = cascade.industryVertical || '';
+        document.getElementById('inp-newprod-projectsector').value = cascade.projectSector || '';
+        document.getElementById('inp-newprod-vertical').value = cascade.vertical || 'Projects';
+      }
+
+      function handleSaveLeadNewProduct(e) {
+        e.preventDefault();
+        if (!canQuickAddProduct()) {
+          alert("Only Super Admin or Admin can add a new product to the master list.");
+          return;
+        }
+
+        var name = document.getElementById('inp-newprod-name').value.trim();
+        var spec = document.getElementById('inp-newprod-spec').value.trim();
+        var vertical = document.getElementById('inp-newprod-vertical').value;
+        var industryVertical = document.getElementById('inp-newprod-industryvertical').value || '';
+        var projectSector = document.getElementById('inp-newprod-projectsector').value || '';
+        var hsn = document.getElementById('inp-newprod-hsn').value.trim() || '90318000';
+        var price = Number(document.getElementById('inp-newprod-price').value) || 0;
+
+        if (!name || !spec || !vertical) {
+          alert("Please fill in Vertical Classification, Product Name and Technical Specification.");
+          return;
+        }
+
+        // Same field shape master-data.js's own Products form writes -
+        // this is a shortcut into the identical master list, not a
+        // separate one, so every other page that reads productsMaster
+        // sees this new product exactly like any admin-added one.
+        var newProduct = {
+          id: 'prod_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+          vertical: vertical,
+          industryVertical: industryVertical,
+          projectSector: projectSector,
+          productName: name,
+          name: name,
+          technicalSpec: spec,
+          spec: spec,
+          hsnCode: hsn,
+          hsn: hsn,
+          unitPrice: price,
+          price: price
+        };
+
+        window.RevOpsStore.saveRecord('productsMaster', newProduct);
+        if (window.RevOpsStore.logAudit) {
+          window.RevOpsStore.logAudit('MasterData', newProduct.id, 'CREATE', 'Created productsMaster entry "' + name + '" (quick-added from the Lead form)', null, newProduct);
+        }
+
+        closeLeadNewProductModal();
+
+        // Re-render every product row so the new product is immediately
+        // selectable, and if it matches the Lead's current vertical, drop
+        // it straight into whichever row is still blank (or the last row)
+        // so there's nothing left to do but keep filling out the Lead.
+        renderLeadProducts();
+        var cascade = getCurrentLeadCascadeValues();
+        if (vertical === cascade.vertical) {
+          var targetIdx = currentLeadProducts.findIndex(function(p) { return !p.name; });
+          if (targetIdx === -1) targetIdx = currentLeadProducts.length - 1;
+          if (targetIdx >= 0) onLeadProductSelected(targetIdx, name);
         }
       }
 

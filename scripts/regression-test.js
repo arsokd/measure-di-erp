@@ -1136,6 +1136,92 @@ async function testMultiCompanySupport(browser) {
   return failures;
 }
 
+// ---------------------------------------------------------------------
+// Lead form product picker: (1) a product saved under old, pre-Vertical-
+// unification wording (e.g. "Service/Parts") must still show up under
+// its normalized current vertical, not silently vanish - this was the
+// real cause of "the product dropdown doesn't work" on any account with
+// real Master Data products, which a fresh/incognito session (zero
+// productsMaster records, so the hardcoded fallback list is used
+// instead) could never reproduce. (2) The quick "+ New Product (Master
+// List)" button lets a Super Admin/Admin add a product straight from
+// the Lead form without navigating away, and is hidden for every other
+// role.
+// ---------------------------------------------------------------------
+async function testLeadProductDropdownAndQuickAddProduct(browser) {
+  const failures = [];
+  const { page } = await newPage(browser);
+
+  await page.goto(BASE_URL + '/leads.html', { waitUntil: 'networkidle', timeout: 30000 });
+  await page.waitForTimeout(600);
+
+  await page.evaluate(function () {
+    window.RevOpsStore.saveCollection('productsMaster', [
+      { id: 'p_regr_old', vertical: 'Service/Parts', productName: 'Old Wording Product', name: 'Old Wording Product', hsn: '90318000', hsnCode: '90318000', price: 1000, unitPrice: 1000 }
+    ]);
+    openLeadModal();
+  });
+  await page.waitForTimeout(300);
+  await page.selectOption('#inp-lead-vertical', 'Service and Parts').catch(function () {});
+  await page.waitForTimeout(300);
+  const productOptions = await page.evaluate(function () {
+    var select = document.querySelector('#lead-products-container select');
+    return select ? Array.from(select.options).map(function (o) { return o.value; }) : [];
+  });
+  assertIncludes(productOptions, 'Old Wording Product', 'Lead product picker: a product saved under old pre-unification vertical wording still appears under its normalized current vertical', failures);
+
+  // Quick "+ New Product" button: hidden for staff/manager, visible for
+  // super_admin - same pattern as the Master Data role test.
+  async function checkQuickAddVisibility(employeeId, userRole, expectedVisible, label) {
+    const p = await browser.newPage();
+    p.on('dialog', async function (d) { await d.dismiss().catch(function () {}); });
+    await p.addInitScript(function (creds) {
+      localStorage.setItem('userRole', creds.userRole);
+      localStorage.setItem('userEmail', creds.userEmail);
+      localStorage.setItem('userName', creds.userName);
+      localStorage.setItem('employeeId', creds.employeeId);
+    }, { employeeId: employeeId, userRole: userRole, userEmail: 'x@measuredi.com', userName: 'Test User' });
+    await p.goto(BASE_URL + '/leads.html', { waitUntil: 'networkidle', timeout: 30000 });
+    await p.waitForTimeout(600);
+    const hidden = await p.evaluate(function () {
+      return document.getElementById('btn-lead-new-product').classList.contains('hidden');
+    });
+    assertEqual(!hidden, expectedVisible, label, failures);
+    await p.close();
+  }
+  await checkQuickAddVisibility('E-006', 'staff', false, 'Lead: "+ New Product" hidden for staff role');
+  await checkQuickAddVisibility('E-011', 'manager', false, 'Lead: "+ New Product" hidden for manager role');
+  await checkQuickAddVisibility('E-001', 'super_admin', true, 'Lead: "+ New Product" visible for super_admin role');
+
+  // Quick-add flow itself: saves into productsMaster, closes the modal
+  // without navigating away, and auto-selects the new product into the
+  // Lead's current row - the in-progress Lead entry (still open behind
+  // the modal) is never lost.
+  await page.click('#btn-lead-new-product');
+  await page.waitForTimeout(200);
+  await page.fill('#inp-newprod-name', 'Quick Add Regression Weigher');
+  await page.fill('#inp-newprod-spec', 'Regression test spec 100T');
+  const quickAddResult = await page.evaluate(function () {
+    document.getElementById('lead-new-product-form').requestSubmit();
+    var prods = window.RevOpsStore.getCollection('productsMaster') || [];
+    var saved = prods.find(function (p) { return p.name === 'Quick Add Regression Weigher'; });
+    var select = document.querySelector('#lead-products-container select');
+    return {
+      saved: !!saved,
+      modalHidden: document.getElementById('lead-new-product-modal').classList.contains('hidden'),
+      leadFormStillOpen: !document.getElementById('lead-modal').classList.contains('hidden'),
+      selectedIntoRow: select ? select.value : null
+    };
+  });
+  assertTrue(quickAddResult.saved, 'Lead quick-add: new product saved into productsMaster', failures);
+  assertTrue(quickAddResult.modalHidden, 'Lead quick-add: modal closes after saving', failures);
+  assertTrue(quickAddResult.leadFormStillOpen, 'Lead quick-add: the Lead form itself is still open underneath - never navigated away', failures);
+  assertEqual(quickAddResult.selectedIntoRow, 'Quick Add Regression Weigher', 'Lead quick-add: new product is auto-selected into the current row', failures);
+
+  await page.close();
+  return failures;
+}
+
 const TESTS = [
   ['SLA day-based seeding, migration, severity dropdown & date math', testSlaDayBasedSeedingAndMigration],
   ['Ticket email subject line', testQuotationVerticalAndTicketSubject],
@@ -1152,7 +1238,8 @@ const TESTS = [
   ['Service/Parts pages declare explicit role gate', testServicePartsPagesDeclareRoleGate],
   ['Client email routes Gmail-first with Brevo fallback on any failure', testEmailRoutesGmailFirstWithBrevoFallback],
   ['Superseded quotation revisions hidden from PO/Invoice pickers', testSupersededQuoteRevisionsHidden],
-  ['Multi-company support: Lead/Quotation/Invoice numbering & branding', testMultiCompanySupport]
+  ['Multi-company support: Lead/Quotation/Invoice numbering & branding', testMultiCompanySupport],
+  ['Lead product dropdown vertical-normalization fix & quick "+ New Product" role gate', testLeadProductDropdownAndQuickAddProduct]
 ];
 
 (async () => {
