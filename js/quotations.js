@@ -449,6 +449,11 @@ var currentEditingQuoteId = null;
                   📎 ${fileCount} file${fileCount > 1 ? 's' : ''}
                 </span>
               ` : ''}
+              ${q.editHistory && q.editHistory.length > 0 ? `
+                <span class="mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200" title="Last edit (${escapeHtml(q.lastEditedDate || '')} by ${escapeHtml(q.lastEditedBy || '')}): ${escapeHtml(q.lastEditReason || '')}">
+                  ✎ Edited (${q.editHistory.length})
+                </span>
+              ` : ''}
             </td>
             <td class="px-4 py-3">
               <div class="font-bold text-slate-900">${escapeHtml(q.customerName)}</div>
@@ -734,6 +739,17 @@ var currentEditingQuoteId = null;
             activeQuoteItems = q.items ? JSON.parse(JSON.stringify(q.items)) : [];
             activeQuoteAttachments = q.attachments ? JSON.parse(JSON.stringify(q.attachments)) : [];
             setLeadLinkedFieldsLocked(!!q.leadId);
+
+            // Editing an existing quote always demands a fresh reason -
+            // never pre-filled from a previous edit, so it can't be saved
+            // again unchanged by accident.
+            var editReasonWrapper = document.getElementById('quote-edit-reason-wrapper');
+            var editReasonInput = document.getElementById('inp-quote-edit-reason');
+            if (editReasonWrapper) editReasonWrapper.classList.remove('hidden');
+            if (editReasonInput) {
+              editReasonInput.value = '';
+              editReasonInput.setAttribute('required', 'required');
+            }
           }
         } else {
           // New quote
@@ -758,6 +774,16 @@ var currentEditingQuoteId = null;
           document.getElementById('inp-quote-remarks').value = "";
           if (document.getElementById('inp-quote-lead-search')) document.getElementById('inp-quote-lead-search').value = "";
           setLeadLinkedFieldsLocked(false);
+
+          // A brand-new quote has nothing to justify yet - the reason
+          // field only applies once there's an existing quote to modify.
+          var newQuoteEditReasonWrapper = document.getElementById('quote-edit-reason-wrapper');
+          var newQuoteEditReasonInput = document.getElementById('inp-quote-edit-reason');
+          if (newQuoteEditReasonWrapper) newQuoteEditReasonWrapper.classList.add('hidden');
+          if (newQuoteEditReasonInput) {
+            newQuoteEditReasonInput.value = '';
+            newQuoteEditReasonInput.removeAttribute('required');
+          }
 
           activeQuoteItems = [
             { itemId: "ITEM-1", description: "Measure DI High-Precision Dynamic Weigher", hsnCode: "90318000", qty: 1, unitPrice: 1000000, lineDiscountPercent: 0, taxPercent: 18 }
@@ -1211,6 +1237,16 @@ var currentEditingQuoteId = null;
         var quoteId = document.getElementById('inp-quote-id').value;
         var revision = parseInt(document.getElementById('inp-quote-revision').value) || 1;
         var parentQuoteId = document.getElementById('inp-parent-quote-id').value || null;
+        var editReason = document.getElementById('inp-quote-edit-reason').value.trim();
+
+        // Belt-and-suspenders on top of the [required] attribute the generic
+        // FormValidation check above already enforces - editing an existing
+        // quotation without stating why is never allowed, no exceptions.
+        if (quoteId && !editReason) {
+          alert("Please state the reason for this edit before saving — it's compulsory whenever an existing quotation is modified.");
+          document.getElementById('inp-quote-edit-reason').focus();
+          return;
+        }
 
         var leadId = document.getElementById('inp-quote-lead').value;
         var customerName = document.getElementById('inp-quote-customer').value.trim();
@@ -1358,7 +1394,25 @@ var currentEditingQuoteId = null;
             quotes[idx].taxAmount = taxAmount;
             quotes[idx].grandTotal = grandTotal;
             quotes[idx].termsAndConditions = terms;
-            
+
+            // Mandatory reason for this edit - kept both on the record
+            // itself (so it's visible right on the Quotations table / next
+            // time this quote is opened) and in the central Audit Log
+            // (so it's reviewable even if this quote is later deleted).
+            quotes[idx].lastEditReason = editReason;
+            quotes[idx].lastEditedBy = myEmpObj.fullName;
+            quotes[idx].lastEditedDate = getFormattedToday() + ' ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            if (!Array.isArray(quotes[idx].editHistory)) quotes[idx].editHistory = [];
+            quotes[idx].editHistory.push({
+              employeeId: myEmpId,
+              employeeName: myEmpObj.fullName,
+              timestamp: quotes[idx].lastEditedDate,
+              reason: editReason
+            });
+            if (window.RevOpsStore.logAudit) {
+              window.RevOpsStore.logAudit('Quotation', quoteId, 'UPDATE', 'Edited quotation ' + (quotes[idx].quoteNumber || quoteId) + ' — Reason: ' + editReason, null, { reason: editReason });
+            }
+
             if (quotes[idx].status !== 'Approved' && quotes[idx].status !== 'Sent to Customer' && quotes[idx].status !== 'Converted to Order') {
               if (isSelfExempt) {
                 quotes[idx].status = 'Approved';

@@ -1222,6 +1222,74 @@ async function testLeadProductDropdownAndQuickAddProduct(browser) {
   return failures;
 }
 
+// ---------------------------------------------------------------------
+// Editing an existing quotation must always state a reason: the field
+// is hidden and not required when creating a brand-new quote (nothing
+// to justify yet), but is shown, required, and force-cleared (never
+// pre-filled from a previous edit) the moment an existing quote is
+// opened for editing. Saving without it must be blocked, and saving
+// with it must record the reason both on the quote record itself
+// (visible in the table) and in the central Audit Log.
+// ---------------------------------------------------------------------
+async function testQuoteEditReasonMandatory(browser) {
+  const failures = [];
+  const { page } = await newPage(browser);
+
+  await page.goto(BASE_URL + '/quotations.html', { waitUntil: 'networkidle', timeout: 30000 });
+  await page.waitForTimeout(600);
+
+  await page.evaluate(function () {
+    window.RevOpsStore.saveCollection('quotations', [
+      { id: 'QUO-REGR-REASON', quoteNumber: 'QUO-REGR-REASON', customerName: 'Edit Reason Test Co', revision: 1, status: 'Draft', items: [], grandTotal: 0, netSubtotal: 0, taxAmount: 0, approvalHistory: [] }
+    ]);
+  });
+
+  const newQuoteState = await page.evaluate(function () {
+    openQuoteModal(null, null);
+    var wrap = document.getElementById('quote-edit-reason-wrapper');
+    var inp = document.getElementById('inp-quote-edit-reason');
+    return { hidden: wrap.classList.contains('hidden'), required: inp.hasAttribute('required') };
+  });
+  assertTrue(newQuoteState.hidden, 'Quote edit-reason field is hidden when creating a brand-new quote', failures);
+  assertTrue(!newQuoteState.required, 'Quote edit-reason field is not required when creating a brand-new quote', failures);
+
+  const editQuoteState = await page.evaluate(function () {
+    openQuoteModal('QUO-REGR-REASON');
+    var wrap = document.getElementById('quote-edit-reason-wrapper');
+    var inp = document.getElementById('inp-quote-edit-reason');
+    return { hidden: wrap.classList.contains('hidden'), required: inp.hasAttribute('required'), value: inp.value };
+  });
+  assertTrue(!editQuoteState.hidden, 'Quote edit-reason field is shown when editing an existing quote', failures);
+  assertTrue(editQuoteState.required, 'Quote edit-reason field is required when editing an existing quote', failures);
+  assertEqual(editQuoteState.value, '', 'Quote edit-reason field starts blank on every edit, not pre-filled from a prior edit', failures);
+
+  const blockedWithoutReason = await page.evaluate(function () {
+    document.getElementById('quoteForm').requestSubmit();
+    return !document.getElementById('quoteModal').classList.contains('hidden');
+  });
+  assertTrue(blockedWithoutReason, 'Saving an edit with no reason is blocked - modal stays open', failures);
+
+  await page.fill('#inp-quote-edit-reason', 'Regression test: corrected pricing error');
+  const afterSave = await page.evaluate(function () {
+    document.getElementById('quoteForm').requestSubmit();
+    var quotes = window.RevOpsStore.getCollection('quotations') || [];
+    var q = quotes.find(function (x) { return x.id === 'QUO-REGR-REASON'; });
+    var auditLogs = window.RevOpsStore.getCollection('auditLogs') || [];
+    var matchingAudit = auditLogs.find(function (a) { return a.docId === 'QUO-REGR-REASON'; });
+    return {
+      lastEditReason: q ? q.lastEditReason : null,
+      editHistoryLen: q && Array.isArray(q.editHistory) ? q.editHistory.length : 0,
+      auditFound: !!matchingAudit
+    };
+  });
+  assertEqual(afterSave.lastEditReason, 'Regression test: corrected pricing error', 'Saved edit reason is recorded on the quote record', failures);
+  assertEqual(afterSave.editHistoryLen, 1, 'Edit is appended to the quote\'s own editHistory trail', failures);
+  assertTrue(afterSave.auditFound, 'Edit reason is also logged to the central Audit Log', failures);
+
+  await page.close();
+  return failures;
+}
+
 const TESTS = [
   ['SLA day-based seeding, migration, severity dropdown & date math', testSlaDayBasedSeedingAndMigration],
   ['Ticket email subject line', testQuotationVerticalAndTicketSubject],
@@ -1239,7 +1307,8 @@ const TESTS = [
   ['Client email routes Gmail-first with Brevo fallback on any failure', testEmailRoutesGmailFirstWithBrevoFallback],
   ['Superseded quotation revisions hidden from PO/Invoice pickers', testSupersededQuoteRevisionsHidden],
   ['Multi-company support: Lead/Quotation/Invoice numbering & branding', testMultiCompanySupport],
-  ['Lead product dropdown vertical-normalization fix & quick "+ New Product" role gate', testLeadProductDropdownAndQuickAddProduct]
+  ['Lead product dropdown vertical-normalization fix & quick "+ New Product" role gate', testLeadProductDropdownAndQuickAddProduct],
+  ['Quotation edit: mandatory reason field', testQuoteEditReasonMandatory]
 ];
 
 (async () => {
