@@ -1,1 +1,25 @@
 @import "tailwindcss";
+
+/* Native date-input calendar icon fix (app-wide): on this app's dark-
+   themed inputs (bg-slate-800 / bg-slate-900 / bg-slate-950), the
+   browser's own calendar picker icon renders in its default dark/black
+   color and is essentially invisible against a dark background - so
+   people were typing dates in by hand instead of clicking the picker.
+   color-scheme tells the browser to render native form controls (the
+   icon and the picker popup itself) in a light-on-dark palette instead;
+   the ::-webkit-calendar-picker-indicator filter is the Chrome/Edge/
+   Safari-specific fallback for when color-scheme alone isn't enough.
+   Light-background date inputs (bg-white / bg-slate-50 / etc.) are left
+   untouched - the default icon already has good contrast there. */
+input[type="date"][class*="bg-slate-800"],
+input[type="date"][class*="bg-slate-900"],
+input[type="date"][class*="bg-slate-950"] {
+  color-scheme: dark;
+}
+
+input[type="date"][class*="bg-slate-800"]::-webkit-calendar-picker-indicator,
+input[type="date"][class*="bg-slate-900"]::-webkit-calendar-picker-indicator,
+input[type="date"][class*="bg-slate-950"]::-webkit-calendar-picker-indicator {
+  filter: invert(1) brightness(1.3);
+  cursor: pointer;
+}
