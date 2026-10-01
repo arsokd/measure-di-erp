@@ -274,7 +274,11 @@
 
       function initSampleAmcQuotesIfEmpty() {
         var existing = window.RevOpsStore.getCollection('amcQuotations') || [];
-        if (existing.length === 0) {
+        // Only in a pure offline/no-Firebase demo install does empty mean
+        // "nothing entered yet" - once Firebase is connected, empty means
+        // it was deliberately cleared (see RevOpsStore.clearDummyDataForGoLive)
+        // and should stay empty.
+        if (existing.length === 0 && !window.RevOpsStore.isFirebaseAvailable()) {
           var samples = [
             {
               id: 'AMC-QUO-2026-001',

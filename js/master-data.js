@@ -23,6 +23,11 @@ var activeMasterTab = 'products';
         if (addBtn) addBtn.classList.add('hidden');
         if (bulkBtn) bulkBtn.classList.add('hidden');
         if (notice) notice.classList.remove('hidden');
+      } else {
+        // Go-Live "Clear Demo Data" is Super Admin / Admin only, same gate
+        // as every other master-data write action.
+        var dangerZone = document.getElementById('go-live-danger-zone');
+        if (dangerZone) dangerZone.classList.remove('hidden');
       }
     }
 
@@ -1057,4 +1062,64 @@ var activeMasterTab = 'products';
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+    }
+
+    // ---- Go-Live: Clear Demo Data ----
+    // Deliberately gated by canEditMasterData() again here (not just the
+    // button's own hidden state at page load) - a role switch mid-session
+    // shouldn't leave this reachable from a stale DOM state.
+    function openClearDemoDataModal() {
+      if (!canEditMasterData()) {
+        alert("Only Super Admin or Admin can clear demo data.");
+        return;
+      }
+      document.getElementById('inp-clear-demo-confirm').value = '';
+      document.getElementById('clear-demo-data-confirm-view').classList.remove('hidden');
+      document.getElementById('clear-demo-data-progress-view').classList.add('hidden');
+      document.getElementById('clear-demo-data-done-view').classList.add('hidden');
+      document.getElementById('clear-demo-data-modal').classList.remove('hidden');
+    }
+
+    function closeClearDemoDataModal() {
+      document.getElementById('clear-demo-data-modal').classList.add('hidden');
+    }
+
+    function executeClearDemoData() {
+      if (!canEditMasterData()) {
+        alert("Only Super Admin or Admin can clear demo data.");
+        return;
+      }
+      var typed = document.getElementById('inp-clear-demo-confirm').value.trim();
+      if (typed !== 'DELETE DEMO DATA') {
+        alert('Please type "DELETE DEMO DATA" exactly (case-sensitive) to confirm.');
+        return;
+      }
+
+      document.getElementById('clear-demo-data-confirm-view').classList.add('hidden');
+      document.getElementById('clear-demo-data-progress-view').classList.remove('hidden');
+
+      var total = (window.RevOpsStore.DEMO_DATA_COLLECTIONS || []).length;
+      window.RevOpsStore.clearDummyDataForGoLive(function(colName, index, totalCount) {
+        document.getElementById('clear-demo-progress-text').innerText = 'Clearing ' + colName + '… (' + index + ' / ' + totalCount + ')';
+        document.getElementById('clear-demo-progress-bar').style.width = Math.round((index / totalCount) * 100) + '%';
+      }).then(function(results) {
+        document.getElementById('clear-demo-data-progress-view').classList.add('hidden');
+        document.getElementById('clear-demo-data-done-view').classList.remove('hidden');
+        document.getElementById('clear-demo-done-summary').innerText =
+          'Cleared ' + results.cleared.length + ' collection(s) locally' +
+          (window.RevOpsStore.isFirebaseAvailable() ? ' and deleted ' + results.firestoreDeleted + ' document(s) from Firestore.' : ' (Firestore not connected in this session - local only).') +
+          ' The app is ready for your real bulk data upload.';
+        if (results.errors && results.errors.length > 0) {
+          var errBox = document.getElementById('clear-demo-done-errors');
+          errBox.classList.remove('hidden');
+          errBox.innerText = 'Some Firestore deletions failed and may need a retry:\n' + results.errors.join('\n');
+        }
+        updateTabBadges();
+        renderMasterTable();
+      }).catch(function(err) {
+        document.getElementById('clear-demo-data-progress-view').classList.add('hidden');
+        document.getElementById('clear-demo-data-done-view').classList.remove('hidden');
+        document.getElementById('clear-demo-done-summary').innerText = 'Something went wrong partway through - check the browser console for details. Safe to re-run; already-cleared collections will simply clear again (no harm done).';
+        console.error('clearDummyDataForGoLive failed:', err);
+      });
     }

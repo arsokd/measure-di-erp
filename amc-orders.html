@@ -263,7 +263,11 @@
 
       function initSampleAmcOrdersIfEmpty() {
         var existing = window.RevOpsStore.getCollection('amcOrders') || [];
-        if (existing.length === 0) {
+        // Only in a pure offline/no-Firebase demo install does empty mean
+        // "nothing entered yet" - once Firebase is connected, empty means
+        // it was deliberately cleared (see RevOpsStore.clearDummyDataForGoLive)
+        // and should stay empty.
+        if (existing.length === 0 && !window.RevOpsStore.isFirebaseAvailable()) {
           var samples = [
             {
               id: 'AMC-ORD-2026-001',

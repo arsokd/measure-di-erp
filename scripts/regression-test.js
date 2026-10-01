@@ -1290,6 +1290,115 @@ async function testQuoteEditReasonMandatory(browser) {
   return failures;
 }
 
+// ---------------------------------------------------------------------
+// Go-Live "Clear Demo Data" (Master Data > Danger Zone): Super Admin/
+// Admin only, requires typing an exact confirmation phrase, clears every
+// demo/transactional collection while leaving Employees, Company Master
+// and every classification list untouched, and sets the retirement flag.
+// Separately verifies the actual seed-guard code change this relies on:
+// once isFirebaseAvailable() is true, a cleared collection must not
+// auto-refill, whether its guard checks mere presence or parsed length.
+// ---------------------------------------------------------------------
+async function testClearDummyDataGoLiveReset(browser) {
+  const failures = [];
+  const { page } = await newPage(browser);
+
+  await page.goto(BASE_URL + '/master-data.html', { waitUntil: 'networkidle', timeout: 30000 });
+  await page.waitForTimeout(600);
+
+  const dangerVisibleAdmin = await page.evaluate(function () {
+    return !document.getElementById('go-live-danger-zone').classList.contains('hidden');
+  });
+  assertTrue(dangerVisibleAdmin, 'Go-Live Danger Zone is visible for super_admin', failures);
+
+  // Wrong confirmation text must not proceed.
+  await page.click('#go-live-danger-zone button');
+  await page.waitForTimeout(150);
+  await page.fill('#inp-clear-demo-confirm', 'wrong text');
+  const rejectedWrongText = await page.evaluate(function () {
+    document.getElementById('btn-execute-clear-demo').click();
+    return !document.getElementById('clear-demo-data-confirm-view').classList.contains('hidden');
+  });
+  assertTrue(rejectedWrongText, 'Clear Demo Data: wrong confirmation text does not proceed (stays on confirm view)', failures);
+
+  // Seed some demo-shaped records, then clear with the correct phrase.
+  const beforeCounts = await page.evaluate(function () {
+    window.RevOpsStore.saveCollection('leads', [{ id: 'l1' }]);
+    window.RevOpsStore.saveCollection('quotations', [{ id: 'q1', quoteNumber: 'QT-REGR-1' }]);
+    window.RevOpsStore.saveCollection('clientsMaster', [{ id: 'c1', clientName: 'Demo Co' }]);
+    return {
+      employees: (window.RevOpsStore.getCollection('employees') || []).length,
+      companyMaster: (window.RevOpsStore.getCollection('companyMaster') || []).length,
+      leadSourceMaster: (window.RevOpsStore.getCollection('leadSourceMaster') || []).length
+    };
+  });
+  assertTrue(beforeCounts.employees > 0, 'Precondition: employees non-empty before clearing', failures);
+
+  await page.fill('#inp-clear-demo-confirm', 'DELETE DEMO DATA');
+  const afterClear = await page.evaluate(function () {
+    document.getElementById('btn-execute-clear-demo').click();
+    return true;
+  });
+  await page.waitForTimeout(500);
+
+  const cleared = await page.evaluate(function () {
+    return {
+      doneVisible: !document.getElementById('clear-demo-data-done-view').classList.contains('hidden'),
+      leads: (window.RevOpsStore.getCollection('leads') || []).length,
+      quotations: (window.RevOpsStore.getCollection('quotations') || []).length,
+      clientsMaster: (window.RevOpsStore.getCollection('clientsMaster') || []).length,
+      employees: (window.RevOpsStore.getCollection('employees') || []).length,
+      companyMaster: (window.RevOpsStore.getCollection('companyMaster') || []).length,
+      leadSourceMaster: (window.RevOpsStore.getCollection('leadSourceMaster') || []).length,
+      retiredFlag: localStorage.getItem('revops_demo_data_retired')
+    };
+  });
+  assertTrue(cleared.doneVisible, 'Clear Demo Data: completes and shows the done view', failures);
+  assertEqual(cleared.leads, 0, 'Clear Demo Data: leads cleared', failures);
+  assertEqual(cleared.quotations, 0, 'Clear Demo Data: quotations cleared', failures);
+  assertEqual(cleared.clientsMaster, 0, 'Clear Demo Data: clientsMaster cleared', failures);
+  assertEqual(cleared.employees, beforeCounts.employees, 'Clear Demo Data: employees left untouched', failures);
+  assertEqual(cleared.companyMaster, beforeCounts.companyMaster, 'Clear Demo Data: companyMaster left untouched', failures);
+  assertEqual(cleared.leadSourceMaster, beforeCounts.leadSourceMaster, 'Clear Demo Data: classification lists (e.g. Lead Source) left untouched', failures);
+  assertEqual(cleared.retiredFlag, 'true', 'Clear Demo Data: sets the demo-data-retired flag', failures);
+
+  // Danger Zone must stay hidden for a non-admin role.
+  const staffPage = await browser.newPage();
+  staffPage.on('dialog', async function (d) { await d.dismiss().catch(function () {}); });
+  await staffPage.addInitScript(function () {
+    localStorage.setItem('userRole', 'staff');
+    localStorage.setItem('userEmail', 'techsupport@measuredi.com');
+    localStorage.setItem('userName', 'Mrs. Krithika');
+    localStorage.setItem('employeeId', 'E-006');
+  });
+  await staffPage.goto(BASE_URL + '/master-data.html', { waitUntil: 'networkidle', timeout: 30000 });
+  await staffPage.waitForTimeout(600);
+  const dangerHiddenStaff = await staffPage.evaluate(function () {
+    return document.getElementById('go-live-danger-zone').classList.contains('hidden');
+  });
+  assertTrue(dangerHiddenStaff, 'Go-Live Danger Zone is hidden for staff role', failures);
+  await staffPage.close();
+
+  // The seed-guard code change this whole feature relies on: once
+  // Firebase is connected, a cleared collection must not auto-refill -
+  // true for both a presence-only guard (clientEquipmentMaster) and a
+  // parsed-length guard, the two different guard styles this codebase
+  // uses.
+  const guardResult = await page.evaluate(function () {
+    var originalIsFirebaseAvailable = window.RevOpsStore.isFirebaseAvailable;
+    window.RevOpsStore.isFirebaseAvailable = function () { return true; };
+    window.RevOpsStore.saveCollection('clientEquipmentMaster', []);
+    window.RevOpsStore.seedMasterListsIfEmpty();
+    var equipAfter = (window.RevOpsStore.getCollection('clientEquipmentMaster') || []).length;
+    window.RevOpsStore.isFirebaseAvailable = originalIsFirebaseAvailable;
+    return { equipAfter: equipAfter };
+  });
+  assertEqual(guardResult.equipAfter, 0, 'Seed guard: clientEquipmentMaster stays empty (not re-seeded) once isFirebaseAvailable() is true', failures);
+
+  await page.close();
+  return failures;
+}
+
 const TESTS = [
   ['SLA day-based seeding, migration, severity dropdown & date math', testSlaDayBasedSeedingAndMigration],
   ['Ticket email subject line', testQuotationVerticalAndTicketSubject],
@@ -1308,7 +1417,8 @@ const TESTS = [
   ['Superseded quotation revisions hidden from PO/Invoice pickers', testSupersededQuoteRevisionsHidden],
   ['Multi-company support: Lead/Quotation/Invoice numbering & branding', testMultiCompanySupport],
   ['Lead product dropdown vertical-normalization fix & quick "+ New Product" role gate', testLeadProductDropdownAndQuickAddProduct],
-  ['Quotation edit: mandatory reason field', testQuoteEditReasonMandatory]
+  ['Quotation edit: mandatory reason field', testQuoteEditReasonMandatory],
+  ['Go-Live "Clear Demo Data" reset', testClearDummyDataGoLiveReset]
 ];
 
 (async () => {

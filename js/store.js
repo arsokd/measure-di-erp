@@ -30,6 +30,95 @@ Object.assign(window.RevOpsStore, {
     window.location.reload();
   },
 
+  // Every collection the "Clear Demo Data" go-live reset wipes - deliberately
+  // scoped to transactional/demo records only. Employees (the login table),
+  // Company Master, and every reusable classification list (Lead Source,
+  // Currency, Complaint Category, SLA tiers, AMC tiers, etc.) are left out on
+  // purpose - they're either real configuration already in place, or carry
+  // their own safety net to never go empty.
+  DEMO_DATA_COLLECTIONS: [
+    'leads', 'quotations', 'orders', 'invoices',
+    'serviceTickets', 'serviceLeads',
+    'amcContracts', 'amcQuotations', 'amcOrders', 'amcInvoices',
+    'clientsMaster', 'sparePartsMaster', 'bankDetailsMaster', 'clientEquipmentMaster',
+    'attendance', 'dwmActivities', 'reviews',
+    'kraTargets', 'aopTargets', 'payments', 'expenses', 'expenseSplits', 'projectsMaster'
+  ],
+
+  // Clears every demo/transactional collection (see DEMO_DATA_COLLECTIONS
+  // above) from both local storage and Firestore (deleting the real
+  // documents there too, not just the local cache of them - syncCollection
+  // only ever adds/overwrites, it never deletes, so an explicit Firestore
+  // delete pass is required or the "cleared" data would reappear the next
+  // time this device's realtime listeners catch up). Intended for a single,
+  // deliberate, Super Admin-triggered go-live reset, not routine use.
+  // onProgress(colName, index, total) is called before each collection is
+  // processed, for a progress UI. Returns a promise resolving to
+  // { cleared: string[], firestoreDeleted: number, errors: string[] }.
+  clearDummyDataForGoLive: function(onProgress) {
+    var self = this;
+    var collections = this.DEMO_DATA_COLLECTIONS;
+    var results = { cleared: [], firestoreDeleted: 0, errors: [] };
+
+    var chain = Promise.resolve();
+    collections.forEach(function(colName, idx) {
+      chain = chain.then(function() {
+        if (typeof onProgress === 'function') onProgress(colName, idx + 1, collections.length);
+
+        // Clear locally first - this collection's data is gone from this
+        // device immediately regardless of what happens with Firestore.
+        self.saveCollection(colName, []);
+        results.cleared.push(colName);
+
+        if (!self.isFirebaseAvailable()) return;
+
+        // Firestore delete, chunked into batches of 450 (under the 500
+        // operation batch limit) in case a collection ever has more
+        // documents than that.
+        return window.db.collection(colName).get().then(function(snapshot) {
+          var docs = snapshot.docs;
+          var batchChain = Promise.resolve();
+          for (var b = 0; b < docs.length; b += 450) {
+            (function(chunk) {
+              batchChain = batchChain.then(function() {
+                var batch = window.db.batch();
+                chunk.forEach(function(doc) { batch.delete(doc.ref); });
+                return batch.commit().then(function() {
+                  results.firestoreDeleted += chunk.length;
+                });
+              });
+            })(docs.slice(b, b + 450));
+          }
+          return batchChain;
+        }).catch(function(err) {
+          results.errors.push(colName + ': ' + (err && err.message || err));
+        });
+      });
+    });
+
+    return chain.then(function() {
+      // Retire the demo-data auto-reseed logic for good on this device -
+      // see seed-data.js / seedMasterListsIfEmpty, which now check
+      // isFirebaseAvailable() before injecting any of these collections'
+      // demo defaults, so a connected deployment never refills them once
+      // cleared, on any device, from now on.
+      localStorage.setItem('revops_demo_data_retired', 'true');
+
+      if (self.logAudit) {
+        self.logAudit(
+          'System',
+          'go-live-data-reset',
+          'DELETE',
+          'Cleared all demo/dummy data across ' + collections.length + ' collections ahead of go-live bulk upload (' + results.firestoreDeleted + ' Firestore document(s) deleted).',
+          null,
+          results
+        );
+      }
+
+      return results;
+    });
+  },
+
   syncAllToFirestore: function() {
     if (!window.db) return;
     console.log("Syncing data to Firebase Firestore...");
@@ -906,8 +995,13 @@ Object.assign(window.RevOpsStore, {
     // into those two pages' JS (so equipment added here now actually
     // shows up when raising a ticket, instead of only existing in a
     // registry no form could see).
+    // Only in a pure offline/no-Firebase demo install does an empty
+    // registry mean "nothing has been entered yet" - once Firebase is
+    // connected (as in the real deployed app), an empty registry means
+    // it was deliberately cleared (see clearDummyDataForGoLive below),
+    // and should stay empty, not spring back to the demo roster.
     var equipExisting = this.getCollection('clientEquipmentMaster');
-    if (!equipExisting || equipExisting.length === 0) {
+    if ((!equipExisting || equipExisting.length === 0) && !this.isFirebaseAvailable()) {
       var equipRoster = [
         { id: 'equip_1', customerName: 'Tata Steel Long Products', modelName: 'MDI-WS-9000 Weighbridge System', equipmentModel: 'MDI-WS-9000 Weighbridge System', serialNumber: 'EQ-9042', location: 'Jamshedpur Works', vertical: 'Service/Parts', warrantyStatus: 'AMC Contract', contactEmail: 'procurement@tatasteel.com', isActive: true },
         { id: 'equip_2', customerName: 'Tata Steel Long Products', modelName: 'MDI-WS-9000 Weighbridge System', equipmentModel: 'MDI-WS-9000 Weighbridge System', serialNumber: 'EQ-9080', location: 'Jamshedpur Works', vertical: 'Service/Parts', warrantyStatus: 'Under Warranty', contactEmail: 'maintenance@tatasteel.com', isActive: true },
