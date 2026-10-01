@@ -276,6 +276,28 @@ function checkAuth(allowedRoles) {
     return false;
   }
 
+  // Mandatory password change: (1) a first login on a password an Admin
+  // just assigned (mustChangePassword, set whenever Employees > Set/Reset
+  // Password or My Team > Create Login runs), or (2) the existing password
+  // has gone 90+ days without being changed. Checked centrally here since
+  // every page already calls checkAuth() - there's no page to navigate to
+  // that skips it. The developer/maintenance account is exempt by explicit
+  // request, so ongoing dev work is never interrupted by this.
+  if (currentEmp && userEmail && userEmail.toLowerCase() !== 'ars.okd@gmail.com') {
+    var needsPasswordChange = currentEmp.mustChangePassword === true;
+    if (!needsPasswordChange && currentEmp.passwordLastUpdated) {
+      var lastChanged = new Date(currentEmp.passwordLastUpdated);
+      if (!isNaN(lastChanged.getTime())) {
+        var daysSinceChange = (Date.now() - lastChanged.getTime()) / (1000 * 60 * 60 * 24);
+        if (daysSinceChange >= 90) needsPasswordChange = true;
+      }
+    }
+    if (needsPasswordChange && window.location.pathname.indexOf('change-password.html') === -1) {
+      window.location.href = 'change-password.html';
+      return false;
+    }
+  }
+
   // Check role authorization (super_admin has universal access)
   if (userRole === 'super_admin') {
     // Exempted from restrictions
@@ -1275,6 +1297,11 @@ function getRevOpsNavigationHtml(userName, userRole, employeeId, userEmail, role
           <span>Data Center</span>
         </button>
 
+        <a href="change-password.html" class="hidden sm:flex py-1 px-2.5 text-xs font-bold text-indigo-300 hover:text-white bg-indigo-950/60 hover:bg-indigo-900 border border-indigo-800/80 rounded-lg transition-colors items-center space-x-1 cursor-pointer" title="Change your password">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+          <span>Change Password</span>
+        </a>
+
         <button onclick="handleRevOpsLogout()" class="py-1 px-2 text-xs font-bold text-rose-400 hover:text-white bg-rose-950/60 hover:bg-rose-900 border border-rose-800/80 rounded-lg transition-colors flex items-center space-x-1 cursor-pointer" title="Logout">
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
           <span class="hidden sm:inline">Logout</span>
@@ -1444,6 +1471,12 @@ function getRevOpsNavigationHtml(userName, userRole, employeeId, userEmail, role
             <svg id="sync-icon-spin" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
           </button>
         </div>
+
+        <!-- Change Password -->
+        <a href="change-password.html" class="w-full py-1.5 px-2 text-xs font-bold text-indigo-300 hover:text-white bg-indigo-950/60 hover:bg-indigo-900 border border-indigo-800/80 rounded-xl transition-colors flex items-center justify-center space-x-1.5 cursor-pointer">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+          <span>Change Password</span>
+        </a>
 
         <!-- Data Center & Logout Buttons -->
         <div class="grid grid-cols-2 gap-1.5">
@@ -1632,7 +1665,12 @@ function getRevOpsNavigationHtml(userName, userRole, employeeId, userEmail, role
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
             <span>Reload 2-Yr Data</span>
           </button>
-          
+
+          <a href="change-password.html" class="w-full py-2.5 px-3 bg-indigo-950/60 hover:bg-indigo-900/80 text-indigo-300 border border-indigo-800/80 rounded-xl text-xs font-bold flex items-center justify-center space-x-2 cursor-pointer">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+            <span>Change Password</span>
+          </a>
+
           <button onclick="handleRevOpsLogout()" class="w-full py-2.5 px-3 bg-rose-950/60 hover:bg-rose-900/80 text-rose-300 border border-rose-800/80 rounded-xl text-xs font-bold flex items-center justify-center space-x-2 cursor-pointer">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
             <span>Log Out</span>

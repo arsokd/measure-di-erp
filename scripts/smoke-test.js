@@ -51,6 +51,7 @@ const PAGES_TO_CHECK = [
   'amc-quotes.html',
   'aop-targets.html',
   'audit-logs.html',
+  'change-password.html',
   'demo-playbook.html',
   'dwm.html',
   'kra-targets.html',

@@ -455,15 +455,21 @@ document.addEventListener('DOMContentLoaded', function() {
         // users read everyone else's login credential straight out of
         // Firestore. The actual credential only ever lives in Firebase
         // Auth, set via the server-side function below.
+        // mustChangePassword: true marks this as a password the employee
+        // didn't choose themselves - auth-guard.js's checkAuth() forces
+        // them to set their own the moment they next log in with it (see
+        // change-password.html), clearing this flag once they do.
         window.RevOpsStore.updateItem('employees', docId, {
-          passwordLastUpdated: new Date().toISOString()
+          passwordLastUpdated: new Date().toISOString(),
+          mustChangePassword: true
         });
 
         // Sync directly to Firestore if available
         if (window.db && typeof window.db.collection === 'function') {
           var targetId = emp.id || docId;
           window.db.collection('employees').doc(targetId).set({
-            passwordLastUpdated: new Date().toISOString()
+            passwordLastUpdated: new Date().toISOString(),
+            mustChangePassword: true
           }, { merge: true }).catch(function(err) {
             console.warn("Error updating password in Firestore employees collection:", err);
           });
@@ -521,7 +527,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         if (authSuccess) {
-          alert("✅ Password Successfully Reset!\n\nEmployee: " + emp.fullName + "\nEmail (Login ID): " + (emp.email || 'N/A') + "\nNew Password: " + newPass + "\n\nThe employee can now log in using their Email and this New Password.");
+          alert("✅ Password Successfully Reset!\n\nEmployee: " + emp.fullName + "\nEmail (Login ID): " + (emp.email || 'N/A') + "\nNew Password: " + newPass + "\n\nThe employee can log in using their Email and this password, but only this once — the app will immediately require them to set their own password before they can do anything else.");
           closeSetPasswordModal();
           renderEmployeesTable();
         } else {

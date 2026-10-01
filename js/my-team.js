@@ -271,6 +271,10 @@ document.addEventListener('DOMContentLoaded', function() {
         var employees = window.RevOpsStore.getCollection('employees') || [];
         var empRec = employees.find(function(e) { return e.id === empIdDoc; }) || {};
         var approvalFlags = { isPrimaryApprover: isPrimaryApprover, isDirector: isDirector, isFinalApprover: isFinalApprover, isFinanceHead: isFinanceHead };
+        // This is a temporary password the employee didn't choose -
+        // auth-guard.js's checkAuth() forces them to set their own the
+        // moment they next log in with it (see change-password.html).
+        var passwordMeta = { passwordLastUpdated: new Date().toISOString(), mustChangePassword: true };
 
         // Writes the users/{uid} role doc that Firestore rules and every
         // approval gate in the app actually check — without this doc the
@@ -294,28 +298,28 @@ document.addEventListener('DOMContentLoaded', function() {
             secondaryAuth.createUserWithEmailAndPassword(email, tempPassword)
               .then(function(cred) {
                 var newUid = cred.user.uid;
-                window.RevOpsStore.updateItem('employees', empIdDoc, Object.assign({ uid: newUid }, approvalFlags));
+                window.RevOpsStore.updateItem('employees', empIdDoc, Object.assign({ uid: newUid }, approvalFlags, passwordMeta));
                 writeUsersRoleDoc(newUid);
                 return secondaryAuth.signOut();
               })
               .then(function() {
                 secondaryApp.delete();
-                alert("Login created successfully!\n\nEmail: " + email + "\nTemporary Password: " + tempPassword + "\n\nPlease share these credentials securely with the employee.");
+                alert("Login created successfully!\n\nEmail: " + email + "\nTemporary Password: " + tempPassword + "\n\nPlease share these credentials securely with the employee. This password works only for their first login — the app will immediately require them to set their own password before they can do anything else.");
                 closeCreateLoginModal();
                 renderTeamData();
               })
               .catch(function(err) {
                 // Fallback for demo when secondary auth has duplicate email error or mock environment
                 var newUid = "uid_demo_" + Date.now();
-                window.RevOpsStore.updateItem('employees', empIdDoc, Object.assign({ uid: newUid }, approvalFlags));
-                alert("Login created successfully!\n\nEmail: " + email + "\nTemporary Password: " + tempPassword + "\n\nPlease share these credentials securely with the employee.");
+                window.RevOpsStore.updateItem('employees', empIdDoc, Object.assign({ uid: newUid }, approvalFlags, passwordMeta));
+                alert("Login created successfully!\n\nEmail: " + email + "\nTemporary Password: " + tempPassword + "\n\nPlease share these credentials securely with the employee. This password works only for their first login — the app will immediately require them to set their own password before they can do anything else.");
                 closeCreateLoginModal();
                 renderTeamData();
               });
           } catch(err) {
             var newUid = "uid_demo_" + Date.now();
-            window.RevOpsStore.updateItem('employees', empIdDoc, Object.assign({ uid: newUid }, approvalFlags));
-            alert("Login created successfully!\n\nEmail: " + email + "\nTemporary Password: " + tempPassword);
+            window.RevOpsStore.updateItem('employees', empIdDoc, Object.assign({ uid: newUid }, approvalFlags, passwordMeta));
+            alert("Login created successfully!\n\nEmail: " + email + "\nTemporary Password: " + tempPassword + "\n\nPlease share these credentials securely with the employee. This password works only for their first login — the app will immediately require them to set their own password before they can do anything else.");
             closeCreateLoginModal();
             renderTeamData();
           }

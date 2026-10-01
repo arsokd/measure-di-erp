@@ -1450,6 +1450,167 @@ async function testBulkCsvParserHandlesQuotedFields(browser) {
   return failures;
 }
 
+// ---------------------------------------------------------------------
+// Password policy: an admin-assigned password (mustChangePassword) or
+// one older than 90 days (passwordLastUpdated) must force the holder to
+// change-password.html from any page, with a reason banner explaining
+// why; the developer/maintenance account (ars.okd@gmail.com) is exempt
+// by explicit product decision so dev work is never interrupted. A real
+// Firebase session is required to use change-password.html at all
+// (there is nothing else gating it), so these checks mock window.firebase
+// the same way the Gmail/Brevo email tests already do.
+// ---------------------------------------------------------------------
+async function testPasswordPolicyEnforcement(browser) {
+  const failures = [];
+
+  async function newMockedPage(overrides, mockEmail) {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    page.on('dialog', async function (d) { await d.dismiss().catch(function () {}); });
+    await page.addInitScript(function (args) {
+      localStorage.setItem('userRole', args.ov.userRole || 'super_admin');
+      localStorage.setItem('userEmail', args.ov.userEmail || 'ravi@measuredi.com');
+      localStorage.setItem('userName', args.ov.userName || 'Mr. Ravichandran');
+      localStorage.setItem('employeeId', args.ov.employeeId || 'E-001');
+      if (args.mockEmail) {
+        var mockAuth = {
+          currentUser: { email: args.mockEmail, getIdToken: async function () { return 'fake-id-token'; } },
+          onAuthStateChanged: function (cb) { cb(this.currentUser); return function () {}; },
+          signOut: async function () {}
+        };
+        window.firebase = {
+          apps: [],
+          initializeApp: function () { return { auth: function () { return mockAuth; } }; },
+          auth: function () { return mockAuth; }
+        };
+      }
+    }, { ov: overrides || {}, mockEmail: mockEmail || null });
+    return page;
+  }
+
+  async function setEmpFlags(page, employeeId, flags) {
+    await page.evaluate(function (args) {
+      var emps = window.RevOpsStore.getCollection('employees');
+      var e = emps.find(function (x) { return x.employeeId === args.employeeId; });
+      if (e) window.RevOpsStore.updateItem('employees', e.id, args.flags);
+    }, { employeeId: employeeId, flags: flags });
+  }
+
+  // Normal login, no flags set -> no redirect.
+  {
+    const page = await newMockedPage({}, 'ravi@measuredi.com');
+    await page.goto(BASE_URL + '/dashboard.html', { waitUntil: 'networkidle', timeout: 30000 });
+    await page.waitForTimeout(500);
+    await setEmpFlags(page, 'E-001', { mustChangePassword: false, passwordLastUpdated: new Date().toISOString() });
+    await page.reload({ waitUntil: 'networkidle', timeout: 30000 });
+    await page.waitForTimeout(600);
+    assertTrue(page.url().indexOf('dashboard.html') !== -1, 'Password policy: no flags set stays on dashboard, got ' + page.url(), failures);
+    await page.close();
+  }
+
+  // mustChangePassword=true -> forced to change-password.html with the admin-set-password reason.
+  {
+    const page = await newMockedPage({}, 'ravi@measuredi.com');
+    await page.goto(BASE_URL + '/dashboard.html', { waitUntil: 'networkidle', timeout: 30000 });
+    await page.waitForTimeout(500);
+    await setEmpFlags(page, 'E-001', { mustChangePassword: true });
+    await page.reload({ waitUntil: 'networkidle', timeout: 30000 });
+    await page.waitForTimeout(800);
+    assertTrue(page.url().indexOf('change-password.html') !== -1, 'Password policy: mustChangePassword=true forces change-password.html, got ' + page.url(), failures);
+    const bannerText = await page.locator('#reason-text').innerText().catch(function () { return ''; });
+    assertTrue(bannerText.indexOf('Admin set for you') !== -1, 'Password policy: reason banner explains an Admin-set password, got ' + JSON.stringify(bannerText), failures);
+    await setEmpFlags(page, 'E-001', { mustChangePassword: false, passwordLastUpdated: new Date().toISOString() });
+    await page.close();
+  }
+
+  // Password older than 90 days -> forced to change-password.html with the expiry reason.
+  {
+    const page = await newMockedPage({}, 'ravi@measuredi.com');
+    await page.goto(BASE_URL + '/dashboard.html', { waitUntil: 'networkidle', timeout: 30000 });
+    await page.waitForTimeout(500);
+    var old = new Date(Date.now() - 100 * 24 * 60 * 60 * 1000).toISOString();
+    await setEmpFlags(page, 'E-001', { mustChangePassword: false, passwordLastUpdated: old });
+    await page.reload({ waitUntil: 'networkidle', timeout: 30000 });
+    await page.waitForTimeout(800);
+    assertTrue(page.url().indexOf('change-password.html') !== -1, 'Password policy: 90+ day old password forces change-password.html, got ' + page.url(), failures);
+    const bannerText = await page.locator('#reason-text').innerText().catch(function () { return ''; });
+    assertTrue(bannerText.indexOf('90 days') !== -1, 'Password policy: reason banner explains the 90-day expiry, got ' + JSON.stringify(bannerText), failures);
+    await setEmpFlags(page, 'E-001', { mustChangePassword: false, passwordLastUpdated: new Date().toISOString() });
+    await page.close();
+  }
+
+  // Developer/maintenance account is exempt from both triggers, even with both flags set.
+  {
+    const page = await newMockedPage({ userEmail: 'ars.okd@gmail.com', employeeId: 'E-DEV' }, 'ars.okd@gmail.com');
+    await page.goto(BASE_URL + '/dashboard.html', { waitUntil: 'networkidle', timeout: 30000 });
+    await page.waitForTimeout(500);
+    await setEmpFlags(page, 'E-DEV', { mustChangePassword: true, passwordLastUpdated: new Date(Date.now() - 500 * 24 * 60 * 60 * 1000).toISOString() });
+    await page.reload({ waitUntil: 'networkidle', timeout: 30000 });
+    await page.waitForTimeout(800);
+    assertTrue(page.url().indexOf('dashboard.html') !== -1, 'Password policy: developer account ars.okd@gmail.com is exempt, got ' + page.url(), failures);
+    await page.close();
+  }
+
+  // Full self-service submit round trip (Netlify function mocked): clears the flag and lands the user on dashboard.
+  {
+    const page = await newMockedPage({}, 'ravi@measuredi.com');
+    await page.goto(BASE_URL + '/dashboard.html', { waitUntil: 'networkidle', timeout: 30000 });
+    await page.waitForTimeout(500);
+    await setEmpFlags(page, 'E-001', { mustChangePassword: true });
+    await page.goto(BASE_URL + '/change-password.html', { waitUntil: 'networkidle', timeout: 30000 });
+    await page.waitForTimeout(600);
+    await page.evaluate(function () {
+      window.fetch = async function (url) {
+        if (url.indexOf('change-own-password') !== -1) {
+          return { ok: true, json: async function () { return { success: true, uid: 'mock-uid' }; } };
+        }
+        return { ok: false, json: async function () { return {}; } };
+      };
+    });
+    await page.fill('#new-password', 'newSecret123');
+    await page.fill('#confirm-password', 'newSecret123');
+    await page.click('#submit-btn');
+    await page.waitForTimeout(1800);
+    assertTrue(page.url().indexOf('dashboard.html') !== -1, 'Password policy: successful self-service change redirects to dashboard, got ' + page.url(), failures);
+    const empAfter = await page.evaluate(function () {
+      var emps = window.RevOpsStore.getCollection('employees');
+      return emps.find(function (x) { return x.employeeId === 'E-001'; });
+    });
+    assertEqual(empAfter && empAfter.mustChangePassword, false, 'Password policy: mustChangePassword cleared locally after a successful change', failures);
+    await page.close();
+  }
+
+  // Mismatched passwords are rejected inline, no navigation.
+  {
+    const page = await newMockedPage({}, 'ravi@measuredi.com');
+    await page.goto(BASE_URL + '/dashboard.html', { waitUntil: 'networkidle', timeout: 30000 });
+    await page.waitForTimeout(500);
+    await setEmpFlags(page, 'E-001', { mustChangePassword: true });
+    await page.goto(BASE_URL + '/change-password.html', { waitUntil: 'networkidle', timeout: 30000 });
+    await page.waitForTimeout(600);
+    await page.fill('#new-password', 'abcdef1');
+    await page.fill('#confirm-password', 'abcdef2');
+    await page.click('#submit-btn');
+    await page.waitForTimeout(400);
+    const errVisible = await page.locator('#error-alert').isVisible();
+    assertTrue(errVisible, 'Password policy: mismatched passwords show an inline error', failures);
+    assertTrue(page.url().indexOf('change-password.html') !== -1, 'Password policy: mismatched passwords do not navigate away, got ' + page.url(), failures);
+    await setEmpFlags(page, 'E-001', { mustChangePassword: false, passwordLastUpdated: new Date().toISOString() });
+    await page.close();
+  }
+
+  // Voluntary "Change Password" link is present in the navbar even with no flags set.
+  {
+    const page = await newMockedPage({}, 'ravi@measuredi.com');
+    await page.goto(BASE_URL + '/dashboard.html', { waitUntil: 'networkidle', timeout: 30000 });
+    await page.waitForTimeout(800);
+    const count = await page.locator('a[href="change-password.html"]').count();
+    assertTrue(count >= 1, 'Password policy: "Change Password" navbar link is present, got count ' + count, failures);
+    await page.close();
+  }
+
+  return failures;
+}
+
 const TESTS = [
   ['SLA day-based seeding, migration, severity dropdown & date math', testSlaDayBasedSeedingAndMigration],
   ['Ticket email subject line', testQuotationVerticalAndTicketSubject],
@@ -1470,7 +1631,8 @@ const TESTS = [
   ['Lead product dropdown vertical-normalization fix & quick "+ New Product" role gate', testLeadProductDropdownAndQuickAddProduct],
   ['Quotation edit: mandatory reason field', testQuoteEditReasonMandatory],
   ['Go-Live "Clear Demo Data" reset', testClearDummyDataGoLiveReset],
-  ['Bulk CSV parser handles quoted/comma/multi-line fields', testBulkCsvParserHandlesQuotedFields]
+  ['Bulk CSV parser handles quoted/comma/multi-line fields', testBulkCsvParserHandlesQuotedFields],
+  ['Password policy: forced first-time/90-day change, developer exemption, self-service flow', testPasswordPolicyEnforcement]
 ];
 
 (async () => {
