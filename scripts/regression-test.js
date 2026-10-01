@@ -1399,6 +1399,57 @@ async function testClearDummyDataGoLiveReset(browser) {
   return failures;
 }
 
+// ---------------------------------------------------------------------
+// Master Data bulk CSV upload parser: a plain line.split(',') silently
+// shifted every column out of place the moment a field contained a
+// comma of its own (an address like "Anna Nagar, Chennai"). The parser
+// is now RFC 4180-aware - a quoted field can safely contain commas,
+// escaped quotes (""), and even an embedded line break.
+// ---------------------------------------------------------------------
+async function testBulkCsvParserHandlesQuotedFields(browser) {
+  const failures = [];
+  const { page } = await newPage(browser);
+
+  await page.goto(BASE_URL + '/master-data.html', { waitUntil: 'networkidle', timeout: 30000 });
+  await page.waitForTimeout(600);
+
+  const result = await page.evaluate(function () {
+    var csvWithEmbeddedComma = 'bankName,accountNumber,ifscCode,branch,beneficiaryName,accountType\n' +
+      'HDFC Bank Ltd,50200088992211,HDFC0001234,"Anna Nagar, Chennai",MEASURE DI TECHNOLOGIES,Current Account';
+    var rows = parseCSVRows(csvWithEmbeddedComma);
+
+    var csvWithEscapedQuote = 'clientName,notes\n"O""Reilly Steel""s Pvt Ltd","Says ""urgent"" a lot"';
+    var escapedRows = parseCSVRows(csvWithEscapedQuote);
+
+    var csvWithEmbeddedNewline = 'clientName,address\n"Tata Steel","Plot 1\nJamshedpur Works"\nJSW,Ballari';
+    var newlineRows = parseCSVRows(csvWithEmbeddedNewline);
+
+    parseCSV(csvWithEmbeddedComma);
+    var parsedRecord = parsedCsvData[0];
+
+    return {
+      commaFieldStayedWhole: rows[1][3],
+      rowColumnCount: rows[1].length,
+      escapedQuoteUnescaped: escapedRows[1][0],
+      newlineFieldStayedWhole: newlineRows[1][1],
+      newlineRowCount: newlineRows.length,
+      parsedBranch: parsedRecord.branch,
+      parsedAccountType: parsedRecord.accountType
+    };
+  });
+
+  assertEqual(result.commaFieldStayedWhole, 'Anna Nagar, Chennai', 'CSV parser: quoted field with an embedded comma stays as one field, not split in two', failures);
+  assertEqual(result.rowColumnCount, 6, 'CSV parser: embedded-comma row still has exactly 6 columns (not shifted)', failures);
+  assertEqual(result.escapedQuoteUnescaped, 'O"Reilly Steel"s Pvt Ltd', 'CSV parser: escaped double-quotes ("") decode to a literal quote', failures);
+  assertEqual(result.newlineFieldStayedWhole, 'Plot 1\nJamshedpur Works', 'CSV parser: quoted field with an embedded line break stays as one field', failures);
+  assertEqual(result.newlineRowCount, 3, 'CSV parser: the embedded newline is not mistaken for a new row (header + 2 data rows)', failures);
+  assertEqual(result.parsedBranch, 'Anna Nagar, Chennai', 'Full parseCSV() flow: comma-containing field lands correctly keyed by header', failures);
+  assertEqual(result.parsedAccountType, 'Current Account', 'Full parseCSV() flow: later columns aren\'t shifted by the earlier comma-containing field', failures);
+
+  await page.close();
+  return failures;
+}
+
 const TESTS = [
   ['SLA day-based seeding, migration, severity dropdown & date math', testSlaDayBasedSeedingAndMigration],
   ['Ticket email subject line', testQuotationVerticalAndTicketSubject],
@@ -1418,7 +1469,8 @@ const TESTS = [
   ['Multi-company support: Lead/Quotation/Invoice numbering & branding', testMultiCompanySupport],
   ['Lead product dropdown vertical-normalization fix & quick "+ New Product" role gate', testLeadProductDropdownAndQuickAddProduct],
   ['Quotation edit: mandatory reason field', testQuoteEditReasonMandatory],
-  ['Go-Live "Clear Demo Data" reset', testClearDummyDataGoLiveReset]
+  ['Go-Live "Clear Demo Data" reset', testClearDummyDataGoLiveReset],
+  ['Bulk CSV parser handles quoted/comma/multi-line fields', testBulkCsvParserHandlesQuotedFields]
 ];
 
 (async () => {

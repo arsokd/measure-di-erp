@@ -921,21 +921,72 @@ var activeMasterTab = 'products';
       document.getElementById('bulk-upload-modal').classList.add('hidden');
     }
 
+    // RFC 4180-aware CSV tokenizer: splitting each line on a plain comma
+    // (the old approach) silently shifts every column out of place the
+    // moment a field contains a comma of its own - e.g. an address like
+    // "Anna Nagar, Chennai" or a spec like "200T, High-Speed". This walks
+    // the raw text character-by-character so a quoted field can safely
+    // contain commas, escaped quotes (""), and even embedded line breaks
+    // (Excel/Sheets produce exactly this for a multi-line cell), while an
+    // unquoted field is taken literally exactly as before. Returns an
+    // array of rows, each row an array of field strings.
+    function parseCSVRows(text) {
+      var rows = [];
+      var row = [];
+      var field = '';
+      var inQuotes = false;
+      var i = 0;
+      var len = text.length;
+
+      while (i < len) {
+        var ch = text[i];
+
+        if (inQuotes) {
+          if (ch === '"') {
+            if (text[i + 1] === '"') { field += '"'; i += 2; continue; }
+            inQuotes = false;
+            i++;
+            continue;
+          }
+          field += ch;
+          i++;
+          continue;
+        }
+
+        if (ch === '"') { inQuotes = true; i++; continue; }
+        if (ch === ',') { row.push(field); field = ''; i++; continue; }
+        if (ch === '\r') {
+          if (text[i + 1] === '\n') { i++; continue; } // let the \n below end the row
+          row.push(field); field = ''; rows.push(row); row = []; i++; continue;
+        }
+        if (ch === '\n') { row.push(field); field = ''; rows.push(row); row = []; i++; continue; }
+
+        field += ch;
+        i++;
+      }
+
+      // Flush the final field/row - the file may or may not end with a newline.
+      if (field.length > 0 || row.length > 0) { row.push(field); rows.push(row); }
+
+      // Drop fully blank rows (e.g. a trailing newline producing one empty row).
+      return rows.filter(function(r) { return !(r.length === 1 && r[0].trim() === ''); });
+    }
+
     function parseCSV(text) {
-      var lines = text.split(/\r\n|\n/).filter(function(l) { return l.trim().length > 0; });
-      if (lines.length <= 1) {
+      var rows = parseCSVRows(text);
+      if (rows.length <= 1) {
         alert("CSV file does not contain enough data rows.");
         return;
       }
 
-      var headers = lines[0].split(',').map(function(h) { return h.trim().replace(/^"|"$/g, ''); });
+      var headers = rows[0].map(function(h) { return h.trim(); });
       parsedCsvData = [];
 
-      for (var i = 1; i < lines.length; i++) {
-        var values = lines[i].split(',').map(function(v) { return v.trim().replace(/^"|"$/g, ''); });
+      for (var i = 1; i < rows.length; i++) {
+        var values = rows[i];
         var rowObj = {};
         headers.forEach(function(h, idx) {
-          rowObj[h] = values[idx] !== undefined ? values[idx] : '';
+          rowObj[h] = values[idx] !== undefined ? values[idx].trim() : '';
         });
         parsedCsvData.push(rowObj);
       }
