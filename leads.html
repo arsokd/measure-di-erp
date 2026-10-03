@@ -82,13 +82,13 @@
         <div class="bg-slate-850 p-5 rounded-2xl border border-slate-800 shadow-md">
           <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Qualified Opportunities</span>
           <div class="text-2xl font-black text-emerald-400 mt-1" id="stat-lead-qualified">0</div>
-          <p class="text-[11px] text-slate-400 mt-1">Pre-Qual / Lead Qualified (High Win Prob)</p>
+          <p class="text-[11px] text-slate-400 mt-1">Qualified (genuine, worth pursuing)</p>
         </div>
 
         <div class="bg-slate-850 p-5 rounded-2xl border border-slate-800 shadow-md">
-          <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Order Confirmed (Won)</span>
+          <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Won</span>
           <div class="text-2xl font-black text-purple-400 mt-1" id="stat-lead-won">0</div>
-          <p class="text-[11px] text-slate-400 mt-1">Ready for Order Booking</p>
+          <p class="text-[11px] text-slate-400 mt-1">Invoiced and closed</p>
         </div>
       </div>
 
@@ -110,15 +110,19 @@
 
             <select id="lead-stage-filter" onchange="renderLeadsTable()" class="px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-xl text-xs font-semibold text-slate-200 focus:outline-none focus:border-indigo-500">
               <option value="All">All Funnel Stages</option>
-              <option value="Customer Contacted / Contact Attempted">1. Customer Contacted / Attempted</option>
-              <option value="Follow-Up Scheduled">2. Follow-Up Scheduled</option>
-              <option value="Site Visit Completed">3. Site Visit Completed</option>
-              <option value="Technical Evaluation in Progress">4. Technical Evaluation</option>
-              <option value="Commercial Offer Submitted">5. Commercial Offer Submitted</option>
-              <option value="Pre-Qualification Completed">6. Pre-Qualification Completed</option>
-              <option value="Lead Qualified">7. Lead Qualified</option>
-              <option value="Order Confirmed">8. Order Confirmed</option>
-              <option value="Lost / Dropped">Lost / Dropped</option>
+              <optgroup label="Pipeline">
+                <option value="Contacted">1. Contacted</option>
+                <option value="Qualified">2. Qualified</option>
+                <option value="Quoted">3. Quoted</option>
+                <option value="Negotiation">4. Negotiation</option>
+                <option value="Order Received">5. Order Received</option>
+                <option value="Won">6. Won</option>
+              </optgroup>
+              <optgroup label="Closed / Exit">
+                <option value="Trashed">Trashed</option>
+                <option value="Lost">Lost</option>
+                <option value="Postponed">Postponed</option>
+              </optgroup>
             </select>
 
             <select id="lead-fy-filter" onchange="renderLeadsTable()" class="px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-xl text-xs font-semibold text-slate-200 focus:outline-none focus:border-indigo-500">
@@ -301,21 +305,42 @@
           <div class="bg-slate-800/50 p-4 rounded-xl border border-slate-750 space-y-3">
             <div class="text-xs font-black uppercase text-purple-400 tracking-wider flex items-center gap-2">
               <i class="fa-solid fa-chart-line"></i>
-              <span>8-Stage Funnel Progression Status *</span>
+              <span>Sales Pipeline Stage *</span>
             </div>
 
             <div>
-              <select id="inp-lead-stage" required class="w-full px-3 py-2.5 bg-slate-950 border border-slate-750 rounded-xl text-xs font-bold text-white focus:outline-none focus:border-indigo-500">
-                <option value="Customer Contacted / Contact Attempted">Stage 1: Customer Contacted / Contact Attempted</option>
-                <option value="Follow-Up Scheduled">Stage 2: Follow-Up Scheduled</option>
-                <option value="Site Visit Completed">Stage 3: Site Visit Completed</option>
-                <option value="Technical Evaluation in Progress">Stage 4: Technical Evaluation in Progress</option>
-                <option value="Commercial Offer Submitted">Stage 5: Commercial Offer Submitted</option>
-                <option value="Pre-Qualification Completed">Stage 6: Pre-Qualification Completed (Customer & project eligibility verified)</option>
-                <option value="Lead Qualified">Stage 7: Lead Qualified (Genuine confirmed opportunity with high order probability)</option>
-                <option value="Order Confirmed">Stage 8: Order Confirmed (Won - Ready for PO / Order Booking)</option>
-                <option value="Lost / Dropped">Lost / Dropped (Closed without order)</option>
+              <select id="inp-lead-stage" required onchange="toggleLeadStageExtraFields()" class="w-full px-3 py-2.5 bg-slate-950 border border-slate-750 rounded-xl text-xs font-bold text-white focus:outline-none focus:border-indigo-500">
+                <optgroup label="Pipeline">
+                  <option value="Contacted">1. Contacted</option>
+                  <option value="Qualified">2. Qualified (genuine opportunity, worth pursuing)</option>
+                  <option value="Quoted">3. Quoted (auto-set once a Quotation is sent)</option>
+                  <option value="Negotiation">4. Negotiation</option>
+                  <option value="Order Received">5. Order Received (auto-set once the PO is booked)</option>
+                  <option value="Won">6. Won (auto-set once an Invoice is raised)</option>
+                </optgroup>
+                <optgroup label="Closed / Exit">
+                  <option value="Trashed">Trashed (not a real opportunity)</option>
+                  <option value="Lost">Lost (pursued, but didn't convert)</option>
+                  <option value="Postponed">Postponed (won't decide for ~180 days)</option>
+                </optgroup>
               </select>
+            </div>
+
+            <div id="lead-lost-reason-fields" class="hidden space-y-2 pt-1">
+              <div>
+                <label class="block text-[10px] font-bold uppercase text-rose-400 tracking-wider mb-1">Reason for Loss *</label>
+                <select id="inp-lead-lost-reason" class="w-full px-3 py-2 bg-slate-950 border border-rose-700/60 rounded-xl text-xs font-semibold text-white focus:outline-none focus:border-rose-500">
+                  <option value="">-- Select a reason --</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-[10px] font-bold uppercase text-slate-400 tracking-wider mb-1">Remarks (optional)</label>
+                <textarea id="inp-lead-lost-remarks" rows="2" placeholder="Any further detail on why this was lost..." class="w-full px-3 py-2 bg-slate-950 border border-slate-750 rounded-xl text-xs text-white focus:outline-none focus:border-rose-500"></textarea>
+              </div>
+            </div>
+
+            <div id="lead-postponed-note" class="hidden p-2.5 rounded-lg bg-amber-950/40 border border-amber-700/50 text-[11px] text-amber-300 font-semibold">
+              This lead will be marked for re-engagement in 180 days and will stay out of your active pending follow-ups until then.
             </div>
           </div>
 

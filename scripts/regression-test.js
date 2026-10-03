@@ -1611,6 +1611,286 @@ async function testPasswordPolicyEnforcement(browser) {
   return failures;
 }
 
+// ---------------------------------------------------------------------
+// Lead pipeline stage model: the forward-only, exit-immune
+// advanceLeadStage() helper, the Leads form's Lost/Trashed/Postponed
+// guards and mandatory-reason enforcement, and the Dashboard's
+// pending-follow-ups list correctly excluding closed-out leads.
+// ---------------------------------------------------------------------
+function sampleTestLead(overrides) {
+  return Object.assign({
+    id: 'lead_test_' + Math.random().toString(36).slice(2),
+    leadNumber: 'LD-2026-TEST',
+    customerName: 'Test Customer Co',
+    leadSource: 'Direct Customer Approach',
+    industry: 'Projects',
+    projectSector: 'Steel',
+    vertical: 'Projects',
+    products: [{ name: 'Test Product', spec: 'Test spec', hsn: '90318000', quantity: 1, unitPrice: 100000 }],
+    productName: 'Test Product',
+    currency: 'INR',
+    estimatedValue: 100000,
+    expectedValue: 100000,
+    stage: 'Contacted',
+    status: 'Contacted',
+    contacts: [{ name: 'Test Contact', phone: '9999999999', email: 'contact@test.com', autoCc: true }],
+    contactPerson: 'Test Contact',
+    contactPhone: '9999999999',
+    contactEmail: 'contact@test.com',
+    employeeId: 'E-001',
+    employeeName: 'Mr. Murugan V',
+    createdDate: '01/10/2026',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  }, overrides || {});
+}
+
+async function testLeadPipelineStageModel(browser) {
+  const failures = [];
+  const { page } = await newPage(browser);
+
+  await page.goto(BASE_URL + '/leads.html', { waitUntil: 'networkidle', timeout: 30000 });
+  await page.waitForTimeout(600);
+
+  // advanceLeadStage(): forward-only, merges extraFields, never overrides
+  // a lead someone already closed out (Trashed/Lost/Postponed).
+  const unit = await page.evaluate(function () {
+    window.RevOpsStore.saveCollection('leads', [{ id: 'lead_unit_1', customerName: 'Unit Co', status: 'Contacted', stage: 'Contacted' }]);
+
+    window.RevOpsStore.advanceLeadStage('lead_unit_1', 'Quoted', { dealValue: 5000 });
+    var afterQuoted = window.RevOpsStore.getCollection('leads').find(function (l) { return l.id === 'lead_unit_1'; });
+
+    window.RevOpsStore.advanceLeadStage('lead_unit_1', 'Contacted', {});
+    var afterBackward = window.RevOpsStore.getCollection('leads').find(function (l) { return l.id === 'lead_unit_1'; });
+
+    var leads = window.RevOpsStore.getCollection('leads');
+    leads[0].status = 'Lost'; leads[0].stage = 'Lost';
+    window.RevOpsStore.saveCollection('leads', leads);
+    window.RevOpsStore.advanceLeadStage('lead_unit_1', 'Order Received', {});
+    var afterExitAttempt = window.RevOpsStore.getCollection('leads').find(function (l) { return l.id === 'lead_unit_1'; });
+
+    return {
+      afterQuotedStatus: afterQuoted.status,
+      afterQuotedDealValue: afterQuoted.dealValue,
+      afterBackwardStatus: afterBackward.status,
+      afterExitAttemptStatus: afterExitAttempt.status,
+      stages: window.RevOpsStore.LEAD_PIPELINE_STAGES
+    };
+  });
+  assertEqual(unit.afterQuotedStatus, 'Quoted', 'advanceLeadStage: moves Contacted -> Quoted', failures);
+  assertEqual(unit.afterQuotedDealValue, 5000, 'advanceLeadStage: merges extraFields onto the lead', failures);
+  assertEqual(unit.afterBackwardStatus, 'Quoted', 'advanceLeadStage: a backward move is a no-op', failures);
+  assertEqual(unit.afterExitAttemptStatus, 'Lost', 'advanceLeadStage: never overrides a closed-out (Lost) lead', failures);
+  assertEqual(unit.stages, ['Contacted', 'Qualified', 'Quoted', 'Negotiation', 'Order Received', 'Won'], 'LEAD_PIPELINE_STAGES is the expected 6-stage sequence', failures);
+
+  // Lost requires a mandatory reason before it can be saved.
+  await page.evaluate(function (lead) { window.RevOpsStore.saveCollection('leads', [lead]); }, sampleTestLead({ id: 'lead_b1', status: 'Quoted', stage: 'Quoted' }));
+  await page.evaluate(function () { editLead('lead_b1'); });
+  await page.waitForTimeout(200);
+  await page.selectOption('#inp-lead-stage', 'Lost');
+  await page.click('#lead-form button[type="submit"]');
+  await page.waitForTimeout(300);
+  let b1 = await page.evaluate(function () { return window.RevOpsStore.getCollection('leads').find(function (l) { return l.id === 'lead_b1'; }); });
+  assertEqual(b1.status, 'Quoted', 'Lost without a reason is blocked - lead stays unchanged', failures);
+
+  await page.selectOption('#inp-lead-stage', 'Lost');
+  await page.selectOption('#inp-lead-lost-reason', 'Price too high');
+  await page.fill('#inp-lead-lost-remarks', 'Client went with a cheaper competitor.');
+  await page.click('#lead-form button[type="submit"]');
+  await page.waitForTimeout(300);
+  b1 = await page.evaluate(function () { return window.RevOpsStore.getCollection('leads').find(function (l) { return l.id === 'lead_b1'; }); });
+  assertEqual(b1.status, 'Lost', 'Lost WITH a reason succeeds', failures);
+  assertEqual(b1.lostReason, 'Price too high', 'Lost reason is stored on the lead', failures);
+  assertEqual(b1.lostRemarks, 'Client went with a cheaper competitor.', 'Lost remarks are stored on the lead', failures);
+
+  // Trashed is allowed early (Contacted), but blocked once a lead has
+  // progressed past Qualified - Lost is the right closure at that point.
+  await page.evaluate(function (lead) {
+    var leads = window.RevOpsStore.getCollection('leads');
+    leads.push(lead);
+    window.RevOpsStore.saveCollection('leads', leads);
+  }, sampleTestLead({ id: 'lead_b3', status: 'Contacted', stage: 'Contacted' }));
+  await page.evaluate(function () { editLead('lead_b3'); });
+  await page.waitForTimeout(200);
+  await page.selectOption('#inp-lead-stage', 'Trashed');
+  await page.click('#lead-form button[type="submit"]');
+  await page.waitForTimeout(300);
+  const b3 = await page.evaluate(function () { return window.RevOpsStore.getCollection('leads').find(function (l) { return l.id === 'lead_b3'; }); });
+  assertEqual(b3.status, 'Trashed', 'Trashed is allowed from Contacted', failures);
+
+  await page.evaluate(function (lead) {
+    var leads = window.RevOpsStore.getCollection('leads');
+    leads.push(lead);
+    window.RevOpsStore.saveCollection('leads', leads);
+  }, sampleTestLead({ id: 'lead_b4', status: 'Negotiation', stage: 'Negotiation' }));
+  await page.evaluate(function () { editLead('lead_b4'); });
+  await page.waitForTimeout(200);
+  await page.selectOption('#inp-lead-stage', 'Trashed');
+  await page.click('#lead-form button[type="submit"]');
+  await page.waitForTimeout(300);
+  const b4 = await page.evaluate(function () { return window.RevOpsStore.getCollection('leads').find(function (l) { return l.id === 'lead_b4'; }); });
+  assertEqual(b4.status, 'Negotiation', 'Trashed is blocked once a lead has progressed past Qualified', failures);
+
+  // Lost/Postponed both require the lead to have at least reached Quoted.
+  await page.evaluate(function (lead) {
+    var leads = window.RevOpsStore.getCollection('leads');
+    leads.push(lead);
+    window.RevOpsStore.saveCollection('leads', leads);
+  }, sampleTestLead({ id: 'lead_b5', status: 'Contacted', stage: 'Contacted' }));
+  await page.evaluate(function () { editLead('lead_b5'); });
+  await page.waitForTimeout(200);
+  await page.selectOption('#inp-lead-stage', 'Postponed');
+  await page.click('#lead-form button[type="submit"]');
+  await page.waitForTimeout(300);
+  const b5 = await page.evaluate(function () { return window.RevOpsStore.getCollection('leads').find(function (l) { return l.id === 'lead_b5'; }); });
+  assertEqual(b5.status, 'Contacted', 'Postponed is blocked before a lead has been Quoted', failures);
+
+  await page.evaluate(function (lead) {
+    var leads = window.RevOpsStore.getCollection('leads');
+    leads.push(lead);
+    window.RevOpsStore.saveCollection('leads', leads);
+  }, sampleTestLead({ id: 'lead_b6', status: 'Quoted', stage: 'Quoted' }));
+  await page.evaluate(function () { editLead('lead_b6'); });
+  await page.waitForTimeout(200);
+  await page.selectOption('#inp-lead-stage', 'Postponed');
+  await page.click('#lead-form button[type="submit"]');
+  await page.waitForTimeout(300);
+  const b6 = await page.evaluate(function () { return window.RevOpsStore.getCollection('leads').find(function (l) { return l.id === 'lead_b6'; }); });
+  const daysOut = b6.postponedUntil ? Math.round((new Date(b6.postponedUntil).getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : 0;
+  assertEqual(b6.status, 'Postponed', 'Postponed succeeds once a lead has been Quoted', failures);
+  assertTrue(daysOut >= 178 && daysOut <= 181, 'Postponed sets a ~180-day postponedUntil date, got ' + daysOut + ' days out', failures);
+
+  await page.close();
+
+  // Dashboard: pending follow-ups must exclude Won/Lost/Trashed and a
+  // not-yet-due Postponed, but include a Postponed lead whose deferral
+  // date has already passed.
+  const { page: dashPage } = await newPage(browser);
+  await dashPage.goto(BASE_URL + '/dashboard.html', { waitUntil: 'networkidle', timeout: 30000 });
+  await dashPage.waitForTimeout(600);
+  const followupsHtml = await dashPage.evaluate(function () {
+    var now = Date.now();
+    var leads = [
+      { id: 'c1', customerName: 'Won Co', status: 'Won' },
+      { id: 'c2', customerName: 'Lost Co', status: 'Lost' },
+      { id: 'c3', customerName: 'Trashed Co', status: 'Trashed' },
+      { id: 'c4', customerName: 'Postponed Future Co', status: 'Postponed', postponedUntil: new Date(now + 100 * 86400000).toISOString() },
+      { id: 'c5', customerName: 'Postponed Due Co', status: 'Postponed', postponedUntil: new Date(now - 5 * 86400000).toISOString() },
+      { id: 'c6', customerName: 'Active Co', status: 'Contacted' }
+    ];
+    renderPendingFollowups(leads);
+    return document.getElementById('pending-followups-list').innerHTML;
+  });
+  assertTrue(followupsHtml.indexOf('Won Co') === -1, 'Pending follow-ups excludes Won leads', failures);
+  assertTrue(followupsHtml.indexOf('Lost Co') === -1, 'Pending follow-ups excludes Lost leads', failures);
+  assertTrue(followupsHtml.indexOf('Trashed Co') === -1, 'Pending follow-ups excludes Trashed leads', failures);
+  assertTrue(followupsHtml.indexOf('Postponed Future Co') === -1, 'Pending follow-ups excludes a not-yet-due Postponed lead', failures);
+  assertTrue(followupsHtml.indexOf('Postponed Due Co') !== -1, 'Pending follow-ups includes a Postponed lead once its date is due', failures);
+  assertTrue(followupsHtml.indexOf('Active Co') !== -1, 'Pending follow-ups includes an ordinary active lead', failures);
+  await dashPage.close();
+
+  return failures;
+}
+
+// ---------------------------------------------------------------------
+// Lead auto-sync from real business events: sending a Quotation, booking
+// an Order's primary approval, and raising an Invoice must each advance
+// the linked CRM Lead forward (Quoted / Order Received / Won) with no
+// manual stage update required.
+// ---------------------------------------------------------------------
+async function testLeadAutoSyncFromDocuments(browser) {
+  const failures = [];
+
+  // Quotation send -> Lead "Quoted"
+  {
+    const { page } = await newPage(browser);
+    await page.goto(BASE_URL + '/quotations.html', { waitUntil: 'networkidle', timeout: 30000 });
+    await page.waitForTimeout(600);
+
+    await page.evaluate(function (lead) {
+      window.RevOpsStore.saveCollection('leads', [lead]);
+      window.RevOpsStore.saveCollection('quotations', [{
+        id: 'quo_test_1', quoteNumber: 'QUO-2026-TEST', customerName: 'Test Customer Co',
+        email: 'client@test.com', leadId: lead.id, grandTotal: 250000, revision: 1,
+        status: 'Approved', items: []
+      }]);
+      window.PdfGenerator.generatePdfFromHtml = async function () { return { name: 'test.pdf', type: 'application/pdf', data: 'data:application/pdf;base64,AAAA' }; };
+      window.BrevoMailer.sendQuotationEmail = async function () { return { channel: 'brevo', messageId: 'test-msg-1' }; };
+    }, sampleTestLead({ id: 'lead_quote_sync', status: 'Qualified', stage: 'Qualified' }));
+
+    await page.evaluate(function () { openSendQuoteModal('quo_test_1'); });
+    await page.waitForTimeout(300);
+    await page.click('#send-quote-form button[type="submit"]');
+    await page.waitForTimeout(1500);
+
+    const leadAfter = await page.evaluate(function () {
+      return window.RevOpsStore.getCollection('leads').find(function (l) { return l.id === 'lead_quote_sync'; });
+    });
+    assertTrue(!!leadAfter && leadAfter.status === 'Quoted', 'Sending a Quotation advances the linked Lead to "Quoted", got ' + (leadAfter && leadAfter.status), failures);
+    assertEqual(leadAfter && leadAfter.dealValue, 250000, 'Quotation send carries its grand total onto the Lead as dealValue', failures);
+    await page.close();
+  }
+
+  // Order primary-approval finalize -> Lead "Order Received"
+  {
+    const { page } = await newPage(browser);
+    await page.goto(BASE_URL + '/orders.html', { waitUntil: 'networkidle', timeout: 30000 });
+    await page.waitForTimeout(600);
+
+    await page.evaluate(function (lead) {
+      window.RevOpsStore.saveCollection('leads', [lead]);
+      window.RevOpsStore.saveCollection('orders', [{
+        id: 'ord_test_1', orderValue: 300000, leadId: lead.id, customerName: 'Test Customer Co',
+        poNumber: 'PO-TEST-001', poDate: '02/10/2026', status: 'Pending Approval'
+      }]);
+    }, sampleTestLead({ id: 'lead_order_sync', status: 'Quoted', stage: 'Quoted' }));
+
+    await page.evaluate(function () {
+      var order = window.RevOpsStore.getCollection('orders').find(function (o) { return o.id === 'ord_test_1'; });
+      finalizeOrderPrimaryApproval(order, 'Mr. Murugan V', 'E-001', 'Approved for test');
+    });
+    await page.waitForTimeout(300);
+
+    const leadAfter = await page.evaluate(function () {
+      return window.RevOpsStore.getCollection('leads').find(function (l) { return l.id === 'lead_order_sync'; });
+    });
+    assertTrue(!!leadAfter && leadAfter.status === 'Order Received', 'Booking an Order advances the linked Lead to "Order Received", got ' + (leadAfter && leadAfter.status), failures);
+    assertEqual(leadAfter && leadAfter.poNumber, 'PO-TEST-001', 'Order booking carries the PO number onto the Lead', failures);
+    await page.close();
+  }
+
+  // Invoice raised (new invoice saved) -> Lead "Won"
+  {
+    const { page } = await newPage(browser);
+    await page.goto(BASE_URL + '/invoices.html', { waitUntil: 'networkidle', timeout: 30000 });
+    await page.waitForTimeout(600);
+
+    await page.evaluate(function (lead) {
+      window.RevOpsStore.saveCollection('leads', [lead]);
+      window.RevOpsStore.saveCollection('orders', [{
+        id: 'ord_inv_test_1', orderValue: 300000, leadId: lead.id, customerName: 'Test Customer Co',
+        customerEmail: 'client@test.com', poNumber: 'PO-TEST-INV-001', status: 'Booked', invoicedStatus: ''
+      }]);
+      window.RevOpsStore.saveCollection('invoices', []);
+    }, sampleTestLead({ id: 'lead_invoice_sync', status: 'Order Received', stage: 'Order Received' }));
+
+    await page.evaluate(function () { populateQuoteAndOrderSources(); openInvoiceModal(); });
+    await page.waitForTimeout(300);
+    await page.selectOption('#inp-inv-order-source', 'ord_inv_test_1');
+    await page.waitForTimeout(300);
+    await page.click('#invoice-modal button[type="submit"]');
+    await page.waitForTimeout(500);
+
+    const leadAfter = await page.evaluate(function () {
+      return window.RevOpsStore.getCollection('leads').find(function (l) { return l.id === 'lead_invoice_sync'; });
+    });
+    assertTrue(!!leadAfter && leadAfter.status === 'Won', 'Raising an Invoice advances the linked Lead to "Won", got ' + (leadAfter && leadAfter.status), failures);
+    await page.close();
+  }
+
+  return failures;
+}
+
 const TESTS = [
   ['SLA day-based seeding, migration, severity dropdown & date math', testSlaDayBasedSeedingAndMigration],
   ['Ticket email subject line', testQuotationVerticalAndTicketSubject],
@@ -1632,7 +1912,9 @@ const TESTS = [
   ['Quotation edit: mandatory reason field', testQuoteEditReasonMandatory],
   ['Go-Live "Clear Demo Data" reset', testClearDummyDataGoLiveReset],
   ['Bulk CSV parser handles quoted/comma/multi-line fields', testBulkCsvParserHandlesQuotedFields],
-  ['Password policy: forced first-time/90-day change, developer exemption, self-service flow', testPasswordPolicyEnforcement]
+  ['Password policy: forced first-time/90-day change, developer exemption, self-service flow', testPasswordPolicyEnforcement],
+  ['Lead pipeline stage model: advanceLeadStage, Lost/Trashed/Postponed guards, pending follow-ups', testLeadPipelineStageModel],
+  ['Lead auto-sync: Quotation send -> Quoted, Order booked -> Order Received, Invoice raised -> Won', testLeadAutoSyncFromDocuments]
 ];
 
 (async () => {

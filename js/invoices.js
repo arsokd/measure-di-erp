@@ -964,6 +964,15 @@ var currentTab = 'All';
               invoiceNumber: invData.invoiceNumber,
               invoiceDate: invData.invoiceDate
             });
+
+            // Raising an invoice is the actual "Won" moment for the CRM
+            // Lead (by explicit decision - booking the Order alone isn't
+            // enough), so advance the lead chained back through the order.
+            var srcOrder = (window.RevOpsStore.getCollection('orders') || []).find(function(o) { return o.id === selectedOrderId; });
+            if (srcOrder && srcOrder.leadId) {
+              window.RevOpsStore.advanceLeadStage(srcOrder.leadId, 'Won', {},
+                'Invoice ' + invData.invoiceNumber + ' raised against this lead\'s order - Lead stage advanced to "Won"');
+            }
           }
         }
 

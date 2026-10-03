@@ -980,29 +980,8 @@ var currentSplits = [];
 
         // RECONCILE & UPDATE LINKED CRM LEAD
         if (o.leadId) {
-          var leads = window.RevOpsStore.getCollection('leads') || [];
-          var l = leads.find(function(it) { return it.id === o.leadId; });
-          if (l) {
-            var oldLeadState = JSON.parse(JSON.stringify(l));
-            l.stage = 'Order Confirmed';
-            l.status = 'Order Confirmed';
-            l.poNumber = o.poNumber;
-            l.poDate = o.poDate;
-            l.estimatedValue = val;
-            l.updatedAt = new Date().toISOString();
-            window.RevOpsStore.saveRecord('leads', l);
-
-            if (window.RevOpsStore.logAudit) {
-              window.RevOpsStore.logAudit(
-                'Leads',
-                l.id,
-                'UPDATE',
-                'Advanced CRM Lead to "Order Confirmed" and updated value to approved PO ' + o.poNumber + ' (₹' + val.toLocaleString('en-IN') + ')',
-                oldLeadState,
-                l
-              );
-            }
-          }
+          window.RevOpsStore.advanceLeadStage(o.leadId, 'Order Received', { poNumber: o.poNumber, poDate: o.poDate, estimatedValue: val },
+            'Order booked (PO ' + o.poNumber + ', ₹' + val.toLocaleString('en-IN') + ') - Lead stage advanced to "Order Received"');
         }
 
         window.RevOpsStore.saveRecord('orders', o);

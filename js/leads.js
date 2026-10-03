@@ -570,16 +570,31 @@ var currentLeadContacts = [];
         });
       }
 
-      var stagesList = [
-        "Customer Contacted / Contact Attempted",
-        "Follow-Up Scheduled",
-        "Site Visit Completed",
-        "Technical Evaluation in Progress",
-        "Commercial Offer Submitted",
-        "Pre-Qualification Completed",
-        "Lead Qualified",
-        "Order Confirmed"
-      ];
+      var stagesList = window.RevOpsStore.LEAD_PIPELINE_STAGES;
+
+      function populateLeadLostReasons() {
+        var sel = document.getElementById('inp-lead-lost-reason');
+        if (!sel || sel.options.length > 1) return;
+        window.RevOpsStore.LEAD_LOST_REASONS.forEach(function(reason) {
+          var opt = document.createElement('option');
+          opt.value = reason;
+          opt.textContent = reason;
+          sel.appendChild(opt);
+        });
+      }
+
+      // Shows/hides the Lost-reason fields and the Postponed note based on
+      // whatever stage is currently selected in the dropdown - called on
+      // every stage change, plus whenever the modal opens for a new or
+      // existing lead, so the form always matches what's actually selected.
+      function toggleLeadStageExtraFields() {
+        populateLeadLostReasons();
+        var stage = document.getElementById('inp-lead-stage').value;
+        var lostFields = document.getElementById('lead-lost-reason-fields');
+        var postponedNote = document.getElementById('lead-postponed-note');
+        if (lostFields) lostFields.classList.toggle('hidden', stage !== 'Lost');
+        if (postponedNote) postponedNote.classList.toggle('hidden', stage !== 'Postponed');
+      }
 
       function renderFunnelBar() {
         var leads = window.RevOpsStore.getCollection('leads') || [];
@@ -649,8 +664,8 @@ var currentLeadContacts = [];
           var val = Number(l.estimatedValue) || Number(l.expectedValue) || Number(l.dealValue) || 0;
           var st = l.stage || l.status || '';
           totalVal += val;
-          if (st === 'Pre-Qualification Completed' || st === 'Lead Qualified') qualifiedCount++;
-          if (st === 'Order Confirmed' || st === 'Won') wonCount++;
+          if (st === 'Qualified') qualifiedCount++;
+          if (st === 'Won') wonCount++;
         });
 
         document.getElementById('stat-lead-count').innerText = filtered.length;
@@ -671,14 +686,16 @@ var currentLeadContacts = [];
           var val = Number(l.estimatedValue) || Number(l.expectedValue) || Number(l.dealValue) || 0;
           var currency = l.currency || 'INR';
           var currSymbol = currency === 'USD' ? '$' : (currency === 'EUR' ? '€' : '₹');
-          var st = l.stage || l.status || 'Customer Contacted / Contact Attempted';
+          var st = l.stage || l.status || 'Contacted';
 
           var stageBadge = "bg-slate-800 text-slate-300 border-slate-700";
-          if (st.indexOf("Order Confirmed") !== -1 || st === "Won") stageBadge = "bg-emerald-950/80 text-emerald-300 border-emerald-700/60";
-          else if (st.indexOf("Lead Qualified") !== -1 || st.indexOf("Pre-Qualification") !== -1) stageBadge = "bg-purple-950/80 text-purple-300 border-purple-700/60";
-          else if (st.indexOf("Commercial Offer") !== -1) stageBadge = "bg-blue-950/80 text-blue-300 border-blue-700/60";
-          else if (st.indexOf("Technical") !== -1 || st.indexOf("Site Visit") !== -1) stageBadge = "bg-amber-950/80 text-amber-300 border-amber-700/60";
-          else if (st.indexOf("Lost") !== -1) stageBadge = "bg-rose-950/80 text-rose-400 border-rose-700/60";
+          if (st === "Won") stageBadge = "bg-emerald-950/80 text-emerald-300 border-emerald-700/60";
+          else if (st === "Qualified") stageBadge = "bg-purple-950/80 text-purple-300 border-purple-700/60";
+          else if (st === "Quoted") stageBadge = "bg-blue-950/80 text-blue-300 border-blue-700/60";
+          else if (st === "Negotiation" || st === "Order Received") stageBadge = "bg-amber-950/80 text-amber-300 border-amber-700/60";
+          else if (st === "Lost") stageBadge = "bg-rose-950/80 text-rose-400 border-rose-700/60";
+          else if (st === "Trashed") stageBadge = "bg-slate-800 text-slate-500 border-slate-700";
+          else if (st === "Postponed") stageBadge = "bg-orange-950/80 text-orange-300 border-orange-700/60";
 
           var contacts = l.contacts || [];
           if (contacts.length === 0 && l.contactPerson) {
@@ -802,8 +819,11 @@ var currentLeadContacts = [];
           document.getElementById('inp-lead-currency').value = leadData.currency || 'INR';
           document.getElementById('inp-lead-value').value = leadData.estimatedValue || leadData.expectedValue || 0;
           document.getElementById('inp-lead-target-date').value = leadData.targetDate || '';
-          document.getElementById('inp-lead-stage').value = leadData.stage || leadData.status || 'Customer Contacted / Contact Attempted';
+          document.getElementById('inp-lead-stage').value = leadData.stage || leadData.status || 'Contacted';
           document.getElementById('inp-lead-notes').value = leadData.notes || '';
+          document.getElementById('inp-lead-lost-reason').value = leadData.lostReason || '';
+          document.getElementById('inp-lead-lost-remarks').value = leadData.lostRemarks || '';
+          toggleLeadStageExtraFields();
 
           if (leadData.contacts && Array.isArray(leadData.contacts)) {
             currentLeadContacts = JSON.parse(JSON.stringify(leadData.contacts));
@@ -824,8 +844,11 @@ var currentLeadContacts = [];
           document.getElementById('inp-lead-vertical').value = 'Projects';
           document.getElementById('inp-lead-company').value = window.RevOpsStore.getDefaultCompanyId();
           // Explicit, not left to form.reset()'s default-option guess -
-          // a new lead always starts at the first funnel stage.
-          document.getElementById('inp-lead-stage').value = 'Customer Contacted / Contact Attempted';
+          // a new lead always starts at the first pipeline stage.
+          document.getElementById('inp-lead-stage').value = 'Contacted';
+          document.getElementById('inp-lead-lost-reason').value = '';
+          document.getElementById('inp-lead-lost-remarks').value = '';
+          toggleLeadStageExtraFields();
           currentLeadProducts = [];
           addProductRow();
           currentLeadContacts = [{ name: '', designation: '', phone: '', email: '', autoCc: true }];
@@ -894,6 +917,35 @@ var currentLeadContacts = [];
         var productNamesSummary = validProducts.map(function(p) { return p.name; }).join(', ');
         var productSpecsSummary = validProducts.map(function(p) { return p.name + ': ' + (p.spec || ''); }).join(' | ');
 
+        // Trashed/Lost/Postponed guard: Trashed is for disqualifying a lead
+        // early (never got past Qualified); Lost/Postponed are for a deal
+        // that was actually pursued (a Quotation went out) but didn't
+        // convert now. A brand-new lead (priorRank -1) can always be
+        // Trashed, but can't start life already Lost/Postponed.
+        var selectedStage = document.getElementById('inp-lead-stage').value;
+        var priorStage = existingLead ? (existingLead.stage || existingLead.status) : null;
+        var priorRank = priorStage ? window.RevOpsStore.LEAD_PIPELINE_STAGES.indexOf(priorStage) : -1;
+        var qualifiedRank = window.RevOpsStore.LEAD_PIPELINE_STAGES.indexOf('Qualified');
+        var quotedRank = window.RevOpsStore.LEAD_PIPELINE_STAGES.indexOf('Quoted');
+
+        if (selectedStage === 'Trashed' && priorRank > qualifiedRank) {
+          alert("This lead has already progressed past Qualified (currently \"" + priorStage + "\"). Use \"Lost\" instead of \"Trashed\" for a lead that's come this far.");
+          return;
+        }
+
+        var lostReason = document.getElementById('inp-lead-lost-reason').value;
+        var lostRemarks = document.getElementById('inp-lead-lost-remarks').value.trim();
+        if (selectedStage === 'Lost' || selectedStage === 'Postponed') {
+          if (priorRank < quotedRank) {
+            alert("A lead can only be marked \"" + selectedStage + "\" once a Quotation has been sent (Quoted stage or later). Use \"Trashed\" for an early-stage disqualification instead.");
+            return;
+          }
+        }
+        if (selectedStage === 'Lost' && !lostReason) {
+          alert("Please select a reason for this lead being Lost.");
+          return;
+        }
+
         var newLead = {
           id: docId || ('lead_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4)),
           leadNumber: nextLeadNum,
@@ -911,8 +963,11 @@ var currentLeadContacts = [];
           estimatedValue: Number(document.getElementById('inp-lead-value').value) || 0,
           expectedValue: Number(document.getElementById('inp-lead-value').value) || 0,
           targetDate: document.getElementById('inp-lead-target-date').value,
-          stage: document.getElementById('inp-lead-stage').value,
-          status: document.getElementById('inp-lead-stage').value,
+          stage: selectedStage,
+          status: selectedStage,
+          lostReason: selectedStage === 'Lost' ? lostReason : '',
+          lostRemarks: selectedStage === 'Lost' ? lostRemarks : '',
+          postponedUntil: selectedStage === 'Postponed' ? new Date(Date.now() + 180 * 24 * 60 * 60 * 1000).toISOString() : '',
           contacts: validContacts,
           contactPerson: primaryContact.name,
           contactPhone: primaryContact.phone,

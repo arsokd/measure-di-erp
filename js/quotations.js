@@ -425,13 +425,15 @@ var currentEditingQuoteId = null;
           // CRM Funnel Stage synced from lead
           var leads = window.RevOpsStore.getCollection('leads') || [];
           var linkedLead = leads.find(function(l) { return l.id === q.leadId || l.leadNumber === q.leadId || (q.customerName && l.customerName === q.customerName); });
-          var funnelStage = linkedLead ? (linkedLead.stage || linkedLead.status || 'Commercial Offer Submitted') : (q.funnelStage || 'Commercial Offer Submitted');
+          var funnelStage = linkedLead ? (linkedLead.stage || linkedLead.status || 'Quoted') : (q.funnelStage || 'Quoted');
           var funnelBadgeClass = "bg-slate-100 text-slate-700 border-slate-200";
-          if (funnelStage.indexOf("Order Confirmed") !== -1 || funnelStage === "Won") funnelBadgeClass = "bg-emerald-50 text-emerald-700 border-emerald-300";
-          else if (funnelStage.indexOf("Lead Qualified") !== -1 || funnelStage.indexOf("Pre-Qualification") !== -1) funnelBadgeClass = "bg-purple-50 text-purple-700 border-purple-300";
-          else if (funnelStage.indexOf("Commercial Offer") !== -1) funnelBadgeClass = "bg-blue-50 text-blue-700 border-blue-300";
-          else if (funnelStage.indexOf("Technical") !== -1 || funnelStage.indexOf("Site Visit") !== -1) funnelBadgeClass = "bg-amber-50 text-amber-700 border-amber-300";
-          else if (funnelStage.indexOf("Lost") !== -1) funnelBadgeClass = "bg-rose-50 text-rose-700 border-rose-300";
+          if (funnelStage === "Won") funnelBadgeClass = "bg-emerald-50 text-emerald-700 border-emerald-300";
+          else if (funnelStage === "Qualified") funnelBadgeClass = "bg-purple-50 text-purple-700 border-purple-300";
+          else if (funnelStage === "Quoted") funnelBadgeClass = "bg-blue-50 text-blue-700 border-blue-300";
+          else if (funnelStage === "Negotiation" || funnelStage === "Order Received") funnelBadgeClass = "bg-amber-50 text-amber-700 border-amber-300";
+          else if (funnelStage === "Lost") funnelBadgeClass = "bg-rose-50 text-rose-700 border-rose-300";
+          else if (funnelStage === "Trashed") funnelBadgeClass = "bg-slate-100 text-slate-500 border-slate-300";
+          else if (funnelStage === "Postponed") funnelBadgeClass = "bg-orange-50 text-orange-700 border-orange-300";
 
           var canApprove = (hasApprovalAuthority('isPrimaryApprover')) && q.status === 'Pending Approval';
           var canRatify = hasApprovalAuthority('isFinalApprover') && q.status === 'Approved' && q.directorRatificationStatus === 'Pending';
@@ -1984,15 +1986,13 @@ var currentEditingQuoteId = null;
             q.gmailMailboxOwner = res.sentAs || '';
           }
 
-          // Update linked lead if available
+          // Update linked lead if available - advanceLeadStage() only moves
+          // it forward and never overrides a lead someone already closed
+          // out (Trashed/Lost/Postponed), so a resend on an older quote
+          // can't silently drag a lead backward or reopen a closed one.
           if (q.leadId) {
-            var leads = window.RevOpsStore.getCollection('leads') || [];
-            var lead = leads.find(function(l) { return l.id === q.leadId; });
-            if (lead) {
-              lead.stage = 'Proposal Sent';
-              lead.dealValue = q.grandTotal;
-              window.RevOpsStore.saveCollection('leads', leads);
-            }
+            window.RevOpsStore.advanceLeadStage(q.leadId, 'Quoted', { dealValue: q.grandTotal },
+              'Quotation ' + q.quoteNumber + ' sent to customer - Lead stage advanced to "Quoted"');
           }
 
           window.RevOpsStore.saveCollection('quotations', quotes);
@@ -2007,7 +2007,7 @@ var currentEditingQuoteId = null;
           var senderLine = sentViaGmail
             ? '• Sender: ' + res.sentAs + " (your own real Gmail - client replies will land there too)"
             : '• Sender: Measure DI Systems (measuredichennai@gmail.com)';
-          alert("✅ SUCCESS!\n\nQuotation " + q.quoteNumber + " (Ver " + (q.revision || 1) + ") has been sent directly to client (" + toEmail + ")!\n\n• Delivery Status: Dispatched & Delivered\n" + senderLine + "\n• Status updated to 'Sent to Customer'\n• Linked CRM lead updated to 'Proposal Sent'");
+          alert("✅ SUCCESS!\n\nQuotation " + q.quoteNumber + " (Ver " + (q.revision || 1) + ") has been sent directly to client (" + toEmail + ")!\n\n• Delivery Status: Dispatched & Delivered\n" + senderLine + "\n• Status updated to 'Sent to Customer'\n• Linked CRM lead advanced to 'Quoted'");
         } catch (err) {
           console.error('Send quote error:', err);
           var fallback = confirm("Notice during email dispatch:\n" + (err.message || err) + "\n\nWould you like to launch your local email client (Outlook/Mail) instead?");

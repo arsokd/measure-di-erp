@@ -831,6 +831,61 @@ Object.assign(window.RevOpsStore, {
     });
   },
 
+  // ============ LEAD PIPELINE STAGE MODEL ============
+  // Single source of truth for the Lead sales pipeline, so the Leads
+  // page, the Dashboard funnel, and every document that auto-advances a
+  // Lead (Quotation send, Order booking, Invoice raise) all agree on the
+  // same stage names - previously each of those read/wrote a different,
+  // mutually-incompatible set of strings (an 8-stage list on the Lead
+  // form itself, a different hardcoded 5-stage list on the Dashboard
+  // funnel, and a third ad-hoc value written on Quotation send), so the
+  // funnel never actually reflected what a real Lead's status was.
+  //
+  // LEAD_PIPELINE_STAGES is the forward-moving sequence; its array index
+  // is used as the stage's "rank" by advanceLeadStage() below. The three
+  // LEAD_EXIT_STAGES are outcomes, not pipeline positions - a lead only
+  // ever reaches one of them by a person's deliberate choice, never by
+  // automatic forward-sync, and once there it's never silently moved
+  // again by an automatic sync.
+  LEAD_PIPELINE_STAGES: ['Contacted', 'Qualified', 'Quoted', 'Negotiation', 'Order Received', 'Won'],
+  LEAD_EXIT_STAGES: ['Trashed', 'Lost', 'Postponed'],
+  LEAD_LOST_REASONS: ['Price too high', 'Competitor chosen', 'Budget cut / Project cancelled', 'Not interested / No response', 'Timing not right', 'Other'],
+
+  // Moves a Lead forward to targetStage, automatically, from a real
+  // business event (a Quotation actually sent, an Order actually booked,
+  // an Invoice actually raised) - never backward, and never overriding a
+  // lead a person has already closed out (Trashed/Lost/Postponed), since
+  // an automatic sync has no way to know whether that closure is still
+  // right. extraFields are merged onto the lead alongside the stage
+  // change (e.g. the quote's value, the PO number) in the same write.
+  advanceLeadStage: function(leadId, targetStage, extraFields, detailMessage) {
+    if (!leadId) return null;
+    var leads = this.getCollection('leads') || [];
+    var lead = leads.find(function(l) { return l.id === leadId; });
+    if (!lead) return null;
+
+    var currentStage = lead.status || lead.stage;
+    if (this.LEAD_EXIT_STAGES.indexOf(currentStage) !== -1) return lead;
+
+    var currentRank = this.LEAD_PIPELINE_STAGES.indexOf(currentStage);
+    var targetRank = this.LEAD_PIPELINE_STAGES.indexOf(targetStage);
+    if (targetRank === -1 || currentRank >= targetRank) return lead;
+
+    var oldLeadState = JSON.parse(JSON.stringify(lead));
+    lead.status = targetStage;
+    lead.stage = targetStage;
+    if (extraFields) {
+      Object.keys(extraFields).forEach(function(k) { lead[k] = extraFields[k]; });
+    }
+    lead.updatedAt = new Date().toISOString();
+    this.saveRecord('leads', lead);
+
+    if (this.logAudit) {
+      this.logAudit('Leads', lead.id, 'UPDATE', detailMessage || ('Lead stage automatically advanced to "' + targetStage + '"'), oldLeadState, lead);
+    }
+    return lead;
+  },
+
   getOrderDate: function(order) {
     if (!order) return '';
     return order.poDate || order.orderDate || order.createdDate || '';

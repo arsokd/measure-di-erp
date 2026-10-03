@@ -678,7 +678,16 @@
       }
 
       function renderPendingFollowups(leads) {
-        var pendingLeads = leads.filter(l => l.status !== "Won" && l.status !== "Lost");
+        var now = Date.now();
+        var pendingLeads = leads.filter(function(l) {
+          var st = l.status || l.stage;
+          if (st === "Won" || st === "Lost" || st === "Trashed") return false;
+          // A Postponed lead only resurfaces here once its 180-day
+          // deferral has actually passed - it's deliberately parked, not
+          // forgotten, so it shouldn't clutter active follow-ups until then.
+          if (st === "Postponed") return !!l.postponedUntil && new Date(l.postponedUntil).getTime() <= now;
+          return true;
+        });
         var container = document.getElementById('pending-followups-list');
         if (pendingLeads.length === 0) {
           container.innerHTML = `<div class="p-4 text-center text-xs text-slate-400">No active pending leads matching current filter.</div>`;
@@ -1065,7 +1074,7 @@
           }
         }
 
-        [0, 1, 2, 3, 4].forEach(function(i) {
+        window.RevOpsStore.LEAD_PIPELINE_STAGES.forEach(function(stageName, i) {
           var pill = document.getElementById('pill-stage-' + i);
           if (pill) {
             if (idx === i) {
@@ -1188,21 +1197,18 @@
           periodDisplayEl.innerText = 'Selected Period: ' + pInfo.label;
         }
 
-        var stages = ['New Enquiry', 'Qualified', 'Quoted', 'Negotiation', 'Won'];
-        var stageCounts = [0, 0, 0, 0, 0];
-        var stageValues = [0, 0, 0, 0, 0];
-        var stageLeadsMap = [[], [], [], [], []];
+        var stages = window.RevOpsStore.LEAD_PIPELINE_STAGES;
+        var stageCounts = stages.map(function() { return 0; });
+        var stageValues = stages.map(function() { return 0; });
+        var stageLeadsMap = stages.map(function() { return []; });
 
         activeLeads.forEach(function(l) {
-          var st = l.status || l.stage || 'New Enquiry';
+          var st = l.status || l.stage || 'Contacted';
+          // Trashed/Lost/Postponed are closed-out exits, not a pipeline
+          // position - they don't appear anywhere on this active funnel,
+          // same as how a Lost lead was already excluded before.
           var idx = stages.indexOf(st);
-          if (idx === -1) {
-            if (st === 'In Discussion' || st === 'Qualified') idx = 1;
-            else if (st === 'Quote Sent' || st === 'Quoted') idx = 2;
-            else if (st === 'Won' || st === 'Closed Won') idx = 4;
-            else if (st === 'Lost' || st === 'Closed Lost') return;
-            else idx = 0;
-          }
+          if (idx === -1) return;
           var val = l.estimatedValue || l.expectedValue || l.dealValue || 0;
           stageCounts[idx]++;
           stageValues[idx] += val;
@@ -1229,7 +1235,7 @@
           var topW = Math.max(180, Math.round(180 + valRatio * 400));
           
           var botW;
-          if (idx < 4) {
+          if (idx < stages.length - 1) {
             var nextValRatio = totalValSum > 0 ? (stageValues[idx + 1] / maxVal) : (totalDealsSum > 0 ? (stageCounts[idx + 1] / maxCount) : 0.4);
             var nextTopW = Math.max(180, Math.round(180 + nextValRatio * 400));
             botW = Math.max(140, Math.round(topW * 0.70 + nextTopW * 0.30));
@@ -1243,9 +1249,13 @@
           return { topW: topW, botW: botW, y1: y1, y2: y2 };
         });
 
+        // Height grows with the stage count instead of a fixed number, so
+        // adding/removing a pipeline stage never clips or overlaps bars.
+        var svgHeight = 10 + (stages.length - 1) * 72 + 64 + 10;
+
         var svgHtml = `
           <div class="w-full relative select-none">
-            <svg viewBox="0 0 740 370" class="w-full h-auto max-h-[380px] filter drop-shadow-lg overflow-visible">
+            <svg viewBox="0 0 740 ${svgHeight}" class="w-full h-auto filter drop-shadow-lg overflow-visible" style="max-height: ${svgHeight + 10}px;">
               <defs>
                 <linearGradient id="funnelGrad0" x1="0%" y1="0%" x2="100%" y2="100%">
                   <stop offset="0%" stop-color="#3b82f6" />
@@ -1264,6 +1274,10 @@
                   <stop offset="100%" stop-color="#b45309" />
                 </linearGradient>
                 <linearGradient id="funnelGrad4" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stop-color="#14b8a6" />
+                  <stop offset="100%" stop-color="#0f766e" />
+                </linearGradient>
+                <linearGradient id="funnelGrad5" x1="0%" y1="0%" x2="100%" y2="100%">
                   <stop offset="0%" stop-color="#10b981" />
                   <stop offset="100%" stop-color="#047857" />
                 </linearGradient>
@@ -1375,7 +1389,7 @@
         var tooltip = document.getElementById('funnel-tooltip');
         if (!tooltip) return;
 
-        var stages = ['New Enquiry', 'Qualified', 'Quoted', 'Negotiation', 'Won'];
+        var stages = window.RevOpsStore.LEAD_PIPELINE_STAGES;
         var stageName = stages[idx];
         var leads = (window.activeFunnelLeadsMap && window.activeFunnelLeadsMap[idx]) || [];
         var count = leads.length;
@@ -1438,28 +1452,30 @@
         if (!container) return;
 
         var activeLeads = leads || [];
-        var stages = ['New Enquiry', 'Qualified', 'Quoted', 'Negotiation', 'Won'];
+        var stages = window.RevOpsStore.LEAD_PIPELINE_STAGES;
 
         // Calculate stage history / progressive cohort counts
-        var cCounts = [0, 0, 0, 0, 0];
-        var cValues = [0, 0, 0, 0, 0];
+        var wonIdx = stages.length - 1;
+        var cCounts = stages.map(function() { return 0; });
+        var cValues = stages.map(function() { return 0; });
         var lostInCohort = 0;
         var totalCohortSalesCycleDays = 0;
         var wonCohortCount = 0;
         var forecastRevenue = 0;
 
         activeLeads.forEach(function(l) {
-          var st = l.status || l.stage || 'New Enquiry';
-          var isLost = (st === 'Lost' || st === 'Closed Lost' || l.status === 'Lost');
+          var st = l.status || l.stage || 'Contacted';
+          // Trashed/Postponed are excluded from this cohort entirely - a
+          // Trashed lead was never a real opportunity, and a Postponed one
+          // is still open (neither won nor lost), so counting either here
+          // would distort the win/loss rate.
+          if (st === 'Trashed' || st === 'Postponed') return;
+
+          var isLost = (st === 'Lost');
           if (isLost) lostInCohort++;
 
           var idx = stages.indexOf(st);
-          if (idx === -1) {
-            if (st === 'In Discussion' || st === 'Qualified') idx = 1;
-            else if (st === 'Quote Sent' || st === 'Quoted') idx = 2;
-            else if (st === 'Won' || st === 'Closed Won') idx = 4;
-            else idx = 0;
-          }
+          if (idx === -1) idx = 0;
 
           var val = l.estimatedValue || l.expectedValue || l.dealValue || 0;
 
@@ -1474,7 +1490,7 @@
             cValues[i] += val;
           }
 
-          if (idx === 4 && !isLost) {
+          if (idx === wonIdx && !isLost) {
             wonCohortCount++;
             totalCohortSalesCycleDays += getSalesCycleDays(l);
           } else if (!isLost) {
@@ -1484,10 +1500,7 @@
         });
 
         var c0 = cCounts[0];
-        var c1 = cCounts[1];
-        var c2 = cCounts[2];
-        var c3 = cCounts[3];
-        var c4 = cCounts[4];
+        var c4 = cCounts[wonIdx];
 
         if (c0 === 0) {
           container.innerHTML = `
@@ -1500,8 +1513,11 @@
           return;
         }
 
-        // Validation Rule: New Enquiry >= Qualified >= Quoted >= Negotiation >= Won
-        var isValid = (c0 >= c1 && c1 >= c2 && c2 >= c3 && c3 >= c4) && (c0 > 0);
+        // Validation Rule: each stage's cohort count can only be <= the one before it
+        var isValid = c0 > 0;
+        for (var vi = 1; vi < cCounts.length && isValid; vi++) {
+          if (cCounts[vi - 1] < cCounts[vi]) isValid = false;
+        }
 
         if (!isValid) {
           container.innerHTML = `
@@ -1528,7 +1544,7 @@
 
         var stageGeometries = stages.map(function(stName, idx) {
           var ratio = cCounts[idx] / c0;
-          var nextRatio = idx < 4 ? (cCounts[idx + 1] / c0) : ratio * 0.7;
+          var nextRatio = idx < stages.length - 1 ? (cCounts[idx + 1] / c0) : ratio * 0.7;
 
           var topW = Math.max(minW, Math.round(maxW * ratio));
           var botW = Math.max(minW - 20, Math.round(maxW * nextRatio));
@@ -1540,15 +1556,18 @@
           return { topW: topW, botW: botW, y1: y1, y2: y2 };
         });
 
+        var convSvgHeight = 10 + (stages.length - 1) * 60 + 52 + 10;
+
         var svgHtml = `
           <div class="w-full relative select-none">
-            <svg viewBox="0 0 600 310" class="w-full h-auto max-h-[320px] filter drop-shadow-md overflow-visible">
+            <svg viewBox="0 0 600 ${convSvgHeight}" class="w-full h-auto filter drop-shadow-md overflow-visible" style="max-height: ${convSvgHeight + 10}px;">
               <defs>
                 <linearGradient id="convGrad0" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#3b82f6"/><stop offset="100%" stop-color="#1d4ed8"/></linearGradient>
                 <linearGradient id="convGrad1" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#6366f1"/><stop offset="100%" stop-color="#4338ca"/></linearGradient>
                 <linearGradient id="convGrad2" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#0284c7"/><stop offset="100%" stop-color="#0369a1"/></linearGradient>
                 <linearGradient id="convGrad3" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#f59e0b"/><stop offset="100%" stop-color="#b45309"/></linearGradient>
-                <linearGradient id="convGrad4" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#10b981"/><stop offset="100%" stop-color="#047857"/></linearGradient>
+                <linearGradient id="convGrad4" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#14b8a6"/><stop offset="100%" stop-color="#0f766e"/></linearGradient>
+                <linearGradient id="convGrad5" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#10b981"/><stop offset="100%" stop-color="#047857"/></linearGradient>
               </defs>
         `;
 
@@ -1581,9 +1600,11 @@
 
         svgHtml += `</svg></div>`;
 
-        // Step-by-Step Transition Cards
-        var transitionsHtml = `<div class="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2">`;
-        for (var idx = 0; idx < 4; idx++) {
+        // Step-by-Step Transition Cards - sm:grid-cols-5 is a literal class
+        // (not interpolated) so Tailwind's build-time scanner can see it;
+        // it matches stages.length - 1 as long as the pipeline stays 6 long.
+        var transitionsHtml = `<div class="grid grid-cols-2 sm:grid-cols-5 gap-2 pt-2">`;
+        for (var idx = 0; idx < stages.length - 1; idx++) {
           var fromName = stages[idx];
           var toName = stages[idx + 1];
           var prevC = cCounts[idx];
@@ -1651,7 +1672,7 @@
         var box = document.getElementById('funnel-drilldown-box');
         if (!box) return;
 
-        var stages = ['New Enquiry', 'Qualified', 'Quoted', 'Negotiation', 'Won'];
+        var stages = window.RevOpsStore.LEAD_PIPELINE_STAGES;
         var stageName = stages[idx];
         var leads = (window.activeFunnelLeadsMap && window.activeFunnelLeadsMap[idx]) || [];
 

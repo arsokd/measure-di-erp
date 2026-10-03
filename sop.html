@@ -184,17 +184,16 @@
             <li><strong>Lead Source, Industry Vertical, Project Sector / Origin, Vertical Classification, Currency:</strong> All five are picked from live Master Data lists (<code>master-data.html</code>) rather than hardcoded options. Admins/leadership can add, edit, or delete entries in these lists at any time without a code change, and every lead across the org immediately sees the updated list.</li>
             <li><strong>Vertical & Cascading Product Specs:</strong> Choose Industry Vertical and Project Sector first — the Product Name dropdown then dynamically filters to only matching items from the Product Master. Selecting a product auto-populates HSN Code, Technical Specification, and Price as <strong>read-only</strong> fields — never typed in manually, so pricing always matches the master catalog.</li>
             <li><strong>Multi-Contact Entry:</strong> Add up to 5 customer contact persons with Designation, Mobile, Email, and Auto-CC toggles.</li>
-            <li><strong>8-Stage Funnel Progression:</strong> Maintain active progression through:
+            <li><strong>Sales Pipeline Progression:</strong> Maintain active progression through:
               <ol class="list-decimal list-inside ml-4 text-slate-400 space-y-0.5 mt-1">
-                <li>Customer Contacted / Contact Attempted</li>
-                <li>Follow-Up Scheduled</li>
-                <li>Site Visit Completed</li>
-                <li>Technical Evaluation in Progress</li>
-                <li>Commercial Offer Submitted (Auto-synced from Quotation)</li>
-                <li>Pre-Qualification Completed (Eligibility confirmed)</li>
-                <li>Lead Qualified (Confirmed sales opportunity with high order probability)</li>
-                <li>Order Confirmed (Won - Ready for PO / Order Booking)</li>
+                <li>Contacted — the lead owner has made first contact</li>
+                <li>Qualified (genuine opportunity, worth pursuing) — or <strong>Trashed</strong> if it isn't a real opportunity</li>
+                <li>Quoted — <strong>auto-set</strong> the moment a Quotation is sent to the customer</li>
+                <li>Negotiation</li>
+                <li>Order Received — <strong>auto-set</strong> the moment the PO is booked as an Order</li>
+                <li>Won — <strong>auto-set</strong> the moment an Invoice is raised against that order</li>
               </ol>
+              From Quoted onward, a lead can instead be closed as <strong>Lost</strong> (a reason is mandatory) or <strong>Postponed</strong> (won't decide for ~180 days). Quoted/Order Received/Won update themselves automatically from real Quotation/Order/Invoice activity — manual entry is only needed for Contacted, Qualified, Negotiation, Trashed, Lost, and Postponed.
             </li>
           </ul>
         </div>
