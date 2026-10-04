@@ -1701,6 +1701,96 @@ async function testCsvTemplateDropdownLegend(browser) {
 }
 
 // ---------------------------------------------------------------------
+// The global "Data Center" (every page's navbar - Bulk Data Import &
+// Export Center) is a SEPARATE bulk-upload surface from Master Data's
+// own per-tab upload, covering 12 collections instead of 5. It had its
+// own independent problems this fix addresses: a naive line.split(',')
+// parser (the exact comma-corruption bug already fixed once in Master
+// Data, found again here), a Leads template still using the retired
+// 8-stage pipeline wording, inconsistent "vertical" spelling across its
+// own templates ("Sales"/"Service/Parts" instead of the real
+// "Projects"/"Service and Parts"), and 5 collections (Quotations, DWM
+// Logs, Payments, Attendance, KRA Targets) silently falling back to a
+// generic, wrong placeholder template. All of it now flows through the
+// same RevOpsStore.getPrescribedCsvTemplate() + parseCSVRows() single
+// source of truth Master Data's own upload already uses.
+// ---------------------------------------------------------------------
+async function testDataCenterTemplatesAndParser(browser) {
+  const failures = [];
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 }, acceptDownloads: true });
+  page.on('dialog', async function (d) { await d.dismiss().catch(function () {}); });
+  await page.addInitScript(function () {
+    localStorage.setItem('userRole', 'super_admin');
+    localStorage.setItem('userEmail', 'murugan@measuredi.com');
+    localStorage.setItem('userName', 'Mr. Murugan V');
+    localStorage.setItem('employeeId', 'E-001');
+  });
+
+  await page.goto(BASE_URL + '/dashboard.html', { waitUntil: 'networkidle', timeout: 30000 });
+  await page.waitForTimeout(600);
+
+  async function downloadFor(collectionValue) {
+    await page.evaluate(function () { openDataImportExportModal(); });
+    await page.waitForTimeout(200);
+    await page.selectOption('#data-import-collection', collectionValue);
+    const [dl] = await Promise.all([
+      page.waitForEvent('download'),
+      page.evaluate(function () { downloadCSVTemplate(); })
+    ]);
+    return fs.readFileSync(await dl.path(), 'utf8');
+  }
+
+  const leadsCsv = await downloadFor('leads');
+  assertTrue(leadsCsv.indexOf(',Quoted,') !== -1, 'Data Center Leads template uses the current pipeline stage wording (Quoted)', failures);
+  assertTrue(leadsCsv.indexOf('Commercial Offer Submitted') === -1 && leadsCsv.indexOf('Lead Qualified') === -1, 'Data Center Leads template no longer uses the retired 8-stage wording', failures);
+  ['leadSource', 'industry', 'projectSector', 'vertical', 'currency', 'stage'].forEach(function (col) {
+    assertTrue(leadsCsv.indexOf('ALLOWED VALUES FOR "' + col + '"') !== -1, 'Data Center Leads template has a legend for "' + col + '"', failures);
+  });
+  assertTrue(leadsCsv.indexOf('INR') !== -1, 'Leads currency legend lists currency codes (INR), not currency names', failures);
+
+  const empCsv = await downloadFor('employees');
+  assertTrue(empCsv.indexOf('super_admin, admin, manager, staff') !== -1, 'Employees template legend lists the exact 4 role values', failures);
+  assertTrue(empCsv.indexOf('Projects & production') === -1, 'Employees template vertical samples use canonical casing, not the old wording', failures);
+
+  const clientsCsv = await downloadFor('clientsMaster');
+  assertTrue(clientsCsv.indexOf('ALLOWED VALUES FOR "vertical"') !== -1, 'Clients template has a vertical legend', failures);
+  assertTrue(clientsCsv.indexOf(',Sales,') === -1, 'Clients template no longer uses bare "Sales" as a vertical sample', failures);
+
+  const quotCsv = await downloadFor('quotations');
+  assertTrue(quotCsv.indexOf('quoteNumber') !== -1 && quotCsv.indexOf('id,title,category') === -1, 'Quotations template is real, not the generic placeholder', failures);
+
+  const dwmCsv = await downloadFor('dwmActivities');
+  assertTrue(dwmCsv.indexOf('activityDescription') !== -1, 'DWM Activity Log template is real', failures);
+  assertTrue(dwmCsv.indexOf('ALLOWED VALUES FOR "category"') !== -1, 'DWM template has a category legend', failures);
+
+  const paymentsCsv = await downloadFor('payments');
+  assertTrue(paymentsCsv.indexOf('paymentMode') !== -1, 'Payments template is real', failures);
+  assertTrue(paymentsCsv.indexOf('ALLOWED VALUES FOR "paymentMode"') !== -1, 'Payments template has a paymentMode legend', failures);
+
+  const attendanceCsv = await downloadFor('attendance');
+  assertTrue(attendanceCsv.indexOf('punchInTime') !== -1, 'Attendance backfill template is real', failures);
+
+  const kraCsv = await downloadFor('kraTargets');
+  assertTrue(kraCsv.indexOf('aopLine') !== -1, 'KRA Targets template is real', failures);
+  assertTrue(kraCsv.indexOf('ALLOWED VALUES FOR "aopLine"') !== -1, 'KRA template has an aopLine legend', failures);
+
+  // The Data Center's own upload path now shares Master Data's RFC
+  // 4180-aware tokenizer instead of a separate naive line.split(',').
+  const parseResult = await page.evaluate(function () {
+    var csv = '# ALLOWED VALUES FOR "vertical": Projects, Onboard\n' +
+      'leadNumber,customerName,notes\n' +
+      'LD-TEST-1,"Test, Comma Co",Has a comma in the name\n';
+    var rows = window.RevOpsStore.parseCSVRows(csv);
+    return { rowCount: rows.length, header: rows[0], dataRow: rows[1] };
+  });
+  assertEqual(parseResult.rowCount, 2, 'Shared parseCSVRows drops the "#" legend line (header + 1 data row survive)', failures);
+  assertEqual(parseResult.dataRow[1], 'Test, Comma Co', 'Shared parseCSVRows keeps a comma inside a quoted field intact', failures);
+
+  await page.close();
+  return failures;
+}
+
+// ---------------------------------------------------------------------
 // Lead pipeline stage model: the forward-only, exit-immune
 // advanceLeadStage() helper, the Leads form's Lost/Trashed/Postponed
 // guards and mandatory-reason enforcement, and the Dashboard's
@@ -2004,7 +2094,8 @@ const TESTS = [
   ['Password policy: forced first-time/90-day change, developer exemption, self-service flow', testPasswordPolicyEnforcement],
   ['Lead pipeline stage model: advanceLeadStage, Lost/Trashed/Postponed guards, pending follow-ups', testLeadPipelineStageModel],
   ['Lead auto-sync: Quotation send -> Quoted, Order booked -> Order Received, Invoice raised -> Won', testLeadAutoSyncFromDocuments],
-  ['Bulk-upload template: live dropdown-values legend, comment-line skipping, never on real exports', testCsvTemplateDropdownLegend]
+  ['Bulk-upload template: live dropdown-values legend, comment-line skipping, never on real exports', testCsvTemplateDropdownLegend],
+  ['Data Center: 12 real per-collection templates, dropdown legends, shared RFC 4180 parser', testDataCenterTemplatesAndParser]
 ];
 
 (async () => {

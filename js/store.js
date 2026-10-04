@@ -541,22 +541,41 @@ Object.assign(window.RevOpsStore, {
   },
 
   // Returns prescribed CSV format template and sample rows for bulk upload
+  // Returns prescribed CSV format template, sample rows, and - for every
+  // field validated against a live Master Data list or a fixed in-app
+  // set of values - the "# ALLOWED VALUES" legend lines to prepend, so
+  // every bulk-upload surface (the Data Center "Download Template"
+  // button, which covers far more collections than Master Data's own
+  // per-tab upload does) gives the same guidance. Built once per call
+  // (not cached) so the legend always reflects whatever's configured in
+  // Master Data right now.
   getPrescribedCsvTemplate: function(masterType) {
+    var self = this;
     var templates = {
       clients: {
         filename: "measure_di_clients_master_template.csv",
         headers: "clientCode,clientName,gstin,contactPerson,email,phone,address,city,state,vertical,creditPeriodDays",
+        legendFields: [{ column: 'vertical', collectionName: 'verticalClassificationMaster' }],
         sampleRows: [
-          "CL-001,JSW Steel Limited,29AAACJ1011A1Z2,Mr. Raghunath Verma,r.verma@jsw.in,9840112233,Toranagallu Slag Yard,Ballari,Karnataka,Sales,30",
+          "CL-001,JSW Steel Limited,29AAACJ1011A1Z2,Mr. Raghunath Verma,r.verma@jsw.in,9840112233,Toranagallu Slag Yard,Ballari,Karnataka,Projects,30",
           "CL-002,Tata Steel Limited,20AAACT2702H1ZQ,Mr. Amitav Sen,amitav.sen@tatasteel.com,9840223344,Jamshedpur Steel Works,Jamshedpur,Jharkhand,Projects,45",
-          "CL-003,UltraTech Cement Ltd,27AAACU0147L1ZF,Mr. Suresh Pillai,suresh.p@ultratech.adityabirla.com,9840334455,Awarpur Cement Works,Chandrapur,Maharashtra,Service/Parts,30",
+          "CL-003,UltraTech Cement Ltd,27AAACU0147L1ZF,Mr. Suresh Pillai,suresh.p@ultratech.adityabirla.com,9840334455,Awarpur Cement Works,Chandrapur,Maharashtra,Service and Parts,30",
           "CL-004,Bharat Heavy Electricals (BHEL),33AAACB1234A1Z5,Mr. K. Natarajan,natarajan@bhel.in,9840445566,Boiler Plant HPBP,Trichy,Tamil Nadu,Projects,60",
-          "CL-005,Saint-Gobain India,33AAACS1234C1Z8,Mr. Ramesh Krishnan,ramesh.k@saint-gobain.com,9840556677,World Glass Complex,Sriperumbudur,Tamil Nadu,Sales,30"
+          "CL-005,Saint-Gobain India,33AAACS1234C1Z8,Mr. Ramesh Krishnan,ramesh.k@saint-gobain.com,9840556677,World Glass Complex,Sriperumbudur,Tamil Nadu,Onboard,30"
         ]
       },
       projects: {
         filename: "measure_di_projects_master_template.csv",
         headers: "projectCode,projectName,clientName,vertical,projectValue,startDate,targetCompletionDate,projectManagerName,status,budgetINR",
+        legendFields: [
+          { column: 'vertical', collectionName: 'verticalClassificationMaster' },
+          // Not yet enforced by a dropdown anywhere in the app today, but
+          // listed here since these are the values every other project
+          // record actually uses - typing a 6th, different word would
+          // still "work" (nothing rejects it) but would make this
+          // project an outlier no report/filter can group correctly.
+          { column: 'status', values: ['Planning', 'In Execution', 'Completed', 'On Hold', 'Cancelled'] }
+        ],
         sampleRows: [
           "PRJ-2026-01,JSW Slag Yard Dynamic Crane Scale Automation,JSW Steel Limited,Projects,4500000,01/04/2026,30/09/2026,Mr. Murugan V,In Execution,3800000",
           "PRJ-2026-02,Tata Steel Pellet Plant 200T In-Motion Rail Weigher,Tata Steel Limited,Projects,8500000,15/04/2026,15/11/2026,Mrs. Anitha,In Execution,7200000",
@@ -568,24 +587,31 @@ Object.assign(window.RevOpsStore, {
       employees: {
         filename: "measure_di_employees_master_template.csv",
         headers: "employeeId,fullName,designation,vertical,reportsTo,reportsToName,email,mobile,role,workArrangement,dateOfJoining,isActive",
+        legendFields: [
+          { column: 'vertical', collectionName: 'verticalClassificationMaster' },
+          // Exact match required, case-sensitive - this is the same value
+          // every permission check (firestore.rules, every checkAuth(['admin',...])
+          // call) tests against, so a typo here doesn't just look wrong,
+          // it silently grants the wrong access.
+          { column: 'role', values: ['super_admin', 'admin', 'manager', 'staff'] },
+          { column: 'workArrangement', values: ['Head Office', 'Site / On-Field', 'Hybrid'] },
+          { column: 'isActive', values: ['true', 'false'] }
+        ],
         sampleRows: [
-          "E-006,Senthil Nathan,Senior Field Commissioning Engineer,Projects & production,E-003,Mrs. Anitha,senthil@measuredi.com,9840667788,staff,Site / On-Field,01/06/2021,true",
-          "E-007,Deepa Radhakrishnan,Inside Sales & Quotations Engineer,Marketing,E-002,Mr. Murugan V,deepa@measuredi.com,9840778899,staff,Head Office,15/07/2021,true",
-          "E-008,Karthik Subramanian,Territory Service Executive,Service & Spares,E-002,Mr. Murugan V,karthik@measuredi.com,9840889900,staff,Hybrid,01/08/2022,true",
-          "E-009,Manoj Kumar,Embedded Hardware & Firmware Engineer,Projects & production,E-003,Mrs. Anitha,manoj@measuredi.com,9840990011,staff,Head Office,10/01/2023,true",
-          "E-010,Venkatesh Babu,Lead Metrology Specialist,Technical Support,E-003,Mrs. Anitha,venkatesh@measuredi.com,9840001122,manager,Head Office,01/03/2023,true"
+          "E-006,Senthil Nathan,Senior Field Commissioning Engineer,Projects,E-003,Mrs. Anitha,senthil@measuredi.com,9840667788,staff,Site / On-Field,01/06/2021,true",
+          "E-007,Deepa Radhakrishnan,Inside Sales & Quotations Engineer,Onboard,E-002,Mr. Murugan V,deepa@measuredi.com,9840778899,staff,Head Office,15/07/2021,true",
+          "E-008,Karthik Subramanian,Territory Service Executive,Service and Parts,E-002,Mr. Murugan V,karthik@measuredi.com,9840889900,staff,Hybrid,01/08/2022,true",
+          "E-009,Manoj Kumar,Embedded Hardware & Firmware Engineer,Projects,E-003,Mrs. Anitha,manoj@measuredi.com,9840990011,staff,Head Office,10/01/2023,true",
+          "E-010,Venkatesh Babu,Lead Metrology Specialist,Crane,E-003,Mrs. Anitha,venkatesh@measuredi.com,9840001122,manager,Head Office,01/03/2023,true"
         ]
       },
       spareParts: {
         filename: "measure_di_spare_parts_master_template.csv",
-        // "vertical" added - must be one of Projects/Onboard/Crane/
-        // Service and Parts (Master Data > Vertical Classification), the
-        // same list Products Master uses, so both catalogs are tagged
-        // consistently. Nearly everything in this catalog is a
-        // replacement/service component, so "Service and Parts" is the
-        // right default for most rows regardless of which equipment
-        // vertical the part happens to fit.
         headers: "partNumber,partName,vertical,category,compatibleModel,hsnCode,unitPrice,gstPercent,uom,stockQty,minReorderLevel,leadTimeDays",
+        legendFields: [
+          { column: 'vertical', collectionName: 'verticalClassificationMaster' },
+          { column: 'gstPercent', values: ['18', '12', '5', '0'] }
+        ],
         sampleRows: [
           "SP-LC-50T,High Precision 50-Ton Shear Beam Load Cell,Service and Parts,Load Cells,Crane Scales CS-50T,90318000,45000,18,Nos,24,5,7",
           "SP-ENC-1000,Optical Rotary Encoder 1000 PPR Stainless Steel,Service and Parts,Sensors & Encoders,In-Motion Rail Weighers,90319000,18500,18,Nos,40,10,5",
@@ -594,9 +620,123 @@ Object.assign(window.RevOpsStore, {
           "SP-LAS-SCAN,High-Speed Multi-Line Laser Surface Profiler Head,Service and Parts,Optical Metrology,Laser Scanners LS-200,90314900,145000,18,Sets,8,2,21",
           "SP-CAL-20T,Certified Class M1 20-Ton Heavy Calibration Test Block,Service and Parts,Calibration Standards,Crane & Weighbridge,90319000,85000,18,Nos,6,1,14"
         ]
+      },
+      leads: {
+        filename: "measure_di_leads_crm_template.csv",
+        // Matches the real field names leads.js itself writes on every
+        // lead record (see handleSaveLead's newLead object), so an
+        // imported row behaves identically to one entered by hand -
+        // including showing up correctly on the funnel, dashboard, and
+        // per-rep filters. "stage" uses the current pipeline wording
+        // (Contacted/Qualified/.../Won, or Trashed/Lost/Postponed) - the
+        // older 8-stage wording this template used before the pipeline
+        // rewrite is no longer recognized anywhere in the app.
+        headers: "leadNumber,customerName,leadSource,industry,projectSector,vertical,productName,hsnCode,currency,estimatedValue,expectedValue,targetDate,stage,contactPerson,contactPhone,contactEmail,notes,employeeId,employeeName,createdDate,createdAt",
+        legendFields: [
+          { column: 'leadSource', collectionName: 'leadSourceMaster' },
+          { column: 'industry', collectionName: 'verticalClassificationMaster' },
+          { column: 'projectSector', collectionName: 'projectSectorMaster' },
+          { column: 'vertical', collectionName: 'verticalClassificationMaster' },
+          { column: 'currency', collectionName: 'currencyMaster', valueField: 'code' },
+          { column: 'stage', values: self.LEAD_PIPELINE_STAGES.concat(self.LEAD_EXIT_STAGES) }
+        ],
+        sampleRows: [
+          "LD-2026-1001,JSW Steel Limited,Existing Client,Projects,Steel,Projects,Dynamic In-Motion Train Weigher (IMW-500),90318000,INR,4500000,4500000,2026-06-30,Quoted,Mr. Raghunath Verma,9840112233,r.verma@jsw.in,Follow-up after site visit,E-002,Mr. Murugan V,15/04/2026,2026-04-15T10:30:00.000Z",
+          "LD-2026-1002,Ambuja Cements,Tender / E-Procurement Portal,Projects,Cement,Projects,Wireless Crane Scale 50T (CS-50W),84238900,INR,2400000,2400000,2026-07-15,Qualified,Ms. Priya Nair,9840556677,priya.nair@ambuja.com,,E-004,Mrs. Subhashini,02/05/2026,2026-05-02T09:00:00.000Z"
+        ]
+      },
+      orders: {
+        filename: "measure_di_orders_template.csv",
+        headers: "orderId,customerName,companyId,vertical,quotationId,leadId,poNumber,poDate,orderValue,gstPercent,advancePercent",
+        legendFields: [
+          { column: 'vertical', collectionName: 'verticalClassificationMaster' },
+          { column: 'gstPercent', values: ['18', '12', '5', '0'] },
+          { column: 'companyId', collectionName: 'companyMaster', valueField: 'id' }
+        ],
+        sampleRows: [
+          "ORD-2026-99,JSW Steel Limited,company_measuredi,Projects,,,PO-JSW-99812,02/08/2026,1500000,18,30"
+        ]
+      },
+      invoices: {
+        filename: "measure_di_invoices_template.csv",
+        headers: "invoiceNumber,invoiceType,customerName,customerGstin,vertical,taxableValue,taxAmount,grandTotal,status,dueDate",
+        legendFields: [
+          { column: 'invoiceType', values: ['Tax Invoice', 'Proforma Invoice'] },
+          { column: 'vertical', collectionName: 'verticalClassificationMaster' },
+          { column: 'status', values: ['Pending Senior Approval', 'Approved', 'Issued', 'Cancelled'] }
+        ],
+        sampleRows: [
+          "INV/2026-27/088,Tax Invoice,Tata Steel Limited,20AAACT2702H1ZQ,Projects,500000,90000,590000,Approved,30/09/2026"
+        ]
+      },
+      quotations: {
+        filename: "measure_di_quotations_template.csv",
+        // Header-level fields only - a quotation's line items are a
+        // nested list (description/qty/rate/tax per row) that can't be
+        // flattened into one CSV row sensibly, so a bulk-imported
+        // quotation is created with its commercial header set and its
+        // line items are then added by opening it in the app, the same
+        // as any quotation that needs a correction.
+        headers: "quoteNumber,leadId,companyId,customerName,contactPerson,email,mobile,address,vertical,employeeId,validityDays,deliveryLeadTime,advancePercent,overallDiscountPercent,termsAndConditions",
+        legendFields: [
+          { column: 'vertical', collectionName: 'verticalClassificationMaster' },
+          { column: 'companyId', collectionName: 'companyMaster', valueField: 'id' }
+        ],
+        sampleRows: [
+          "QT-2026-004,,company_measuredi,Sundaram Fasteners Ltd,Mr. S. K. Raman,sk.raman@sfl.co.in,9884512345,\"Plot 14, Ambattur Industrial Estate, Chennai\",Projects,E-002,30,3-4 Weeks from advance PO,50,10,\"1. 50% advance along with Purchase Order. 2. Balance 50% before dispatch.\""
+        ]
+      },
+      dwmActivities: {
+        filename: "measure_di_dwm_activity_log_template.csv",
+        headers: "employeeId,date,activityDescription,category,hoursSpent,linkedKra,linkedAopLine",
+        legendFields: [
+          { column: 'category', values: ['Standard KRA Activity', 'Full Day Training', 'Full Day Meeting', 'Client Emergency Call', 'Special Assignment'] }
+        ],
+        sampleRows: [
+          "E-005,04/10/2026,Site inspection at JSW Steel Slag Yard for load cell calibration,Standard KRA Activity,2.0,Territory Revenue Generation,Sales"
+        ]
+      },
+      payments: {
+        filename: "measure_di_payments_collections_template.csv",
+        headers: "invoiceNumber,customerName,amount,tdsAmount,paymentReason,paymentMode,utrNumber,bankAccount,paymentDate,paymentMilestone,remarks",
+        legendFields: [
+          { column: 'paymentReason', values: ['Advance', 'Part payment', 'Final payment', 'Final payment after write-off', 'Final payment after goodwill adjustment'] },
+          { column: 'paymentMode', values: ['NEFT/RTGS', 'Cheque', 'UPI', 'Wire Transfer', 'Letter of Credit', 'Cash'] }
+        ],
+        sampleRows: [
+          "INV/2026-27/014,Sundaram Fasteners Ltd,500000,5000,Advance,NEFT/RTGS,UTR192837465,HDFC Bank - 50200049283719 (Guindy Branch),04/10/2026,1st Milestone Advance Payment against Purchase Order,TDS challan reference attached"
+        ]
+      },
+      attendance: {
+        filename: "measure_di_attendance_backfill_template.csv",
+        // Live attendance is only ever created by the Punch In/Out GPS
+        // buttons (attendance.html), never by hand - this template is
+        // for backfilling historical records only (e.g. from a previous
+        // manual register), so GPS location fields are intentionally
+        // left out.
+        headers: "employeeId,date,punchInTime,punchOutTime,workedHours,status",
+        legendFields: [
+          { column: 'status', values: ['Punched In', 'Completed'] }
+        ],
+        sampleRows: [
+          "E-004,04/10/2026,2026-10-04T03:45:12.000Z,2026-10-04T13:00:00.000Z,7.5,Completed"
+        ]
+      },
+      kraTargets: {
+        filename: "measure_di_kra_targets_template.csv",
+        headers: "employeeId,kraName,dailyControl,targetMetric,targetValue,aopLine",
+        legendFields: [
+          { column: 'aopLine', values: ['Sales', 'Service/Parts', 'Projects'] }
+        ],
+        sampleRows: [
+          "E-004,Territory Revenue Generation,Conduct minimum 3 customer plant visits daily and log quote follow-ups,Revenue (INR),10000000,Sales"
+        ]
       }
     };
-    return templates[masterType] || templates.clients;
+
+    var tmpl = templates[masterType] || templates.clients;
+    tmpl.legendLines = self.buildDropdownLegendLines(tmpl.legendFields || []);
+    return tmpl;
   },
 
   // Recalculates invoice paid amount, TDS, adjustments, write-offs, balance and payment status
@@ -884,6 +1024,98 @@ Object.assign(window.RevOpsStore, {
       this.logAudit('Leads', lead.id, 'UPDATE', detailMessage || ('Lead stage automatically advanced to "' + targetStage + '"'), oldLeadState, lead);
     }
     return lead;
+  },
+
+  // ============ SHARED CSV TOKENIZER ============
+  // RFC 4180-aware - a quoted field can safely contain commas, escaped
+  // double-quotes (""), and an embedded line break. Single source of
+  // truth for every CSV upload surface in the app (Master Data's own
+  // per-tab bulk upload and the global Data Center import), so a bug
+  // fixed here never has to be separately re-fixed in a second,
+  // independently-written parser - which is exactly how the Data
+  // Center's naive line.split(',') parser went unnoticed after Master
+  // Data's own parser was already upgraded.
+  parseCSVRows: function(text) {
+    var rows = [];
+    var row = [];
+    var field = '';
+    var inQuotes = false;
+    var i = 0;
+    var len = text.length;
+
+    while (i < len) {
+      var ch = text[i];
+
+      if (inQuotes) {
+        if (ch === '"') {
+          if (text[i + 1] === '"') { field += '"'; i += 2; continue; }
+          inQuotes = false;
+          i++;
+          continue;
+        }
+        field += ch;
+        i++;
+        continue;
+      }
+
+      if (ch === '"') { inQuotes = true; i++; continue; }
+      if (ch === ',') { row.push(field); field = ''; i++; continue; }
+      if (ch === '\r') {
+        if (text[i + 1] === '\n') { i++; continue; } // let the \n below end the row
+        row.push(field); field = ''; rows.push(row); row = []; i++; continue;
+      }
+      if (ch === '\n') { row.push(field); field = ''; rows.push(row); row = []; i++; continue; }
+
+      field += ch;
+      i++;
+    }
+
+    // Flush the final field/row - the file may or may not end with a newline.
+    if (field.length > 0 || row.length > 0) { row.push(field); rows.push(row); }
+
+    // Drop fully blank rows (e.g. a trailing newline producing one empty
+    // row) and any instructional "# ..." line a downloaded template
+    // prepends (an allowed-values legend) - so forgetting to delete it
+    // before uploading can't corrupt real data with a bogus row.
+    return rows.filter(function(r) {
+      if (r.length === 1 && r[0].trim() === '') return false;
+      if ((r[0] || '').trim().indexOf('#') === 0) return false;
+      return true;
+    });
+  },
+
+  // Builds the "# ALLOWED VALUES FOR ..." legend lines a fresh bulk-upload
+  // template is prepended with. Each entry in fieldLegends is either
+  // { column, collectionName } to read a live Master Data list (never a
+  // frozen snapshot - renaming/adding an entry later is still reflected
+  // next time someone downloads the template) or { column, values } for
+  // a fixed in-app set (e.g. employee roles, GST slabs) that isn't
+  // stored as its own Master Data collection. Shared by every template
+  // generator (Master Data's own per-tab templates and the Data
+  // Center's) so the wording and format never drift apart.
+  buildDropdownLegendLines: function(fieldLegends) {
+    var self = this;
+    var lines = [];
+    (fieldLegends || []).forEach(function(fl) {
+      var names;
+      if (fl.values) {
+        names = fl.values;
+      } else if (fl.collectionName) {
+        var valueField = fl.valueField || 'name';
+        var items = (self.getCollection(fl.collectionName) || []).filter(function(it) { return it.isActive !== false; });
+        names = items.map(function(it) { return it[valueField]; }).filter(Boolean);
+      } else {
+        names = [];
+      }
+      if (names.length > 0) {
+        lines.push('# ALLOWED VALUES FOR "' + fl.column + '" (must match exactly, including capitalization): ' + names.join(', '));
+      }
+    });
+    if (lines.length > 0) {
+      lines.unshift('# Fill in your data below the sample row(s), matching the allowed values exactly where listed.');
+      lines.push('# These instruction lines are ignored automatically if left in, but it is cleaner to delete them before uploading.');
+    }
+    return lines;
   },
 
   getOrderDate: function(order) {

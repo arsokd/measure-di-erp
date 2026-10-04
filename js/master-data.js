@@ -930,53 +930,12 @@ var activeMasterTab = 'products';
     // (Excel/Sheets produce exactly this for a multi-line cell), while an
     // unquoted field is taken literally exactly as before. Returns an
     // array of rows, each row an array of field strings.
+    // Thin wrapper kept so every existing call site (and this page's own
+    // regression tests) can keep calling the page-global parseCSVRows()
+    // - the actual RFC 4180 tokenizer lives once in RevOpsStore, shared
+    // with the Data Center's own bulk-upload parser in auth-guard.js.
     function parseCSVRows(text) {
-      var rows = [];
-      var row = [];
-      var field = '';
-      var inQuotes = false;
-      var i = 0;
-      var len = text.length;
-
-      while (i < len) {
-        var ch = text[i];
-
-        if (inQuotes) {
-          if (ch === '"') {
-            if (text[i + 1] === '"') { field += '"'; i += 2; continue; }
-            inQuotes = false;
-            i++;
-            continue;
-          }
-          field += ch;
-          i++;
-          continue;
-        }
-
-        if (ch === '"') { inQuotes = true; i++; continue; }
-        if (ch === ',') { row.push(field); field = ''; i++; continue; }
-        if (ch === '\r') {
-          if (text[i + 1] === '\n') { i++; continue; } // let the \n below end the row
-          row.push(field); field = ''; rows.push(row); row = []; i++; continue;
-        }
-        if (ch === '\n') { row.push(field); field = ''; rows.push(row); row = []; i++; continue; }
-
-        field += ch;
-        i++;
-      }
-
-      // Flush the final field/row - the file may or may not end with a newline.
-      if (field.length > 0 || row.length > 0) { row.push(field); rows.push(row); }
-
-      // Drop fully blank rows (e.g. a trailing newline producing one empty
-      // row) and any instructional "# ..." line the downloaded template
-      // prepends (the allowed-values legend) - so forgetting to delete it
-      // before uploading can't corrupt real data with a bogus row.
-      return rows.filter(function(r) {
-        if (r.length === 1 && r[0].trim() === '') return false;
-        if ((r[0] || '').trim().indexOf('#') === 0) return false;
-        return true;
-      });
+      return window.RevOpsStore.parseCSVRows(text);
     }
 
     function parseCSV(text) {
@@ -1053,24 +1012,10 @@ var activeMasterTab = 'products';
     }
 
     // Builds the "# ALLOWED VALUES FOR ..." legend lines a fresh template
-    // is prepended with, read live off the actual Master Data list each
-    // field is validated against - never a frozen snapshot, so renaming
-    // or adding a vertical later is still reflected next time someone
-    // downloads the template. Returns [] if a field's list is empty.
+    // Thin wrapper - the actual legend builder lives once in RevOpsStore,
+    // shared with the Data Center's own template downloads.
     function buildDropdownLegendLines(fieldLegends) {
-      var lines = [];
-      fieldLegends.forEach(function(fl) {
-        var items = (window.RevOpsStore.getCollection(fl.collectionName) || []).filter(function(it) { return it.isActive !== false; });
-        var names = items.map(function(it) { return it.name; }).filter(Boolean);
-        if (names.length > 0) {
-          lines.push('# ALLOWED VALUES FOR "' + fl.column + '" (must match exactly, including capitalization): ' + names.join(', '));
-        }
-      });
-      if (lines.length > 0) {
-        lines.unshift('# Fill in your data below the sample row(s), matching the allowed values exactly where listed.');
-        lines.push('# These instruction lines are ignored automatically if left in, but it is cleaner to delete them before uploading.');
-      }
-      return lines;
+      return window.RevOpsStore.buildDropdownLegendLines(fieldLegends);
     }
 
     function downloadActiveTemplate() {

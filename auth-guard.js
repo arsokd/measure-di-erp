@@ -761,65 +761,41 @@ function openDataImportExportModal() {
 }
 
 // Data Import Helpers
+// Every "Target Collection" option in the Data Center's import dropdown
+// maps to one prescribed template key - a single source of truth
+// (RevOpsStore.getPrescribedCsvTemplate, shared with any other download
+// surface) instead of this function hand-rolling a second copy of each
+// template inline, which is exactly how the vertical-spelling and stale
+// Leads-stage mismatches crept in previously.
+var DATA_CENTER_TEMPLATE_KEY_BY_COLLECTION = {
+  clientsMaster: 'clients',
+  projectsMaster: 'projects',
+  employees: 'employees',
+  sparePartsMaster: 'spareParts',
+  leads: 'leads',
+  orders: 'orders',
+  invoices: 'invoices',
+  quotations: 'quotations',
+  dwmActivities: 'dwmActivities',
+  payments: 'payments',
+  attendance: 'attendance',
+  kraTargets: 'kraTargets'
+};
+
 function downloadCSVTemplate() {
   var col = document.getElementById('data-import-collection')?.value || 'employees';
-  var csvContent = "";
-  var filename = col + "_template.csv";
+  var templateKey = DATA_CENTER_TEMPLATE_KEY_BY_COLLECTION[col] || 'clients';
+  var tmpl = window.RevOpsStore.getPrescribedCsvTemplate(templateKey);
 
-  if (col === 'clientsMaster') {
-    var tmpl = window.RevOpsStore?.getPrescribedCsvTemplate ? window.RevOpsStore.getPrescribedCsvTemplate('clients') : null;
-    if (tmpl) {
-      csvContent = tmpl.headers + "\n" + tmpl.sampleRows.join("\n");
-      filename = tmpl.filename;
-    } else {
-      csvContent = "clientCode,clientName,gstin,contactPerson,email,phone,address,city,state,vertical,creditPeriodDays\nCL-001,JSW Steel Limited,29AAACJ1011A1Z2,Mr. Raghunath Verma,r.verma@jsw.in,9840112233,Toranagallu Slag Yard,Ballari,Karnataka,Sales,30\n";
-    }
-  } else if (col === 'projectsMaster') {
-    var tmpl = window.RevOpsStore?.getPrescribedCsvTemplate ? window.RevOpsStore.getPrescribedCsvTemplate('projects') : null;
-    if (tmpl) {
-      csvContent = tmpl.headers + "\n" + tmpl.sampleRows.join("\n");
-      filename = tmpl.filename;
-    } else {
-      csvContent = "projectCode,projectName,clientName,vertical,projectValue,startDate,targetCompletionDate,projectManagerName,status,budgetINR\nPRJ-2026-01,JSW Slag Yard Dynamic Crane Scale Automation,JSW Steel Limited,Projects,4500000,01/04/2026,30/09/2026,Mr. Murugan V,In Execution,3800000\n";
-    }
-  } else if (col === 'sparePartsMaster') {
-    var tmpl = window.RevOpsStore?.getPrescribedCsvTemplate ? window.RevOpsStore.getPrescribedCsvTemplate('spareParts') : null;
-    if (tmpl) {
-      csvContent = tmpl.headers + "\n" + tmpl.sampleRows.join("\n");
-      filename = tmpl.filename;
-    } else {
-      csvContent = "partNumber,partName,vertical,category,compatibleModel,hsnCode,unitPrice,gstPercent,uom,stockQty,minReorderLevel,leadTimeDays\nSP-LC-50T,High Precision 50-Ton Shear Beam Load Cell,Service and Parts,Load Cells,Crane Scales CS-50T,90318000,45000,18,Nos,24,5,7\n";
-    }
-  } else if (col === 'employees') {
-    var tmpl = window.RevOpsStore?.getPrescribedCsvTemplate ? window.RevOpsStore.getPrescribedCsvTemplate('employees') : null;
-    if (tmpl) {
-      csvContent = tmpl.headers + "\n" + tmpl.sampleRows.join("\n");
-      filename = tmpl.filename;
-    } else {
-      csvContent = "employeeId,fullName,designation,vertical,reportsTo,reportsToName,email,mobile,role,workArrangement,dateOfJoining,isActive\nE-006,Senthil Nathan,Senior Field Engineer,Projects & production,E-003,Mrs. Anitha,senthil@measuredi.com,9840667788,staff,Site / On-Field,01/06/2021,true\n";
-    }
-  } else if (col === 'orders') {
-    csvContent = "orderId,customerName,vertical,amount,financialYear,orderDate,status\nORD-2026-99,JSW Steel,Sales,1500000,2026-27,02/08/2026,Booked\n";
-  } else if (col === 'invoices') {
-    csvContent = "invoiceNumber,invoiceType,customerName,customerGstin,vertical,taxableValue,taxAmount,grandTotal,status,dueDate\nINV/2026-27/088,Tax Invoice,Tata Steel Limited,20AAACT2702H1ZQ,Projects,500000,90000,590000,Approved,30/09/2026\n";
-  } else if (col === 'leads') {
-    // Matches the real field names leads.js itself writes on every lead
-    // record (see handleLeadSubmit's newLead object) - so an imported
-    // row behaves identically to one entered by hand through the Leads
-    // form, including showing up correctly on the funnel, dashboard, and
-    // per-rep filters.
-    csvContent =
-      "leadNumber,customerName,leadSource,industry,projectSector,vertical,productName,hsnCode,currency,estimatedValue,expectedValue,targetDate,stage,contactPerson,contactPhone,contactEmail,notes,employeeId,employeeName,createdDate,createdAt\n" +
-      "LD-2026-1001,JSW Steel Limited,Existing Client,Project,Steel,Projects,Dynamic In-Motion Train Weigher (IMW-500),90318000,INR,4500000,4500000,2026-06-30,Commercial Offer Submitted,Mr. Raghunath Verma,9840112233,r.verma@jsw.in,Follow-up after site visit,E-002,Mr. Murugan V,15/04/2026,2026-04-15T10:30:00.000Z\n" +
-      "LD-2026-1002,Ambuja Cements,Tender / E-Procurement Portal,Project,Cement,Projects,Wireless Crane Scale 50T (CS-50W),84238900,INR,2400000,2400000,2026-07-15,Lead Qualified,Ms. Priya Nair,9840556677,priya.nair@ambuja.com,,E-004,Mrs. Subhashini,02/05/2026,2026-05-02T09:00:00.000Z\n";
-  } else {
-    csvContent = "id,title,category,date,status,employeeId\n101,Customer Site Visit,Service/Parts,02/08/2026,Completed,E-004\n";
+  var csvContent = tmpl.headers + "\n" + tmpl.sampleRows.join("\n") + "\n";
+  if (tmpl.legendLines && tmpl.legendLines.length > 0) {
+    csvContent = tmpl.legendLines.join('\n') + '\n' + csvContent;
   }
 
   var blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
   var link = document.createElement("a");
   link.href = URL.createObjectURL(blob);
-  link.setAttribute("download", filename);
+  link.setAttribute("download", tmpl.filename);
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
@@ -844,8 +820,14 @@ function processDataCenterCSVUpload() {
   var reader = new FileReader();
   reader.onload = function(e) {
     var text = e.target.result;
-    var lines = text.split('\n').map(function(l){ return l.trim(); }).filter(Boolean);
-    if (lines.length < 2) {
+    // RFC 4180-aware - a quoted field can safely contain a comma, an
+    // escaped quote, or a line break, and any "# ..." legend line the
+    // downloaded template prepends is dropped automatically. Same
+    // tokenizer Master Data's own bulk upload uses (RevOpsStore.
+    // parseCSVRows), not a second hand-rolled parser that silently
+    // shifts columns the moment a real address or spec contains a comma.
+    var rows = window.RevOpsStore.parseCSVRows(text);
+    if (rows.length < 2) {
       if (statusMsg) {
         statusMsg.className = "text-[11px] p-2 rounded-lg bg-rose-950 text-rose-300 border border-rose-800";
         statusMsg.textContent = "CSV file must contain a header line and at least one data record.";
@@ -854,14 +836,14 @@ function processDataCenterCSVUpload() {
       return;
     }
 
-    var headers = lines[0].split(',').map(function(h){ return h.replace(/^["']|["']$/g, '').trim(); });
+    var headers = rows[0].map(function(h){ return h.trim(); });
     var records = [];
-    for (var i = 1; i < lines.length; i++) {
-      var row = lines[i].split(',').map(function(c){ return c.replace(/^["']|["']$/g, '').trim(); });
+    for (var i = 1; i < rows.length; i++) {
+      var row = rows[i];
       var record = {};
       headers.forEach(function(h, idx) {
         if (h && row[idx] !== undefined) {
-          record[h] = row[idx];
+          record[h] = row[idx].trim();
         }
       });
       records.push(record);
