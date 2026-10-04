@@ -984,11 +984,13 @@ var activeMasterTab = 'products';
       }
 
       var existing = window.RevOpsStore.getCollection(colName) || [];
+      var legendFields = getMasterTabLegendFields(activeMasterTab);
 
       parsedCsvData.forEach(function(row) {
         var newDoc = Object.assign({}, row, {
           id: row.id || (activeMasterTab + '_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4))
         });
+        if (legendFields.length > 0) window.RevOpsStore.normalizeRecordAgainstLegend(newDoc, legendFields);
         existing.push(newDoc);
       });
 
@@ -1011,11 +1013,15 @@ var activeMasterTab = 'products';
       renderMasterTable();
     }
 
-    // Builds the "# ALLOWED VALUES FOR ..." legend lines a fresh template
-    // Thin wrapper - the actual legend builder lives once in RevOpsStore,
-    // shared with the Data Center's own template downloads.
-    function buildDropdownLegendLines(fieldLegends) {
-      return window.RevOpsStore.buildDropdownLegendLines(fieldLegends);
+    // The vertical-legend fields for this page's own per-tab bulk upload
+    // (just "products"/"projects" today) - shared between the template
+    // download below and executeBulkUpload()'s normalization pass, so
+    // both always agree on what's being validated.
+    function getMasterTabLegendFields(tabKey) {
+      if (tabKey === 'products' || tabKey === 'projects') {
+        return [{ column: 'vertical', collectionName: 'verticalClassificationMaster' }];
+      }
+      return [];
     }
 
     function downloadActiveTemplate() {
@@ -1024,36 +1030,43 @@ var activeMasterTab = 'products';
         return;
       }
 
-      var csvContent = "";
+      var headers = "";
+      var sampleRows = [];
       var filename = activeMasterTab + "_template.csv";
-      var legendLines = [];
 
       if (activeMasterTab === 'products') {
-        legendLines = buildDropdownLegendLines([{ column: 'vertical', collectionName: 'verticalClassificationMaster' }]);
-        csvContent = "vertical,productName,technicalSpec,hsnCode,unitPrice\n" +
-                     "Projects,Dynamic In-Motion Train Weigher (IMW-500),200T High Speed Pitless 0.2% Accuracy,90318000,4500000\n" +
-                     "Onboard,Onboard Tipper Weighing Scale (OTW-30T),Wireless Axle Load Weigher,84238900,480000\n" +
-                     "Crane,Wireless Crane Scale 50T (CS-50W),IP67 Cast Alloy Handheld RF Terminal,84238900,240000\n" +
-                     "Service and Parts,50-Ton Shear Beam Load Cell (SP-LC-50T),Stainless Steel IP68 3mV/V Class C3,90318000,45000\n";
+        headers = "vertical,productName,technicalSpec,hsnCode,unitPrice";
+        sampleRows = [
+          "Projects,Dynamic In-Motion Train Weigher (IMW-500),200T High Speed Pitless 0.2% Accuracy,90318000,4500000",
+          "Onboard,Onboard Tipper Weighing Scale (OTW-30T),Wireless Axle Load Weigher,84238900,480000",
+          "Crane,Wireless Crane Scale 50T (CS-50W),IP67 Cast Alloy Handheld RF Terminal,84238900,240000",
+          "Service and Parts,50-Ton Shear Beam Load Cell (SP-LC-50T),Stainless Steel IP68 3mV/V Class C3,90318000,45000"
+        ];
       } else if (activeMasterTab === 'equipment') {
-        csvContent = "customerName,modelName,serialNumber,location,warrantyExpiry\n" +
-                     "JSW Steel Limited,IMW-500 Train Weigher,SN-2025-IMW-099,Vijayanagar Plant,2027-03-31\n" +
-                     "Tata Steel Limited,ASW-2000 Slag Yard Weigher,SN-2024-ASW-042,Kalinganagar Plant,2026-12-31\n";
+        headers = "customerName,modelName,serialNumber,location,warrantyExpiry";
+        sampleRows = [
+          "JSW Steel Limited,IMW-500 Train Weigher,SN-2025-IMW-099,Vijayanagar Plant,2027-03-31",
+          "Tata Steel Limited,ASW-2000 Slag Yard Weigher,SN-2024-ASW-042,Kalinganagar Plant,2026-12-31"
+        ];
       } else if (activeMasterTab === 'banks') {
-        csvContent = "bankName,accountNumber,ifscCode,branch,beneficiaryName,accountType\n" +
-                     "HDFC Bank Ltd,50200088992211,HDFC0001234,Anna Nagar Chennai,MEASURE DI TECHNOLOGIES,Current Account\n";
+        headers = "bankName,accountNumber,ifscCode,branch,beneficiaryName,accountType";
+        sampleRows = ["HDFC Bank Ltd,50200088992211,HDFC0001234,Anna Nagar Chennai,MEASURE DI TECHNOLOGIES,Current Account"];
       } else if (activeMasterTab === 'clients') {
-        csvContent = "clientName,gstin,city,contactPerson,email,phone\n" +
-                     "JSW Steel Limited,29AAACJ1011A1Z2,Ballari,Mr. Rajesh,rajesh@jsw.in,9840112233\n";
+        headers = "clientName,gstin,city,contactPerson,email,phone";
+        sampleRows = ["JSW Steel Limited,29AAACJ1011A1Z2,Ballari,Mr. Rajesh,rajesh@jsw.in,9840112233"];
       } else if (activeMasterTab === 'projects') {
-        legendLines = buildDropdownLegendLines([{ column: 'vertical', collectionName: 'verticalClassificationMaster' }]);
-        csvContent = "projectCode,projectName,clientName,vertical,budget\n" +
-                     "PRJ-JSW-09,JSW Slag Yard RFID Dynamic Weigher,JSW Steel Limited,Projects,2800000\n";
+        headers = "projectCode,projectName,clientName,vertical,budget";
+        sampleRows = ["PRJ-JSW-09,JSW Slag Yard RFID Dynamic Weigher,JSW Steel Limited,Projects,2800000"];
       }
 
-      if (legendLines.length > 0) {
-        csvContent = legendLines.join('\n') + '\n' + csvContent;
-      }
+      var legendFields = getMasterTabLegendFields(activeMasterTab);
+      var legendGrid = window.RevOpsStore.buildDropdownLegendGrid(headers.split(','), legendFields);
+
+      var lines = [headers].concat(sampleRows);
+      legendGrid.forEach(function(row) {
+        lines.push(row.every(function(c) { return c === ''; }) ? '' : row.join(','));
+      });
+      var csvContent = lines.join('\n') + '\n';
 
       var blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       var link = document.createElement("a");

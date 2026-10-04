@@ -574,7 +574,7 @@ Object.assign(window.RevOpsStore, {
           // record actually uses - typing a 6th, different word would
           // still "work" (nothing rejects it) but would make this
           // project an outlier no report/filter can group correctly.
-          { column: 'status', values: ['Planning', 'In Execution', 'Completed', 'On Hold', 'Cancelled'] }
+          { column: 'status', values: ['Planning', 'In Execution', 'Completed', 'On Hold', 'Cancelled'], strict: false }
         ],
         sampleRows: [
           "PRJ-2026-01,JSW Slag Yard Dynamic Crane Scale Automation,JSW Steel Limited,Projects,4500000,01/04/2026,30/09/2026,Mr. Murugan V,In Execution,3800000",
@@ -594,8 +594,7 @@ Object.assign(window.RevOpsStore, {
           // call) tests against, so a typo here doesn't just look wrong,
           // it silently grants the wrong access.
           { column: 'role', values: ['super_admin', 'admin', 'manager', 'staff'] },
-          { column: 'workArrangement', values: ['Head Office', 'Site / On-Field', 'Hybrid'] },
-          { column: 'isActive', values: ['true', 'false'] }
+          { column: 'workArrangement', values: ['Head Office', 'Site / On-Field', 'Hybrid'], strict: false }
         ],
         sampleRows: [
           "E-006,Senthil Nathan,Senior Field Commissioning Engineer,Projects,E-003,Mrs. Anitha,senthil@measuredi.com,9840667788,staff,Site / On-Field,01/06/2021,true",
@@ -735,7 +734,8 @@ Object.assign(window.RevOpsStore, {
     };
 
     var tmpl = templates[masterType] || templates.clients;
-    tmpl.legendLines = self.buildDropdownLegendLines(tmpl.legendFields || []);
+    var headerCols = tmpl.headers.split(',');
+    tmpl.legendGrid = self.buildDropdownLegendGrid(headerCols, tmpl.legendFields || []);
     return tmpl;
   },
 
@@ -1084,38 +1084,150 @@ Object.assign(window.RevOpsStore, {
     });
   },
 
-  // Builds the "# ALLOWED VALUES FOR ..." legend lines a fresh bulk-upload
-  // template is prepended with. Each entry in fieldLegends is either
-  // { column, collectionName } to read a live Master Data list (never a
-  // frozen snapshot - renaming/adding an entry later is still reflected
-  // next time someone downloads the template) or { column, values } for
-  // a fixed in-app set (e.g. employee roles, GST slabs) that isn't
-  // stored as its own Master Data collection. Shared by every template
-  // generator (Master Data's own per-tab templates and the Data
-  // Center's) so the wording and format never drift apart.
-  buildDropdownLegendLines: function(fieldLegends) {
-    var self = this;
-    var lines = [];
-    (fieldLegends || []).forEach(function(fl) {
-      var names;
-      if (fl.values) {
-        names = fl.values;
-      } else if (fl.collectionName) {
-        var valueField = fl.valueField || 'name';
-        var items = (self.getCollection(fl.collectionName) || []).filter(function(it) { return it.isActive !== false; });
-        names = items.map(function(it) { return it[valueField]; }).filter(Boolean);
-      } else {
-        names = [];
-      }
-      if (names.length > 0) {
-        lines.push('# ALLOWED VALUES FOR "' + fl.column + '" (must match exactly, including capitalization): ' + names.join(', '));
-      }
-    });
-    if (lines.length > 0) {
-      lines.unshift('# Fill in your data below the sample row(s), matching the allowed values exactly where listed.');
-      lines.push('# These instruction lines are ignored automatically if left in, but it is cleaner to delete them before uploading.');
+  // Resolves one legend field's current list of allowed values - either
+  // a fixed in-app set ({ values: [...] }) or a live Master Data list
+  // ({ collectionName, valueField }), read fresh every call so renaming
+  // or adding an entry later is reflected the next time a template is
+  // downloaded. Never a frozen snapshot.
+  resolveLegendFieldValues: function(fl) {
+    if (fl.values) return fl.values;
+    if (fl.collectionName) {
+      var valueField = fl.valueField || 'name';
+      var items = (this.getCollection(fl.collectionName) || []).filter(function(it) { return it.isActive !== false; });
+      return items.map(function(it) { return it[valueField]; }).filter(Boolean);
     }
-    return lines;
+    return [];
+  },
+
+  // Builds the allowed-values legend as a grid of CSV rows (each an
+  // array matching headers.length, ready to be .join(',')'d) placed
+  // directly under the real header row it documents - so in a
+  // spreadsheet, each field's list of choices lines up visually under
+  // that field's own column instead of being one dense line at the top
+  // of the file. "strict" fields (the default: fl.strict !== false) are
+  // ones the rest of the app actually matches against exactly - get one
+  // on the wrong value and the record silently never shows up anywhere
+  // that filters by it. "Flexible" fields (fl.strict: false) are a
+  // recommended/usual set shown for consistency, not enforced anywhere.
+  // Every row starts with "#" so parseCSVRows drops the whole legend
+  // automatically on upload, whether or not it was deleted first.
+  buildDropdownLegendGrid: function(headers, fieldLegends) {
+    var self = this;
+    var colIndex = {};
+    headers.forEach(function(h, i) { colIndex[h] = i; });
+
+    var columnValues = {};
+    var strictCols = [];
+    var flexibleCols = [];
+    var maxLen = 0;
+
+    (fieldLegends || []).forEach(function(fl) {
+      if (colIndex[fl.column] === undefined) return;
+      var names = self.resolveLegendFieldValues(fl);
+      if (names.length === 0) return;
+      columnValues[fl.column] = names;
+      maxLen = Math.max(maxLen, names.length);
+      if (fl.strict === false) flexibleCols.push(fl.column);
+      else strictCols.push(fl.column);
+    });
+
+    var columns = Object.keys(columnValues);
+    if (columns.length === 0) return [];
+
+    function blankRow() { return headers.map(function() { return ''; }); }
+
+    var rows = [];
+    rows.push(blankRow());
+
+    var banner = blankRow();
+    banner[0] = '# ===== ALLOWED VALUES ===== pick from the lists below in each column. Every line starting with # is ignored on upload so leave them where they are.';
+    rows.push(banner);
+
+    for (var i = 0; i < maxLen; i++) {
+      var row = blankRow();
+      row[0] = '#';
+      columns.forEach(function(col) {
+        var vals = columnValues[col];
+        if (vals[i] !== undefined) row[colIndex[col]] = vals[i];
+      });
+      rows.push(row);
+    }
+
+    strictCols.forEach(function(col) {
+      var row = blankRow();
+      row[0] = '# ' + col + ' — one of the values above and nothing else. Capital letters, extra spaces, or a trailing "s" do not matter - it will still match.';
+      rows.push(row);
+    });
+
+    if (flexibleCols.length > 0) {
+      var flexRow = blankRow();
+      flexRow[0] = '# ' + flexibleCols.join(' + ') + ' — these are the usual answers. Something else is allowed if none of them fits.';
+      rows.push(flexRow);
+    }
+
+    var closing = blankRow();
+    closing[0] = '# =====';
+    rows.push(closing);
+
+    return rows;
+  },
+
+  // Fuzzy-matches a typed value against an allowed-values list, tolerant
+  // of exactly what the legend promises: capitalization, leading/
+  // trailing whitespace, and a stray trailing "s". Returns the allowed
+  // list's own correctly-cased value on a match (so "projects "," PROJECT",
+  // and "Project" all resolve to the real "Projects"); returns the typed
+  // value unchanged if nothing in the list is a close enough match,
+  // rather than guessing - an unmatched value should still fail visibly
+  // downstream, not get silently forced onto the wrong option.
+  normalizeDropdownValue: function(rawValue, allowedValues) {
+    if (rawValue === undefined || rawValue === null || rawValue === '') return rawValue;
+    if (!allowedValues || allowedValues.length === 0) return rawValue;
+    function simplify(s) {
+      s = String(s).toLowerCase().trim();
+      if (s.length > 1 && s.charAt(s.length - 1) === 's') s = s.slice(0, -1);
+      return s;
+    }
+    var target = simplify(rawValue);
+    for (var i = 0; i < allowedValues.length; i++) {
+      if (simplify(allowedValues[i]) === target) return allowedValues[i];
+    }
+    return rawValue;
+  },
+
+  // Applies normalizeDropdownValue to every strict field (fl.strict !==
+  // false) present on a bulk-uploaded record, mutating it in place.
+  // Flexible fields are left exactly as typed - they're a suggestion,
+  // not something to coerce.
+  normalizeRecordAgainstLegend: function(record, fieldLegends) {
+    var self = this;
+    (fieldLegends || []).forEach(function(fl) {
+      if (fl.strict === false) return;
+      if (record[fl.column] === undefined || record[fl.column] === '') return;
+      var allowed = self.resolveLegendFieldValues(fl);
+      record[fl.column] = self.normalizeDropdownValue(record[fl.column], allowed);
+    });
+    return record;
+  },
+
+  // Maps a raw Firestore collection name (as passed to bulkUploadItems,
+  // e.g. 'clientsMaster', 'leads') to its prescribed template key in
+  // getPrescribedCsvTemplate - one shared lookup so the Data Center's
+  // download (auth-guard.js) and its upload (bulkUploadItems below) can
+  // never disagree about which template a collection's rows came from.
+  CSV_TEMPLATE_KEY_BY_COLLECTION: {
+    clientsMaster: 'clients',
+    projectsMaster: 'projects',
+    employees: 'employees',
+    sparePartsMaster: 'spareParts',
+    leads: 'leads',
+    orders: 'orders',
+    invoices: 'invoices',
+    quotations: 'quotations',
+    dwmActivities: 'dwmActivities',
+    payments: 'payments',
+    attendance: 'attendance',
+    kraTargets: 'kraTargets'
   },
 
   getOrderDate: function(order) {
@@ -1677,8 +1789,12 @@ Object.assign(window.RevOpsStore, {
     // id there, different from the one already saved locally, leaving
     // local storage and Firestore with two different ids for what should
     // be the same record.
+    var templateKey = this.CSV_TEMPLATE_KEY_BY_COLLECTION[colName];
+    var legendFields = templateKey ? (this.getPrescribedCsvTemplate(templateKey).legendFields || []) : [];
+
     var resolvedRecords = recordArray.map(function(rawRecord) {
       var record = self.coerceCsvNumericFields(colName, self.sanitizeRecord(rawRecord));
+      if (legendFields.length > 0) self.normalizeRecordAgainstLegend(record, legendFields);
       if (!record.id) {
         record.id = colName.substring(0, 3) + '_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4);
       }

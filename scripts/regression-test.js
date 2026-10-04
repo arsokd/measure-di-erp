@@ -1614,14 +1614,17 @@ async function testPasswordPolicyEnforcement(browser) {
 
 // ---------------------------------------------------------------------
 // Bulk-upload template downloads: a column validated against a live
-// Master Data list (today, "vertical" on Products and Projects) now
-// gets a live "# ALLOWED VALUES FOR ..." legend prepended, read off the
-// actual current list - not a frozen snapshot - so people filling the
-// sheet can't accidentally type "project"/"Projects "/"PROJECTS" and
-// have it silently fail to match anywhere downstream. A real data
-// export (not a fresh template) must never carry this legend, and the
-// bulk-upload parser must silently drop any "#" line even if someone
-// forgets to delete it before uploading.
+// Master Data list (today, "vertical" on Products and Projects) gets a
+// legend grid appended after the sample rows - each field's allowed
+// values lined up under that field's own column, read off the actual
+// current list (not a frozen snapshot), plus a short note on whether
+// the field is strict or just a usual-answer suggestion. Typed values
+// for strict fields are also now normalized on upload (case/whitespace/
+// trailing-"s" tolerant), so "project "/"PROJECTS"/"Project" all still
+// resolve correctly instead of silently failing to match anywhere
+// downstream. A real data export (not a fresh template) must never
+// carry this legend, and the bulk-upload parser must silently drop any
+// "#" line even if someone forgets to delete it before uploading.
 // ---------------------------------------------------------------------
 async function testCsvTemplateDropdownLegend(browser) {
   const failures = [];
@@ -1656,13 +1659,16 @@ async function testCsvTemplateDropdownLegend(browser) {
   }
 
   const productsCsv = await downloadTemplateFor('products');
-  assertTrue(productsCsv.indexOf('ALLOWED VALUES FOR "vertical"') !== -1, 'Products template includes a live allowed-values legend for "vertical"', failures);
-  assertTrue(productsCsv.indexOf('Projects, Onboard') !== -1, 'Products legend lists the current active verticals', failures);
+  const productsRows = productsCsv.trim().split('\n').map(l => l.split(','));
+  assertTrue(productsCsv.indexOf('# ===== ALLOWED VALUES =====') !== -1, 'Products template includes the allowed-values legend banner', failures);
+  assertTrue(productsRows.some(r => r[0] === 'Projects'), 'Products legend grid lists "Projects" under the vertical column', failures);
+  assertTrue(productsRows.some(r => r[0] === 'Onboard'), 'Products legend grid lists "Onboard" under the vertical column', failures);
   assertTrue(productsCsv.indexOf('Retired Vertical') === -1, 'Products legend excludes an inactive vertical', failures);
+  assertTrue(productsCsv.indexOf('vertical — one of the values above') !== -1, 'Products legend notes "vertical" is strict (must match exactly)', failures);
   assertTrue(productsCsv.indexOf('vertical,productName,technicalSpec,hsnCode,unitPrice') !== -1, 'Products template still has its real header row', failures);
 
   const projectsCsv = await downloadTemplateFor('projects');
-  assertTrue(projectsCsv.indexOf('ALLOWED VALUES FOR "vertical"') !== -1, 'Projects template includes the same live allowed-values legend', failures);
+  assertTrue(projectsCsv.indexOf('# ===== ALLOWED VALUES =====') !== -1, 'Projects template includes the same legend banner', failures);
 
   for (const tab of ['equipment', 'banks', 'clients']) {
     const csv = await downloadTemplateFor(tab);
@@ -1670,8 +1676,8 @@ async function testCsvTemplateDropdownLegend(browser) {
   }
 
   const parseResult = await page.evaluate(function () {
-    var csv = '# ALLOWED VALUES FOR "vertical": Projects, Onboard\n' +
-      '# Delete this line before uploading.\n' +
+    var csv = '# ===== ALLOWED VALUES =====\n' +
+      '#,Projects\n' +
       'vertical,productName,technicalSpec,hsnCode,unitPrice\n' +
       'Projects,Test Product,Test Spec,90318000,10000\n';
     var rows = parseCSVRows(csv);
@@ -1680,6 +1686,24 @@ async function testCsvTemplateDropdownLegend(browser) {
   assertEqual(parseResult.rowCount, 2, 'parseCSVRows drops both "#" legend lines, leaving header + 1 data row', failures);
   assertEqual(parseResult.header[0], 'vertical', 'The surviving first row is the real header', failures);
   assertEqual(parseResult.dataRow[0], 'Projects', 'The surviving second row is the real data', failures);
+
+  // Bulk upload normalizes a strict field against the legend - loose
+  // capitalization/whitespace/trailing "s" still resolves to the real value.
+  await page.evaluate(function () { switchMasterTab('products'); });
+  await page.waitForTimeout(200);
+  await page.evaluate(function () {
+    window.RevOpsStore.saveCollection('productsMaster', []);
+    parsedCsvData = [
+      { vertical: ' projects ', productName: 'Loose Case Product', technicalSpec: 'x', hsnCode: '1', unitPrice: '1' },
+      { vertical: 'Onboards', productName: 'Trailing S Product', technicalSpec: 'x', hsnCode: '2', unitPrice: '2' }
+    ];
+    executeBulkUpload();
+  });
+  const normalizedProducts = await page.evaluate(function () {
+    return window.RevOpsStore.getCollection('productsMaster');
+  });
+  assertEqual(normalizedProducts.find(p => p.productName === 'Loose Case Product').vertical, 'Projects', 'Bulk upload normalizes " projects " to the real "Projects"', failures);
+  assertEqual(normalizedProducts.find(p => p.productName === 'Trailing S Product').vertical, 'Onboard', 'Bulk upload normalizes a trailing "s" ("Onboards") to the real "Onboard"', failures);
 
   // A real data export (not a fresh blank template) must never get this legend.
   await page.evaluate(function () { switchMasterTab('products'); });
@@ -1741,19 +1765,29 @@ async function testDataCenterTemplatesAndParser(browser) {
   }
 
   const leadsCsv = await downloadFor('leads');
+  const leadsRows = leadsCsv.trim().split('\n').map(l => l.split(','));
   assertTrue(leadsCsv.indexOf(',Quoted,') !== -1, 'Data Center Leads template uses the current pipeline stage wording (Quoted)', failures);
   assertTrue(leadsCsv.indexOf('Commercial Offer Submitted') === -1 && leadsCsv.indexOf('Lead Qualified') === -1, 'Data Center Leads template no longer uses the retired 8-stage wording', failures);
+  assertTrue(leadsCsv.indexOf('# ===== ALLOWED VALUES =====') !== -1, 'Data Center Leads template includes the legend banner', failures);
   ['leadSource', 'industry', 'projectSector', 'vertical', 'currency', 'stage'].forEach(function (col) {
-    assertTrue(leadsCsv.indexOf('ALLOWED VALUES FOR "' + col + '"') !== -1, 'Data Center Leads template has a legend for "' + col + '"', failures);
+    assertTrue(leadsCsv.indexOf(col + ' — one of the values above') !== -1, 'Data Center Leads template notes "' + col + '" is strict', failures);
   });
-  assertTrue(leadsCsv.indexOf('INR') !== -1, 'Leads currency legend lists currency codes (INR), not currency names', failures);
+  assertTrue(leadsRows.some(r => r.includes('INR')), 'Leads legend grid lists currency codes (INR), not currency names', failures);
+  assertTrue(leadsRows.some(r => r.includes('Won')), 'Leads legend grid lists the pipeline stage "Won"', failures);
+  assertTrue(leadsRows.some(r => r.includes('Trashed')), 'Leads legend grid lists the exit stage "Trashed"', failures);
 
   const empCsv = await downloadFor('employees');
-  assertTrue(empCsv.indexOf('super_admin, admin, manager, staff') !== -1, 'Employees template legend lists the exact 4 role values', failures);
+  assertTrue(empCsv.indexOf('super_admin, admin, manager, staff') === -1, 'Employees role values are in the grid (one per row), not one comma-joined line', failures);
+  const empRows = empCsv.trim().split('\n').map(l => l.split(','));
+  ['super_admin', 'admin', 'manager', 'staff'].forEach(function (role) {
+    assertTrue(empRows.some(r => r.includes(role)), 'Employees legend grid lists role "' + role + '"', failures);
+  });
+  assertTrue(empCsv.indexOf('role — one of the values above') !== -1, 'Employees template notes "role" is strict (security-sensitive)', failures);
+  assertTrue(empCsv.indexOf('workArrangement') !== -1 && empCsv.indexOf('usual answers') !== -1, 'Employees template notes workArrangement is a flexible/suggested field', failures);
   assertTrue(empCsv.indexOf('Projects & production') === -1, 'Employees template vertical samples use canonical casing, not the old wording', failures);
 
   const clientsCsv = await downloadFor('clientsMaster');
-  assertTrue(clientsCsv.indexOf('ALLOWED VALUES FOR "vertical"') !== -1, 'Clients template has a vertical legend', failures);
+  assertTrue(clientsCsv.indexOf('# ===== ALLOWED VALUES =====') !== -1, 'Clients template has the legend banner', failures);
   assertTrue(clientsCsv.indexOf(',Sales,') === -1, 'Clients template no longer uses bare "Sales" as a vertical sample', failures);
 
   const quotCsv = await downloadFor('quotations');
@@ -1761,23 +1795,23 @@ async function testDataCenterTemplatesAndParser(browser) {
 
   const dwmCsv = await downloadFor('dwmActivities');
   assertTrue(dwmCsv.indexOf('activityDescription') !== -1, 'DWM Activity Log template is real', failures);
-  assertTrue(dwmCsv.indexOf('ALLOWED VALUES FOR "category"') !== -1, 'DWM template has a category legend', failures);
+  assertTrue(dwmCsv.indexOf('category — one of the values above') !== -1, 'DWM template notes "category" is strict', failures);
 
   const paymentsCsv = await downloadFor('payments');
   assertTrue(paymentsCsv.indexOf('paymentMode') !== -1, 'Payments template is real', failures);
-  assertTrue(paymentsCsv.indexOf('ALLOWED VALUES FOR "paymentMode"') !== -1, 'Payments template has a paymentMode legend', failures);
+  assertTrue(paymentsCsv.indexOf('paymentMode — one of the values above') !== -1, 'Payments template notes "paymentMode" is strict', failures);
 
   const attendanceCsv = await downloadFor('attendance');
   assertTrue(attendanceCsv.indexOf('punchInTime') !== -1, 'Attendance backfill template is real', failures);
 
   const kraCsv = await downloadFor('kraTargets');
   assertTrue(kraCsv.indexOf('aopLine') !== -1, 'KRA Targets template is real', failures);
-  assertTrue(kraCsv.indexOf('ALLOWED VALUES FOR "aopLine"') !== -1, 'KRA template has an aopLine legend', failures);
+  assertTrue(kraCsv.indexOf('aopLine — one of the values above') !== -1, 'KRA template notes "aopLine" is strict', failures);
 
   // The Data Center's own upload path now shares Master Data's RFC
   // 4180-aware tokenizer instead of a separate naive line.split(',').
   const parseResult = await page.evaluate(function () {
-    var csv = '# ALLOWED VALUES FOR "vertical": Projects, Onboard\n' +
+    var csv = '# ===== ALLOWED VALUES =====\n' +
       'leadNumber,customerName,notes\n' +
       'LD-TEST-1,"Test, Comma Co",Has a comma in the name\n';
     var rows = window.RevOpsStore.parseCSVRows(csv);
@@ -1785,6 +1819,23 @@ async function testDataCenterTemplatesAndParser(browser) {
   });
   assertEqual(parseResult.rowCount, 2, 'Shared parseCSVRows drops the "#" legend line (header + 1 data row survive)', failures);
   assertEqual(parseResult.dataRow[1], 'Test, Comma Co', 'Shared parseCSVRows keeps a comma inside a quoted field intact', failures);
+
+  // bulkUploadItems() (the Data Center's actual write path) normalizes a
+  // strict field against its template's legend the same way Master
+  // Data's own executeBulkUpload() does.
+  const normResult = await page.evaluate(function () {
+    return new Promise(function (resolve) {
+      window.RevOpsStore.saveCollection('employees', []);
+      window.RevOpsStore.bulkUploadItems('employees', [
+        { employeeId: 'E-901', fullName: 'Test Employee', role: ' Staff ', vertical: 'projects' }
+      ], function () {
+        var emps = window.RevOpsStore.getCollection('employees');
+        resolve(emps.find(function (e) { return e.employeeId === 'E-901'; }));
+      });
+    });
+  });
+  assertEqual(normResult && normResult.role, 'staff', 'bulkUploadItems normalizes " Staff " to the real "staff" role', failures);
+  assertEqual(normResult && normResult.vertical, 'Projects', 'bulkUploadItems normalizes "projects" to the real "Projects"', failures);
 
   await page.close();
   return failures;

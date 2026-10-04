@@ -761,36 +761,23 @@ function openDataImportExportModal() {
 }
 
 // Data Import Helpers
-// Every "Target Collection" option in the Data Center's import dropdown
-// maps to one prescribed template key - a single source of truth
-// (RevOpsStore.getPrescribedCsvTemplate, shared with any other download
-// surface) instead of this function hand-rolling a second copy of each
-// template inline, which is exactly how the vertical-spelling and stale
-// Leads-stage mismatches crept in previously.
-var DATA_CENTER_TEMPLATE_KEY_BY_COLLECTION = {
-  clientsMaster: 'clients',
-  projectsMaster: 'projects',
-  employees: 'employees',
-  sparePartsMaster: 'spareParts',
-  leads: 'leads',
-  orders: 'orders',
-  invoices: 'invoices',
-  quotations: 'quotations',
-  dwmActivities: 'dwmActivities',
-  payments: 'payments',
-  attendance: 'attendance',
-  kraTargets: 'kraTargets'
-};
 
 function downloadCSVTemplate() {
   var col = document.getElementById('data-import-collection')?.value || 'employees';
-  var templateKey = DATA_CENTER_TEMPLATE_KEY_BY_COLLECTION[col] || 'clients';
+  var templateKey = window.RevOpsStore.CSV_TEMPLATE_KEY_BY_COLLECTION[col] || 'clients';
   var tmpl = window.RevOpsStore.getPrescribedCsvTemplate(templateKey);
 
-  var csvContent = tmpl.headers + "\n" + tmpl.sampleRows.join("\n") + "\n";
-  if (tmpl.legendLines && tmpl.legendLines.length > 0) {
-    csvContent = tmpl.legendLines.join('\n') + '\n' + csvContent;
+  // Legend grid goes AFTER the real header + sample rows (its own rows
+  // all start with "#" so the upload parser drops them automatically),
+  // with each field's allowed values lined up under that field's own
+  // column instead of one dense line at the top of the file.
+  var lines = [tmpl.headers].concat(tmpl.sampleRows);
+  if (tmpl.legendGrid && tmpl.legendGrid.length > 0) {
+    tmpl.legendGrid.forEach(function(row) {
+      lines.push(row.every(function(c) { return c === ''; }) ? '' : row.join(','));
+    });
   }
+  var csvContent = lines.join('\n') + '\n';
 
   var blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
   var link = document.createElement("a");
