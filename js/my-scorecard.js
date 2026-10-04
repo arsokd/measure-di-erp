@@ -327,10 +327,12 @@ var viewingEmpId = null;
             dwmDatesMap[a.date] = true;
           }
         });
+        // No fallback to "assume full compliance" when this employee has
+        // logged nothing this month - that used to hide genuine
+        // non-adoption (a brand-new DWM user looked 100% compliant the
+        // moment anyone else in the org had logged anything at all).
+        // Zero logged days correctly means 0% here.
         var dwmDaysCount = Object.keys(dwmDatesMap).length;
-        if (myDwmActs.length === 0 && dwmActivities.length > 0) {
-          dwmDaysCount = elapsedDaysThisMonth; // default active compliance
-        }
 
         var dwmPct = Math.min(100, Math.round((dwmDaysCount / elapsedDaysThisMonth) * 100));
         document.getElementById('dwm-compliance-val').innerText = dwmPct + "%";

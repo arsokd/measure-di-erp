@@ -2121,6 +2121,103 @@ async function testLeadAutoSyncFromDocuments(browser) {
   return failures;
 }
 
+// ---------------------------------------------------------------------
+// Pre-launch DWM/Attendance audit fixes: (1) calculateDailyProductivity's
+// credit percentages must match the DWM accomplishment dropdown's own
+// labels exactly (Done 100% / Partial 70% / Not Done 0%) - they used to
+// silently diverge (60%/20%), and a still-"Pending" activity used to get
+// the same 20% credit as an explicit "Not Done" instead of 0%. (2) My
+// Scorecard's DWM compliance % must never default an employee with zero
+// logged activities this month to 100% just because someone else in the
+// org has logged something - that masked genuine non-adoption.
+// ---------------------------------------------------------------------
+async function testDwmProductivityAndComplianceFixes(browser) {
+  const failures = [];
+
+  // Part 1: credit percentages match the dropdown's own labels.
+  {
+    const { page } = await newPage(browser);
+    await page.goto(BASE_URL + '/dwm.html', { waitUntil: 'networkidle', timeout: 30000 });
+    await page.waitForTimeout(600);
+
+    const result = await page.evaluate(function () {
+      var done = window.RevOpsStore.calculateDailyProductivity([
+        { hoursSpent: 2, accomplishmentStatus: 'Done' }
+      ], 8.0);
+      var partial = window.RevOpsStore.calculateDailyProductivity([
+        { hoursSpent: 2, accomplishmentStatus: 'Partial' }
+      ], 8.0);
+      var notDone = window.RevOpsStore.calculateDailyProductivity([
+        { hoursSpent: 2, accomplishmentStatus: 'Not Done' }
+      ], 8.0);
+      var pending = window.RevOpsStore.calculateDailyProductivity([
+        { hoursSpent: 4, accomplishmentStatus: 'Pending' }
+      ], 8.0);
+      var mixed = window.RevOpsStore.calculateDailyProductivity([
+        { hoursSpent: 2, accomplishmentStatus: 'Done' },
+        { hoursSpent: 2, accomplishmentStatus: 'Partial' },
+        { hoursSpent: 2, accomplishmentStatus: 'Not Done' }
+      ], 8.0);
+      return {
+        donePH: done.productiveHours, doneScore: done.score,
+        partialPH: partial.productiveHours,
+        notDonePH: notDone.productiveHours,
+        pendingPH: pending.productiveHours, pendingScore: pending.score,
+        mixedPH: mixed.productiveHours, mixedScore: mixed.score
+      };
+    });
+    assertEqual(result.donePH, 2, 'Done (2h) credits the full 2 productive hours (100%)', failures);
+    assertEqual(result.doneScore, 25, 'Done (2h of 8h standard) scores 25%', failures);
+    assertEqual(result.partialPH, 1.4, 'Partial (2h) credits 70% -> 1.4 productive hours, not the old 60%', failures);
+    assertEqual(result.notDonePH, 0, 'Not Done (2h) credits 0 productive hours, not the old 20%', failures);
+    assertEqual(result.pendingPH, 0, 'Still-Pending (4h, never updated) credits 0 productive hours, same as Not Done', failures);
+    assertEqual(result.pendingScore, 0, 'Still-Pending activity alone scores 0%, not the old 20%-equivalent credit', failures);
+    assertEqual(result.mixedPH, 3.4, 'Mixed Done+Partial+NotDone (2h each) totals 3.4 productive hours (2 + 1.4 + 0)', failures);
+    assertEqual(result.mixedScore, 43, 'Mixed set scores round(3.4/8*100) = 43%', failures);
+
+    await page.close();
+  }
+
+  // Part 2: DWM compliance never defaults to 100% for zero-activity employees.
+  {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    page.on('dialog', async function (d) { await d.dismiss().catch(function () {}); });
+    await page.addInitScript(function () {
+      localStorage.setItem('userRole', 'staff');
+      localStorage.setItem('userEmail', 'techsupport@measuredi.com');
+      localStorage.setItem('userName', 'Mrs. Krithika');
+      localStorage.setItem('employeeId', 'E-006');
+    });
+
+    await page.goto(BASE_URL + '/my-scorecard.html', { waitUntil: 'networkidle', timeout: 30000 });
+    await page.waitForTimeout(600);
+
+    await page.evaluate(function () {
+      var now = new Date();
+      var mm = String(now.getMonth() + 1).padStart(2, '0');
+      var thisMonthDate = '15/' + mm + '/' + now.getFullYear();
+      // E-006 (the employee being scored) has logged nothing this month;
+      // a different employee (E-007) has, so the shared collection isn't
+      // empty - this is exactly the condition that used to trigger the
+      // false "100% compliant" fallback for E-006.
+      window.RevOpsStore.saveCollection('dwmActivities', [
+        { id: 'dwm_other_1', employeeId: 'E-007', date: thisMonthDate, accomplishmentStatus: 'Done', hoursSpent: 4 }
+      ]);
+      renderScorecardForEmployee('E-006');
+    });
+    await page.waitForTimeout(300);
+
+    const dwmPct = await page.evaluate(function () {
+      return document.getElementById('dwm-compliance-val').innerText;
+    });
+    assertEqual(dwmPct, '0%', 'An employee with zero DWM activity this month correctly shows 0% compliance (not a false 100%)', failures);
+
+    await page.close();
+  }
+
+  return failures;
+}
+
 const TESTS = [
   ['SLA day-based seeding, migration, severity dropdown & date math', testSlaDayBasedSeedingAndMigration],
   ['Ticket email subject line', testQuotationVerticalAndTicketSubject],
@@ -2146,7 +2243,8 @@ const TESTS = [
   ['Lead pipeline stage model: advanceLeadStage, Lost/Trashed/Postponed guards, pending follow-ups', testLeadPipelineStageModel],
   ['Lead auto-sync: Quotation send -> Quoted, Order booked -> Order Received, Invoice raised -> Won', testLeadAutoSyncFromDocuments],
   ['Bulk-upload template: live dropdown-values legend, comment-line skipping, never on real exports', testCsvTemplateDropdownLegend],
-  ['Data Center: 12 real per-collection templates, dropdown legends, shared RFC 4180 parser', testDataCenterTemplatesAndParser]
+  ['Data Center: 12 real per-collection templates, dropdown legends, shared RFC 4180 parser', testDataCenterTemplatesAndParser],
+  ['DWM productivity % matches dropdown labels; Scorecard DWM compliance never fakes 100%', testDwmProductivityAndComplianceFixes]
 ];
 
 (async () => {

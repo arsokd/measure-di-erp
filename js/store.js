@@ -501,13 +501,17 @@ Object.assign(window.RevOpsStore, {
         // Special assignments count 100% towards organizational productivity
         productiveHours += duration;
       } else {
+        // Credit percentages must match the DWM accomplishment dropdown's
+        // own labels exactly (Done 100% / Partial 70% / Not Done 0%) -
+        // these used to diverge (60%/20%) from what the UI promised. An
+        // activity still sitting at "Pending" (never updated) earns no
+        // credit either - same as Not Done - since nothing was actually
+        // accomplished yet.
         if (isCompleted) {
           productiveHours += duration;
           completedCount++;
         } else if (isPartial) {
-          productiveHours += (duration * 0.6);
-        } else {
-          productiveHours += (duration * 0.2);
+          productiveHours += (duration * 0.7);
         }
       }
     });
