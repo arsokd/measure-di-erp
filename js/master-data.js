@@ -968,8 +968,15 @@ var activeMasterTab = 'products';
       // Flush the final field/row - the file may or may not end with a newline.
       if (field.length > 0 || row.length > 0) { row.push(field); rows.push(row); }
 
-      // Drop fully blank rows (e.g. a trailing newline producing one empty row).
-      return rows.filter(function(r) { return !(r.length === 1 && r[0].trim() === ''); });
+      // Drop fully blank rows (e.g. a trailing newline producing one empty
+      // row) and any instructional "# ..." line the downloaded template
+      // prepends (the allowed-values legend) - so forgetting to delete it
+      // before uploading can't corrupt real data with a bogus row.
+      return rows.filter(function(r) {
+        if (r.length === 1 && r[0].trim() === '') return false;
+        if ((r[0] || '').trim().indexOf('#') === 0) return false;
+        return true;
+      });
     }
 
     function parseCSV(text) {
@@ -1045,6 +1052,27 @@ var activeMasterTab = 'products';
       renderMasterTable();
     }
 
+    // Builds the "# ALLOWED VALUES FOR ..." legend lines a fresh template
+    // is prepended with, read live off the actual Master Data list each
+    // field is validated against - never a frozen snapshot, so renaming
+    // or adding a vertical later is still reflected next time someone
+    // downloads the template. Returns [] if a field's list is empty.
+    function buildDropdownLegendLines(fieldLegends) {
+      var lines = [];
+      fieldLegends.forEach(function(fl) {
+        var items = (window.RevOpsStore.getCollection(fl.collectionName) || []).filter(function(it) { return it.isActive !== false; });
+        var names = items.map(function(it) { return it.name; }).filter(Boolean);
+        if (names.length > 0) {
+          lines.push('# ALLOWED VALUES FOR "' + fl.column + '" (must match exactly, including capitalization): ' + names.join(', '));
+        }
+      });
+      if (lines.length > 0) {
+        lines.unshift('# Fill in your data below the sample row(s), matching the allowed values exactly where listed.');
+        lines.push('# These instruction lines are ignored automatically if left in, but it is cleaner to delete them before uploading.');
+      }
+      return lines;
+    }
+
     function downloadActiveTemplate() {
       if (SIMPLE_MASTER_TABS[activeMasterTab] || activeMasterTab === 'slapolicy' || activeMasterTab === 'companies') {
         alert("These are small lists maintained directly in the app — there's no CSV template for this category. Use \"+ Add Master Record\" instead.");
@@ -1053,8 +1081,10 @@ var activeMasterTab = 'products';
 
       var csvContent = "";
       var filename = activeMasterTab + "_template.csv";
+      var legendLines = [];
 
       if (activeMasterTab === 'products') {
+        legendLines = buildDropdownLegendLines([{ column: 'vertical', collectionName: 'verticalClassificationMaster' }]);
         csvContent = "vertical,productName,technicalSpec,hsnCode,unitPrice\n" +
                      "Projects,Dynamic In-Motion Train Weigher (IMW-500),200T High Speed Pitless 0.2% Accuracy,90318000,4500000\n" +
                      "Onboard,Onboard Tipper Weighing Scale (OTW-30T),Wireless Axle Load Weigher,84238900,480000\n" +
@@ -1071,8 +1101,13 @@ var activeMasterTab = 'products';
         csvContent = "clientName,gstin,city,contactPerson,email,phone\n" +
                      "JSW Steel Limited,29AAACJ1011A1Z2,Ballari,Mr. Rajesh,rajesh@jsw.in,9840112233\n";
       } else if (activeMasterTab === 'projects') {
+        legendLines = buildDropdownLegendLines([{ column: 'vertical', collectionName: 'verticalClassificationMaster' }]);
         csvContent = "projectCode,projectName,clientName,vertical,budget\n" +
                      "PRJ-JSW-09,JSW Slag Yard RFID Dynamic Weigher,JSW Steel Limited,Projects,2800000\n";
+      }
+
+      if (legendLines.length > 0) {
+        csvContent = legendLines.join('\n') + '\n' + csvContent;
       }
 
       var blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });

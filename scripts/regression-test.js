@@ -12,6 +12,7 @@
  * workflow, or run one yourself with e.g. `python3 -m http.server 8099`).
  */
 import { chromium } from 'playwright';
+import fs from 'fs';
 
 const BASE_URL = process.argv[2] || 'http://localhost:8099';
 const PW_EXECUTABLE = process.env.PLAYWRIGHT_CHROMIUM_PATH || undefined;
@@ -1612,6 +1613,94 @@ async function testPasswordPolicyEnforcement(browser) {
 }
 
 // ---------------------------------------------------------------------
+// Bulk-upload template downloads: a column validated against a live
+// Master Data list (today, "vertical" on Products and Projects) now
+// gets a live "# ALLOWED VALUES FOR ..." legend prepended, read off the
+// actual current list - not a frozen snapshot - so people filling the
+// sheet can't accidentally type "project"/"Projects "/"PROJECTS" and
+// have it silently fail to match anywhere downstream. A real data
+// export (not a fresh template) must never carry this legend, and the
+// bulk-upload parser must silently drop any "#" line even if someone
+// forgets to delete it before uploading.
+// ---------------------------------------------------------------------
+async function testCsvTemplateDropdownLegend(browser) {
+  const failures = [];
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 }, acceptDownloads: true });
+  page.on('dialog', async function (d) { await d.dismiss().catch(function () {}); });
+  await page.addInitScript(function () {
+    localStorage.setItem('userRole', 'super_admin');
+    localStorage.setItem('userEmail', 'murugan@measuredi.com');
+    localStorage.setItem('userName', 'Mr. Murugan V');
+    localStorage.setItem('employeeId', 'E-001');
+  });
+
+  await page.goto(BASE_URL + '/master-data.html', { waitUntil: 'networkidle', timeout: 30000 });
+  await page.waitForTimeout(600);
+
+  await page.evaluate(function () {
+    window.RevOpsStore.saveCollection('verticalClassificationMaster', [
+      { id: 'v1', name: 'Projects', isActive: true },
+      { id: 'v2', name: 'Onboard', isActive: true },
+      { id: 'v3', name: 'Retired Vertical', isActive: false }
+    ]);
+  });
+
+  async function downloadTemplateFor(tab) {
+    await page.evaluate(function (t) { switchMasterTab(t); }, tab);
+    await page.waitForTimeout(200);
+    const [dl] = await Promise.all([
+      page.waitForEvent('download'),
+      page.evaluate(function () { downloadActiveTemplate(); })
+    ]);
+    return fs.readFileSync(await dl.path(), 'utf8');
+  }
+
+  const productsCsv = await downloadTemplateFor('products');
+  assertTrue(productsCsv.indexOf('ALLOWED VALUES FOR "vertical"') !== -1, 'Products template includes a live allowed-values legend for "vertical"', failures);
+  assertTrue(productsCsv.indexOf('Projects, Onboard') !== -1, 'Products legend lists the current active verticals', failures);
+  assertTrue(productsCsv.indexOf('Retired Vertical') === -1, 'Products legend excludes an inactive vertical', failures);
+  assertTrue(productsCsv.indexOf('vertical,productName,technicalSpec,hsnCode,unitPrice') !== -1, 'Products template still has its real header row', failures);
+
+  const projectsCsv = await downloadTemplateFor('projects');
+  assertTrue(projectsCsv.indexOf('ALLOWED VALUES FOR "vertical"') !== -1, 'Projects template includes the same live allowed-values legend', failures);
+
+  for (const tab of ['equipment', 'banks', 'clients']) {
+    const csv = await downloadTemplateFor(tab);
+    assertTrue(csv.indexOf('ALLOWED VALUES') === -1, tab + ' template has no legend (none of its columns are dropdown-backed)', failures);
+  }
+
+  const parseResult = await page.evaluate(function () {
+    var csv = '# ALLOWED VALUES FOR "vertical": Projects, Onboard\n' +
+      '# Delete this line before uploading.\n' +
+      'vertical,productName,technicalSpec,hsnCode,unitPrice\n' +
+      'Projects,Test Product,Test Spec,90318000,10000\n';
+    var rows = parseCSVRows(csv);
+    return { rowCount: rows.length, header: rows[0], dataRow: rows[1] };
+  });
+  assertEqual(parseResult.rowCount, 2, 'parseCSVRows drops both "#" legend lines, leaving header + 1 data row', failures);
+  assertEqual(parseResult.header[0], 'vertical', 'The surviving first row is the real header', failures);
+  assertEqual(parseResult.dataRow[0], 'Projects', 'The surviving second row is the real data', failures);
+
+  // A real data export (not a fresh blank template) must never get this legend.
+  await page.evaluate(function () { switchMasterTab('products'); });
+  await page.waitForTimeout(200);
+  await page.evaluate(function () {
+    window.RevOpsStore.saveCollection('productsMaster', [{ id: 'p1', vertical: 'Projects', productName: 'Real Product', technicalSpec: 'x', hsnCode: '1', unitPrice: 1 }]);
+    renderMasterTable();
+  });
+  await page.waitForTimeout(200);
+  const [exportDl] = await Promise.all([
+    page.waitForEvent('download'),
+    page.evaluate(function () { exportCurrentMasterCSV(); })
+  ]);
+  const exportCsv = fs.readFileSync(await exportDl.path(), 'utf8');
+  assertTrue(exportCsv.indexOf('ALLOWED VALUES') === -1, 'A real-data export never carries the template legend', failures);
+
+  await page.close();
+  return failures;
+}
+
+// ---------------------------------------------------------------------
 // Lead pipeline stage model: the forward-only, exit-immune
 // advanceLeadStage() helper, the Leads form's Lost/Trashed/Postponed
 // guards and mandatory-reason enforcement, and the Dashboard's
@@ -1914,7 +2003,8 @@ const TESTS = [
   ['Bulk CSV parser handles quoted/comma/multi-line fields', testBulkCsvParserHandlesQuotedFields],
   ['Password policy: forced first-time/90-day change, developer exemption, self-service flow', testPasswordPolicyEnforcement],
   ['Lead pipeline stage model: advanceLeadStage, Lost/Trashed/Postponed guards, pending follow-ups', testLeadPipelineStageModel],
-  ['Lead auto-sync: Quotation send -> Quoted, Order booked -> Order Received, Invoice raised -> Won', testLeadAutoSyncFromDocuments]
+  ['Lead auto-sync: Quotation send -> Quoted, Order booked -> Order Received, Invoice raised -> Won', testLeadAutoSyncFromDocuments],
+  ['Bulk-upload template: live dropdown-values legend, comment-line skipping, never on real exports', testCsvTemplateDropdownLegend]
 ];
 
 (async () => {
