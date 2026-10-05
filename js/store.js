@@ -311,6 +311,146 @@ Object.assign(window.RevOpsStore, {
     this.deleteRecord(colName, id);
   },
 
+  // Shared live-GPS capture used by both the Attendance page's own GPS
+  // retry control and the DWM "Start/Finish My Day" punch buttons. The
+  // inline rose error banner (#gps-error-alert/#gps-error-message) only
+  // exists on attendance.html, so it's simply skipped when absent — the
+  // caller still gets the error reason via the callback either way.
+  captureLiveGpsLocation: function(callback) {
+    var errAlert = document.getElementById('gps-error-alert');
+    var errMsg = document.getElementById('gps-error-message');
+    if (errAlert) errAlert.classList.add('hidden');
+
+    if (!navigator.geolocation) {
+      if (errAlert && errMsg) {
+        errAlert.classList.remove('hidden');
+        errMsg.innerText = "Geolocation / GPS is not supported by your device or browser. Attendance cannot be marked without location verification.";
+      }
+      callback(null, "Geolocation unsupported");
+      return;
+    }
+
+    var options = { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 };
+
+    navigator.geolocation.getCurrentPosition(
+      function(position) {
+        var lat = position.coords.latitude;
+        var lng = position.coords.longitude;
+        var acc = Math.round(position.coords.accuracy || 0);
+        var isoTime = new Date().toISOString();
+
+        var locationObj = {
+          latitude: lat,
+          longitude: lng,
+          accuracy: acc,
+          timestamp: isoTime,
+          formattedLocation: "Lat: " + lat.toFixed(5) + ", Lng: " + lng.toFixed(5) + " (±" + acc + "m)",
+          googleMapsUrl: "https://www.google.com/maps?q=" + lat + "," + lng
+        };
+
+        if (errAlert) errAlert.classList.add('hidden');
+        callback(locationObj, null);
+      },
+      function(error) {
+        var txt = "";
+        switch(error.code) {
+          case error.PERMISSION_DENIED:
+            txt = "Location access permission was denied by user/browser. Attendance CANNOT be marked when GPS is denied. Please allow location access in browser/device settings.";
+            break;
+          case error.POSITION_UNAVAILABLE:
+            txt = "GPS / Location Services are turned off or inactive on your device. Attendance CANNOT be marked. Please turn ON GPS on your mobile/computer and try again.";
+            break;
+          case error.TIMEOUT:
+            txt = "GPS request timed out. Please ensure high accuracy location services are turned ON and retry.";
+            break;
+          default:
+            txt = "Could not detect live GPS location (" + (error.message || 'GPS inactive') + "). Attendance cannot be marked without location verification.";
+            break;
+        }
+        if (errAlert && errMsg) {
+          errAlert.classList.remove('hidden');
+          errMsg.innerText = txt;
+        }
+        callback(null, txt);
+      },
+      options
+    );
+  },
+
+  // Records today's Punch In. Called from the DWM page once the employee
+  // confirms their morning plan is complete — the confirmation click IS
+  // the punch-in moment, since DWM has no other single "planning done"
+  // event to hang the timestamp on. Still re-checks the plan-exists rule
+  // server-side (not just via a disabled button) so a stale UI can't
+  // create a bad record.
+  recordPunchIn: function(empId, empName, locationObj) {
+    var today = getFormattedToday();
+    var attendance = this.getCollection('attendance') || [];
+    var existing = attendance.find(function(a) { return a.employeeId === empId && a.date === today; });
+    if (existing) {
+      return { success: false, reason: 'already-punched-in', record: existing };
+    }
+
+    var dwmActivities = this.getCollection('dwmActivities') || [];
+    var todayDwm = dwmActivities.filter(function(a) { return a.employeeId === empId && a.date === today; });
+    if (todayDwm.length === 0) {
+      return { success: false, reason: 'no-plan' };
+    }
+
+    var nowIso = new Date().toISOString();
+    var newAtt = {
+      employeeId: empId,
+      employeeName: empName,
+      date: today,
+      punchInTime: nowIso,
+      punchInLocation: locationObj,
+      punchOutTime: null,
+      punchOutLocation: null,
+      workedHours: null,
+      dwmPlanCount: todayDwm.length,
+      dwmAccomplishedCount: 0,
+      status: 'Punched In'
+    };
+    this.addItem('attendance', newAtt);
+    return { success: true, record: newAtt };
+  },
+
+  // Records today's Punch Out. Called from the DWM page once the employee
+  // confirms every planned activity's accomplishment has been updated —
+  // mirrors recordPunchIn's "the confirmation IS the timestamp" approach.
+  recordPunchOut: function(empId, locationObj) {
+    var today = getFormattedToday();
+    var attendance = this.getCollection('attendance') || [];
+    var todayAtt = attendance.find(function(a) { return a.employeeId === empId && a.date === today; });
+    if (!todayAtt || todayAtt.status !== 'Punched In') {
+      return { success: false, reason: 'not-punched-in' };
+    }
+
+    var dwmActivities = this.getCollection('dwmActivities') || [];
+    var todayDwm = dwmActivities.filter(function(a) { return a.employeeId === empId && a.date === today; });
+    var pendingCount = todayDwm.filter(function(a) { return !a.accomplishmentStatus || a.accomplishmentStatus === 'Pending'; }).length;
+    if (pendingCount > 0) {
+      return { success: false, reason: 'pending-dwm', pendingCount: pendingCount, total: todayDwm.length };
+    }
+
+    var accomplishedCount = todayDwm.filter(function(a) { return a.accomplishmentStatus && a.accomplishmentStatus !== 'Pending'; }).length;
+    var punchInTime = new Date(todayAtt.punchInTime);
+    var punchOutTime = new Date();
+    var diffMs = punchOutTime - punchInTime;
+    var computedHours = Math.round((diffMs / (1000 * 60 * 60)) * 10) / 10;
+    if (computedHours <= 0) computedHours = 8.0;
+
+    this.updateItem('attendance', todayAtt.id, {
+      punchOutTime: punchOutTime.toISOString(),
+      punchOutLocation: locationObj,
+      workedHours: computedHours,
+      dwmAccomplishedCount: accomplishedCount,
+      status: 'Completed'
+    });
+
+    return { success: true, workedHours: computedHours, punchOutTime: punchOutTime };
+  },
+
   subscribeRealtimeSync: function(colName, onDataUpdated) {
     if (!this.isFirebaseAvailable()) return null;
     try {

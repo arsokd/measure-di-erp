@@ -2256,6 +2256,141 @@ async function testEveryHtmlPageRegisteredInViteBuild(browser) {
   return failures;
 }
 
+// ---------------------------------------------------------------------
+// Attendance/DWM punch-flow redesign: Punch In/Out no longer happen as
+// standalone buttons on attendance.html - that page now only links over
+// to DWM. Punch In is recorded the moment the employee confirms their
+// morning plan is ready (Section A); Punch Out is recorded the moment
+// they confirm every activity's accomplishment is updated (Section B).
+// Both still require a live GPS capture, mocked here deterministically
+// instead of relying on the real browser geolocation stack.
+// ---------------------------------------------------------------------
+async function testDwmPunchInOutFlow(browser) {
+  const failures = [];
+  const testEmpId = 'E-PUNCHTEST-01';
+
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  page.on('dialog', async function (d) { await d.dismiss().catch(function () {}); });
+  await page.addInitScript(function () {
+    localStorage.setItem('userRole', 'staff');
+    localStorage.setItem('userEmail', 'punchtest@measuredi.com');
+    localStorage.setItem('userName', 'Punch Test Employee');
+    localStorage.setItem('employeeId', 'E-PUNCHTEST-01');
+
+    // Deterministic GPS fix - bypasses the real browser geolocation
+    // permission prompt/hardware entirely so the test can't flake on it.
+    navigator.geolocation.getCurrentPosition = function (success) {
+      success({ coords: { latitude: 12.9716, longitude: 77.5946, accuracy: 15 } });
+    };
+  });
+
+  await page.goto(BASE_URL + '/dwm.html', { waitUntil: 'networkidle', timeout: 30000 });
+  await page.waitForTimeout(600);
+
+  // Clean slate for this synthetic employee on both collections.
+  await page.evaluate(function (empId) {
+    var attendance = (window.RevOpsStore.getCollection('attendance') || []).filter(function (a) { return a.employeeId !== empId; });
+    window.RevOpsStore.saveCollection('attendance', attendance);
+    var dwm = (window.RevOpsStore.getCollection('dwmActivities') || []).filter(function (a) { return a.employeeId !== empId; });
+    window.RevOpsStore.saveCollection('dwmActivities', dwm);
+  }, testEmpId);
+  await page.reload({ waitUntil: 'networkidle', timeout: 30000 });
+  await page.waitForTimeout(600);
+
+  // 1. No plan yet -> Punch In button disabled.
+  let inDisabled = await page.evaluate(function () { return document.getElementById('dwm-punch-in-btn').disabled; });
+  assertTrue(inDisabled, 'Punch In stays disabled with zero DWM activities planned', failures);
+
+  // 2. Plan one activity directly via the store (equivalent to filling the modal) and re-render.
+  await page.evaluate(function (empId) {
+    window.RevOpsStore.addItem('dwmActivities', {
+      employeeId: empId, employeeName: 'Punch Test Employee', date: getFormattedToday(),
+      activityDescription: 'Site visit', category: 'Standard KRA Activity', isSpecialAssignment: false,
+      hoursSpent: 2, linkedKraId: 'kra_test', linkedKra: 'Test KRA', linkedAopLine: 'Test',
+      planStatus: 'Planned', accomplishmentStatus: 'Pending', accomplishmentRemarks: '',
+      plannedAt: new Date().toISOString(), accomplishedAt: null
+    });
+    renderDwmData(empId);
+  }, testEmpId);
+  await page.waitForTimeout(300);
+
+  inDisabled = await page.evaluate(function () { return document.getElementById('dwm-punch-in-btn').disabled; });
+  assertTrue(!inDisabled, 'Punch In becomes enabled once 1+ activities are planned', failures);
+
+  // 3. Confirm the plan is done -> this click IS the Punch In moment.
+  await page.evaluate(function () { confirmPunchIn(); });
+  await page.waitForTimeout(500);
+
+  const afterPunchIn = await page.evaluate(function (empId) {
+    var att = (window.RevOpsStore.getCollection('attendance') || []).find(function (a) { return a.employeeId === empId; });
+    return {
+      status: att && att.status,
+      hasLocation: !!(att && att.punchInLocation && att.punchInLocation.latitude === 12.9716),
+      inBtnDisabled: document.getElementById('dwm-punch-in-btn').disabled,
+      outBtnDisabled: document.getElementById('dwm-punch-out-btn').disabled
+    };
+  }, testEmpId);
+  assertEqual(afterPunchIn.status, 'Punched In', 'Confirming the plan on DWM creates a "Punched In" attendance record', failures);
+  assertTrue(afterPunchIn.hasLocation, 'Punch In attendance record carries the captured GPS location', failures);
+  assertTrue(afterPunchIn.inBtnDisabled, 'Punch In button disables itself once already punched in today', failures);
+  assertTrue(afterPunchIn.outBtnDisabled, 'Punch Out stays disabled while the planned activity is still Pending', failures);
+
+  // 4. Update the one planned activity's accomplishment to Done -> Punch Out unlocks.
+  await page.evaluate(function (empId) {
+    var act = (window.RevOpsStore.getCollection('dwmActivities') || []).find(function (a) { return a.employeeId === empId; });
+    window.RevOpsStore.updateItem('dwmActivities', act.id, { accomplishmentStatus: 'Done', accomplishmentRemarks: 'Done on site' });
+    renderDwmData(empId);
+  }, testEmpId);
+  await page.waitForTimeout(300);
+
+  const outDisabledAfterUpdate = await page.evaluate(function () { return document.getElementById('dwm-punch-out-btn').disabled; });
+  assertTrue(!outDisabledAfterUpdate, 'Punch Out becomes enabled once every planned activity is updated off Pending', failures);
+
+  // 5. Confirm accomplishments are done -> this click IS the Punch Out moment.
+  await page.evaluate(function () { confirmPunchOut(); });
+  await page.waitForTimeout(500);
+
+  const afterPunchOut = await page.evaluate(function (empId) {
+    var att = (window.RevOpsStore.getCollection('attendance') || []).find(function (a) { return a.employeeId === empId; });
+    return {
+      status: att && att.status,
+      hasOutLocation: !!(att && att.punchOutLocation && att.punchOutLocation.latitude === 12.9716),
+      dwmAccomplishedCount: att && att.dwmAccomplishedCount,
+      hasWorkedHours: typeof (att && att.workedHours) === 'number'
+    };
+  }, testEmpId);
+  assertEqual(afterPunchOut.status, 'Completed', 'Confirming accomplishments on DWM completes the attendance record (Punch Out)', failures);
+  assertTrue(afterPunchOut.hasOutLocation, 'Punch Out attendance record carries the captured GPS location', failures);
+  assertEqual(afterPunchOut.dwmAccomplishedCount, 1, 'Punch Out snapshots the accomplished DWM activity count', failures);
+  assertTrue(afterPunchOut.hasWorkedHours, 'Punch Out computes workedHours from the punch-in to punch-out span', failures);
+
+  // 6. Attendance page (same browser context -> same localStorage) now only
+  // links to DWM and reflects the Completed state - it performs no GPS
+  // capture or attendance write of its own any more.
+  await page.goto(BASE_URL + '/attendance.html', { waitUntil: 'networkidle', timeout: 30000 });
+  await page.waitForTimeout(600);
+
+  const attUi = await page.evaluate(function () {
+    return {
+      hasPunchInBtn: !!document.getElementById('punch-in-btn'),
+      hasPunchOutBtn: !!document.getElementById('punch-out-btn'),
+      inLinkHidden: document.getElementById('punch-in-link').classList.contains('hidden'),
+      inDoneText: document.getElementById('punch-in-done-box').innerText,
+      outDoneText: document.getElementById('punch-out-done-box').innerText,
+      statusText: document.getElementById('current-attendance-status-text').innerText
+    };
+  });
+  assertTrue(!attUi.hasPunchInBtn, 'attendance.html no longer has its own GPS-capturing Punch In button', failures);
+  assertTrue(!attUi.hasPunchOutBtn, 'attendance.html no longer has its own GPS-capturing Punch Out button', failures);
+  assertTrue(attUi.inLinkHidden, 'Punch In link is hidden once already punched in/out today', failures);
+  assertTrue(attUi.inDoneText.indexOf('Punched In') !== -1, 'Attendance page shows the Punch In confirmation recorded from DWM', failures);
+  assertTrue(attUi.outDoneText.indexOf('Completed') !== -1, 'Attendance page shows the Punch Out confirmation recorded from DWM', failures);
+  assertTrue(attUi.statusText.indexOf('Completed') !== -1, 'Attendance page status banner reflects Completed', failures);
+
+  await page.close();
+  return failures;
+}
+
 const TESTS = [
   ['SLA day-based seeding, migration, severity dropdown & date math', testSlaDayBasedSeedingAndMigration],
   ['Ticket email subject line', testQuotationVerticalAndTicketSubject],
@@ -2283,7 +2418,8 @@ const TESTS = [
   ['Bulk-upload template: live dropdown-values legend, comment-line skipping, never on real exports', testCsvTemplateDropdownLegend],
   ['Data Center: 12 real per-collection templates, dropdown legends, shared RFC 4180 parser', testDataCenterTemplatesAndParser],
   ['DWM productivity % matches dropdown labels; Scorecard DWM compliance never fakes 100%', testDwmProductivityAndComplianceFixes],
-  ['Every root .html page is registered in vite.config.ts (prevents a page silently never being deployed)', testEveryHtmlPageRegisteredInViteBuild]
+  ['Every root .html page is registered in vite.config.ts (prevents a page silently never being deployed)', testEveryHtmlPageRegisteredInViteBuild],
+  ['Attendance/DWM punch flow: Punch In on confirming the plan, Punch Out on confirming accomplishments', testDwmPunchInOutFlow]
 ];
 
 (async () => {

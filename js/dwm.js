@@ -214,6 +214,145 @@ var dwmViewingEmpId = null;
 
         // 4. Render 7-Day History Strip
         renderHistoryStrip(empId, dwmActivities);
+
+        // 5. Render Punch In / Punch Out Confirmation Rows (Self Only)
+        renderPunchControls(empId, dwmActivities);
+      }
+
+      // Punch In/Out now happen from here, not from the Attendance page —
+      // the Attendance page just links in. Confirming the plan (Section A)
+      // records Punch In; confirming accomplishments (Section B) records
+      // Punch Out. Always computed against TODAY's real date, independent
+      // of whatever historical period the "Period" dropdown is showing.
+      function renderPunchControls(empId, dwmActivities) {
+        var inRow = document.getElementById('dwm-punch-in-row');
+        var outRow = document.getElementById('dwm-punch-out-row');
+        if (!inRow || !outRow) return;
+
+        if (!isOwnDwm) {
+          inRow.classList.add('hidden');
+          outRow.classList.add('hidden');
+          return;
+        }
+        inRow.classList.remove('hidden');
+        outRow.classList.remove('hidden');
+
+        var today = getFormattedToday();
+        var attendance = window.RevOpsStore.getCollection('attendance') || [];
+        var todayAtt = attendance.find(function(a) { return a.employeeId === empId && a.date === today; });
+        var todayDwm = dwmActivities.filter(function(a) { return a.employeeId === empId && a.date === today; });
+        var pendingCount = todayDwm.filter(function(a) { return !a.accomplishmentStatus || a.accomplishmentStatus === 'Pending'; }).length;
+
+        var inBtn = document.getElementById('dwm-punch-in-btn');
+        var outBtn = document.getElementById('dwm-punch-out-btn');
+        var inText = document.getElementById('dwm-punch-in-status-text');
+        var outText = document.getElementById('dwm-punch-out-status-text');
+
+        if (!todayAtt) {
+          if (todayDwm.length === 0) {
+            inBtn.disabled = true;
+            inText.innerText = "Plan at least 1 activity above, then confirm to Punch In.";
+          } else {
+            inBtn.disabled = false;
+            inText.innerText = "✅ Plan ready (" + todayDwm.length + " activities). Confirm below to Punch In.";
+          }
+          outBtn.disabled = true;
+          outText.innerText = "Punch In first, then update every activity above before Punch Out.";
+        } else if (todayAtt.status === 'Punched In') {
+          inBtn.disabled = true;
+          var inTimeStr = todayAtt.punchInTime ? new Date(todayAtt.punchInTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'Today';
+          inText.innerText = "✅ Punched In at " + inTimeStr + ".";
+
+          if (pendingCount > 0) {
+            outBtn.disabled = true;
+            outText.innerText = "Update accomplishment for all today's activities first (" + pendingCount + " of " + todayDwm.length + " still pending).";
+          } else {
+            outBtn.disabled = false;
+            outText.innerText = "✅ All activities updated. Confirm below to Punch Out.";
+          }
+        } else if (todayAtt.status === 'Completed') {
+          inBtn.disabled = true;
+          var inTimeStr2 = todayAtt.punchInTime ? new Date(todayAtt.punchInTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'Today';
+          inText.innerText = "✅ Punched In at " + inTimeStr2 + ".";
+
+          outBtn.disabled = true;
+          outText.innerText = "✅ Punched Out — " + (todayAtt.workedHours || 8.0) + " hours worked today.";
+        }
+      }
+
+      function confirmPunchIn() {
+        var myEmpId = localStorage.getItem('employeeId');
+        var myName = localStorage.getItem('userName');
+        var btn = document.getElementById('dwm-punch-in-btn');
+        var originalHtml = btn ? btn.innerHTML : "";
+
+        if (btn) {
+          btn.disabled = true;
+          btn.innerHTML = `
+            <svg class="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+            <span>Capturing Live GPS & Punching In...</span>
+          `;
+        }
+
+        window.RevOpsStore.captureLiveGpsLocation(function(locationObj, errorMsg) {
+          if (!locationObj) {
+            if (btn) { btn.disabled = false; btn.innerHTML = originalHtml; }
+            alert("⚠️ PUNCH IN CANNOT BE RECORDED!\n\nReason: GPS location is inactive or permission was denied.\n\nRule: Employees MUST have active GPS location to punch in.");
+            return;
+          }
+
+          var result = window.RevOpsStore.recordPunchIn(myEmpId, myName, locationObj);
+          if (!result.success) {
+            if (btn) { btn.disabled = false; btn.innerHTML = originalHtml; }
+            if (result.reason === 'already-punched-in') {
+              alert("You have already punched in today.");
+            } else {
+              alert("Please plan at least 1 DWM activity before punching in.");
+            }
+            renderDwmData(dwmViewingEmpId);
+            return;
+          }
+
+          alert("✅ Punched In Successfully!\n\nTimestamp: " + new Date(result.record.punchInTime).toLocaleTimeString() + "\nLive GPS Location: " + locationObj.formattedLocation);
+          renderDwmData(dwmViewingEmpId);
+        });
+      }
+
+      function confirmPunchOut() {
+        var myEmpId = localStorage.getItem('employeeId');
+        var btn = document.getElementById('dwm-punch-out-btn');
+        var originalHtml = btn ? btn.innerHTML : "";
+
+        if (btn) {
+          btn.disabled = true;
+          btn.innerHTML = `
+            <svg class="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+            <span>Capturing Live GPS & Punching Out...</span>
+          `;
+        }
+
+        window.RevOpsStore.captureLiveGpsLocation(function(locationObj, errorMsg) {
+          if (!locationObj) {
+            if (btn) { btn.disabled = false; btn.innerHTML = originalHtml; }
+            alert("⚠️ PUNCH OUT CANNOT BE RECORDED!\n\nReason: GPS location is inactive or permission was denied.\n\nRule: Employees MUST have active GPS location to punch out.");
+            return;
+          }
+
+          var result = window.RevOpsStore.recordPunchOut(myEmpId, locationObj);
+          if (!result.success) {
+            if (btn) { btn.disabled = false; btn.innerHTML = originalHtml; }
+            if (result.reason === 'not-punched-in') {
+              alert("You need to Punch In first before you can Punch Out.");
+            } else if (result.reason === 'pending-dwm') {
+              alert("Please update accomplishment status for all today's DWM activities first (" + result.pendingCount + " of " + result.total + " still pending).");
+            }
+            renderDwmData(dwmViewingEmpId);
+            return;
+          }
+
+          alert("✅ Punched Out Successfully!\n\nTimestamp: " + result.punchOutTime.toLocaleTimeString() + "\nDuration: " + result.workedHours + " hours\nLive GPS Location: " + locationObj.formattedLocation);
+          renderDwmData(dwmViewingEmpId);
+        });
       }
 
       function renderHistoryStrip(empId, dwmActivities) {

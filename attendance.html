@@ -84,22 +84,17 @@
                 <svg class="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"/></svg>
                 <span>Morning Punch In</span>
               </div>
-              <p class="text-xs text-emerald-700">Requires at least 1 planned DWM activity + Active GPS Location.</p>
+              <p class="text-xs text-emerald-700">Punch In is recorded automatically the moment you confirm today's DWM plan is ready, on the DWM page.</p>
             </div>
 
-            <div id="punch-in-warning-box" class="hidden p-3 bg-amber-50 rounded-xl border border-amber-200 text-xs text-amber-800 space-y-2">
-              <div class="flex items-center space-x-1 font-semibold">
-                <span>⚠️ Please plan today's DWM activities first.</span>
-              </div>
-              <a href="dwm.html" class="inline-block px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white font-bold text-[11px] rounded-lg transition-colors">
-                Go to DWM Plan &rarr;
-              </a>
+            <div id="punch-in-done-box" class="hidden p-3 bg-emerald-100 rounded-xl border border-emerald-300 text-xs text-emerald-900 font-bold text-center">
+              <!-- Populated dynamically: "✅ Punched In at HH:MM" -->
             </div>
 
-            <button id="punch-in-btn" onclick="executePunchIn()" class="w-full py-4 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-200 disabled:text-slate-400 text-white font-bold text-sm rounded-xl shadow-md transition-all flex items-center justify-center space-x-2 cursor-pointer">
-              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-              <span>Punch In Now (GPS Required)</span>
-            </button>
+            <a id="punch-in-link" href="dwm.html#dwm-section-a" class="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm rounded-xl shadow-md transition-all flex items-center justify-center space-x-2 cursor-pointer">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+              <span>Go to DWM Plan to Punch In</span>
+            </a>
           </div>
 
           <!-- Punch Out Column -->
@@ -109,22 +104,21 @@
                 <svg class="w-5 h-5 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
                 <span>Evening Punch Out</span>
               </div>
-              <p class="text-xs text-rose-700">Requires all today's DWM activities updated + Active GPS Location.</p>
+              <p class="text-xs text-rose-700">Punch Out is recorded automatically the moment you confirm every DWM activity's accomplishment, on the DWM page.</p>
             </div>
 
-            <div id="punch-out-warning-box" class="hidden p-3 bg-amber-50 rounded-xl border border-amber-200 text-xs text-amber-800 space-y-2">
-              <div class="flex items-center space-x-1 font-semibold" id="pending-dwm-msg">
-                <span>⚠️ Please update accomplishment for all today's DWM activities first.</span>
-              </div>
-              <a href="dwm.html" class="inline-block px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white font-bold text-[11px] rounded-lg transition-colors">
-                Go to DWM Accomplishment &rarr;
-              </a>
+            <div id="punch-out-blocked-box" class="hidden p-3 bg-slate-100 rounded-xl border border-slate-200 text-xs text-slate-600 font-semibold text-center">
+              Punch In first to unlock Punch Out.
             </div>
 
-            <button id="punch-out-btn" onclick="executePunchOut()" class="w-full py-4 bg-rose-600 hover:bg-rose-700 disabled:bg-slate-200 disabled:text-slate-400 text-white font-bold text-sm rounded-xl shadow-md transition-all flex items-center justify-center space-x-2 cursor-pointer">
-              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-              <span>Punch Out Now (GPS Required)</span>
-            </button>
+            <div id="punch-out-done-box" class="hidden p-3 bg-blue-100 rounded-xl border border-blue-300 text-xs text-blue-900 font-bold text-center">
+              <!-- Populated dynamically: "✅ Completed — X hours worked" -->
+            </div>
+
+            <a id="punch-out-link" href="dwm.html#dwm-section-b" class="hidden w-full py-4 bg-rose-600 hover:bg-rose-700 text-white font-bold text-sm rounded-xl shadow-md transition-all flex items-center justify-center space-x-2 cursor-pointer">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+              <span>Go to DWM Accomplishment to Punch Out</span>
+            </a>
           </div>
 
         </div>

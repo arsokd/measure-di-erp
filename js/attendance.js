@@ -69,51 +69,53 @@ var viewingAttEmpId = null;
 
         // Render Status Banner
         var statusText = document.getElementById('current-attendance-status-text');
-        var inBtn = document.getElementById('punch-in-btn');
-        var outBtn = document.getElementById('punch-out-btn');
-        var inWarnBox = document.getElementById('punch-in-warning-box');
-        var outWarnBox = document.getElementById('punch-out-warning-box');
+        var inLink = document.getElementById('punch-in-link');
+        var inDoneBox = document.getElementById('punch-in-done-box');
+        var outLink = document.getElementById('punch-out-link');
+        var outBlockedBox = document.getElementById('punch-out-blocked-box');
+        var outDoneBox = document.getElementById('punch-out-done-box');
 
-        inWarnBox.classList.add('hidden');
-        outWarnBox.classList.add('hidden');
+        inDoneBox.classList.add('hidden');
+        outLink.classList.add('hidden');
+        outBlockedBox.classList.add('hidden');
+        outDoneBox.classList.add('hidden');
+        inLink.classList.remove('hidden');
 
         if (!todayAtt) {
           statusText.innerText = "Status: Not Punched In Today";
           statusText.className = "text-sm font-bold text-amber-600 mt-1";
 
-          // Punch In Check
-          if (todayDwm.length === 0) {
-            inBtn.disabled = true;
-            inWarnBox.classList.remove('hidden');
-          } else {
-            inBtn.disabled = false;
-          }
-
-          // Punch Out Disabled
-          outBtn.disabled = true;
+          // Punch In happens on the DWM page now; Punch Out stays blocked until then.
+          outBlockedBox.classList.remove('hidden');
 
         } else if (todayAtt.status === 'Punched In') {
           var timeStr = todayAtt.punchInTime ? new Date(todayAtt.punchInTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'Today';
           statusText.innerText = "Status: Punched In at " + timeStr;
           statusText.className = "text-sm font-bold text-emerald-600 mt-1";
 
-          inBtn.disabled = true; // Already punched in
+          inLink.classList.add('hidden');
+          inDoneBox.classList.remove('hidden');
+          inDoneBox.innerText = "✅ Punched In at " + timeStr;
 
-          // Punch Out Check
+          // Punch Out happens on the DWM page once accomplishments are updated.
+          outLink.classList.remove('hidden');
           if (pendingDwmCount > 0) {
-            outBtn.disabled = true;
-            outWarnBox.classList.remove('hidden');
-            document.getElementById('pending-dwm-msg').innerText = "⚠️ Please update accomplishment for all today's DWM activities first (" + pendingDwmCount + " of " + todayDwm.length + " still pending).";
+            outLink.querySelector('span').innerText = "Go to DWM Accomplishment to Punch Out (" + pendingDwmCount + " of " + todayDwm.length + " pending)";
           } else {
-            outBtn.disabled = false;
+            outLink.querySelector('span').innerText = "Go to DWM Accomplishment to Punch Out";
           }
 
         } else if (todayAtt.status === 'Completed') {
           statusText.innerText = "Status: Completed — " + (todayAtt.workedHours || 8.0) + " hours worked";
           statusText.className = "text-sm font-bold text-blue-600 mt-1";
 
-          inBtn.disabled = true;
-          outBtn.disabled = true;
+          var inTimeStr = todayAtt.punchInTime ? new Date(todayAtt.punchInTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'Today';
+          inLink.classList.add('hidden');
+          inDoneBox.classList.remove('hidden');
+          inDoneBox.innerText = "✅ Punched In at " + inTimeStr;
+
+          outDoneBox.classList.remove('hidden');
+          outDoneBox.innerText = "✅ Completed — " + (todayAtt.workedHours || 8.0) + " hours worked";
         }
 
         // Render History Table
@@ -200,194 +202,18 @@ var viewingAttEmpId = null;
         });
       }
 
-      function captureLiveGpsLocation(callback) {
-        var errAlert = document.getElementById('gps-error-alert');
-        var errMsg = document.getElementById('gps-error-message');
-        if (errAlert) errAlert.classList.add('hidden');
-
-        if (!navigator.geolocation) {
-          if (errAlert && errMsg) {
-            errAlert.classList.remove('hidden');
-            errMsg.innerText = "Geolocation / GPS is not supported by your device or browser. Attendance cannot be marked without location verification.";
-          }
-          callback(null, "Geolocation unsupported");
-          return;
-        }
-
-        var options = {
-          enableHighAccuracy: true,
-          timeout: 12000,
-          maximumAge: 0
-        };
-
-        navigator.geolocation.getCurrentPosition(
-          function(position) {
-            var lat = position.coords.latitude;
-            var lng = position.coords.longitude;
-            var acc = Math.round(position.coords.accuracy || 0);
-            var isoTime = new Date().toISOString();
-
-            var locationObj = {
-              latitude: lat,
-              longitude: lng,
-              accuracy: acc,
-              timestamp: isoTime,
-              formattedLocation: "Lat: " + lat.toFixed(5) + ", Lng: " + lng.toFixed(5) + " (±" + acc + "m)",
-              googleMapsUrl: "https://www.google.com/maps?q=" + lat + "," + lng
-            };
-
-            if (errAlert) errAlert.classList.add('hidden');
-            callback(locationObj, null);
-          },
-          function(error) {
-            var txt = "";
-            switch(error.code) {
-              case error.PERMISSION_DENIED:
-                txt = "Location access permission was denied by user/browser. Attendance CANNOT be marked when GPS is denied. Please allow location access in browser/device settings.";
-                break;
-              case error.POSITION_UNAVAILABLE:
-                txt = "GPS / Location Services are turned off or inactive on your device. Attendance CANNOT be marked. Please turn ON GPS on your mobile/computer and try again.";
-                break;
-              case error.TIMEOUT:
-                txt = "GPS request timed out. Please ensure high accuracy location services are turned ON and retry.";
-                break;
-              default:
-                txt = "Could not detect live GPS location (" + (error.message || 'GPS inactive') + "). Attendance cannot be marked without location verification.";
-                break;
-            }
-            if (errAlert && errMsg) {
-              errAlert.classList.remove('hidden');
-              errMsg.innerText = txt;
-            }
-            callback(null, txt);
-          },
-          options
-        );
-      }
-
+      // Live GPS capture + the actual Punch In/Out recording now live in
+      // RevOpsStore (js/store.js) so the DWM page can call them too — Punch
+      // In/Out happen there now, triggered by confirming the plan/
+      // accomplishments are done. This page only shows status and links
+      // over to DWM; "Test GPS Readiness" still runs a real capture here
+      // so staff can troubleshoot GPS before making the trip to DWM.
       function retryGpsCheck() {
-        captureLiveGpsLocation(function(loc, err) {
+        window.RevOpsStore.captureLiveGpsLocation(function(loc, err) {
           if (loc) {
             alert("✅ Live GPS Verified Successfully!\n\nCaptured Coordinates:\n" + loc.formattedLocation + "\n\nYou are ready to Punch In or Punch Out!");
           } else {
             alert("❌ Live GPS Check Failed!\n\nReason: " + (err || "GPS inactive") + "\n\nPlease switch ON device location/GPS and allow browser permissions.");
           }
-        });
-      }
-
-      function executePunchIn() {
-        var inBtn = document.getElementById('punch-in-btn');
-        var originalBtnContent = inBtn ? inBtn.innerHTML : "";
-        if (inBtn) {
-          inBtn.disabled = true;
-          inBtn.innerHTML = `
-            <svg class="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-            <span>Capturing Live GPS & Punching In...</span>
-          `;
-        }
-
-        captureLiveGpsLocation(function(locationObj, errorMsg) {
-          if (!locationObj) {
-            if (inBtn) {
-              inBtn.disabled = false;
-              inBtn.innerHTML = originalBtnContent;
-            }
-            alert("⚠️ ATTENDANCE CANNOT BE MARKED!\n\nReason: GPS location is inactive or permission was denied.\n\nRule: Employees MUST have active GPS location to punch in.");
-            return;
-          }
-
-          var myEmpId = localStorage.getItem('employeeId');
-          var myName = localStorage.getItem('userName');
-          var today = getFormattedToday();
-
-          var dwmActivities = window.RevOpsStore.getCollection('dwmActivities') || [];
-          var todayDwm = dwmActivities.filter(function(a) {
-            return a.employeeId === myEmpId && a.date === today;
-          });
-
-          var nowIso = new Date().toISOString();
-
-          var newAtt = {
-            employeeId: myEmpId,
-            employeeName: myName,
-            date: today,
-            punchInTime: nowIso,
-            punchInLocation: locationObj,
-            punchOutTime: null,
-            punchOutLocation: null,
-            workedHours: null,
-            dwmPlanCount: todayDwm.length,
-            dwmAccomplishedCount: 0,
-            status: 'Punched In'
-          };
-
-          window.RevOpsStore.addItem('attendance', newAtt);
-          alert("✅ Punched In Successfully!\n\nTimestamp: " + new Date(nowIso).toLocaleTimeString() + "\nLive GPS Location: " + locationObj.formattedLocation);
-          renderAttendanceUI(myEmpId);
-        });
-      }
-
-      function executePunchOut() {
-        var outBtn = document.getElementById('punch-out-btn');
-        var originalBtnContent = outBtn ? outBtn.innerHTML : "";
-        if (outBtn) {
-          outBtn.disabled = true;
-          outBtn.innerHTML = `
-            <svg class="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-            <span>Capturing Live GPS & Punching Out...</span>
-          `;
-        }
-
-        captureLiveGpsLocation(function(locationObj, errorMsg) {
-          if (!locationObj) {
-            if (outBtn) {
-              outBtn.disabled = false;
-              outBtn.innerHTML = originalBtnContent;
-            }
-            alert("⚠️ ATTENDANCE CANNOT BE MARKED!\n\nReason: GPS location is inactive or permission was denied.\n\nRule: Employees MUST have active GPS location to punch out.");
-            return;
-          }
-
-          var myEmpId = localStorage.getItem('employeeId');
-          var today = getFormattedToday();
-
-          var attendance = window.RevOpsStore.getCollection('attendance') || [];
-          var todayAtt = attendance.find(function(a) {
-            return a.employeeId === myEmpId && a.date === today;
-          });
-
-          if (!todayAtt) {
-            if (outBtn) {
-              outBtn.disabled = false;
-              outBtn.innerHTML = originalBtnContent;
-            }
-            return;
-          }
-
-          var dwmActivities = window.RevOpsStore.getCollection('dwmActivities') || [];
-          var todayDwm = dwmActivities.filter(function(a) {
-            return a.employeeId === myEmpId && a.date === today;
-          });
-
-          var accomplishedCount = todayDwm.filter(function(a) {
-            return a.accomplishmentStatus && a.accomplishmentStatus !== 'Pending';
-          }).length;
-
-          var punchInTime = new Date(todayAtt.punchInTime);
-          var punchOutTime = new Date();
-          var diffMs = punchOutTime - punchInTime;
-          var computedHours = Math.round((diffMs / (1000 * 60 * 60)) * 10) / 10;
-          if (computedHours <= 0) computedHours = 8.0;
-
-          window.RevOpsStore.updateItem('attendance', todayAtt.id, {
-            punchOutTime: punchOutTime.toISOString(),
-            punchOutLocation: locationObj,
-            workedHours: computedHours,
-            dwmAccomplishedCount: accomplishedCount,
-            status: 'Completed'
-          });
-
-          alert("✅ Punched Out Successfully!\n\nTimestamp: " + punchOutTime.toLocaleTimeString() + "\nDuration: " + computedHours + " hours\nLive GPS Location: " + locationObj.formattedLocation);
-          renderAttendanceUI(myEmpId);
         });
       }
