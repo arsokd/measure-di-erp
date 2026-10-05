@@ -13,9 +13,12 @@
  */
 import { chromium } from 'playwright';
 import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
 const BASE_URL = process.argv[2] || 'http://localhost:8099';
 const PW_EXECUTABLE = process.env.PLAYWRIGHT_CHROMIUM_PATH || undefined;
+const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 function assertEqual(actual, expected, label, failures) {
   const a = JSON.stringify(actual);
@@ -2218,6 +2221,41 @@ async function testDwmProductivityAndComplianceFixes(browser) {
   return failures;
 }
 
+// ---------------------------------------------------------------------
+// Launch-day incident: change-password.html, support-tickets.html, and
+// demo-playbook.html were all created as real pages but never added to
+// vite.config.ts's rollupOptions.input - the explicit, hand-maintained
+// list of every page this Vite multi-page build actually outputs to
+// dist/. A page missing from that list is simply never built, so in
+// production Netlify finds no matching static file and silently falls
+// through to the catch-all "/* -> /index.html" redirect (status 200 -
+// not a 404, so nothing looks wrong in the Network tab) - the page just
+// spins on index.html's "Authenticating workspace..." loader forever.
+// This happened in production: a real user could not complete a forced
+// password change because change-password.html had never actually been
+// deployed. This test makes that specific failure mode impossible to
+// reintroduce silently - no browser needed, it's a static check that
+// every root .html file has a matching entry in vite.config.ts.
+// ---------------------------------------------------------------------
+async function testEveryHtmlPageRegisteredInViteBuild(browser) {
+  const failures = [];
+
+  const rootHtmlFiles = fs.readdirSync(REPO_ROOT)
+    .filter(function (f) { return f.endsWith('.html'); })
+    .sort();
+
+  const viteConfigText = fs.readFileSync(path.join(REPO_ROOT, 'vite.config.ts'), 'utf8');
+  const registered = new Set(
+    Array.from(viteConfigText.matchAll(/path\.resolve\(__dirname,\s*'([^']+\.html)'\)/g))
+      .map(function (m) { return m[1]; })
+  );
+
+  const missing = rootHtmlFiles.filter(function (f) { return !registered.has(f); });
+  assertEqual(missing, [], 'Every root .html page has a matching entry in vite.config.ts rollupOptions.input (a missing one silently never gets built or deployed)', failures);
+
+  return failures;
+}
+
 const TESTS = [
   ['SLA day-based seeding, migration, severity dropdown & date math', testSlaDayBasedSeedingAndMigration],
   ['Ticket email subject line', testQuotationVerticalAndTicketSubject],
@@ -2244,7 +2282,8 @@ const TESTS = [
   ['Lead auto-sync: Quotation send -> Quoted, Order booked -> Order Received, Invoice raised -> Won', testLeadAutoSyncFromDocuments],
   ['Bulk-upload template: live dropdown-values legend, comment-line skipping, never on real exports', testCsvTemplateDropdownLegend],
   ['Data Center: 12 real per-collection templates, dropdown legends, shared RFC 4180 parser', testDataCenterTemplatesAndParser],
-  ['DWM productivity % matches dropdown labels; Scorecard DWM compliance never fakes 100%', testDwmProductivityAndComplianceFixes]
+  ['DWM productivity % matches dropdown labels; Scorecard DWM compliance never fakes 100%', testDwmProductivityAndComplianceFixes],
+  ['Every root .html page is registered in vite.config.ts (prevents a page silently never being deployed)', testEveryHtmlPageRegisteredInViteBuild]
 ];
 
 (async () => {
