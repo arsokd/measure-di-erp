@@ -195,7 +195,7 @@ var dwmViewingEmpId = null;
                 <span class="px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-semibold text-[10px]">${escapeHtml(act.linkedKra || 'Special Assignment')}</span>
               </td>
               <td class="py-3 px-4">
-                <select ${disabledAttr} onchange="updateActivityAccomplishment('${escapeHtml(act.id)}', this.value, 'acc-remarks-${escapeHtml(act.id)}')" class="w-full px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                <select ${disabledAttr} data-no-search="true" onchange="updateActivityAccomplishment('${escapeHtml(act.id)}', this.value, 'acc-remarks-${escapeHtml(act.id)}')" class="w-full px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500">
                   <option value="Pending" ${act.accomplishmentStatus === 'Pending' ? 'selected' : ''}>Pending</option>
                   <option value="Done" ${act.accomplishmentStatus === 'Done' ? 'selected' : ''}>Done (100%)</option>
                   <option value="Partial" ${act.accomplishmentStatus === 'Partial' ? 'selected' : ''}>Partial (70%)</option>
