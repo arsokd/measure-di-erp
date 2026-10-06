@@ -210,7 +210,7 @@ var dwmViewingEmpId = null;
 
         var updatedCount = 0;
         if (todayActivities.length === 0) {
-          secBTbody.innerHTML = `<tr><td colspan="5" class="py-6 text-center text-slate-400">No activities to update. Section A will fill in automatically once you have KRAs assigned, or log a Special Assignment above.</td></tr>`;
+          secBTbody.innerHTML = `<tr><td colspan="6" class="py-6 text-center text-slate-400">No activities to update. Section A will fill in automatically once you have KRAs assigned, or log a Special Assignment above.</td></tr>`;
         } else {
           todayActivities.forEach(function(act) {
             if (act.accomplishmentStatus && act.accomplishmentStatus !== 'Pending') {
@@ -243,8 +243,12 @@ var dwmViewingEmpId = null;
             `;
 
             var remarksRequired = act.planChangedByManager && !act.accomplishmentRemarks;
+            var isDone = act.accomplishmentStatus === 'Done';
 
             tr.innerHTML = `
+              <td class="py-3 px-4 text-center">
+                <input ${disabledAttr} type="checkbox" id="acc-done-${escapeHtml(act.id)}" ${isDone ? 'checked' : ''} onchange="toggleActivityDoneQuick('${escapeHtml(act.id)}', this.checked)" title="Tick once this activity is fully done" class="w-4 h-4 accent-emerald-600 cursor-pointer disabled:cursor-not-allowed" />
+              </td>
               <td class="py-3 px-4 font-semibold text-slate-900">
                 <div class="flex items-center">
                   <span>${escapeHtml(act.activityDescription)}</span>
@@ -695,6 +699,21 @@ var dwmViewingEmpId = null;
           userEditedTime: true
         });
         window.RevOpsStore.recomputeRegularDwmHoursForDay(act.employeeId, act.date);
+        renderDwmData(dwmViewingEmpId);
+      }
+
+      // Quick "Done" tick in Section B - a one-click shortcut equivalent to
+      // opening the Accomplishment Status dropdown and picking "Done
+      // (100%)", for the common case where an activity simply happened as
+      // planned. Doesn't touch remarks or the plan-changed flag. Unticking
+      // only makes sense once it was ticked Done, so it reverts to Pending
+      // rather than guessing Partial/Not Done - the dropdown still covers
+      // those two directly.
+      function toggleActivityDoneQuick(actId, isChecked) {
+        var updates = isChecked
+          ? { accomplishmentStatus: 'Done', accomplishmentPercent: null, accomplishedAt: new Date().toISOString() }
+          : { accomplishmentStatus: 'Pending', accomplishedAt: new Date().toISOString() };
+        window.RevOpsStore.updateItem('dwmActivities', actId, updates);
         renderDwmData(dwmViewingEmpId);
       }
 

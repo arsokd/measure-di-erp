@@ -3205,6 +3205,37 @@ async function testDwmTickTimePercentAndPlanChanged(browser) {
   assertTrue(planChangedResult.flagSaved, 'The "Plan changed per Reporting Manager" checkbox saves planChangedByManager', failures);
   assertTrue(planChangedResult.pillText.indexOf('Plan Changed') !== -1, 'A plan-changed activity shows a "Plan Changed" indicator in Section B', failures);
 
+  // 9. The quick "Done" tick in Section B is a one-click shortcut for the
+  // common case - no need to open the dropdown - and doesn't disturb any
+  // remarks or the plan-changed flag already saved on that row. Unticking
+  // it reverts to Pending.
+  const quickTickResult = await page.evaluate(function (actId) {
+    var remarksEl = document.getElementById('acc-remarks-' + actId);
+    remarksEl.value = 'Site visit completed on time';
+    remarksEl.dispatchEvent(new Event('blur', { bubbles: true }));
+
+    var doneCheckbox = document.getElementById('acc-done-' + actId);
+    doneCheckbox.checked = true;
+    doneCheckbox.dispatchEvent(new Event('change', { bubbles: true }));
+    var afterCheck = (window.RevOpsStore.getCollection('dwmActivities') || []).find(function (a) { return a.id === actId; });
+
+    var refreshedCheckbox = document.getElementById('acc-done-' + actId);
+    refreshedCheckbox.checked = false;
+    refreshedCheckbox.dispatchEvent(new Event('change', { bubbles: true }));
+    var afterUncheck = (window.RevOpsStore.getCollection('dwmActivities') || []).find(function (a) { return a.id === actId; });
+
+    return {
+      statusAfterCheck: afterCheck.accomplishmentStatus,
+      remarksKeptAfterCheck: afterCheck.accomplishmentRemarks,
+      planChangedKeptAfterCheck: afterCheck.planChangedByManager,
+      statusAfterUncheck: afterUncheck.accomplishmentStatus
+    };
+  }, beforePartial.id);
+  assertEqual(quickTickResult.statusAfterCheck, 'Done', 'Ticking the quick "Done" checkbox in Section B sets the status to Done without opening the dropdown', failures);
+  assertEqual(quickTickResult.remarksKeptAfterCheck, 'Site visit completed on time', 'The quick Done tick does not wipe out remarks already saved on the row', failures);
+  assertTrue(quickTickResult.planChangedKeptAfterCheck === true, 'The quick Done tick does not clear the "Plan changed" flag already saved on the row', failures);
+  assertEqual(quickTickResult.statusAfterUncheck, 'Pending', 'Unticking the quick Done checkbox reverts the status to Pending', failures);
+
   await page.close();
   return failures;
 }
