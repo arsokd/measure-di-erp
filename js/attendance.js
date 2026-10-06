@@ -58,9 +58,12 @@ var viewingAttEmpId = null;
           return a.employeeId === empId && a.date === today;
         });
 
-        // Check Today's DWM Activities for this employee
+        // Check Today's DWM Activities for this employee - only the ones
+        // actually ticked into today's plan (an unticked KRA point is
+        // never part of it and never gets updated, so including it here
+        // would permanently inflate the pending count).
         var todayDwm = dwmActivities.filter(function(a) {
-          return a.employeeId === empId && a.date === today;
+          return a.employeeId === empId && a.date === today && a.isTicked !== false;
         });
 
         var pendingDwmCount = todayDwm.filter(function(a) {

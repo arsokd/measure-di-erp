@@ -435,7 +435,7 @@
         var kpiSnap = target > 0 ? Math.round((empAchievedRev / target) * 100) : 0;
 
         // Calculate DWM & Attendance
-        var empDwm = dwmActivities.filter(function(a) { return a.employeeId === empId; });
+        var empDwm = dwmActivities.filter(function(a) { return a.employeeId === empId && a.isTicked !== false; });
         var dwmDoneCount = empDwm.filter(function(a) { return a.accomplishmentStatus && a.accomplishmentStatus !== 'Pending'; }).length;
         var dwmSnap = empDwm.length > 0 ? Math.round((dwmDoneCount / empDwm.length) * 100) : 95;
 

@@ -70,7 +70,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         teamList.forEach(function(member) {
           // 1. DWM Status today
-          var memberDwm = dwmActivities.filter(function(a) { return a.employeeId === member.employeeId && a.date === today; });
+          var memberDwm = dwmActivities.filter(function(a) { return a.employeeId === member.employeeId && a.date === today && a.isTicked !== false; });
           var dwmStatusBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-rose-100 text-rose-800">No DWM Today</span>`;
           if (memberDwm.length > 0) {
             var pending = memberDwm.filter(function(a) { return a.accomplishmentStatus === 'Pending'; }).length;

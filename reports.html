@@ -174,8 +174,9 @@
         document.getElementById('rpt-multi-count').innerText = multiCount;
 
         // 2. DWM Compliance %
-        var dwmDone = dwmActivities.filter(function(a) { return a.accomplishmentStatus && a.accomplishmentStatus !== 'Pending'; }).length;
-        var dwmRate = dwmActivities.length > 0 ? Math.round((dwmDone / dwmActivities.length) * 100) : 94;
+        var tickedDwmActivities = dwmActivities.filter(function(a) { return a.isTicked !== false; });
+        var dwmDone = tickedDwmActivities.filter(function(a) { return a.accomplishmentStatus && a.accomplishmentStatus !== 'Pending'; }).length;
+        var dwmRate = tickedDwmActivities.length > 0 ? Math.round((dwmDone / tickedDwmActivities.length) * 100) : 94;
         document.getElementById('rpt-dwm-compliance').innerText = dwmRate + "%";
 
         // 3. Attendance Rate %

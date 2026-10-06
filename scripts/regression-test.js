@@ -2982,6 +2982,233 @@ async function testEmployeesSeedGuardAgainstDuplication(browser) {
   return failures;
 }
 
+// ---------------------------------------------------------------------
+// DWM Section A/B rework: every planned activity (auto KRA point, extra
+// KRA activity, or Special Assignment) now carries a tick ("Include")
+// checkbox and its own editable Start/End Time, pre-filled by an even
+// split of the shift but adjustable. At least one activity must stay
+// ticked to Punch In. Punching In locks the ticked plan - those rows can
+// never be deleted afterwards, though a mid-day addition still can be
+// while Pending. Section B only ever shows ticked activities, lets the
+// employee flag "Plan changed per Reporting Manager's instruction", and
+// replaces the old fixed 70% Partial credit with a typed % Done that
+// feeds directly into the productivity score.
+// ---------------------------------------------------------------------
+async function testDwmTickTimePercentAndPlanChanged(browser) {
+  const failures = [];
+  const empId = 'E-DWMTICK-01';
+
+  const page = await browser.newPage({ viewport: { width: 1280, height: 1000 } });
+  page.on('dialog', async function (d) { await d.dismiss().catch(function () {}); });
+  await page.addInitScript(function (empId) {
+    localStorage.setItem('userRole', 'staff');
+    localStorage.setItem('userEmail', 'dwmtick@measuredi.com');
+    localStorage.setItem('userName', 'DWM Tick Employee');
+    localStorage.setItem('employeeId', empId);
+    navigator.geolocation.getCurrentPosition = function (success) {
+      success({ coords: { latitude: 12.9, longitude: 77.5, accuracy: 10 } });
+    };
+  }, empId);
+
+  await page.goto(BASE_URL + '/dwm.html', { waitUntil: 'networkidle', timeout: 30000 });
+  await page.waitForTimeout(600);
+
+  await page.evaluate(function (empId) {
+    window.RevOpsStore.saveCollection('attendance', (window.RevOpsStore.getCollection('attendance') || []).filter(function (a) { return a.employeeId !== empId; }));
+    window.RevOpsStore.saveCollection('dwmActivities', (window.RevOpsStore.getCollection('dwmActivities') || []).filter(function (a) { return a.employeeId !== empId; }));
+    window.RevOpsStore.saveCollection('kraTargets', (window.RevOpsStore.getCollection('kraTargets') || []).filter(function (a) { return a.employeeId !== empId; }));
+
+    var fy = getCurrentFinancialYear();
+    window.RevOpsStore.addItem('kraTargets', {
+      employeeId: empId, employeeName: 'DWM Tick Employee', financialYear: fy,
+      kraName: 'Lead Generation', dailyControl: 'Log every enquiry into ERP same day',
+      kpi: 'Leads Logged', targetMetric: 'Leads Logged', targetValue: 100, aopLine: 'Sales'
+    });
+    window.RevOpsStore.addItem('kraTargets', {
+      employeeId: empId, employeeName: 'DWM Tick Employee', financialYear: fy,
+      kraName: 'Outstanding Collection', dailyControl: 'Call top 5 overdue customers every morning',
+      kpi: 'Overdue Calls', targetMetric: 'Overdue Calls', targetValue: 45, aopLine: 'Sales'
+    });
+  }, empId);
+
+  await page.reload({ waitUntil: 'networkidle', timeout: 30000 });
+  await page.waitForTimeout(600);
+
+  // 1. Both KRA points are ticked by default, each showing its KPI, and
+  // Punch In is available immediately (nothing to manually plan).
+  const initial = await page.evaluate(function (empId) {
+    var acts = (window.RevOpsStore.getCollection('dwmActivities') || []).filter(function (a) { return a.employeeId === empId; });
+    return {
+      count: acts.length,
+      allTicked: acts.every(function (a) { return a.isTicked === true; }),
+      kpis: acts.map(function (a) { return a.linkedKpi; }).sort(),
+      sectionAText: document.getElementById('section-a-tbody').innerText,
+      checkboxCount: document.querySelectorAll('#section-a-tbody input[type="checkbox"]').length,
+      inBtnDisabled: document.getElementById('dwm-punch-in-btn').disabled
+    };
+  }, empId);
+  assertEqual(initial.count, 2, 'Both KRA Daily Control points auto-create a DWM activity', failures);
+  assertTrue(initial.allTicked, 'Auto-filled Regular DWM activities are ticked (included) by default', failures);
+  assertEqual(initial.kpis, ['Leads Logged', 'Overdue Calls'], 'Each auto-filled activity carries its KRA\'s KPI', failures);
+  assertTrue(initial.sectionAText.indexOf('KPI: Leads Logged') !== -1, 'Section A displays the KPI alongside the linked KRA', failures);
+  assertEqual(initial.checkboxCount, 2, 'Section A shows one Include checkbox per activity', failures);
+  assertTrue(!initial.inBtnDisabled, 'Punch In is enabled while at least one activity is ticked', failures);
+
+  // 2. Unticking every activity drops Punch In back to disabled (minimum
+  // 1 ticked activity required), and clears the unticked rows' hours/time.
+  const checkboxes = await page.locator('#section-a-tbody input[type="checkbox"]').all();
+  for (const cb of checkboxes) { await cb.uncheck(); await page.waitForTimeout(250); }
+
+  const afterUntickAll = await page.evaluate(function (empId) {
+    var acts = (window.RevOpsStore.getCollection('dwmActivities') || []).filter(function (a) { return a.employeeId === empId; });
+    return {
+      inBtnDisabled: document.getElementById('dwm-punch-in-btn').disabled,
+      allHoursZero: acts.every(function (a) { return !a.hoursSpent; }),
+      allTimesCleared: acts.every(function (a) { return !a.startTime && !a.endTime; })
+    };
+  }, empId);
+  assertTrue(afterUntickAll.inBtnDisabled, 'Punch In disables again once every activity is unticked - at least 1 is required', failures);
+  assertTrue(afterUntickAll.allHoursZero, 'Unticking an activity resets its hours to 0', failures);
+  assertTrue(afterUntickAll.allTimesCleared, 'Unticking an activity clears its Start/End Time', failures);
+
+  // 3. Re-ticking a single activity gives it the full 8h standard shift
+  // (the only ticked Regular DWM row), auto-filled starting at 09:00.
+  await page.locator('#section-a-tbody input[type="checkbox"]').first().check();
+  await page.waitForTimeout(300);
+  const afterRetick = await page.evaluate(function (empId) {
+    var acts = (window.RevOpsStore.getCollection('dwmActivities') || []).filter(function (a) { return a.employeeId === empId && a.isTicked !== false; });
+    return { count: acts.length, hours: acts[0] && acts[0].hoursSpent, startTime: acts[0] && acts[0].startTime, inBtnDisabled: document.getElementById('dwm-punch-in-btn').disabled };
+  }, empId);
+  assertEqual(afterRetick.count, 1, 'Only the re-ticked activity counts as part of the plan again', failures);
+  assertEqual(afterRetick.hours, 8, 'The sole ticked Regular DWM activity gets the full 8h standard shift', failures);
+  assertEqual(afterRetick.startTime, '09:00', 'Auto time pre-fill starts from the standard 09:00 shift start', failures);
+  assertTrue(!afterRetick.inBtnDisabled, 'Punch In re-enables once 1 activity is ticked again', failures);
+
+  // 4. Manually editing a ticked activity's time flags it userEditedTime,
+  // so it survives future recomputes untouched.
+  await page.locator('#section-a-tbody input[type="checkbox"]').nth(1).check();
+  await page.waitForTimeout(300);
+  await page.locator('#section-a-tbody input[type="time"]').first().fill('10:00');
+  await page.waitForTimeout(300);
+  const afterManualEdit = await page.evaluate(function (empId) {
+    var acts = (window.RevOpsStore.getCollection('dwmActivities') || []).filter(function (a) { return a.employeeId === empId && a.isTicked !== false; });
+    var manual = acts.find(function (a) { return a.userEditedTime; });
+    return { manualStart: manual && manual.startTime, manualFlag: !!manual };
+  }, empId);
+  assertTrue(afterManualEdit.manualFlag, 'Manually editing a Start/End Time flags that row userEditedTime', failures);
+  assertEqual(afterManualEdit.manualStart, '10:00', 'The manually-edited Start Time is kept exactly as typed', failures);
+
+  // 5. Punch In locks every currently-ticked activity (lockedPlan) - it
+  // can never be deleted afterwards, even an extra (non-auto) one that
+  // was part of the morning's confirmed plan.
+  await page.evaluate(function (empId) {
+    window.RevOpsStore.addItem('dwmActivities', {
+      employeeId: empId, employeeName: 'DWM Tick Employee', date: getFormattedToday(),
+      activityDescription: 'Extra morning follow-up', category: 'Standard KRA Activity',
+      isSpecialAssignment: false, isAutoGenerated: false, isTicked: true, lockedPlan: false, userEditedTime: false,
+      hoursSpent: 0, linkedKraId: '', linkedKra: '', linkedKpi: '', linkedAopLine: '',
+      planStatus: 'Planned', accomplishmentStatus: 'Pending', accomplishmentPercent: null,
+      accomplishmentRemarks: '', planChangedByManager: false, plannedAt: new Date().toISOString(), accomplishedAt: null
+    });
+    renderDwmData(empId);
+  }, empId);
+  await page.waitForTimeout(300);
+
+  await page.evaluate(function () { confirmPunchIn(); });
+  await page.waitForTimeout(500);
+
+  const afterPunchInLock = await page.evaluate(function (empId) {
+    var acts = (window.RevOpsStore.getCollection('dwmActivities') || []).filter(function (a) { return a.employeeId === empId && a.isTicked !== false; });
+    return { allLocked: acts.every(function (a) { return a.lockedPlan === true; }), count: acts.length };
+  }, empId);
+  assertEqual(afterPunchInLock.count, 3, 'Punch In locks all 3 ticked activities (2 Regular + 1 extra)', failures);
+  assertTrue(afterPunchInLock.allLocked, 'Every ticked activity is flagged lockedPlan once Punched In', failures);
+
+  const deleteBlockedResult = await page.evaluate(function (empId) {
+    var act = (window.RevOpsStore.getCollection('dwmActivities') || []).find(function (a) { return a.employeeId === empId && !a.isAutoGenerated; });
+    var originalAlert = window.alert;
+    var alertMsg = '';
+    window.alert = function (msg) { alertMsg = msg; };
+    deleteDwmActivity(act.id);
+    window.alert = originalAlert;
+    var stillExists = !!(window.RevOpsStore.getCollection('dwmActivities') || []).find(function (a) { return a.id === act.id; });
+    return { alertMsg: alertMsg, stillExists: stillExists };
+  }, empId);
+  assertTrue(deleteBlockedResult.alertMsg.indexOf('confirmed plan') !== -1, 'Deleting a locked (morning-confirmed) activity is blocked with an explanation', failures);
+  assertTrue(deleteBlockedResult.stillExists, 'A locked activity is never actually deleted', failures);
+
+  // 6. A mid-day addition (after Punch In) is NOT locked, and stays
+  // deletable while still Pending.
+  await page.evaluate(function () { openAddActivityModal(); });
+  await page.fill('#activity-desc', 'Mid-day unplanned site visit');
+  await page.click('#add-activity-modal button[type="submit"]');
+  await page.waitForTimeout(400);
+
+  const midDayResult = await page.evaluate(function (empId) {
+    var act = (window.RevOpsStore.getCollection('dwmActivities') || []).find(function (a) { return a.employeeId === empId && a.activityDescription === 'Mid-day unplanned site visit'; });
+    var lockedAtCreation = act.lockedPlan;
+    var originalConfirm = window.confirm;
+    window.confirm = function () { return true; };
+    deleteDwmActivity(act.id);
+    window.confirm = originalConfirm;
+    var stillExists = !!(window.RevOpsStore.getCollection('dwmActivities') || []).find(function (a) { return a.id === act.id; });
+    return { lockedAtCreation: lockedAtCreation, stillExists: stillExists };
+  }, empId);
+  assertTrue(!midDayResult.lockedAtCreation, 'An activity added mid-day (after Punch In) is not locked', failures);
+  assertTrue(!midDayResult.stillExists, 'A mid-day addition can still be deleted while Pending (unlike the locked morning plan)', failures);
+
+  // 7. Section B: a Partial status with no % entered is rejected (status
+  // not saved); entering a valid % saves it and feeds the real score.
+  await page.reload({ waitUntil: 'networkidle', timeout: 30000 });
+  await page.waitForTimeout(600);
+
+  const beforePartial = await page.evaluate(function (empId) {
+    return (window.RevOpsStore.getCollection('dwmActivities') || []).find(function (a) { return a.employeeId === empId && a.isAutoGenerated; });
+  }, empId);
+
+  const partialRejected = await page.evaluate(function (actId) {
+    var sel = document.getElementById('acc-status-' + actId);
+    sel.value = 'Partial';
+    sel.dispatchEvent(new Event('change', { bubbles: true }));
+    var saved = (window.RevOpsStore.getCollection('dwmActivities') || []).find(function (a) { return a.id === actId; });
+    return saved.accomplishmentStatus;
+  }, beforePartial.id);
+  assertEqual(partialRejected, 'Pending', 'Selecting Partial with no % Done entered does not save - status stays unchanged', failures);
+
+  const partialSaved = await page.evaluate(function (actId) {
+    var pctEl = document.getElementById('acc-pct-' + actId);
+    pctEl.value = '60';
+    pctEl.dispatchEvent(new Event('change', { bubbles: true }));
+    var saved = (window.RevOpsStore.getCollection('dwmActivities') || []).find(function (a) { return a.id === actId; });
+    return { status: saved.accomplishmentStatus, pct: saved.accomplishmentPercent };
+  }, beforePartial.id);
+  assertEqual(partialSaved.status, 'Partial', 'Entering a valid % Done saves the Partial status', failures);
+  assertEqual(partialSaved.pct, 60, 'The typed % Done (60) is saved exactly, not a fixed assumption', failures);
+
+  const scoreUsesRealPct = await page.evaluate(function () {
+    var stats = window.RevOpsStore.calculateDailyProductivity([
+      { hoursSpent: 4, accomplishmentStatus: 'Partial', accomplishmentPercent: 60, isTicked: true }
+    ], 8.0);
+    return stats.productiveHours;
+  });
+  assertEqual(scoreUsesRealPct, 2.4, 'Productivity score credits the real % Done (4h * 60% = 2.4h), not the old fixed 70%', failures);
+
+  // 8. "Plan changed per Reporting Manager" flag saves and shows in
+  // Section B.
+  const planChangedResult = await page.evaluate(function (actId) {
+    var changedEl = document.getElementById('acc-planchanged-' + actId);
+    changedEl.checked = true;
+    changedEl.dispatchEvent(new Event('change', { bubbles: true }));
+    var saved = (window.RevOpsStore.getCollection('dwmActivities') || []).find(function (a) { return a.id === actId; });
+    return { flagSaved: saved.planChangedByManager, pillText: document.getElementById('section-b-tbody').innerText };
+  }, beforePartial.id);
+  assertTrue(planChangedResult.flagSaved, 'The "Plan changed per Reporting Manager" checkbox saves planChangedByManager', failures);
+  assertTrue(planChangedResult.pillText.indexOf('Plan Changed') !== -1, 'A plan-changed activity shows a "Plan Changed" indicator in Section B', failures);
+
+  await page.close();
+  return failures;
+}
+
 const TESTS = [
   ['SLA day-based seeding, migration, severity dropdown & date math', testSlaDayBasedSeedingAndMigration],
   ['Ticket email subject line', testQuotationVerticalAndTicketSubject],
@@ -3014,7 +3241,8 @@ const TESTS = [
   ['DWM Regular/Special split: KRA auto-fill, time-boxed Special Assignments, rebalanced hours, fair scoring', testDwmRegularAndSpecialAssignmentSplit],
   ['KRA/KPI/DWM in Employee Directory + CSV import: point-splitting, name-matching, dossier add/edit/delete', testKraDwmEmployeeDirectoryAndCsvImport],
   ['Per-employee KRA/DWM template: pre-filled download, fill-in, upload round-trip', testEmployeeKraTemplateDownloadAndUpload],
-  ['Seed guard: stale local defaultEmployees fallback never duplicates the real Firestore roster', testEmployeesSeedGuardAgainstDuplication]
+  ['Seed guard: stale local defaultEmployees fallback never duplicates the real Firestore roster', testEmployeesSeedGuardAgainstDuplication],
+  ['DWM tick/time/% rework: Include checkboxes, editable time pre-fill, Punch-In lock, real % Done, plan-changed flag', testDwmTickTimePercentAndPlanChanged]
 ];
 
 (async () => {
