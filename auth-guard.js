@@ -171,6 +171,24 @@ function checkAuth(allowedRoles) {
 
   if (currentEmp) {
     var empUpdated = false;
+
+    // Role must always be one of the 4 values the app actually
+    // understands - anything else (e.g. a designation like "Engineer"
+    // ending up in the role field, from a bulk import or a direct
+    // Firebase Console edit) breaks every page's role gate at once: the
+    // person can't pass any allowedRoles check, and since they're also
+    // not 'staff', checkAuth's own "unauthorized -> redirect" fallback
+    // sends them to dashboard.html - which immediately fails the exact
+    // same check, alerting and redirecting forever. Normalizing here
+    // (and saving the correction below) fixes it permanently on the very
+    // next page load, no fresh login needed.
+    var VALID_ROLES = ['super_admin', 'admin', 'manager', 'staff'];
+    if (currentEmp.role && VALID_ROLES.indexOf(currentEmp.role) === -1) {
+      console.warn('Employee ' + currentEmp.employeeId + ' had an invalid role ("' + currentEmp.role + '") - normalized to "staff".');
+      currentEmp.role = 'staff';
+      empUpdated = true;
+    }
+
     if (currentEmp.employeeId === 'E-001' && currentEmp.role !== 'super_admin') {
       currentEmp.role = 'super_admin';
       empUpdated = true;

@@ -2983,6 +2983,74 @@ async function testEmployeesSeedGuardAgainstDuplication(browser) {
 }
 
 // ---------------------------------------------------------------------
+// checkAuth role self-heal: an employee record whose role field holds
+// anything other than the 4 values the app understands (super_admin/
+// admin/manager/staff) - e.g. a designation like "Engineer" ending up
+// there from a bulk import or a direct Firebase Console edit - used to
+// fail every page's role gate at once. Since the person also isn't
+// 'staff', checkAuth's own "unauthorized" fallback sent them to
+// dashboard.html, which immediately failed the identical check and
+// alerted/redirected forever - a real production incident. checkAuth now
+// normalizes an invalid role to 'staff' and saves the correction, so it
+// self-heals on the very next page load with no fresh login needed.
+// ---------------------------------------------------------------------
+async function testCheckAuthNormalizesInvalidRole(browser) {
+  const failures = [];
+  const empId = 'E-BADROLE-01';
+
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  page.on('dialog', async function (d) { await d.dismiss().catch(function () {}); });
+  await page.addInitScript(function (empId) {
+    // Start from a VALID role so the very first load never hits the bug
+    // being tested here - currentEmp doesn't exist yet on that first load
+    // (the employees record is only seeded once RevOpsStore is available),
+    // so an invalid role at that point would trigger the real redirect
+    // loop itself and make the test flaky/hang rather than exercising the
+    // fix. The transition into the broken state happens deliberately,
+    // below, once there IS a matching employees record to self-heal.
+    localStorage.setItem('userRole', 'staff');
+    localStorage.setItem('userEmail', 'badrole@measuredi.com');
+    localStorage.setItem('userName', 'Bad Role Employee');
+    localStorage.setItem('employeeId', empId);
+  }, empId);
+
+  await page.goto(BASE_URL + '/dashboard.html', { waitUntil: 'networkidle', timeout: 30000 });
+  await page.waitForTimeout(500);
+
+  // Now flip both the session and the employee record to the broken state
+  // together, in one go - exactly what "a bad role already synced to this
+  // device" looks like - then reload once to see the fix take effect.
+  await page.evaluate(function (empId) {
+    var employees = (window.RevOpsStore.getCollection('employees') || []).filter(function (e) { return e.employeeId !== empId; });
+    employees.push({ id: 'emp_badrole_01', employeeId: empId, fullName: 'Bad Role Employee', email: 'badrole@measuredi.com', role: 'Engineer', isActive: true });
+    window.RevOpsStore.saveCollection('employees', employees);
+    localStorage.setItem('userRole', 'Engineer');
+  }, empId);
+
+  await page.reload({ waitUntil: 'networkidle', timeout: 30000 });
+  await page.waitForTimeout(500);
+
+  const afterReload = await page.evaluate(function (empId) {
+    var emp = (window.RevOpsStore.getCollection('employees') || []).find(function (e) { return e.employeeId === empId; });
+    return {
+      localStorageRole: localStorage.getItem('userRole'),
+      employeeRecordRole: emp && emp.role,
+      noAlertLoop: document.body.innerText.indexOf('Unauthorized access') === -1
+    };
+  }, empId);
+  assertEqual(afterReload.localStorageRole, 'staff', 'checkAuth normalizes an invalid role ("Engineer") in localStorage to "staff"', failures);
+  assertEqual(afterReload.employeeRecordRole, 'staff', 'checkAuth also corrects the role on the employees collection record itself (self-heals, not just the session)', failures);
+
+  const dashboardAccessible = await page.evaluate(function () {
+    return !!document.getElementById('navbar-container') && document.getElementById('navbar-container').innerHTML.length > 0;
+  });
+  assertTrue(dashboardAccessible, 'Once normalized to "staff", the page loads normally instead of looping on "Unauthorized access"', failures);
+
+  await page.close();
+  return failures;
+}
+
+// ---------------------------------------------------------------------
 // DWM Section A/B rework: every planned activity (auto KRA point, extra
 // KRA activity, or Special Assignment) now carries a tick ("Include")
 // checkbox and its own editable Start/End Time, pre-filled by an even
@@ -3273,7 +3341,8 @@ const TESTS = [
   ['KRA/KPI/DWM in Employee Directory + CSV import: point-splitting, name-matching, dossier add/edit/delete', testKraDwmEmployeeDirectoryAndCsvImport],
   ['Per-employee KRA/DWM template: pre-filled download, fill-in, upload round-trip', testEmployeeKraTemplateDownloadAndUpload],
   ['Seed guard: stale local defaultEmployees fallback never duplicates the real Firestore roster', testEmployeesSeedGuardAgainstDuplication],
-  ['DWM tick/time/% rework: Include checkboxes, editable time pre-fill, Punch-In lock, real % Done, plan-changed flag', testDwmTickTimePercentAndPlanChanged]
+  ['DWM tick/time/% rework: Include checkboxes, editable time pre-fill, Punch-In lock, real % Done, plan-changed flag', testDwmTickTimePercentAndPlanChanged],
+  ['checkAuth self-heals an invalid employee role ("Engineer") to "staff" instead of looping on Unauthorized access', testCheckAuthNormalizesInvalidRole]
 ];
 
 (async () => {
