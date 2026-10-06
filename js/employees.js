@@ -380,6 +380,52 @@ document.addEventListener('DOMContentLoaded', function() {
         renderDossierKraList(window.currentDossierEmpId);
       }
 
+      // Download a blank KRA/DWM CSV already filled in with THIS person's
+      // name - meant to be handed to their manager (or filled in directly)
+      // to add several KRAs at once instead of one "+ Add One" click per KRA,
+      // then uploaded straight back via "Upload Filled" below.
+      function downloadDossierKraTemplate() {
+        var tmpl = window.RevOpsStore.generateEmployeeKraTemplate(window.currentDossierEmpId);
+        var blob = new Blob([tmpl.content], { type: 'text/csv;charset=utf-8;' });
+        var link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.setAttribute("download", tmpl.filename);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }
+
+      function handleDossierKraCsvUpload(event) {
+        var file = event.target.files && event.target.files[0];
+        if (!file) return;
+
+        var reader = new FileReader();
+        reader.onload = function(e) {
+          var result = window.RevOpsStore.importKraKpiDwmFromCsv(e.target.result);
+          renderDossierKraImportSummary(result);
+          renderDossierKraList(window.currentDossierEmpId);
+        };
+        reader.readAsText(file);
+        event.target.value = "";
+      }
+
+      function renderDossierKraImportSummary(result) {
+        var box = document.getElementById('dossier-kra-import-summary');
+        var html = `<span class="font-bold text-emerald-700">✅ ${result.imported} KRA(s) imported, ${result.updated} updated.</span>`;
+
+        if (result.unmatched.length > 0) {
+          var names = Array.from(new Set(result.unmatched.map(function(u) { return u.csvName; })));
+          html += ` <span class="text-rose-700 font-semibold">⚠️ Not matched to anyone in the directory: ${names.map(escapeHtml).join(', ')}.</span>`;
+        }
+        if (result.ambiguous.length > 0) {
+          var names2 = Array.from(new Set(result.ambiguous.map(function(a) { return a.csvName; })));
+          html += ` <span class="text-amber-700 font-semibold">⚠️ Ambiguous name match, skipped: ${names2.map(escapeHtml).join(', ')}.</span>`;
+        }
+
+        box.innerHTML = html;
+        box.classList.remove('hidden');
+      }
+
       function closeDigitalDossier() {
         document.getElementById('digital-dossier-modal').classList.add('hidden');
       }

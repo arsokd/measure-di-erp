@@ -613,6 +613,38 @@ Object.assign(window.RevOpsStore, {
     return Math.round(((endMinutes - startMinutes) / 60) * 100) / 100;
   },
 
+  // Generates a blank KRA-KPI-DWM CSV template pre-filled with ONE
+  // specific employee's own ID/name/vertical on every row, so whoever
+  // fills it in (their manager, HR) never has to type their name - the
+  // single biggest source of a failed match on re-upload. Same column
+  // shape importKraKpiDwmFromCsv() expects, so the filled-in file can be
+  // uploaded straight back through either the dossier's upload button or
+  // the KRA Targets page's bulk importer with no reformatting.
+  generateEmployeeKraTemplate: function(empId) {
+    var employees = this.getCollection('employees') || [];
+    var emp = employees.find(function(e) { return e.employeeId === empId; });
+    var empName = emp ? emp.fullName : empId;
+    var vertical = emp ? (emp.vertical || '') : '';
+
+    function csvField(v) {
+      var s = String(v === undefined || v === null ? '' : v);
+      return (s.indexOf(',') !== -1 || s.indexOf('"') !== -1) ? ('"' + s.replace(/"/g, '""') + '"') : s;
+    }
+
+    var headers = ['Employee ID *', 'Employee Name', 'Vertical / Business Line *', 'Sub-Vertical / Revenue Pattern', 'KRA (Key Result Area) *', 'KPI (how measured) *', 'Unit *', 'Data Source *', 'Weight %', 'Type', 'Lead / Lag', "Rolls Up To (Manager's KRA/KPI)", 'Annual / AOP Target *', 'Half-Yearly Target', 'Quarterly Target', 'Monthly Target', 'Weekly Target', 'Daily / DWM Control (what to check daily)', 'Remarks'].join(',');
+
+    var blankRow = [empId, empName, vertical, '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', ''].map(csvField).join(',');
+
+    var rows = [headers];
+    for (var i = 0; i < 5; i++) rows.push(blankRow);
+    rows.push('# HOW TO FILL: one row per KRA for ' + empName + ' - Employee ID/Name/Vertical are already filled in, leave them as-is. Fill in KRA, KPI, Annual Target and Daily/DWM Control for each KRA; leave extra rows blank if not needed, or copy a row for more. Daily/DWM Control is what ' + empName + ' should do every day for that KRA - write "1. ... 2. ..." if there is more than one daily action, and each number becomes its own trackable line in DWM.');
+
+    return {
+      filename: 'kra_dwm_template_' + empId.replace(/[^a-zA-Z0-9-]/g, '_') + '.csv',
+      content: rows.join('\n') + '\n'
+    };
+  },
+
   // Strips honorifics/punctuation and collapses whitespace so "Mr.
   // Ravichandran" and "Ravichandran Ramanathan" compare on the same
   // footing.

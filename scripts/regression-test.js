@@ -2837,6 +2837,103 @@ async function testKraDwmEmployeeDirectoryAndCsvImport(browser) {
   return failures;
 }
 
+// ---------------------------------------------------------------------
+// Per-employee KRA/DWM CSV template: instead of typing each KRA one at a
+// time through "+ Add One", an admin can download a blank template
+// already filled in with one specific person's own ID/name/vertical,
+// fill it in (Excel/Sheets), and upload it straight back from the same
+// dossier - removing the single biggest manual-entry source of a failed
+// name match, since the name is never retyped at all.
+// ---------------------------------------------------------------------
+async function testEmployeeKraTemplateDownloadAndUpload(browser) {
+  const failures = [];
+  const page = await browser.newPage({ viewport: { width: 1280, height: 1000 } });
+  page.on('dialog', async function (d) { await d.accept().catch(function () {}); });
+  await page.addInitScript(function () {
+    localStorage.setItem('userRole', 'super_admin');
+    localStorage.setItem('userEmail', 'kratmpl@measuredi.com');
+    localStorage.setItem('userName', 'KRA Template Test');
+    localStorage.setItem('employeeId', 'E-001');
+  });
+
+  await page.goto(BASE_URL + '/employees.html', { waitUntil: 'networkidle', timeout: 30000 });
+  await page.waitForTimeout(500);
+
+  const empId = 'E-KRATMPL-01';
+  await page.evaluate(function (empId) {
+    var emps = (window.RevOpsStore.getCollection('employees') || []).filter(function (e) { return e.employeeId !== empId; });
+    emps.push({ id: 'emp_kratmpl', employeeId: empId, fullName: 'Template Round-Trip Test', designation: 'Marketing', vertical: 'Service', role: 'staff', email: 'kratmpl.rt@measuredi.com', mobile: '9999999996', isActive: true });
+    window.RevOpsStore.saveCollection('employees', emps);
+    window.RevOpsStore.saveCollection('kraTargets', (window.RevOpsStore.getCollection('kraTargets') || []).filter(function (k) { return k.employeeId !== empId; }));
+  }, empId);
+
+  // Part 1: the generated template is pre-filled with this exact person's
+  // identity on every blank row, and still parses correctly (the trailing
+  // "# HOW TO FILL" instructional line gets dropped like any other legend).
+  const tmpl = await page.evaluate(function (empId) { return window.RevOpsStore.generateEmployeeKraTemplate(empId); }, empId);
+  assertTrue(tmpl.content.indexOf('Template Round-Trip Test') !== -1, 'Generated template is pre-filled with this employee\'s real name', failures);
+  assertTrue(tmpl.content.indexOf(empId) !== -1, 'Generated template is pre-filled with this employee\'s real ID', failures);
+
+  const parsedRows = await page.evaluate(function (csv) { return window.RevOpsStore.parseCSVRows(csv); }, tmpl.content);
+  assertEqual(parsedRows.length, 6, 'Template parses as header + 5 blank rows; the "# HOW TO FILL" line is dropped as a legend line, not real data', failures);
+  assertEqual(parsedRows[1][1], 'Template Round-Trip Test', 'Each blank row already carries the correct Employee Name field', failures);
+
+  // Part 2: simulate filling in the first blank row with a real KRA
+  // (including a numbered multi-point Daily Control), then upload it back
+  // through the dossier's "Upload Filled" button.
+  const filledCsv = tmpl.content.split('\n').map(function (line, idx) {
+    if (idx === 1) {
+      return empId + ',Template Round-Trip Test,Service,Crane,Orders in Spares,Order value won vs AOP,₹ (INR),ERP,50,Tangible,Lagging,,70000000,35000000,17500000,5833334,1346154,"1. Monitor pending enquiries\n2. Call existing customers\n3. Check stock availability",';
+    }
+    return line;
+  }).join('\n');
+
+  await page.reload({ waitUntil: 'networkidle', timeout: 30000 });
+  await page.waitForTimeout(500);
+
+  const rowIdx = await page.evaluate(function (empId) {
+    var rows = Array.from(document.querySelectorAll('#employees-tbody tr'));
+    return rows.findIndex(function (r) { return r.innerText.indexOf(empId) !== -1; });
+  }, empId);
+  assertTrue(rowIdx !== -1, 'Test employee appears in the Employee Directory table', failures);
+  await page.locator('#employees-tbody tr').nth(rowIdx).locator('button:has-text("File")').click();
+  await page.waitForTimeout(300);
+
+  await page.evaluate(function (csv) {
+    var blob = new Blob([csv], { type: 'text/csv' });
+    var file = new File([blob], 'filled-template.csv', { type: 'text/csv' });
+    var dt = new DataTransfer();
+    dt.items.add(file);
+    var input = document.getElementById('dossier-kra-csv-input');
+    input.files = dt.files;
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  }, filledCsv);
+  await page.waitForTimeout(600);
+
+  const uiAfterUpload = await page.evaluate(function () {
+    return {
+      summaryText: document.getElementById('dossier-kra-import-summary').innerText,
+      listText: document.getElementById('dossier-kra-list').innerText
+    };
+  });
+  assertTrue(uiAfterUpload.summaryText.indexOf('1 KRA(s) imported') !== -1, 'Uploading the filled template from the dossier shows a 1-imported summary', failures);
+  assertTrue(uiAfterUpload.listText.indexOf('Orders in Spares') !== -1, 'The KRA from the uploaded template appears in the dossier\'s list immediately, no page reload needed', failures);
+  assertTrue(uiAfterUpload.listText.indexOf('Monitor pending enquiries') !== -1, 'The numbered Daily Control points from the filled template show individually', failures);
+
+  const savedKra = await page.evaluate(function (empId) {
+    return (window.RevOpsStore.getCollection('kraTargets') || []).find(function (k) { return k.employeeId === empId; });
+  }, empId);
+  assertTrue(!!savedKra, 'The uploaded KRA was saved under the correct employeeId', failures);
+  if (savedKra) {
+    assertEqual(savedKra.dailyControlPoints.length, 3, 'The 3-point Daily Control text split into 3 individually-trackable DWM points', failures);
+    assertEqual(savedKra.weight, 50, 'Richer fields from the filled template (Weight %) were captured', failures);
+    assertEqual(savedKra.annualTarget, 70000000, 'Annual Target from the filled template was captured', failures);
+  }
+
+  await page.close();
+  return failures;
+}
+
 const TESTS = [
   ['SLA day-based seeding, migration, severity dropdown & date math', testSlaDayBasedSeedingAndMigration],
   ['Ticket email subject line', testQuotationVerticalAndTicketSubject],
@@ -2867,7 +2964,8 @@ const TESTS = [
   ['Every root .html page is registered in vite.config.ts (prevents a page silently never being deployed)', testEveryHtmlPageRegisteredInViteBuild],
   ['Attendance/DWM punch flow: Punch In on confirming the plan, Punch Out on confirming accomplishments', testDwmPunchInOutFlow],
   ['DWM Regular/Special split: KRA auto-fill, time-boxed Special Assignments, rebalanced hours, fair scoring', testDwmRegularAndSpecialAssignmentSplit],
-  ['KRA/KPI/DWM in Employee Directory + CSV import: point-splitting, name-matching, dossier add/edit/delete', testKraDwmEmployeeDirectoryAndCsvImport]
+  ['KRA/KPI/DWM in Employee Directory + CSV import: point-splitting, name-matching, dossier add/edit/delete', testKraDwmEmployeeDirectoryAndCsvImport],
+  ['Per-employee KRA/DWM template: pre-filled download, fill-in, upload round-trip', testEmployeeKraTemplateDownloadAndUpload]
 ];
 
 (async () => {
