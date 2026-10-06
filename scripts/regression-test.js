@@ -2934,6 +2934,54 @@ async function testEmployeeKraTemplateDownloadAndUpload(browser) {
   return failures;
 }
 
+// ---------------------------------------------------------------------
+// seed-data.js's local-only hardcoded `defaultEmployees` fallback must
+// never write into localStorage once Firebase is connected: a fresh
+// device/login signs in and its `employees` collection is briefly empty
+// (Firestore sync hasn't delivered it yet) - if initSeedData() fills that
+// gap with the stale legacy roster, the real Firestore roster arrives
+// moments later under different IDs, nothing dedupes the two lists, and
+// every employee shows up twice (reported live as duplicate names
+// appearing on a second device/browser that had never synced before).
+// The fallback must still work in pure local/demo mode (no Firebase).
+// ---------------------------------------------------------------------
+async function testEmployeesSeedGuardAgainstDuplication(browser) {
+  const failures = [];
+  const { page } = await newPage(browser);
+
+  await page.goto(BASE_URL + '/dashboard.html', { waitUntil: 'networkidle', timeout: 30000 });
+  await page.waitForTimeout(600);
+
+  const withFirebase = await page.evaluate(function () {
+    var original = window.RevOpsStore.isFirebaseAvailable;
+    window.RevOpsStore.isFirebaseAvailable = function () { return true; };
+    localStorage.removeItem('employees');
+    localStorage.removeItem('revops_seeded_v25');
+    localStorage.removeItem('revops_seeded_v27');
+    window.RevOpsStore.initSeedData();
+    var afterFirebase = (window.RevOpsStore.getCollection('employees') || []).length;
+    window.RevOpsStore.isFirebaseAvailable = original;
+    return { afterFirebase: afterFirebase };
+  });
+  assertEqual(withFirebase.afterFirebase, 0, 'Seed guard: empty employees stays empty (no stale legacy roster injected) once isFirebaseAvailable() is true', failures);
+
+  const withoutFirebase = await page.evaluate(function () {
+    var original = window.RevOpsStore.isFirebaseAvailable;
+    window.RevOpsStore.isFirebaseAvailable = function () { return false; };
+    localStorage.removeItem('employees');
+    localStorage.removeItem('revops_seeded_v25');
+    localStorage.removeItem('revops_seeded_v27');
+    window.RevOpsStore.initSeedData();
+    var afterLocal = (window.RevOpsStore.getCollection('employees') || []).length;
+    window.RevOpsStore.isFirebaseAvailable = original;
+    return { afterLocal: afterLocal };
+  });
+  assertTrue(withoutFirebase.afterLocal > 0, 'Seed guard: pure local/demo mode (no Firebase) still falls back to the sample employee roster', failures);
+
+  await page.close();
+  return failures;
+}
+
 const TESTS = [
   ['SLA day-based seeding, migration, severity dropdown & date math', testSlaDayBasedSeedingAndMigration],
   ['Ticket email subject line', testQuotationVerticalAndTicketSubject],
@@ -2965,7 +3013,8 @@ const TESTS = [
   ['Attendance/DWM punch flow: Punch In on confirming the plan, Punch Out on confirming accomplishments', testDwmPunchInOutFlow],
   ['DWM Regular/Special split: KRA auto-fill, time-boxed Special Assignments, rebalanced hours, fair scoring', testDwmRegularAndSpecialAssignmentSplit],
   ['KRA/KPI/DWM in Employee Directory + CSV import: point-splitting, name-matching, dossier add/edit/delete', testKraDwmEmployeeDirectoryAndCsvImport],
-  ['Per-employee KRA/DWM template: pre-filled download, fill-in, upload round-trip', testEmployeeKraTemplateDownloadAndUpload]
+  ['Per-employee KRA/DWM template: pre-filled download, fill-in, upload round-trip', testEmployeeKraTemplateDownloadAndUpload],
+  ['Seed guard: stale local defaultEmployees fallback never duplicates the real Firestore roster', testEmployeesSeedGuardAgainstDuplication]
 ];
 
 (async () => {
