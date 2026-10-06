@@ -286,11 +286,74 @@
               <div><span class="text-slate-500 uppercase block font-bold">Salary Advance Balance</span> <span class="font-bold text-rose-600" id="dos-advance">Rs.0</span></div>
             </div>
           </div>
+
+          <!-- KRAs, KPIs & Daily Work Management -->
+          <div class="space-y-2">
+            <div class="flex items-center justify-between">
+              <h4 class="font-bold text-slate-900 uppercase tracking-wider text-[11px]">KRAs, KPIs & Daily Work Management (DWM)</h4>
+              <button onclick="openQuickKraModal()" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-[11px] rounded-lg shadow-xs transition-colors flex items-center space-x-1 cursor-pointer">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                <span>+ Add KRA</span>
+              </button>
+            </div>
+            <p class="text-[10px] text-slate-400">Each KRA's Daily Control text drives this person's Regular DWM automatically every working day — nothing to type on their end. A numbered list becomes separate, individually trackable DWM lines.</p>
+            <div id="dossier-kra-list" class="space-y-2">
+              <!-- Populated dynamically -->
+            </div>
+          </div>
         </div>
 
         <div class="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center justify-end shrink-0">
           <button onclick="closeDigitalDossier()" class="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-xl">Close Dossier</button>
         </div>
+      </div>
+    </div>
+
+    <!-- Modal: Quick Add/Edit KRA (from Employee Directory) -->
+    <div id="quick-kra-modal" class="hidden fixed inset-0 z-[60] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+      <div class="bg-white w-full max-w-lg rounded-2xl shadow-2xl border border-slate-100 overflow-hidden">
+        <div class="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+          <h3 class="text-base font-bold text-slate-900" id="quick-kra-modal-title">Add KRA</h3>
+          <button onclick="closeQuickKraModal()" class="text-slate-400 hover:text-slate-600 text-lg font-bold">&times;</button>
+        </div>
+
+        <form onsubmit="handleSaveQuickKra(event)" class="p-6 space-y-4">
+          <input type="hidden" id="qk-doc-id" />
+
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">KRA Name / Title *</label>
+            <input type="text" id="qk-kra-name" required placeholder="e.g. Territory Revenue Generation" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Daily Control Point / DWM (what to check daily) *</label>
+            <textarea id="qk-dailycontrol" required rows="3" placeholder="e.g. Conduct minimum 3 customer plant visits daily and log quote follow-ups" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"></textarea>
+            <p class="text-[10px] text-slate-400 mt-1">Tip: a numbered or bulleted list (1. / 2) / -) becomes individually trackable DWM lines instead of one combined line.</p>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">KPI (how measured) *</label>
+              <input type="text" id="qk-kpi" required placeholder="e.g. Order value won vs AOP" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Annual / AOP Target *</label>
+              <input type="number" id="qk-annual-target" required placeholder="10000000" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Weight %</label>
+            <input type="number" id="qk-weight" min="0" max="100" placeholder="e.g. 20" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          </div>
+
+          <p class="text-[10px] text-slate-400">For target cadence breakdown (Half-Yearly/Quarterly/Monthly/Weekly), data source, lead/lag and more, use the full <a href="kra-targets.html" class="text-indigo-600 font-semibold hover:underline">KRA / KPI Targets</a> page.</p>
+
+          <div class="pt-4 border-t border-slate-100 flex items-center justify-end space-x-3">
+            <button type="button" onclick="closeQuickKraModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl">Cancel</button>
+            <button type="submit" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-xl shadow-xs transition-colors cursor-pointer">Save KRA</button>
+          </div>
+        </form>
       </div>
     </div>
 

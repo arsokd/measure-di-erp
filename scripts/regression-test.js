@@ -2570,6 +2570,273 @@ async function testDwmRegularAndSpecialAssignmentSplit(browser) {
   return failures;
 }
 
+// ---------------------------------------------------------------------
+// KRA/KPI/DWM in the Employee Directory + CSV import: an admin can add,
+// edit and delete an employee's KRAs directly from their Employee
+// Directory record (not just the separate KRA Targets page), a numbered
+// Daily Control list splits into individually-trackable DWM points, and
+// a bulk CSV (the "Employee Role/Target Input Form" shape) imports by
+// matching employee NAME - never an external ID scheme the app doesn't
+// use - reporting unmatched/ambiguous rows instead of guessing.
+// ---------------------------------------------------------------------
+async function testKraDwmEmployeeDirectoryAndCsvImport(browser) {
+  const failures = [];
+
+  // Part 1: splitDailyControlIntoPoints - the core parsing primitive.
+  {
+    const { page } = await newPage(browser);
+    await page.goto(BASE_URL + '/dwm.html', { waitUntil: 'networkidle', timeout: 30000 });
+    await page.waitForTimeout(500);
+
+    const splits = await page.evaluate(function () {
+      return {
+        multi: window.RevOpsStore.splitDailyControlIntoPoints('1. Visit customers\n2. Follow up leads\n3. Update ERP'),
+        single: window.RevOpsStore.splitDailyControlIntoPoints('Call top 5 overdue customers every morning'),
+        empty: window.RevOpsStore.splitDailyControlIntoPoints(''),
+        bulleted: window.RevOpsStore.splitDailyControlIntoPoints('- Visit site\n- Check stock\n- File report')
+      };
+    });
+    assertEqual(splits.multi.length, 3, 'A numbered Daily Control list splits into one point per number', failures);
+    assertEqual(splits.multi[0], 'Visit customers', 'Each split point has its number marker stripped', failures);
+    assertEqual(splits.single.length, 1, 'A plain single-sentence Daily Control stays as one point', failures);
+    assertEqual(splits.empty.length, 0, 'Empty Daily Control text produces zero points', failures);
+    assertEqual(splits.bulleted.length, 3, 'A bulleted ("-") Daily Control list also splits into separate points', failures);
+
+    await page.close();
+  }
+
+  // Part 2: name-matching for CSV import - exact, nickname/prefix, and
+  // single-letter spelling variants, without ever guessing on a real tie.
+  {
+    const { page } = await newPage(browser);
+    await page.goto(BASE_URL + '/kra-targets.html', { waitUntil: 'networkidle', timeout: 30000 });
+    await page.waitForTimeout(500);
+
+    const matchResults = await page.evaluate(function () {
+      // A separate, small employee list per case - "Mr. Raj Kumar" sharing
+      // the "Kumar" token with "Murugan Kumar" would otherwise create a
+      // genuine, unrelated tie between two different sub-tests.
+      var mainList = [
+        { employeeId: 'E-101', fullName: 'Mr. Murugan V' },
+        { employeeId: 'E-102', fullName: 'Ms. Dipa' },
+        { employeeId: 'E-103', fullName: 'Mr. Balram' },
+        { employeeId: 'E-104', fullName: 'Mr. Mathiyarasu' }
+      ];
+      var tieList = [
+        { employeeId: 'E-105', fullName: 'Mr. Raj Kumar' },
+        { employeeId: 'E-106', fullName: 'Mr. Raj Verma' }
+      ];
+      return {
+        exactish: window.RevOpsStore.matchEmployeeByName('Murugan Kumar', mainList),
+        nickname: window.RevOpsStore.matchEmployeeByName('Dipanwita Dutta', mainList),
+        spellingVariant1: window.RevOpsStore.matchEmployeeByName('Velisoju Balaram', mainList),
+        spellingVariant2: window.RevOpsStore.matchEmployeeByName('Mathiarasu S', mainList),
+        noMatch: window.RevOpsStore.matchEmployeeByName('Totally Unrelated Person', mainList),
+        ambiguous: window.RevOpsStore.matchEmployeeByName('Raj Singh', tieList)
+      };
+    });
+    assertEqual(matchResults.exactish.match && matchResults.exactish.match.employeeId, 'E-101', 'Exact shared-token match: "Murugan Kumar" -> Mr. Murugan V', failures);
+    assertEqual(matchResults.nickname.match && matchResults.nickname.match.employeeId, 'E-102', 'Nickname/prefix match: "Dipanwita Dutta" -> Ms. Dipa', failures);
+    assertEqual(matchResults.spellingVariant1.match && matchResults.spellingVariant1.match.employeeId, 'E-103', 'Spelling-variant match: "Velisoju Balaram" -> Mr. Balram (edit distance 1)', failures);
+    assertEqual(matchResults.spellingVariant2.match && matchResults.spellingVariant2.match.employeeId, 'E-104', 'Spelling-variant match: "Mathiarasu S" -> Mr. Mathiyarasu (edit distance 1)', failures);
+    assertEqual(matchResults.noMatch.match, null, 'A name with no plausible match returns null, not a wrong guess', failures);
+    assertEqual(matchResults.noMatch.reason, 'no-match', 'No-match reason is reported as no-match', failures);
+    assertEqual(matchResults.ambiguous.match, null, 'A name matching two different employees equally returns null rather than guessing', failures);
+    assertEqual(matchResults.ambiguous.reason, 'ambiguous', 'A genuine tie is reported as ambiguous, not silently resolved', failures);
+
+    await page.close();
+  }
+
+  // Part 3: CSV import end-to-end via the real file input on kra-targets.html,
+  // using a small synthetic CSV matching the real "Employee Role/Target
+  // Input Form" shape, including a deliberately unmatched name and a
+  // numbered Daily Control list.
+  {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 1000 } });
+    page.on('dialog', async function (d) { await d.dismiss().catch(function () {}); });
+    await page.addInitScript(function () {
+      localStorage.setItem('userRole', 'super_admin');
+      localStorage.setItem('userEmail', 'kracsv@measuredi.com');
+      localStorage.setItem('userName', 'KRA CSV Test');
+      localStorage.setItem('employeeId', 'E-001');
+    });
+
+    await page.goto(BASE_URL + '/kra-targets.html', { waitUntil: 'networkidle', timeout: 30000 });
+    await page.waitForTimeout(500);
+
+    await page.evaluate(function () {
+      window.RevOpsStore.saveCollection('employees', [
+        { id: 'e1', employeeId: 'E-201', fullName: 'Mr. Test Murugan', role: 'super_admin', isActive: true }
+      ]);
+      window.RevOpsStore.saveCollection('kraTargets', []);
+    });
+    await page.reload({ waitUntil: 'networkidle', timeout: 30000 });
+    await page.waitForTimeout(500);
+
+    const csvContent = [
+      'Employee ID *,Employee Name,Vertical / Business Line *,Sub-Vertical / Revenue Pattern,KRA (Key Result Area) *,KPI (how measured) *,Unit *,Data Source *,Weight %,Type,Lead / Lag,Rolls Up To (Manager\'s KRA/KPI),Annual / AOP Target *,Half-Yearly Target,Quarterly Target,Monthly Target,Weekly Target,Daily / DWM Control (what to check daily),Remarks',
+      'AT/001,Test Murugan,Sales,Projects,Lead generation,Daily leads logged,nos,ERP,20,Tangible,Leading,,300,150,75,25,6,"1. Log every enquiry same day\n2. Follow up within 48 hours",',
+      'AT/999,Nobody Unknown,Sales,Projects,Some KRA,Some KPI,nos,ERP,10,Tangible,Leading,,100,50,25,8,2,Single instruction here,'
+    ].join('\n');
+
+    await page.evaluate(function (csv) {
+      var blob = new Blob([csv], { type: 'text/csv' });
+      var file = new File([blob], 'test-kra-import.csv', { type: 'text/csv' });
+      var dt = new DataTransfer();
+      dt.items.add(file);
+      var input = document.getElementById('kra-csv-file-input');
+      input.files = dt.files;
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    }, csvContent);
+    await page.waitForTimeout(600);
+
+    const importUi = await page.evaluate(function () {
+      return {
+        summaryVisible: !document.getElementById('kra-import-summary').classList.contains('hidden'),
+        summaryText: document.getElementById('kra-import-summary').innerText
+      };
+    });
+    assertTrue(importUi.summaryVisible, 'Uploading a CSV via the file input shows the import result summary', failures);
+    assertTrue(importUi.summaryText.indexOf('1 new KRA rows imported') !== -1, 'Import summary reports exactly 1 matched row imported', failures);
+    assertTrue(importUi.summaryText.indexOf('Nobody Unknown') !== -1, 'Import summary lists the unmatched employee name for manual follow-up', failures);
+
+    const importedKra = await page.evaluate(function () {
+      var kras = window.RevOpsStore.getCollection('kraTargets') || [];
+      return kras.find(function (k) { return k.employeeId === 'E-201'; });
+    });
+    assertTrue(!!importedKra, 'The matched row was actually saved under the correct existing employeeId (E-201), not the CSV\'s own AT/001 ID', failures);
+    if (importedKra) {
+      assertEqual(importedKra.dailyControlPoints.length, 2, 'The imported numbered Daily Control text was split into 2 points', failures);
+      assertEqual(importedKra.weight, 20, 'Richer fields (Weight %) are captured by the import, not just Daily Control', failures);
+      assertEqual(importedKra.leadLag, 'Leading', 'Richer fields (Lead/Lag) are captured by the import', failures);
+    }
+
+    await page.close();
+  }
+
+  // Part 4: add/edit/delete a KRA directly from the Employee Directory's
+  // Digital Dossier, and confirm it actually drives DWM auto-populate -
+  // the whole point of surfacing it there instead of only on a separate page.
+  {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 1000 } });
+    // The only dialog in this block is deleteQuickKra's confirm() - accept
+    // it (not dismiss) so the delete step below actually exercises the
+    // real button path instead of being cancelled by a dismissed confirm.
+    page.on('dialog', async function (d) { await d.accept().catch(function () {}); });
+    await page.addInitScript(function () {
+      localStorage.setItem('userRole', 'super_admin');
+      localStorage.setItem('userEmail', 'empdirkra@measuredi.com');
+      localStorage.setItem('userName', 'EmpDir Admin');
+      localStorage.setItem('employeeId', 'E-001');
+    });
+
+    await page.goto(BASE_URL + '/employees.html', { waitUntil: 'networkidle', timeout: 30000 });
+    await page.waitForTimeout(500);
+
+    const empId = 'E-301';
+    await page.evaluate(function (empId) {
+      var emps = (window.RevOpsStore.getCollection('employees') || []).filter(function (e) { return e.employeeId !== empId; });
+      emps.push({ id: 'emp_301', employeeId: empId, fullName: 'Directory KRA Test', designation: 'Field Engineer', vertical: 'Service', role: 'staff', email: 'dirkra@measuredi.com', mobile: '9999999998', isActive: true });
+      window.RevOpsStore.saveCollection('employees', emps);
+      window.RevOpsStore.saveCollection('kraTargets', (window.RevOpsStore.getCollection('kraTargets') || []).filter(function (k) { return k.employeeId !== empId; }));
+    }, empId);
+    await page.reload({ waitUntil: 'networkidle', timeout: 30000 });
+    await page.waitForTimeout(500);
+
+    const rowIdx = await page.evaluate(function (empId) {
+      var rows = Array.from(document.querySelectorAll('#employees-tbody tr'));
+      return rows.findIndex(function (r) { return r.innerText.indexOf(empId) !== -1; });
+    }, empId);
+    assertTrue(rowIdx !== -1, 'Test employee appears in the Employee Directory table', failures);
+
+    await page.locator('#employees-tbody tr').nth(rowIdx).locator('button:has-text("File")').click();
+    await page.waitForTimeout(300);
+
+    const emptyStateText = await page.evaluate(function () { return document.getElementById('dossier-kra-list').innerText; });
+    assertTrue(emptyStateText.indexOf('No KRAs assigned yet') !== -1, 'Dossier shows an empty state before any KRA is added', failures);
+
+    await page.evaluate(function () { openQuickKraModal(); });
+    await page.fill('#qk-kra-name', 'Field Service Excellence');
+    await page.fill('#qk-kpi', 'Service Calls Closed');
+    await page.fill('#qk-annual-target', '500');
+    await page.fill('#qk-weight', '40');
+    await page.fill('#qk-dailycontrol', '1. Check assigned tickets each morning\n2. Visit site and resolve\n3. Update ticket status same day');
+    await page.click('#quick-kra-modal button[type="submit"]');
+    await page.waitForTimeout(400);
+
+    const afterAddText = await page.evaluate(function () { return document.getElementById('dossier-kra-list').innerText; });
+    assertTrue(afterAddText.indexOf('Field Service Excellence') !== -1, 'Newly added KRA appears in the dossier\'s KRA list immediately', failures);
+    assertTrue(afterAddText.indexOf('Check assigned tickets each morning') !== -1, 'Individual Daily Control points are listed, not just the KRA title', failures);
+
+    // Edit it, then confirm the edit took.
+    const kraDocId = await page.evaluate(function (empId) {
+      var k = (window.RevOpsStore.getCollection('kraTargets') || []).find(function (item) { return item.employeeId === empId; });
+      return k && k.id;
+    }, empId);
+    await page.evaluate(function (id) { openQuickKraModal(id); }, kraDocId);
+    await page.fill('#qk-weight', '55');
+    await page.click('#quick-kra-modal button[type="submit"]');
+    await page.waitForTimeout(300);
+    const afterEditWeight = await page.evaluate(function (empId) {
+      var k = (window.RevOpsStore.getCollection('kraTargets') || []).find(function (item) { return item.employeeId === empId; });
+      return k && k.weight;
+    }, empId);
+    assertEqual(afterEditWeight, 55, 'Editing a KRA from the dossier updates it in place (weight 40 -> 55)', failures);
+
+    await page.evaluate(function () { closeDigitalDossier(); });
+
+    // Switch identity to this employee (fresh addInitScript overrides the
+    // earlier admin one for subsequent navigations) and confirm DWM
+    // auto-populates from the KRA just added here.
+    await page.addInitScript(function (empId) {
+      localStorage.setItem('userRole', 'staff');
+      localStorage.setItem('employeeId', empId);
+      localStorage.setItem('userName', 'Directory KRA Test');
+      localStorage.setItem('userEmail', 'dirkra@measuredi.com');
+    }, empId);
+    await page.goto(BASE_URL + '/dwm.html', { waitUntil: 'networkidle', timeout: 30000 });
+    await page.waitForTimeout(600);
+
+    const dwmFromDirectory = await page.evaluate(function (empId) {
+      var today = getFormattedToday();
+      var acts = (window.RevOpsStore.getCollection('dwmActivities') || []).filter(function (a) { return a.employeeId === empId && a.date === today; });
+      return { count: acts.length, descriptions: acts.map(function (a) { return a.activityDescription; }).sort() };
+    }, empId);
+    assertEqual(dwmFromDirectory.count, 3, 'A KRA added via the Employee Directory drives DWM auto-populate exactly like one added on the KRA Targets page', failures);
+    assertEqual(dwmFromDirectory.descriptions, ['Check assigned tickets each morning', 'Update ticket status same day', 'Visit site and resolve'].sort(), 'Each of the 3 Daily Control points became its own DWM row', failures);
+
+    // Now delete the KRA from the dossier and confirm it's gone.
+    // The staff-identity addInitScript registered above still fires on
+    // every navigation; re-assert admin identity (registered after it, so
+    // it wins) before going back to this admin-only page.
+    await page.addInitScript(function () {
+      localStorage.setItem('userRole', 'super_admin');
+      localStorage.setItem('employeeId', 'E-001');
+      localStorage.setItem('userName', 'EmpDir Admin');
+      localStorage.setItem('userEmail', 'empdirkra@measuredi.com');
+    });
+    await page.goto(BASE_URL + '/employees.html', { waitUntil: 'networkidle', timeout: 30000 });
+    await page.waitForTimeout(500);
+    const rowIdx2 = await page.evaluate(function (empId) {
+      var rows = Array.from(document.querySelectorAll('#employees-tbody tr'));
+      return rows.findIndex(function (r) { return r.innerText.indexOf(empId) !== -1; });
+    }, empId);
+    assertTrue(rowIdx2 !== -1, 'Test employee is still found in the Employee Directory after navigating away and back', failures);
+    await page.locator('#employees-tbody tr').nth(rowIdx2).locator('button:has-text("File")').click();
+    await page.waitForTimeout(300);
+    await page.evaluate(function (id) { deleteQuickKra(id); }, kraDocId);
+    await page.waitForTimeout(300);
+    const afterDeleteCount = await page.evaluate(function (empId) {
+      return (window.RevOpsStore.getCollection('kraTargets') || []).filter(function (k) { return k.employeeId === empId; }).length;
+    }, empId);
+    assertEqual(afterDeleteCount, 0, 'Deleting a KRA from the Employee Directory dossier actually removes it', failures);
+
+    await page.close();
+  }
+
+  return failures;
+}
+
 const TESTS = [
   ['SLA day-based seeding, migration, severity dropdown & date math', testSlaDayBasedSeedingAndMigration],
   ['Ticket email subject line', testQuotationVerticalAndTicketSubject],
@@ -2599,7 +2866,8 @@ const TESTS = [
   ['DWM productivity % matches dropdown labels; Scorecard DWM compliance never fakes 100%', testDwmProductivityAndComplianceFixes],
   ['Every root .html page is registered in vite.config.ts (prevents a page silently never being deployed)', testEveryHtmlPageRegisteredInViteBuild],
   ['Attendance/DWM punch flow: Punch In on confirming the plan, Punch Out on confirming accomplishments', testDwmPunchInOutFlow],
-  ['DWM Regular/Special split: KRA auto-fill, time-boxed Special Assignments, rebalanced hours, fair scoring', testDwmRegularAndSpecialAssignmentSplit]
+  ['DWM Regular/Special split: KRA auto-fill, time-boxed Special Assignments, rebalanced hours, fair scoring', testDwmRegularAndSpecialAssignmentSplit],
+  ['KRA/KPI/DWM in Employee Directory + CSV import: point-splitting, name-matching, dossier add/edit/delete', testKraDwmEmployeeDirectoryAndCsvImport]
 ];
 
 (async () => {

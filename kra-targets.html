@@ -33,10 +33,22 @@
           <p class="text-sm text-slate-500 mt-1">Assign operational Key Result Areas, targets & daily control points to personnel</p>
         </div>
 
-        <button id="add-kra-btn" onclick="openKraModal()" class="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs rounded-xl shadow-xs transition-colors flex items-center space-x-1 cursor-pointer">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-          <span>+ Add KRA Target</span>
-        </button>
+        <div class="flex items-center space-x-2">
+          <button id="import-kra-csv-btn" onclick="document.getElementById('kra-csv-file-input').click()" class="px-4 py-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-semibold text-xs rounded-xl border border-emerald-200 transition-colors flex items-center space-x-1 cursor-pointer" title="Upload an Employee Role/Target Input Form style CSV (Employee Name, KRA, KPI, targets, Daily/DWM Control)">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+            <span>📥 Import from CSV</span>
+          </button>
+          <input type="file" id="kra-csv-file-input" accept=".csv" class="hidden" onchange="handleKraCsvFileSelected(event)" />
+          <button id="add-kra-btn" onclick="openKraModal()" class="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs rounded-xl shadow-xs transition-colors flex items-center space-x-1 cursor-pointer">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+            <span>+ Add KRA Target</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Import Result Summary (shown after a CSV import) -->
+      <div id="kra-import-summary" class="hidden bg-white p-5 rounded-2xl shadow-xs border border-slate-200 space-y-3 text-xs">
+        <!-- Populated dynamically -->
       </div>
 
       <!-- KRA Table -->
@@ -102,18 +114,19 @@
           </div>
 
           <div>
-            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Daily Control Point (Reference for DWM) *</label>
-            <textarea id="inp-kra-dailycontrol" required rows="2" placeholder="e.g. Conduct minimum 3 customer plant visits daily and log quote follow-ups" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"></textarea>
+            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Daily Control Point / DWM (what to check daily) *</label>
+            <textarea id="inp-kra-dailycontrol" required rows="3" placeholder="e.g. Conduct minimum 3 customer plant visits daily and log quote follow-ups. A numbered list (1. ... 2. ...) becomes separate DWM lines automatically." class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"></textarea>
+            <p class="text-[10px] text-slate-400 mt-1">Tip: a numbered or bulleted list (1. / 2) / -) becomes individually trackable DWM lines instead of one combined line.</p>
           </div>
 
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Target Metric *</label>
-              <input type="text" id="inp-kra-metric" required placeholder="e.g. Revenue (INR)" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+              <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">KPI (how measured) *</label>
+              <input type="text" id="inp-kra-metric" required placeholder="e.g. Order value won vs AOP" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500" />
             </div>
 
             <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Target Value *</label>
+              <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Annual / AOP Target *</label>
               <input type="number" id="inp-kra-value" required placeholder="10000000" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500" />
             </div>
           </div>
@@ -125,6 +138,76 @@
               <option value="Service/Parts">Service & Parts Vertical</option>
               <option value="Projects">Projects Vertical</option>
             </select>
+          </div>
+
+          <!-- Section: Richer Target Cadence & Classification -->
+          <div class="pt-4 border-t border-slate-200 space-y-4">
+            <h4 class="text-xs font-bold text-indigo-900 uppercase tracking-wider">Target Cadence & Classification</h4>
+
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div>
+                <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Half-Yearly</label>
+                <input type="number" id="inp-kra-halfyearly" placeholder="0" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Quarterly</label>
+                <input type="number" id="inp-kra-quarterly" placeholder="0" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Monthly</label>
+                <input type="number" id="inp-kra-monthly" placeholder="0" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Weekly</label>
+                <input type="number" id="inp-kra-weekly" placeholder="0" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Weight %</label>
+                <input type="number" id="inp-kra-weight" min="0" max="100" placeholder="e.g. 20" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Unit</label>
+                <input type="text" id="inp-kra-unit" placeholder="e.g. ₹ (INR), %, days, nos" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Type</label>
+                <select id="inp-kra-type" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                  <option value="">--</option>
+                  <option value="Tangible">Tangible</option>
+                  <option value="Intangible">Enabling / Intangible</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Lead / Lag</label>
+                <select id="inp-kra-leadlag" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                  <option value="">--</option>
+                  <option value="Leading">Leading</option>
+                  <option value="Lagging">Lagging</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Data Source</label>
+                <input type="text" id="inp-kra-datasource" placeholder="e.g. ERP, Tally" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Rolls Up To (Manager's KRA/KPI)</label>
+                <input type="text" id="inp-kra-rollsupto" placeholder="e.g. Mr. Murugan V" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Sub-Vertical / Revenue Pattern</label>
+              <input type="text" id="inp-kra-subvertical" placeholder="e.g. Onboard Sales, Project Sales" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            </div>
           </div>
 
           <div class="pt-4 border-t border-slate-100 flex items-center justify-end space-x-3">
@@ -277,6 +360,17 @@
         document.getElementById('inp-kra-dailycontrol').value = "";
         document.getElementById('inp-kra-metric').value = "Revenue (INR)";
         document.getElementById('inp-kra-value').value = 10000000;
+        document.getElementById('inp-kra-halfyearly').value = "";
+        document.getElementById('inp-kra-quarterly').value = "";
+        document.getElementById('inp-kra-monthly').value = "";
+        document.getElementById('inp-kra-weekly').value = "";
+        document.getElementById('inp-kra-weight').value = "";
+        document.getElementById('inp-kra-unit').value = "";
+        document.getElementById('inp-kra-type').value = "";
+        document.getElementById('inp-kra-leadlag').value = "";
+        document.getElementById('inp-kra-datasource').value = "";
+        document.getElementById('inp-kra-rollsupto').value = "";
+        document.getElementById('inp-kra-subvertical').value = "";
 
         document.getElementById('kra-modal').classList.remove('hidden');
       }
@@ -296,9 +390,20 @@
         document.getElementById('inp-kra-emp').value = k.employeeId;
         document.getElementById('inp-kra-name').value = k.kraName;
         document.getElementById('inp-kra-dailycontrol').value = k.dailyControl || '';
-        document.getElementById('inp-kra-metric').value = k.targetMetric;
-        document.getElementById('inp-kra-value').value = k.targetValue;
+        document.getElementById('inp-kra-metric').value = k.kpi || k.targetMetric || '';
+        document.getElementById('inp-kra-value').value = k.annualTarget !== undefined ? k.annualTarget : k.targetValue;
         document.getElementById('inp-kra-aopline').value = k.aopLine || 'Sales';
+        document.getElementById('inp-kra-halfyearly').value = k.halfYearlyTarget || '';
+        document.getElementById('inp-kra-quarterly').value = k.quarterlyTarget || '';
+        document.getElementById('inp-kra-monthly').value = k.monthlyTarget || '';
+        document.getElementById('inp-kra-weekly').value = k.weeklyTarget || '';
+        document.getElementById('inp-kra-weight').value = k.weight || '';
+        document.getElementById('inp-kra-unit').value = k.unit || '';
+        document.getElementById('inp-kra-type').value = k.type || '';
+        document.getElementById('inp-kra-leadlag').value = k.leadLag || '';
+        document.getElementById('inp-kra-datasource').value = k.dataSource || '';
+        document.getElementById('inp-kra-rollsupto').value = k.rollsUpTo || '';
+        document.getElementById('inp-kra-subvertical').value = k.subVertical || '';
 
         document.getElementById('kra-modal').classList.remove('hidden');
       }
@@ -311,14 +416,33 @@
         var employees = window.RevOpsStore.getCollection('employees') || [];
         var emp = employees.find(function(e) { return e.employeeId === empId; });
 
+        var dailyControlText = document.getElementById('inp-kra-dailycontrol').value.trim();
+        var kpiVal = document.getElementById('inp-kra-metric').value.trim();
+        var annualVal = Number(document.getElementById('inp-kra-value').value) || 0;
+
         var kraData = {
           employeeId: empId,
           employeeName: emp ? emp.fullName : 'Employee',
           kraName: document.getElementById('inp-kra-name').value.trim(),
-          dailyControl: document.getElementById('inp-kra-dailycontrol').value.trim(),
-          targetMetric: document.getElementById('inp-kra-metric').value.trim(),
-          targetValue: Number(document.getElementById('inp-kra-value').value) || 0,
-          aopLine: document.getElementById('inp-kra-aopline').value
+          dailyControl: dailyControlText,
+          dailyControlPoints: window.RevOpsStore.splitDailyControlIntoPoints(dailyControlText),
+          kpi: kpiVal,
+          targetMetric: kpiVal,
+          annualTarget: annualVal,
+          targetValue: annualVal,
+          aopLine: document.getElementById('inp-kra-aopline').value,
+          vertical: document.getElementById('inp-kra-aopline').value,
+          halfYearlyTarget: Number(document.getElementById('inp-kra-halfyearly').value) || 0,
+          quarterlyTarget: Number(document.getElementById('inp-kra-quarterly').value) || 0,
+          monthlyTarget: Number(document.getElementById('inp-kra-monthly').value) || 0,
+          weeklyTarget: Number(document.getElementById('inp-kra-weekly').value) || 0,
+          weight: Number(document.getElementById('inp-kra-weight').value) || 0,
+          unit: document.getElementById('inp-kra-unit').value.trim(),
+          type: document.getElementById('inp-kra-type').value,
+          leadLag: document.getElementById('inp-kra-leadlag').value,
+          dataSource: document.getElementById('inp-kra-datasource').value.trim(),
+          rollsUpTo: document.getElementById('inp-kra-rollsupto').value.trim(),
+          subVertical: document.getElementById('inp-kra-subvertical').value.trim()
         };
 
         if (docId) {
@@ -329,6 +453,61 @@
 
         closeKraModal();
         renderKraTable();
+      }
+
+      function handleKraCsvFileSelected(event) {
+        var file = event.target.files && event.target.files[0];
+        if (!file) return;
+
+        var reader = new FileReader();
+        reader.onload = function(e) {
+          var result = window.RevOpsStore.importKraKpiDwmFromCsv(e.target.result);
+          renderKraImportSummary(result);
+          renderKraTable();
+        };
+        reader.readAsText(file);
+        event.target.value = "";
+      }
+
+      function renderKraImportSummary(result) {
+        var box = document.getElementById('kra-import-summary');
+        var matchedNames = [];
+        var seen = {};
+        result.matched.forEach(function(m) {
+          if (seen[m.csvName]) return;
+          seen[m.csvName] = true;
+          matchedNames.push(m.csvName + ' → ' + m.matchedTo + ' (' + m.employeeId + ')');
+        });
+
+        var html = `
+          <h3 class="text-sm font-bold text-slate-900">CSV Import Result</h3>
+          <div class="flex flex-wrap gap-3 text-[11px]">
+            <span class="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 font-bold border border-emerald-200">${result.imported} new KRA rows imported</span>
+            <span class="px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-800 font-bold border border-indigo-200">${result.updated} existing KRA rows updated</span>
+            ${result.skippedRows ? `<span class="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-600 font-bold border border-slate-200">${result.skippedRows} blank rows skipped</span>` : ''}
+          </div>
+        `;
+
+        if (matchedNames.length > 0) {
+          html += `<div><span class="font-bold text-slate-700">Matched employees:</span><ul class="mt-1 space-y-0.5 text-slate-600">${matchedNames.map(function(n) { return '<li>✅ ' + escapeHtml(n) + '</li>'; }).join('')}</ul></div>`;
+        }
+        if (result.unmatched.length > 0) {
+          var unmatchedNames = Array.from(new Set(result.unmatched.map(function(u) { return u.csvName; })));
+          html += `<div class="p-3 bg-rose-50 border border-rose-200 rounded-xl"><span class="font-bold text-rose-800">⚠️ Not found in Employee Directory — these rows were skipped:</span><ul class="mt-1 space-y-0.5 text-rose-700">${unmatchedNames.map(function(n) { return '<li>' + escapeHtml(n) + '</li>'; }).join('')}</ul><p class="text-rose-600 mt-1">Add them to the Employee Directory first, then re-upload this CSV.</p></div>`;
+        }
+        if (result.ambiguous.length > 0) {
+          var ambiguousRows = [];
+          var seenAmbig = {};
+          result.ambiguous.forEach(function(a) {
+            if (seenAmbig[a.csvName]) return;
+            seenAmbig[a.csvName] = true;
+            ambiguousRows.push(a.csvName + ' could match: ' + a.candidates.join(' or '));
+          });
+          html += `<div class="p-3 bg-amber-50 border border-amber-200 rounded-xl"><span class="font-bold text-amber-800">⚠️ Ambiguous name match — these rows were skipped:</span><ul class="mt-1 space-y-0.5 text-amber-700">${ambiguousRows.map(function(n) { return '<li>' + escapeHtml(n) + '</li>'; }).join('')}</ul></div>`;
+        }
+
+        box.innerHTML = html;
+        box.classList.remove('hidden');
       }
 
       function deleteKra(docId) {

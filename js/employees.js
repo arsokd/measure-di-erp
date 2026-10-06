@@ -257,7 +257,127 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('dos-pf').innerText = emp.pfNumber || 'UAN10098273';
         document.getElementById('dos-advance').innerText = formatINR(emp.salaryAdvanceBalance || 0);
 
+        window.currentDossierEmpId = emp.employeeId;
+        window.currentDossierEmpName = emp.fullName;
+        renderDossierKraList(emp.employeeId);
+
         document.getElementById('digital-dossier-modal').classList.remove('hidden');
+      }
+
+      // KRAs, KPIs & Daily Work Management - lets an admin see and manage
+      // exactly what drives this person's Regular DWM, right from their
+      // own Employee Directory record, instead of needing to go hunt for
+      // them on a separate KRA Targets page.
+      function renderDossierKraList(empId) {
+        var container = document.getElementById('dossier-kra-list');
+        var currentFy = (typeof getCurrentFinancialYear === 'function') ? getCurrentFinancialYear() : null;
+        var kras = (window.RevOpsStore.getCollection('kraTargets') || []).filter(function(k) {
+          if (k.employeeId !== empId) return false;
+          if (currentFy && k.financialYear && k.financialYear !== currentFy) return false;
+          return true;
+        });
+
+        if (kras.length === 0) {
+          container.innerHTML = `<div class="text-slate-400 italic bg-slate-50 p-3 rounded-xl border border-slate-200">No KRAs assigned yet. Click "+ Add KRA" above.</div>`;
+          return;
+        }
+
+        container.innerHTML = kras.map(function(k) {
+          var points = (k.dailyControlPoints && k.dailyControlPoints.length > 0) ? k.dailyControlPoints : window.RevOpsStore.splitDailyControlIntoPoints(k.dailyControl);
+          var pointsHtml = points.map(function(p, i) {
+            return `<li class="pl-1">${points.length > 1 ? (i + 1) + '. ' : ''}${escapeHtml(p)}</li>`;
+          }).join('');
+          var kpiVal = k.kpi || k.targetMetric || '--';
+          var annualVal = k.annualTarget !== undefined ? k.annualTarget : (k.targetValue || 0);
+          var weightBadge = k.weight ? `<span class="px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 font-bold text-[9px]">${escapeHtml(k.weight)}% Weight</span>` : '';
+
+          return `
+            <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-1.5">
+              <div class="flex items-start justify-between gap-2">
+                <div>
+                  <span class="font-bold text-slate-900">${escapeHtml(k.kraName)}</span>
+                  <span class="text-slate-500"> — ${escapeHtml(kpiVal)}</span>
+                  <div class="flex items-center gap-1 mt-0.5">${weightBadge}<span class="text-[10px] text-slate-500">Target: ${escapeHtml(String(annualVal))}</span></div>
+                </div>
+                <div class="flex items-center space-x-2 shrink-0">
+                  <button onclick="openQuickKraModal('${escapeHtml(k.id)}')" class="text-indigo-600 hover:text-indigo-800 font-bold hover:underline text-[11px]">Edit</button>
+                  <button onclick="deleteQuickKra('${escapeHtml(k.id)}')" class="text-rose-600 hover:text-rose-800 font-bold hover:underline text-[11px]">Delete</button>
+                </div>
+              </div>
+              <ul class="list-none space-y-0.5 text-slate-600 text-[11px] pt-1 border-t border-slate-200">${pointsHtml}</ul>
+            </div>
+          `;
+        }).join('');
+      }
+
+      function openQuickKraModal(docId) {
+        document.getElementById('qk-doc-id').value = docId || "";
+        document.getElementById('quick-kra-modal-title').innerText = docId ? "Edit KRA" : "Add KRA";
+
+        if (docId) {
+          var kras = window.RevOpsStore.getCollection('kraTargets') || [];
+          var k = kras.find(function(item) { return item.id === docId; });
+          if (!k) return;
+          document.getElementById('qk-kra-name').value = k.kraName || '';
+          document.getElementById('qk-dailycontrol').value = k.dailyControl || '';
+          document.getElementById('qk-kpi').value = k.kpi || k.targetMetric || '';
+          document.getElementById('qk-annual-target').value = k.annualTarget !== undefined ? k.annualTarget : (k.targetValue || '');
+          document.getElementById('qk-weight').value = k.weight || '';
+        } else {
+          document.getElementById('qk-kra-name').value = '';
+          document.getElementById('qk-dailycontrol').value = '';
+          document.getElementById('qk-kpi').value = '';
+          document.getElementById('qk-annual-target').value = '';
+          document.getElementById('qk-weight').value = '';
+        }
+
+        document.getElementById('quick-kra-modal').classList.remove('hidden');
+      }
+
+      function closeQuickKraModal() {
+        document.getElementById('quick-kra-modal').classList.add('hidden');
+      }
+
+      function handleSaveQuickKra(e) {
+        e.preventDefault();
+        var docId = document.getElementById('qk-doc-id').value;
+        var dailyControlText = document.getElementById('qk-dailycontrol').value.trim();
+        var currentFy = (typeof getCurrentFinancialYear === 'function') ? getCurrentFinancialYear() : '2026-27';
+
+        // Only the fields this quick modal actually manages are included -
+        // updateItem merges field-by-field, so any richer data (cadence
+        // targets, data source, lead/lag, ...) already set via the full
+        // KRA Targets page or a CSV import is left completely untouched.
+        var kraData = {
+          employeeId: window.currentDossierEmpId,
+          employeeName: window.currentDossierEmpName,
+          kraName: document.getElementById('qk-kra-name').value.trim(),
+          dailyControl: dailyControlText,
+          dailyControlPoints: window.RevOpsStore.splitDailyControlIntoPoints(dailyControlText),
+          kpi: document.getElementById('qk-kpi').value.trim(),
+          targetMetric: document.getElementById('qk-kpi').value.trim(),
+          annualTarget: Number(document.getElementById('qk-annual-target').value) || 0,
+          targetValue: Number(document.getElementById('qk-annual-target').value) || 0,
+          weight: Number(document.getElementById('qk-weight').value) || 0
+        };
+        if (!docId) {
+          kraData.financialYear = currentFy;
+        }
+
+        if (docId) {
+          window.RevOpsStore.updateItem('kraTargets', docId, kraData);
+        } else {
+          window.RevOpsStore.addItem('kraTargets', kraData);
+        }
+
+        closeQuickKraModal();
+        renderDossierKraList(window.currentDossierEmpId);
+      }
+
+      function deleteQuickKra(docId) {
+        if (!confirm("Are you sure you want to delete this KRA? This also removes it from that employee's Regular DWM going forward.")) return;
+        window.RevOpsStore.deleteItem('kraTargets', docId);
+        renderDossierKraList(window.currentDossierEmpId);
       }
 
       function closeDigitalDossier() {
