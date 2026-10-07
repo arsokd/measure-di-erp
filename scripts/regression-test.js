@@ -868,7 +868,7 @@ async function testEmailRoutesGmailFirstWithBrevoFallback(browser) {
     var res = await window.BrevoMailer.sendTicketEmail(ticket, { to: 'client@test.com', subject: 'Test', body: 'Test body' });
     return { calls: calls, channel: res.channel };
   });
-  assertEqual(gmailSuccessResult.calls, ['/.netlify/functions/send-gmail'], 'Ticket email: tries Gmail first (send-gmail endpoint), not Brevo', failures);
+  assertEqual(gmailSuccessResult.calls, ['/.netlify/functions/send-gmail', '/api/sheet-sync'], 'Ticket email: tries Gmail first (send-gmail endpoint), not Brevo (plus the communicationLogs Google Sheet mirror)', failures);
   assertEqual(gmailSuccessResult.channel, 'gmail', 'Ticket email: successful send reports channel gmail', failures);
 
   const fallbackResult = await page.evaluate(async function () {
@@ -891,7 +891,7 @@ async function testEmailRoutesGmailFirstWithBrevoFallback(browser) {
     var res = await window.BrevoMailer.sendTicketEmail(ticket, { to: 'client@test.com', subject: 'Test', body: 'Test body' });
     return { calls: calls, channel: res.channel, fallbackReason: res.fallbackReason };
   });
-  assertEqual(fallbackResult.calls, ['/.netlify/functions/send-gmail', '/.netlify/functions/send-email'], 'Ticket email: falls back to Brevo after a generic (non-"not on workspace") Gmail failure', failures);
+  assertEqual(fallbackResult.calls, ['/.netlify/functions/send-gmail', '/.netlify/functions/send-email', '/api/sheet-sync'], 'Ticket email: falls back to Brevo after a generic (non-"not on workspace") Gmail failure (plus the communicationLogs Google Sheet mirror)', failures);
   assertEqual(fallbackResult.channel, 'brevo', 'Ticket email fallback: reports channel brevo', failures);
   assertTrue(!!fallbackResult.fallbackReason, 'Ticket email fallback: keeps the failure reason for diagnostics', failures);
 
@@ -3815,6 +3815,69 @@ async function testScoreRatificationWorkflow(browser) {
   return failures;
 }
 
+// ---------------------------------------------------------------------
+// Google Sheet mirror (syncToGoogleSheet, called from saveRecord/
+// deleteRecord): fires a fire-and-forget POST to /api/sheet-sync on every
+// create/update/delete, must never block or fail the real save even when
+// the sync call itself errors, and must trim oversized fields before
+// sending so a base64/receipt blob doesn't bloat every row of the Sheet.
+// ---------------------------------------------------------------------
+async function testGoogleSheetSyncHook(browser) {
+  const failures = [];
+  const { page } = await newPage(browser);
+
+  await page.goto(BASE_URL + '/dashboard.html', { waitUntil: 'networkidle', timeout: 30000 });
+  await page.waitForTimeout(600);
+
+  const saveResult = await page.evaluate(async function () {
+    var calls = [];
+    window.fetch = async function (url, opts) {
+      calls.push({ url: url, body: opts && opts.body ? JSON.parse(opts.body) : null });
+      // Simulate the sync endpoint itself failing outright - the real
+      // save must still succeed regardless.
+      return Promise.reject(new Error('simulated network failure'));
+    };
+    var bigBlob = new Array(2000).join('x'); // 1999 chars, over the 1500 cap
+    var result = await window.RevOpsStore.saveRecord('sheetSyncTestCollection', {
+      id: 'sync_test_1',
+      name: 'Sync Test Record',
+      hugeField: bigBlob
+    });
+    await new Promise(function (resolve) { setTimeout(resolve, 50); }); // let the fire-and-forget fetch actually fire
+    var saved = window.RevOpsStore.getCollection('sheetSyncTestCollection').find(function (it) { return it.id === 'sync_test_1'; });
+    return { result: result, calls: calls, saved: saved };
+  });
+
+  assertTrue(!!saveResult.result && !!saveResult.result.record, 'saveRecord still resolves with the saved record even when the Google Sheet sync call rejects', failures);
+  assertTrue(!!saveResult.saved, 'Record is actually persisted to localStorage regardless of sync outcome', failures);
+  assertEqual(saveResult.saved && saveResult.saved.hugeField, new Array(2000).join('x'), 'The real saved record keeps the full (non-trimmed) field value', failures);
+  assertEqual(saveResult.calls.length, 1, 'Exactly one sync call fired for the create', failures);
+  assertEqual(saveResult.calls[0] && saveResult.calls[0].url, '/api/sheet-sync', 'Sync call posts to the same-origin Netlify Function proxy', failures);
+  assertEqual(saveResult.calls[0] && saveResult.calls[0].body && saveResult.calls[0].body.collection, 'sheetSyncTestCollection', 'Sync payload carries the collection name', failures);
+  assertEqual(saveResult.calls[0] && saveResult.calls[0].body && saveResult.calls[0].body.action, 'create', 'Sync payload reports action "create" for a brand-new record', failures);
+  assertTrue(!!(saveResult.calls[0] && saveResult.calls[0].body && saveResult.calls[0].body.record && !('hugeField' in saveResult.calls[0].body.record)), 'Oversized field (>1500 chars) is stripped from the payload sent to the Sheet', failures);
+
+  const updateAndDeleteResult = await page.evaluate(async function () {
+    var calls = [];
+    window.fetch = async function (url, opts) {
+      calls.push({ url: url, body: opts && opts.body ? JSON.parse(opts.body) : null });
+      return { ok: true, json: async function () { return { ok: true }; } };
+    };
+    await window.RevOpsStore.saveRecord('sheetSyncTestCollection', { id: 'sync_test_1', name: 'Sync Test Record Updated' });
+    window.RevOpsStore.deleteRecord('sheetSyncTestCollection', 'sync_test_1');
+    await new Promise(function (resolve) { setTimeout(resolve, 50); });
+    return { calls: calls };
+  });
+  assertEqual(updateAndDeleteResult.calls.length, 2, 'One sync call for the update, one for the delete', failures);
+  assertEqual(updateAndDeleteResult.calls[0] && updateAndDeleteResult.calls[0].body && updateAndDeleteResult.calls[0].body.action, 'update', 'Sync payload reports action "update" for an existing record', failures);
+  assertEqual(updateAndDeleteResult.calls[1] && updateAndDeleteResult.calls[1].body && updateAndDeleteResult.calls[1].body.action, 'delete', 'Sync payload reports action "delete"', failures);
+  assertEqual(updateAndDeleteResult.calls[1] && updateAndDeleteResult.calls[1].body && updateAndDeleteResult.calls[1].body.record && updateAndDeleteResult.calls[1].body.record.id, 'sync_test_1', 'Delete sync payload carries the deleted record id', failures);
+
+  await page.evaluate(function () { window.RevOpsStore.saveCollection('sheetSyncTestCollection', []); });
+  await page.close();
+  return failures;
+}
+
 const TESTS = [
   ['SLA day-based seeding, migration, severity dropdown & date math', testSlaDayBasedSeedingAndMigration],
   ['Ticket email subject line', testQuotationVerticalAndTicketSubject],
@@ -3853,7 +3916,8 @@ const TESTS = [
   ['DWM "Reset Plan" button: clears ticks + deletes extras before Punch In, disappears once nothing to reset', testDwmResetPlanButton],
   ['Executive Dashboard Workforce & DWM Compliance Snapshot: Today\'s Attendance, Monthly %, DWM Compliance, Today\'s Accomplishment', testDashboardHrSnapshot],
   ['Attendance correction request + manager approval workflow: past-day-only, pending queue, approve computes hours, reject requires remarks', testAttendanceCorrectionWorkflow],
-  ['Daily Productivity Score ratification: auto-computed at Punch Out, manager ratify/modify/reject, feeds weekly/monthly review average', testScoreRatificationWorkflow]
+  ['Daily Productivity Score ratification: auto-computed at Punch Out, manager ratify/modify/reject, feeds weekly/monthly review average', testScoreRatificationWorkflow],
+  ['Google Sheet mirror: saveRecord/deleteRecord fire a non-blocking /api/sheet-sync call, oversized fields trimmed, real save always succeeds', testGoogleSheetSyncHook]
 ];
 
 (async () => {

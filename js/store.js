@@ -216,6 +216,33 @@ Object.assign(window.RevOpsStore, {
     }, 4000);
   },
 
+  // Best-effort mirror of every save/delete into the connected Google Sheet
+  // (via the /api/sheet-sync Netlify Function proxy). Fire-and-forget: this
+  // must never block, delay, or fail a real Firestore/localStorage save, so
+  // all errors are swallowed and only logged.
+  syncToGoogleSheet: function(colName, action, record) {
+    try {
+      if (!record || typeof fetch !== 'function') return;
+      var MAX_FIELD_LEN = 1500;
+      var slim = {};
+      for (var key in record) {
+        if (!Object.prototype.hasOwnProperty.call(record, key)) continue;
+        var val = record[key];
+        if (typeof val === 'string' && val.length > MAX_FIELD_LEN) continue;
+        slim[key] = val;
+      }
+      fetch('/api/sheet-sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ collection: colName, action: action, record: slim })
+      }).catch(function(err) {
+        console.warn('Google Sheet sync failed (non-blocking):', err);
+      });
+    } catch (e) {
+      console.warn('Google Sheet sync skipped due to error:', e);
+    }
+  },
+
   saveRecord: function(colName, record) {
     if (!record || typeof record !== 'object') return Promise.resolve({ record: null, synced: false });
     var sanitized = this.sanitizeRecord(record);
@@ -231,6 +258,7 @@ Object.assign(window.RevOpsStore, {
       items.push(sanitized);
     }
     this.saveCollection(colName, items);
+    this.syncToGoogleSheet(colName, index >= 0 ? 'update' : 'create', sanitized);
 
     if (this.isFirebaseAvailable()) {
       try {
@@ -260,6 +288,7 @@ Object.assign(window.RevOpsStore, {
       return it.id !== id && it.docId !== id;
     });
     this.saveCollection(colName, filtered);
+    this.syncToGoogleSheet(colName, 'delete', { id: id });
 
     if (this.isFirebaseAvailable()) {
       try {
