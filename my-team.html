@@ -89,6 +89,63 @@
           </div>
         </div>
 
+        <!-- Pending Attendance Corrections (stays visible until approved/rejected) -->
+        <div id="pending-corrections-section" class="hidden space-y-4">
+          <div class="flex items-center justify-between">
+            <h2 class="text-lg font-bold text-slate-900 flex items-center gap-2">
+              <span>⚠️ Pending Attendance Corrections</span>
+              <span id="pending-corrections-count" class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800">0</span>
+            </h2>
+          </div>
+          <div class="bg-white rounded-2xl shadow-xs border border-amber-200 overflow-hidden">
+            <div class="overflow-x-auto">
+              <table class="w-full text-left border-collapse">
+                <thead>
+                  <tr class="bg-amber-50 border-b border-amber-200 text-[11px] font-bold uppercase tracking-wider text-amber-800">
+                    <th class="py-3 px-4">Employee</th>
+                    <th class="py-3 px-4">Date</th>
+                    <th class="py-3 px-4">Requested Punch In</th>
+                    <th class="py-3 px-4">Requested Punch Out</th>
+                    <th class="py-3 px-4">Reason</th>
+                    <th class="py-3 px-4 text-center">Action</th>
+                  </tr>
+                </thead>
+                <tbody id="pending-corrections-tbody" class="divide-y divide-slate-100 text-xs">
+                  <!-- Populated dynamically -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Pending Daily Productivity Score Ratifications (stays visible until ratified/modified/rejected) -->
+        <div id="pending-scores-section" class="hidden space-y-4">
+          <div class="flex items-center justify-between">
+            <h2 class="text-lg font-bold text-slate-900 flex items-center gap-2">
+              <span>📊 Pending Score Ratifications</span>
+              <span id="pending-scores-count" class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-100 text-indigo-800">0</span>
+            </h2>
+          </div>
+          <div class="bg-white rounded-2xl shadow-xs border border-indigo-200 overflow-hidden">
+            <div class="overflow-x-auto">
+              <table class="w-full text-left border-collapse">
+                <thead>
+                  <tr class="bg-indigo-50 border-b border-indigo-200 text-[11px] font-bold uppercase tracking-wider text-indigo-800">
+                    <th class="py-3 px-4">Employee</th>
+                    <th class="py-3 px-4">Date</th>
+                    <th class="py-3 px-4 text-center">Auto Score</th>
+                    <th class="py-3 px-4 text-center">Accomplished</th>
+                    <th class="py-3 px-4 text-center">Action</th>
+                  </tr>
+                </thead>
+                <tbody id="pending-scores-tbody" class="divide-y divide-slate-100 text-xs">
+                  <!-- Populated dynamically -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
         <!-- Team Members List / Grid -->
         <div class="space-y-4">
           <h2 class="text-lg font-bold text-slate-900">Direct Report Team Roster</h2>

@@ -180,8 +180,30 @@ var viewingAttEmpId = null;
 
           var dwmComp = (att.dwmAccomplishedCount || 0) + "/" + (att.dwmPlanCount || 0) + " activities completed";
 
+          var scoreBadge = "";
+          if (typeof att.autoScore === 'number') {
+            if (att.scoreRatificationStatus === 'Pending') {
+              scoreBadge = `<div class="mt-1 text-[10px] text-slate-500">Score: ${escapeHtml(att.autoScore)}% <span class="px-1.5 py-0.5 rounded font-bold uppercase bg-indigo-100 text-indigo-800">⏳ Ratification Pending</span></div>`;
+            } else if (att.scoreRatificationStatus === 'Ratified') {
+              scoreBadge = `<div class="mt-1 text-[10px] text-slate-500">Score: <span class="font-bold text-emerald-700">${escapeHtml(att.finalScore)}%</span> <span class="px-1.5 py-0.5 rounded font-bold uppercase bg-emerald-100 text-emerald-800">✓ Ratified</span></div>`;
+            } else if (att.scoreRatificationStatus === 'Modified') {
+              scoreBadge = `<div class="mt-1 text-[10px] text-slate-500">Score: <span class="font-bold text-amber-700">${escapeHtml(att.finalScore)}%</span> <span class="px-1.5 py-0.5 rounded font-bold uppercase bg-amber-100 text-amber-800" title="${escapeHtml(att.scoreRatificationRemarks || '')}">✎ Modified by Manager</span></div>`;
+            } else if (att.scoreRatificationStatus === 'Rejected') {
+              scoreBadge = `<div class="mt-1 text-[10px] text-slate-500"><span class="px-1.5 py-0.5 rounded font-bold uppercase bg-rose-100 text-rose-800" title="${escapeHtml(att.scoreRatificationRemarks || '')}">✕ Score Rejected</span></div>`;
+            }
+          }
+
           var statusPill = "bg-amber-100 text-amber-800";
           if (att.status === 'Completed') statusPill = "bg-emerald-100 text-emerald-800";
+
+          var correctionBadge = "";
+          if (att.correctionStatus === 'Pending') {
+            correctionBadge = `<div class="mt-1"><span class="px-2 py-0.5 rounded text-[9px] font-bold uppercase bg-amber-100 text-amber-800" title="Awaiting your reporting manager's approval">⏳ Correction Pending</span></div>`;
+          } else if (att.correctionStatus === 'Rejected') {
+            correctionBadge = `<div class="mt-1"><span class="px-2 py-0.5 rounded text-[9px] font-bold uppercase bg-rose-100 text-rose-800" title="${escapeHtml(att.correctionReviewRemarks || '')}">✕ Correction Rejected</span></div>`;
+          } else if (att.correctionStatus === 'Approved') {
+            correctionBadge = `<div class="mt-1"><span class="px-2 py-0.5 rounded text-[9px] font-bold uppercase bg-sky-100 text-sky-800">✓ Correction Approved</span></div>`;
+          }
 
           var tr = document.createElement('tr');
           tr.className = "hover:bg-slate-50 transition-colors";
@@ -196,9 +218,10 @@ var viewingAttEmpId = null;
               <div>${outLocBadge}</div>
             </td>
             <td class="py-3.5 px-4 text-center font-bold text-slate-900 align-top">${escapeHtml(worked)}</td>
-            <td class="py-3.5 px-4 text-center text-slate-600 font-medium align-top">${escapeHtml(dwmComp)}</td>
+            <td class="py-3.5 px-4 text-center text-slate-600 font-medium align-top">${escapeHtml(dwmComp)}${scoreBadge}</td>
             <td class="py-3.5 px-4 text-center align-top">
               <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${statusPill}">${escapeHtml(att.status)}</span>
+              ${correctionBadge}
             </td>
           `;
           tbody.appendChild(tr);
@@ -211,6 +234,75 @@ var viewingAttEmpId = null;
       // accomplishments are done. This page only shows status and links
       // over to DWM; "Test GPS Readiness" still runs a real capture here
       // so staff can troubleshoot GPS before making the trip to DWM.
+      // ===== Attendance Correction Request (missed Punch In/Out on a past day) =====
+
+      function openCorrectionModal() {
+        document.getElementById('correction-date').value = "";
+        document.getElementById('correction-date').max = getIsoYesterday();
+        document.getElementById('correction-punch-in').value = "";
+        document.getElementById('correction-punch-out').value = "";
+        document.getElementById('correction-reason').value = "";
+        document.getElementById('correction-modal').classList.remove('hidden');
+      }
+
+      function closeCorrectionModal() {
+        document.getElementById('correction-modal').classList.add('hidden');
+      }
+
+      function getIsoYesterday() {
+        var d = new Date();
+        d.setDate(d.getDate() - 1);
+        return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+      }
+
+      // Native <input type="date"> gives back YYYY-MM-DD - converts to
+      // this app's DD/MM/YYYY date string format used everywhere else.
+      function isoDateToAppDate(iso) {
+        var p = (iso || '').split('-');
+        if (p.length < 3) return '';
+        return p[2] + '/' + p[1] + '/' + p[0];
+      }
+
+      function handleSubmitCorrection(e) {
+        e.preventDefault();
+        var isoDate = document.getElementById('correction-date').value;
+        var punchIn = document.getElementById('correction-punch-in').value;
+        var punchOut = document.getElementById('correction-punch-out').value;
+        var reason = document.getElementById('correction-reason').value.trim();
+
+        if (!isoDate) {
+          alert("Please select the date you missed punching in/out.");
+          return;
+        }
+        if (!punchIn && !punchOut) {
+          alert("Please enter at least a Punch In or Punch Out time.");
+          return;
+        }
+        if (!reason) {
+          alert("Please explain why this correction is needed.");
+          return;
+        }
+
+        var appDate = isoDateToAppDate(isoDate);
+        var myEmpId = localStorage.getItem('employeeId');
+        var myName = localStorage.getItem('userName');
+
+        var result = window.RevOpsStore.requestAttendanceCorrection(myEmpId, myName, appDate, punchIn, punchOut, reason);
+        if (!result.success) {
+          var messages = {
+            'not-past-date': "You can only request a correction for a past day - today's attendance goes through the normal Punch In/Out flow on the DWM page.",
+            'already-complete': "That day's attendance is already complete - nothing to correct.",
+            'already-pending': "You already have a correction request pending approval for that day."
+          };
+          alert(messages[result.reason] || "Could not submit the correction request.");
+          return;
+        }
+
+        alert("✅ Correction request submitted. Your reporting manager will need to approve it before it's reflected in your attendance.");
+        closeCorrectionModal();
+        renderAttendanceUI(viewingAttEmpId);
+      }
+
       function retryGpsCheck() {
         window.RevOpsStore.captureLiveGpsLocation(function(loc, err) {
           if (loc) {

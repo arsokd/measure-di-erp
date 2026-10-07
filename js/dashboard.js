@@ -464,6 +464,7 @@
 
         // Render KPI Scorecards
         renderKpiScorecards(currRev, prevRev, periodCompanyTarget, periodSalesTarget, periodServiceTarget, periodProjectsTarget, periodInfo);
+        renderHrSnapshot(employees);
 
         // Render Vertical Progress Bars
         renderVerticalProgress(currRev.verticals, periodSalesTarget, periodServiceTarget, periodProjectsTarget, periodInfo);
@@ -621,6 +622,84 @@
                 <span class="text-purple-600">${projAchPct}%</span>
               </div>
             </div>
+          </div>
+        `;
+      }
+
+      // Workforce & DWM Compliance Snapshot - independent of the revenue
+      // dashboard's vertical/employee filters (attendance/DWM isn't a
+      // sales-vertical concept), always computed across every active
+      // employee. Uses the same shared RevOpsStore helpers my-scorecard.js
+      // uses, so the % shown here always agrees with what an employee
+      // sees on their own scorecard.
+      function renderHrSnapshot(employees) {
+        var grid = document.getElementById('hr-snapshot-grid');
+        if (!grid) return;
+
+        var activeEmployees = (employees || []).filter(function(e) { return e && e.isActive !== false; });
+        var activeEmpIds = activeEmployees.map(function(e) { return e.employeeId; });
+        var attendance = window.RevOpsStore.getCollection('attendance') || [];
+        var dwmActivities = window.RevOpsStore.getCollection('dwmActivities') || [];
+        var today = getFormattedToday();
+
+        // Today's Attendance: present (Punched In or Completed today) vs total active.
+        var presentTodaySet = {};
+        attendance.forEach(function(att) {
+          if (att.date === today && (att.status === 'Punched In' || att.status === 'Completed')) {
+            presentTodaySet[att.employeeId] = true;
+          }
+        });
+        var presentTodayCount = activeEmpIds.filter(function(id) { return presentTodaySet[id]; }).length;
+        var presentTodayPct = activeEmpIds.length > 0 ? Math.round((presentTodayCount / activeEmpIds.length) * 100) : 0;
+
+        // Monthly Attendance % and Monthly DWM Compliance % - shared,
+        // false-fallback-free helpers (see store.js).
+        var attResult = window.RevOpsStore.computeAttendanceCompliance(activeEmpIds, attendance);
+        var dwmResult = window.RevOpsStore.computeDwmCompliance(activeEmpIds, dwmActivities);
+
+        // Today's DWM Accomplishment: of all activities actually ticked
+        // into someone's plan today (across the whole active workforce),
+        // how many have been updated off Pending so far.
+        var todayTicked = dwmActivities.filter(function(a) {
+          return a.date === today && activeEmpIds.indexOf(a.employeeId) !== -1 && a.isTicked !== false;
+        });
+        var todayUpdated = todayTicked.filter(function(a) { return a.accomplishmentStatus && a.accomplishmentStatus !== 'Pending'; }).length;
+        var todayDwmPct = todayTicked.length > 0 ? Math.round((todayUpdated / todayTicked.length) * 100) : 0;
+
+        function pctBadgeClass(pct, colorGood, colorOk) {
+          if (pct >= 90) return colorGood;
+          if (pct >= 70) return colorOk;
+          return 'bg-rose-100 text-rose-800';
+        }
+
+        grid.innerHTML = `
+          <div class="bg-white p-5 rounded-2xl shadow-xs border border-slate-200">
+            <span class="text-[11px] font-bold uppercase tracking-wider text-slate-500">Today's Attendance</span>
+            <div class="text-2xl font-black text-slate-900 tracking-tight mt-2">${presentTodayCount} <span class="text-sm font-semibold text-slate-400">/ ${activeEmpIds.length}</span></div>
+            <div class="mt-3 flex items-center justify-between">
+              <div class="w-full bg-slate-100 h-2 rounded-full overflow-hidden mr-3">
+                <div class="bg-sky-600 h-2 rounded-full transition-all duration-500" style="width: ${Math.min(100, presentTodayPct)}%"></div>
+              </div>
+              <span class="px-2 py-0.5 rounded text-[10px] font-bold ${pctBadgeClass(presentTodayPct, 'bg-emerald-100 text-emerald-800', 'bg-amber-100 text-amber-800')}">${presentTodayPct}%</span>
+            </div>
+          </div>
+
+          <div class="bg-white p-5 rounded-2xl shadow-xs border border-slate-200">
+            <span class="text-[11px] font-bold uppercase tracking-wider text-slate-500">Monthly Attendance %</span>
+            <div class="text-2xl font-black text-slate-900 tracking-tight mt-2">${attResult.pct}%</div>
+            <div class="text-xs text-slate-500 mt-1">${attResult.avgCompletedDays} / ${attResult.workingDaysElapsed} work days (avg)</div>
+          </div>
+
+          <div class="bg-white p-5 rounded-2xl shadow-xs border border-slate-200">
+            <span class="text-[11px] font-bold uppercase tracking-wider text-slate-500">Monthly DWM Compliance</span>
+            <div class="text-2xl font-black text-slate-900 tracking-tight mt-2">${dwmResult.pct}%</div>
+            <div class="text-xs text-slate-500 mt-1">${dwmResult.dwmDaysCount} / ${dwmResult.elapsedDaysThisMonth} days logged</div>
+          </div>
+
+          <div class="bg-white p-5 rounded-2xl shadow-xs border border-slate-200">
+            <span class="text-[11px] font-bold uppercase tracking-wider text-slate-500">Today's DWM Accomplishment</span>
+            <div class="text-2xl font-black text-slate-900 tracking-tight mt-2">${todayDwmPct}%</div>
+            <div class="text-xs text-slate-500 mt-1">${todayUpdated} / ${todayTicked.length} planned activities updated</div>
           </div>
         `;
       }

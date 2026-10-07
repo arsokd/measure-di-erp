@@ -54,6 +54,10 @@ document.addEventListener('DOMContentLoaded', function() {
           teamList = employees.filter(function(e) { return e.reportsTo === myEmpId; });
         }
 
+        var teamEmpIds = teamList.map(function(e) { return e.employeeId; });
+        renderPendingCorrections(teamEmpIds, attendance);
+        renderPendingScoreRatifications(teamEmpIds, attendance);
+
         // Stats calculation
         var totalTeamSize = teamList.length;
         var totalKpiSum = 0;
@@ -225,6 +229,184 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('stat-avg-kpi').innerText = (totalTeamSize > 0 ? Math.round(totalKpiSum / totalTeamSize) : 0) + "%";
         document.getElementById('stat-no-dwm').innerText = noDwmCount;
         document.getElementById('stat-no-punch').innerText = noPunchCount;
+      }
+
+      // Pending Attendance Corrections - stays visible to the reporting
+      // manager until each request is approved or rejected (requirement:
+      // managers should see their team's attendance approvals until
+      // they're actioned). Scoped to this manager's own team (teamList is
+      // already direct-reports-only for a manager, or everyone for
+      // super_admin/admin - same scope the rest of this page uses).
+      function renderPendingCorrections(teamEmpIds, attendance) {
+        var section = document.getElementById('pending-corrections-section');
+        var tbody = document.getElementById('pending-corrections-tbody');
+        var countBadge = document.getElementById('pending-corrections-count');
+        if (!section || !tbody) return;
+
+        var pending = attendance.filter(function(a) {
+          return a.correctionStatus === 'Pending' && teamEmpIds.indexOf(a.employeeId) !== -1;
+        });
+
+        if (pending.length === 0) {
+          section.classList.add('hidden');
+          return;
+        }
+        section.classList.remove('hidden');
+        countBadge.innerText = pending.length;
+
+        tbody.innerHTML = "";
+        pending.forEach(function(att) {
+          var reqIn = att.requestedPunchInTime ? new Date(att.requestedPunchInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--';
+          var reqOut = att.requestedPunchOutTime ? new Date(att.requestedPunchOutTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--';
+
+          var tr = document.createElement('tr');
+          tr.className = "hover:bg-amber-50/50 transition-colors";
+          tr.innerHTML = `
+            <td class="py-3 px-4 font-semibold text-slate-900">${escapeHtml(att.employeeName || att.employeeId)}</td>
+            <td class="py-3 px-4 text-slate-700">${escapeHtml(att.date)}</td>
+            <td class="py-3 px-4 text-slate-700">${escapeHtml(reqIn)}</td>
+            <td class="py-3 px-4 text-slate-700">${escapeHtml(reqOut)}</td>
+            <td class="py-3 px-4 text-slate-600 max-w-xs">${escapeHtml(att.correctionReason || '')}</td>
+            <td class="py-3 px-4 text-center whitespace-nowrap">
+              <button onclick="approveCorrection('${escapeHtml(att.id)}')" class="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-[10px] rounded-lg transition-colors cursor-pointer mr-1.5">Approve</button>
+              <button onclick="rejectCorrection('${escapeHtml(att.id)}')" class="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 font-semibold text-[10px] rounded-lg border border-rose-200 transition-colors cursor-pointer">Reject</button>
+            </td>
+          `;
+          tbody.appendChild(tr);
+        });
+      }
+
+      function approveCorrection(attId) {
+        if (!confirm("Approve this attendance correction? The requested time(s) will become this employee's official punch record for that day.")) return;
+
+        var myEmpId = localStorage.getItem('employeeId');
+        var myName = localStorage.getItem('userName');
+        var remarks = prompt("Enter approval remarks (optional):", "Approved.");
+        if (remarks === null) return;
+
+        var result = window.RevOpsStore.approveAttendanceCorrection(attId, myEmpId, myName, remarks);
+        if (!result.success) {
+          alert("Could not approve this correction - it may have already been reviewed. Refreshing the list.");
+        }
+        renderTeamData();
+      }
+
+      function rejectCorrection(attId) {
+        var remarks = prompt("Enter the reason you're rejecting this correction (required - the employee will see this):", "");
+        if (remarks === null) return;
+        if (!remarks.trim()) {
+          alert("A reason is required so the employee knows what to fix and resubmit.");
+          return;
+        }
+
+        var myEmpId = localStorage.getItem('employeeId');
+        var myName = localStorage.getItem('userName');
+        var result = window.RevOpsStore.rejectAttendanceCorrection(attId, myEmpId, myName, remarks);
+        if (!result.success) {
+          alert("Could not reject this correction - it may have already been reviewed. Refreshing the list.");
+        }
+        renderTeamData();
+      }
+
+      // Pending Daily Productivity Score Ratifications - same "stays
+      // visible until actioned" model as attendance corrections. Every
+      // Completed attendance day carries a system-computed autoScore
+      // (set at Punch Out); it only counts toward anything once the
+      // reporting manager ratifies it as-is, modifies it with their own
+      // number + justification, or rejects it with a justification.
+      function renderPendingScoreRatifications(teamEmpIds, attendance) {
+        var section = document.getElementById('pending-scores-section');
+        var tbody = document.getElementById('pending-scores-tbody');
+        var countBadge = document.getElementById('pending-scores-count');
+        if (!section || !tbody) return;
+
+        var pending = attendance.filter(function(a) {
+          return a.scoreRatificationStatus === 'Pending' && teamEmpIds.indexOf(a.employeeId) !== -1;
+        });
+
+        if (pending.length === 0) {
+          section.classList.add('hidden');
+          return;
+        }
+        section.classList.remove('hidden');
+        countBadge.innerText = pending.length;
+
+        tbody.innerHTML = "";
+        pending.forEach(function(att) {
+          var accomplished = (att.dwmAccomplishedCount || 0) + " / " + (att.dwmPlanCount || 0);
+
+          var tr = document.createElement('tr');
+          tr.className = "hover:bg-indigo-50/50 transition-colors";
+          tr.innerHTML = `
+            <td class="py-3 px-4 font-semibold text-slate-900">${escapeHtml(att.employeeName || att.employeeId)}</td>
+            <td class="py-3 px-4 text-slate-700">${escapeHtml(att.date)}</td>
+            <td class="py-3 px-4 text-center font-black text-indigo-600">${escapeHtml(att.autoScore) || 0}%</td>
+            <td class="py-3 px-4 text-center text-slate-600">${escapeHtml(accomplished)}</td>
+            <td class="py-3 px-4 text-center whitespace-nowrap">
+              <button onclick="ratifyScore('${escapeHtml(att.id)}')" class="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-[10px] rounded-lg transition-colors cursor-pointer mr-1">Ratify</button>
+              <button onclick="modifyScore('${escapeHtml(att.id)}', ${Number(att.autoScore) || 0})" class="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 font-semibold text-[10px] rounded-lg border border-amber-200 transition-colors cursor-pointer mr-1">Modify</button>
+              <button onclick="rejectScore('${escapeHtml(att.id)}')" class="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 font-semibold text-[10px] rounded-lg border border-rose-200 transition-colors cursor-pointer">Reject</button>
+            </td>
+          `;
+          tbody.appendChild(tr);
+        });
+      }
+
+      function ratifyScore(attId) {
+        if (!confirm("Ratify this Daily Productivity Score exactly as computed? It will count toward this employee's weekly/monthly review.")) return;
+
+        var myEmpId = localStorage.getItem('employeeId');
+        var myName = localStorage.getItem('userName');
+        var remarks = prompt("Enter remarks (optional):", "Ratified as computed.");
+        if (remarks === null) return;
+
+        var result = window.RevOpsStore.ratifyDailyScore(attId, myEmpId, myName, remarks);
+        if (!result.success) {
+          alert("Could not ratify this score - it may have already been reviewed. Refreshing the list.");
+        }
+        renderTeamData();
+      }
+
+      function modifyScore(attId, autoScore) {
+        var newScoreStr = prompt("Enter the score you believe is correct (0-100). System computed: " + autoScore + "%", String(autoScore));
+        if (newScoreStr === null) return;
+        var newScore = parseFloat(newScoreStr);
+        if (isNaN(newScore) || newScore < 0 || newScore > 100) {
+          alert("Please enter a valid score between 0 and 100.");
+          return;
+        }
+
+        var justification = prompt("Enter your justification for this score (required - the employee will see this):", "");
+        if (justification === null) return;
+        if (!justification.trim()) {
+          alert("A justification is required when overriding the system-computed score.");
+          return;
+        }
+
+        var myEmpId = localStorage.getItem('employeeId');
+        var myName = localStorage.getItem('userName');
+        var result = window.RevOpsStore.modifyDailyScore(attId, myEmpId, myName, newScore, justification);
+        if (!result.success) {
+          alert("Could not modify this score - it may have already been reviewed. Refreshing the list.");
+        }
+        renderTeamData();
+      }
+
+      function rejectScore(attId) {
+        var justification = prompt("Enter why you're rejecting this score (required - the employee will see this). It will be excluded from reviews until resolved.", "");
+        if (justification === null) return;
+        if (!justification.trim()) {
+          alert("A justification is required to reject a score.");
+          return;
+        }
+
+        var myEmpId = localStorage.getItem('employeeId');
+        var myName = localStorage.getItem('userName');
+        var result = window.RevOpsStore.rejectDailyScore(attId, myEmpId, myName, justification);
+        if (!result.success) {
+          alert("Could not reject this score - it may have already been reviewed. Refreshing the list.");
+        }
+        renderTeamData();
       }
 
       function openCreateLoginModal(id, name, email) {

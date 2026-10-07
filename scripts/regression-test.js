@@ -3152,19 +3152,34 @@ async function testDwmTickTimePercentAndPlanChanged(browser) {
   assertEqual(afterRetick.startTime, '09:00', 'Auto time pre-fill starts from the standard 09:00 shift start', failures);
   assertTrue(!afterRetick.inBtnDisabled, 'Punch In re-enables once 1 activity is ticked again', failures);
 
-  // 4. Manually editing a ticked activity's time flags it userEditedTime,
-  // so it survives future recomputes untouched.
+  // 4. Start Time is always chain-derived (read-only) for Regular DWM rows
+  // - only End Time is editable. Shortening the first row's End Time both
+  // flags it userEditedTime (its own duration survives future recomputes)
+  // AND automatically pushes every row after it to start right where it
+  // now ends - the sequential auto-chaining behavior.
   await page.locator('#section-a-tbody input[type="checkbox"]').nth(1).check();
   await page.waitForTimeout(300);
-  await page.locator('#section-a-tbody input[type="time"]').first().fill('10:00');
+  const startTimesReadOnly = await page.evaluate(function () {
+    var rows = Array.from(document.querySelectorAll('#section-a-tbody tr'));
+    return rows.every(function (r) { return r.querySelectorAll('input[type="time"]').length === 1; });
+  });
+  assertTrue(startTimesReadOnly, 'Regular DWM rows show exactly one editable time input (End Time) - Start Time is read-only/chain-derived', failures);
+
+  await page.locator('#section-a-tbody input[type="time"]').first().fill('11:00');
   await page.waitForTimeout(300);
   const afterManualEdit = await page.evaluate(function (empId) {
     var acts = (window.RevOpsStore.getCollection('dwmActivities') || []).filter(function (a) { return a.employeeId === empId && a.isTicked !== false; });
     var manual = acts.find(function (a) { return a.userEditedTime; });
-    return { manualStart: manual && manual.startTime, manualFlag: !!manual };
+    var other = acts.find(function (a) { return !a.userEditedTime; });
+    return {
+      manualStart: manual && manual.startTime, manualEnd: manual && manual.endTime, manualFlag: !!manual,
+      otherStart: other && other.startTime
+    };
   }, empId);
-  assertTrue(afterManualEdit.manualFlag, 'Manually editing a Start/End Time flags that row userEditedTime', failures);
-  assertEqual(afterManualEdit.manualStart, '10:00', 'The manually-edited Start Time is kept exactly as typed', failures);
+  assertTrue(afterManualEdit.manualFlag, 'Shortening the first row\'s End Time flags that row userEditedTime', failures);
+  assertEqual(afterManualEdit.manualStart, '09:00', 'The edited row\'s own Start Time is untouched (still the chain position it was already at)', failures);
+  assertEqual(afterManualEdit.manualEnd, '11:00', 'The edited row\'s End Time is kept exactly as typed', failures);
+  assertEqual(afterManualEdit.otherStart, '11:00', 'The next row in the chain automatically starts right where the edited row now ends (auto-chaining)', failures);
 
   // 5. Punch In locks every currently-ticked activity (lockedPlan) - it
   // can never be deleted afterwards, even an extra (non-auto) one that
@@ -3308,6 +3323,498 @@ async function testDwmTickTimePercentAndPlanChanged(browser) {
   return failures;
 }
 
+// ---------------------------------------------------------------------
+// DWM "Reset Plan" button: before Punch In, clears today's entire plan
+// back to a blank slate in one click - unticks every auto-filled KRA
+// point (nothing to delete, they're auto-filled) and deletes every extra
+// KRA activity / Special Assignment added today. Only available pre-
+// Punch-In; disappears once nothing is left to reset.
+// ---------------------------------------------------------------------
+async function testDwmResetPlanButton(browser) {
+  const failures = [];
+  const empId = 'E-DWMRESET-01';
+
+  const page = await browser.newPage({ viewport: { width: 1280, height: 1000 } });
+  page.on('dialog', async function (d) { await d.accept().catch(function () {}); });
+  await page.addInitScript(function (empId) {
+    localStorage.setItem('userRole', 'staff');
+    localStorage.setItem('userEmail', 'dwmreset@measuredi.com');
+    localStorage.setItem('userName', 'DWM Reset Employee');
+    localStorage.setItem('employeeId', empId);
+  }, empId);
+
+  await page.goto(BASE_URL + '/dwm.html', { waitUntil: 'networkidle', timeout: 30000 });
+  await page.waitForTimeout(600);
+
+  await page.evaluate(function (empId) {
+    window.RevOpsStore.saveCollection('attendance', (window.RevOpsStore.getCollection('attendance') || []).filter(function (a) { return a.employeeId !== empId; }));
+    window.RevOpsStore.saveCollection('dwmActivities', (window.RevOpsStore.getCollection('dwmActivities') || []).filter(function (a) { return a.employeeId !== empId; }));
+    window.RevOpsStore.saveCollection('kraTargets', (window.RevOpsStore.getCollection('kraTargets') || []).filter(function (a) { return a.employeeId !== empId; }));
+
+    var fy = getCurrentFinancialYear();
+    window.RevOpsStore.addItem('kraTargets', {
+      employeeId: empId, employeeName: 'DWM Reset Employee', financialYear: fy,
+      kraName: 'Lead Generation', dailyControl: 'Log every enquiry into ERP same day', targetMetric: 'Leads', targetValue: 100, aopLine: 'Sales'
+    });
+    window.RevOpsStore.addItem('kraTargets', {
+      employeeId: empId, employeeName: 'DWM Reset Employee', financialYear: fy,
+      kraName: 'Outstanding Collection', dailyControl: 'Call top 5 overdue customers every morning', targetMetric: 'Days', targetValue: 45, aopLine: 'Sales'
+    });
+  }, empId);
+
+  await page.reload({ waitUntil: 'networkidle', timeout: 30000 });
+  await page.waitForTimeout(600);
+
+  // Add an extra activity too, so the reset has something to actually delete.
+  await page.evaluate(function () { openAddActivityModal(); });
+  await page.fill('#activity-desc', 'Extra site follow-up');
+  await page.click('#add-activity-modal button[type="submit"]');
+  await page.waitForTimeout(400);
+
+  const before = await page.evaluate(function (empId) {
+    return {
+      count: (window.RevOpsStore.getCollection('dwmActivities') || []).filter(function (a) { return a.employeeId === empId; }).length,
+      resetBtnVisible: !document.getElementById('reset-plan-btn').classList.contains('hidden'),
+      inBtnDisabled: document.getElementById('dwm-punch-in-btn').disabled
+    };
+  }, empId);
+  assertEqual(before.count, 3, 'Precondition: 2 auto KRA points + 1 extra activity exist before reset', failures);
+  assertTrue(before.resetBtnVisible, 'Reset Plan button is visible once there is something to reset', failures);
+  assertTrue(!before.inBtnDisabled, 'Punch In is enabled before reset (plan is ready)', failures);
+
+  await page.click('#reset-plan-btn');
+  await page.waitForTimeout(400);
+
+  const after = await page.evaluate(function (empId) {
+    var acts = (window.RevOpsStore.getCollection('dwmActivities') || []).filter(function (a) { return a.employeeId === empId; });
+    return {
+      count: acts.length,
+      allUntickedAutoZeroed: acts.every(function (a) { return a.isTicked === false && !a.hoursSpent && !a.startTime && !a.endTime; }),
+      resetBtnVisible: !document.getElementById('reset-plan-btn').classList.contains('hidden'),
+      inBtnDisabled: document.getElementById('dwm-punch-in-btn').disabled
+    };
+  }, empId);
+  assertEqual(after.count, 2, 'Reset deletes the extra (non-auto) activity entirely, leaving only the 2 auto KRA points', failures);
+  assertTrue(after.allUntickedAutoZeroed, 'The remaining auto KRA points are unticked and their hours/time cleared, not deleted', failures);
+  assertTrue(!after.resetBtnVisible, 'Reset Plan button disappears once there is nothing left to reset', failures);
+  assertTrue(after.inBtnDisabled, 'Punch In disables again after a full reset (nothing ticked)', failures);
+
+  await page.close();
+  return failures;
+}
+
+// ---------------------------------------------------------------------
+// Executive Dashboard "Workforce & DWM Compliance Snapshot": Today's
+// Attendance, Monthly Attendance %, Monthly DWM Compliance %, and Today's
+// DWM Accomplishment - computed across every active employee, independent
+// of the dashboard's own vertical/employee revenue filters. Stubs
+// Chart.js (normally CDN-loaded) so this test is deterministic and never
+// depends on reaching an external CDN.
+// ---------------------------------------------------------------------
+async function testDashboardHrSnapshot(browser) {
+  const failures = [];
+
+  const page = await browser.newPage({ viewport: { width: 1400, height: 1400 } });
+  page.on('dialog', async function (d) { await d.dismiss().catch(function () {}); });
+  await page.addInitScript(function () {
+    localStorage.setItem('userRole', 'super_admin');
+    localStorage.setItem('userEmail', 'hrsnapshot@measuredi.com');
+    localStorage.setItem('userName', 'HR Snapshot Admin');
+    localStorage.setItem('employeeId', 'E-001');
+    window.Chart = function () { return { destroy: function () {}, update: function () {}, data: { datasets: [{ data: [] }] } }; };
+  });
+
+  await page.goto(BASE_URL + '/dashboard.html', { waitUntil: 'networkidle', timeout: 30000 });
+  await page.waitForTimeout(800);
+
+  const result = await page.evaluate(function () {
+    var today = getFormattedToday();
+    var empIds = ['E-HRSNAP-01', 'E-HRSNAP-02', 'E-HRSNAP-03'];
+    var employees = (window.RevOpsStore.getCollection('employees') || []).filter(function (e) { return empIds.indexOf(e.employeeId) === -1; });
+    empIds.forEach(function (id, i) {
+      employees.push({ id: 'emp_hrsnap_' + i, employeeId: id, fullName: 'HR Snapshot ' + i, email: id.toLowerCase() + '@measuredi.com', role: 'staff', isActive: true });
+    });
+    window.RevOpsStore.saveCollection('employees', employees);
+
+    var attendance = (window.RevOpsStore.getCollection('attendance') || []).filter(function (a) { return empIds.indexOf(a.employeeId) === -1; });
+    attendance.push({ id: 'att_hrsnap_1', employeeId: 'E-HRSNAP-01', date: today, status: 'Completed' });
+    attendance.push({ id: 'att_hrsnap_2', employeeId: 'E-HRSNAP-02', date: today, status: 'Punched In' });
+    window.RevOpsStore.saveCollection('attendance', attendance);
+
+    var dwmActivities = (window.RevOpsStore.getCollection('dwmActivities') || []).filter(function (a) { return empIds.indexOf(a.employeeId) === -1; });
+    dwmActivities.push({ id: 'dwm_hrsnap_1', employeeId: 'E-HRSNAP-01', date: today, isTicked: true, accomplishmentStatus: 'Done' });
+    dwmActivities.push({ id: 'dwm_hrsnap_2', employeeId: 'E-HRSNAP-01', date: today, isTicked: true, accomplishmentStatus: 'Pending' });
+    dwmActivities.push({ id: 'dwm_hrsnap_3', employeeId: 'E-HRSNAP-02', date: today, isTicked: false, accomplishmentStatus: 'Pending' });
+    window.RevOpsStore.saveCollection('dwmActivities', dwmActivities);
+
+    renderDashboardData();
+
+    return {
+      gridText: document.getElementById('hr-snapshot-grid').innerText,
+      employeeCount: employees.filter(function (e) { return e.isActive !== false; }).length
+    };
+  });
+
+  assertTrue(result.gridText.indexOf("TODAY'S ATTENDANCE") !== -1, 'Dashboard shows a Today\'s Attendance card', failures);
+  assertTrue(result.gridText.indexOf('2 / ' + result.employeeCount) !== -1, 'Today\'s Attendance counts Punched In + Completed as present (2 of the 3 test employees), against every active employee', failures);
+  assertTrue(result.gridText.indexOf('MONTHLY ATTENDANCE %') !== -1, 'Dashboard shows a Monthly Attendance % card', failures);
+  assertTrue(result.gridText.indexOf('MONTHLY DWM COMPLIANCE') !== -1, 'Dashboard shows a Monthly DWM Compliance card', failures);
+  assertTrue(result.gridText.indexOf("TODAY'S DWM ACCOMPLISHMENT") !== -1, 'Dashboard shows a Today\'s DWM Accomplishment card', failures);
+  // Of the 2 ticked activities today (the 3rd is unticked, excluded), 1 is
+  // Done - so this must read 1 / 2 (50%), never counting the unticked one.
+  assertTrue(result.gridText.indexOf('1 / 2 planned activities updated') !== -1, 'Today\'s DWM Accomplishment counts only ticked activities (1 of 2 updated), excluding the unticked one', failures);
+
+  await page.close();
+  return failures;
+}
+
+// ---------------------------------------------------------------------
+// Attendance correction request + manager approval workflow: an employee
+// who missed Punch In and/or Punch Out on a past day can request a
+// correction (never for today - that always goes through the normal DWM
+// punch flow). It takes effect only once their reporting manager
+// approves it from My Team's "Pending Attendance Corrections" queue,
+// which stays visible until each request is actioned. A rejection
+// requires a remark and leaves the real attendance record untouched.
+// ---------------------------------------------------------------------
+async function testAttendanceCorrectionWorkflow(browser) {
+  const failures = [];
+  const empId = 'E-CORRECT-01';
+  const mgrId = 'E-CORRECT-MGR';
+
+  // A single shared page/browser context throughout - localStorage (what
+  // RevOpsStore reads/writes in this Firebase-less test environment) is
+  // isolated PER CONTEXT, so two separate browser.newPage() calls would be
+  // two unconnected "devices" that never see each other's data. Instead,
+  // identity is switched in place via a fresh addInitScript (which
+  // overrides the earlier one's localStorage keys on the next navigation)
+  // - the established pattern elsewhere in this suite for simulating two
+  // different users against the same shared data.
+  const page = await browser.newPage({ viewport: { width: 1280, height: 1000 } });
+  let dialogPromptText = 'Approved.';
+  page.on('dialog', async function (d) {
+    if (d.type() === 'prompt') await d.accept(dialogPromptText).catch(function () {});
+    else await d.accept().catch(function () {});
+  });
+  await page.addInitScript(function (empId) {
+    localStorage.setItem('userRole', 'staff');
+    localStorage.setItem('userEmail', 'correcttest@measuredi.com');
+    localStorage.setItem('userName', 'Correction Test Employee');
+    localStorage.setItem('employeeId', empId);
+  }, empId);
+
+  await page.goto(BASE_URL + '/attendance.html', { waitUntil: 'networkidle', timeout: 30000 });
+  await page.waitForTimeout(600);
+
+  await page.evaluate(function (ids) {
+    var employees = (window.RevOpsStore.getCollection('employees') || []).filter(function (e) { return e.employeeId !== ids.empId && e.employeeId !== ids.mgrId; });
+    employees.push({ id: 'emp_correct_mgr', employeeId: ids.mgrId, fullName: 'Correction Test Manager', email: 'correctmgr@measuredi.com', role: 'manager', isActive: true });
+    employees.push({ id: 'emp_correct_01', employeeId: ids.empId, fullName: 'Correction Test Employee', email: 'correcttest@measuredi.com', role: 'staff', reportsTo: ids.mgrId, isActive: true });
+    window.RevOpsStore.saveCollection('employees', employees);
+    window.RevOpsStore.saveCollection('attendance', (window.RevOpsStore.getCollection('attendance') || []).filter(function (a) { return a.employeeId !== ids.empId; }));
+  }, { empId: empId, mgrId: mgrId });
+
+  await page.reload({ waitUntil: 'networkidle', timeout: 30000 });
+  await page.waitForTimeout(600);
+
+  // 1. Today's date is rejected (store-level, independent of the UI's own
+  // max-date guard) - corrections are only ever for a genuinely past day.
+  const todayRejected = await page.evaluate(function (empId) {
+    var today = getFormattedToday();
+    return window.RevOpsStore.requestAttendanceCorrection(empId, 'Correction Test Employee', today, '09:00', '17:00', 'Testing today rejection');
+  }, empId);
+  assertEqual(todayRejected.success, false, 'A correction request for today itself is rejected - today always goes through the normal DWM punch flow', failures);
+  assertEqual(todayRejected.reason, 'not-past-date', 'Today-rejection reports reason not-past-date', failures);
+
+  // 2. Submit a real request for a past day via the actual UI form.
+  const pastDate = (function () {
+    var d = new Date(); d.setDate(d.getDate() - 2);
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  })();
+
+  await page.click('button[onclick="openCorrectionModal()"]');
+  await page.waitForTimeout(200);
+  await page.fill('#correction-date', pastDate);
+  await page.fill('#correction-punch-in', '09:15');
+  await page.fill('#correction-punch-out', '18:00');
+  await page.fill('#correction-reason', 'Phone battery died, could not punch in or out');
+  await page.click('#correction-modal button[type="submit"]');
+  await page.waitForTimeout(400);
+
+  const afterRequest = await page.evaluate(function (empId) {
+    var att = (window.RevOpsStore.getCollection('attendance') || []).find(function (a) { return a.employeeId === empId; });
+    return {
+      found: !!att,
+      correctionStatus: att && att.correctionStatus,
+      hasRequestedTimes: !!(att && att.requestedPunchInTime && att.requestedPunchOutTime),
+      statusUnaffected: att && att.status === 'Pending Correction',
+      historyShowsPending: document.getElementById('att-history-tbody').innerText.toLowerCase().indexOf('correction pending') !== -1
+    };
+  }, empId);
+  assertTrue(afterRequest.found, 'Submitting the correction form creates an attendance record for that day', failures);
+  assertEqual(afterRequest.correctionStatus, 'Pending', 'The new record is flagged correctionStatus Pending', failures);
+  assertTrue(afterRequest.hasRequestedTimes, 'Both requested Punch In and Punch Out times are stored', failures);
+  assertTrue(afterRequest.statusUnaffected, 'The request alone does not make the day Completed - it stays Pending Correction until approved', failures);
+  assertTrue(afterRequest.historyShowsPending, 'The employee\'s own Attendance History shows a "Correction Pending" badge for that day', failures);
+
+  // 3. Switch identity to the reporting manager - they see it in My
+  // Team's pending-corrections queue, which stays visible until actioned.
+  await page.addInitScript(function (mgrId) {
+    localStorage.setItem('userRole', 'manager');
+    localStorage.setItem('userEmail', 'correctmgr@measuredi.com');
+    localStorage.setItem('userName', 'Correction Test Manager');
+    localStorage.setItem('employeeId', mgrId);
+  }, mgrId);
+  await page.goto(BASE_URL + '/my-team.html', { waitUntil: 'networkidle', timeout: 30000 });
+  await page.waitForTimeout(700);
+
+  const queueVisible = await page.evaluate(function () {
+    var section = document.getElementById('pending-corrections-section');
+    return {
+      sectionVisible: section && !section.classList.contains('hidden'),
+      tbodyText: document.getElementById('pending-corrections-tbody').innerText
+    };
+  });
+  assertTrue(queueVisible.sectionVisible, 'The Pending Attendance Corrections section is visible to the reporting manager', failures);
+  assertTrue(queueVisible.tbodyText.indexOf('Correction Test Employee') !== -1, 'The queue lists the requesting employee by name', failures);
+  assertTrue(queueVisible.tbodyText.indexOf('Phone battery died') !== -1, 'The queue shows the employee\'s stated reason', failures);
+
+  // 4. Manager approves - the requested times become the real punch
+  // record, workedHours is computed, and the day is now Completed.
+  dialogPromptText = 'Approved - verified with employee.';
+  await page.click('#pending-corrections-tbody button:has-text("Approve")');
+  await page.waitForTimeout(400);
+
+  const afterApprove = await page.evaluate(function (empId) {
+    var att = (window.RevOpsStore.getCollection('attendance') || []).find(function (a) { return a.employeeId === empId; });
+    return {
+      status: att && att.status,
+      correctionStatus: att && att.correctionStatus,
+      hasPunchTimes: !!(att && att.punchInTime && att.punchOutTime),
+      workedHours: att && att.workedHours,
+      reviewedBy: att && att.correctionReviewedByName
+    };
+  }, empId);
+  assertEqual(afterApprove.status, 'Completed', 'Approving the correction completes the attendance record', failures);
+  assertEqual(afterApprove.correctionStatus, 'Approved', 'correctionStatus flips to Approved', failures);
+  assertTrue(afterApprove.hasPunchTimes, 'The real punchInTime/punchOutTime are now set from the approved request', failures);
+  assertEqual(afterApprove.workedHours, 8.8, 'workedHours is computed from the approved punch times (09:15-18:00 = 8.8h)', failures);
+  assertEqual(afterApprove.reviewedBy, 'Correction Test Manager', 'The record captures who reviewed it', failures);
+
+  const queueAfterApprove = await page.evaluate(function () {
+    var section = document.getElementById('pending-corrections-section');
+    return section && section.classList.contains('hidden');
+  });
+  assertTrue(queueAfterApprove, 'The queue disappears once there is nothing left pending for this manager', failures);
+
+  // 5. Reject path, on a second request: requires a remark, leaves the
+  // real attendance record untouched, and the employee sees why. Submit
+  // it directly via the store (the form itself was already exercised in
+  // step 2) under the employee identity, then switch back to the manager
+  // to reject it.
+  const pastDate2 = (function () {
+    var d = new Date(); d.setDate(d.getDate() - 3);
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  })();
+  await page.addInitScript(function (empId) {
+    localStorage.setItem('userRole', 'staff');
+    localStorage.setItem('userEmail', 'correcttest@measuredi.com');
+    localStorage.setItem('userName', 'Correction Test Employee');
+    localStorage.setItem('employeeId', empId);
+  }, empId);
+  await page.goto(BASE_URL + '/attendance.html', { waitUntil: 'networkidle', timeout: 30000 });
+  await page.waitForTimeout(500);
+  await page.evaluate(function (args) {
+    window.RevOpsStore.saveCollection('attendance', (window.RevOpsStore.getCollection('attendance') || []).filter(function (a) { return a.employeeId !== args.empId; }));
+    window.RevOpsStore.requestAttendanceCorrection(args.empId, 'Correction Test Employee', args.appDate, '09:00', '', 'Forgot to punch in');
+  }, { empId: empId, appDate: pastDate2.split('-').reverse().join('/') });
+
+  await page.addInitScript(function (mgrId) {
+    localStorage.setItem('userRole', 'manager');
+    localStorage.setItem('userEmail', 'correctmgr@measuredi.com');
+    localStorage.setItem('userName', 'Correction Test Manager');
+    localStorage.setItem('employeeId', mgrId);
+  }, mgrId);
+  await page.goto(BASE_URL + '/my-team.html', { waitUntil: 'networkidle', timeout: 30000 });
+  await page.waitForTimeout(700);
+  dialogPromptText = 'Needs a valid punch-in reason with proof.';
+  await page.click('#pending-corrections-tbody button:has-text("Reject")');
+  await page.waitForTimeout(400);
+
+  const afterReject = await page.evaluate(function (empId) {
+    var att = (window.RevOpsStore.getCollection('attendance') || []).find(function (a) { return a.employeeId === empId; });
+    return { correctionStatus: att && att.correctionStatus, statusStillPending: att && att.status === 'Pending Correction', remarks: att && att.correctionReviewRemarks };
+  }, empId);
+  assertEqual(afterReject.correctionStatus, 'Rejected', 'Rejecting sets correctionStatus to Rejected', failures);
+  assertTrue(afterReject.statusStillPending, 'A rejected request leaves the real attendance record untouched (still not Completed)', failures);
+  assertEqual(afterReject.remarks, 'Needs a valid punch-in reason with proof.', 'The manager\'s remarks (reason) are saved on the record', failures);
+
+  await page.close();
+  return failures;
+}
+
+// ---------------------------------------------------------------------
+// Daily Productivity Score ratification: Punch Out auto-computes today's
+// score (the same number the DWM page itself shows) and leaves it
+// Pending; a reporting manager must Ratify (accept as-is), Modify
+// (override with their own number + mandatory justification), or Reject
+// (dispute it, also with a mandatory justification) before it counts
+// toward anything. Only Ratified/Modified days feed the Reviews page's
+// Daily Score average for a selected period - Pending/Rejected days are
+// excluded, never counted as 0%.
+// ---------------------------------------------------------------------
+async function testScoreRatificationWorkflow(browser) {
+  const failures = [];
+  const empId = 'E-SCORE-01';
+  const mgrId = 'E-SCORE-MGR';
+
+  const page = await browser.newPage({ viewport: { width: 1280, height: 1000 } });
+  let dialogResponder = function () { return ''; };
+  page.on('dialog', async function (d) {
+    if (d.type() === 'prompt') await d.accept(dialogResponder(d.message())).catch(function () {});
+    else await d.accept().catch(function () {});
+  });
+  await page.addInitScript(function (empId) {
+    localStorage.setItem('userRole', 'staff');
+    localStorage.setItem('userEmail', 'scoretest@measuredi.com');
+    localStorage.setItem('userName', 'Score Test Employee');
+    localStorage.setItem('employeeId', empId);
+    navigator.geolocation.getCurrentPosition = function (success) {
+      success({ coords: { latitude: 12.9, longitude: 77.5, accuracy: 10 } });
+    };
+  }, empId);
+
+  await page.goto(BASE_URL + '/dwm.html', { waitUntil: 'networkidle', timeout: 30000 });
+  await page.waitForTimeout(600);
+
+  await page.evaluate(function (ids) {
+    var employees = (window.RevOpsStore.getCollection('employees') || []).filter(function (e) { return e.employeeId !== ids.empId && e.employeeId !== ids.mgrId; });
+    employees.push({ id: 'emp_score_mgr', employeeId: ids.mgrId, fullName: 'Score Test Manager', email: 'scoremgr@measuredi.com', role: 'manager', isActive: true });
+    employees.push({ id: 'emp_score_01', employeeId: ids.empId, fullName: 'Score Test Employee', email: 'scoretest@measuredi.com', role: 'staff', reportsTo: ids.mgrId, isActive: true });
+    window.RevOpsStore.saveCollection('employees', employees);
+    window.RevOpsStore.saveCollection('attendance', (window.RevOpsStore.getCollection('attendance') || []).filter(function (a) { return a.employeeId !== ids.empId; }));
+    window.RevOpsStore.saveCollection('dwmActivities', (window.RevOpsStore.getCollection('dwmActivities') || []).filter(function (a) { return a.employeeId !== ids.empId; }));
+  }, { empId: empId, mgrId: mgrId });
+
+  // 1. Plan one activity, Punch In, mark it Done, Punch Out - mirrors the
+  // established punch-flow test pattern. This should auto-compute a 100%
+  // score (1 of 1 activities, fully Done) and leave it Pending ratification.
+  await page.evaluate(function (empId) {
+    window.RevOpsStore.addItem('dwmActivities', {
+      employeeId: empId, employeeName: 'Score Test Employee', date: getFormattedToday(),
+      activityDescription: 'Site visit', category: 'Standard KRA Activity', isSpecialAssignment: false,
+      isTicked: true, hoursSpent: 8, linkedKraId: 'kra_test', linkedKra: 'Test KRA', linkedAopLine: 'Test',
+      planStatus: 'Planned', accomplishmentStatus: 'Pending', accomplishmentRemarks: '',
+      plannedAt: new Date().toISOString(), accomplishedAt: null
+    });
+    renderDwmData(empId);
+  }, empId);
+  await page.waitForTimeout(300);
+  await page.evaluate(function () { confirmPunchIn(); });
+  await page.waitForTimeout(500);
+  await page.evaluate(function (empId) {
+    var act = (window.RevOpsStore.getCollection('dwmActivities') || []).find(function (a) { return a.employeeId === empId; });
+    window.RevOpsStore.updateItem('dwmActivities', act.id, { accomplishmentStatus: 'Done' });
+    renderDwmData(empId);
+  }, empId);
+  await page.waitForTimeout(300);
+  await page.evaluate(function () { confirmPunchOut(); });
+  await page.waitForTimeout(500);
+
+  const afterPunchOut = await page.evaluate(function (empId) {
+    var att = (window.RevOpsStore.getCollection('attendance') || []).find(function (a) { return a.employeeId === empId; });
+    return { autoScore: att && att.autoScore, ratificationStatus: att && att.scoreRatificationStatus, finalScore: att && att.finalScore };
+  }, empId);
+  assertEqual(afterPunchOut.autoScore, 100, 'Punch Out auto-computes a 100% Daily Productivity Score (1 of 1 activities fully Done)', failures);
+  assertEqual(afterPunchOut.ratificationStatus, 'Pending', 'The auto-computed score starts out Pending ratification', failures);
+  assertEqual(afterPunchOut.finalScore, null, 'finalScore is not set until a manager ratifies/modifies it', failures);
+
+  // 2. Switch to the reporting manager - the score shows in My Team's
+  // pending-ratifications queue.
+  await page.addInitScript(function (mgrId) {
+    localStorage.setItem('userRole', 'manager');
+    localStorage.setItem('userEmail', 'scoremgr@measuredi.com');
+    localStorage.setItem('userName', 'Score Test Manager');
+    localStorage.setItem('employeeId', mgrId);
+  }, mgrId);
+  await page.goto(BASE_URL + '/my-team.html', { waitUntil: 'networkidle', timeout: 30000 });
+  await page.waitForTimeout(700);
+
+  const queueVisible = await page.evaluate(function () {
+    var section = document.getElementById('pending-scores-section');
+    return { visible: section && !section.classList.contains('hidden'), text: document.getElementById('pending-scores-tbody').innerText };
+  });
+  assertTrue(queueVisible.visible, 'Pending Score Ratifications section is visible to the reporting manager', failures);
+  assertTrue(queueVisible.text.indexOf('Score Test Employee') !== -1, 'The queue lists the employee by name', failures);
+  assertTrue(queueVisible.text.indexOf('100%') !== -1, 'The queue shows the auto-computed score', failures);
+
+  // 3. Manager modifies the score (overrides 100% down to 75% with a
+  // mandatory justification) - finalScore becomes the manager's number.
+  dialogResponder = function (msg) {
+    if (msg.indexOf('Enter the score') !== -1) return '75';
+    if (msg.indexOf('justification') !== -1) return 'Field visit took longer than logged, verified in person.';
+    return '';
+  };
+  await page.click('#pending-scores-tbody button:has-text("Modify")');
+  await page.waitForTimeout(400);
+
+  const afterModify = await page.evaluate(function (empId) {
+    var att = (window.RevOpsStore.getCollection('attendance') || []).find(function (a) { return a.employeeId === empId; });
+    return { status: att.scoreRatificationStatus, finalScore: att.finalScore, autoScore: att.autoScore, remarks: att.scoreRatificationRemarks, reviewedBy: att.scoreRatifiedByName };
+  }, empId);
+  assertEqual(afterModify.status, 'Modified', 'scoreRatificationStatus flips to Modified', failures);
+  assertEqual(afterModify.finalScore, 75, 'finalScore becomes the manager\'s override (75), not the autoScore', failures);
+  assertEqual(afterModify.autoScore, 100, 'The original autoScore (100) is preserved for the record even after modification', failures);
+  assertEqual(afterModify.remarks, 'Field visit took longer than logged, verified in person.', 'The mandatory justification is saved', failures);
+  assertEqual(afterModify.reviewedBy, 'Score Test Manager', 'The record captures who reviewed it', failures);
+
+  const queueAfterModify = await page.evaluate(function () {
+    var section = document.getElementById('pending-scores-section');
+    return section && section.classList.contains('hidden');
+  });
+  assertTrue(queueAfterModify, 'The queue disappears once nothing is left pending for this manager', failures);
+
+  // 4. This Modified (finalScore 75) day must now be counted in a
+  // computeRatifiedScoreAverage() call covering it.
+  const todayStr = await page.evaluate(function () { return getFormattedToday(); });
+  const avgWithModified = await page.evaluate(function (args) {
+    var attendance = window.RevOpsStore.getCollection('attendance') || [];
+    return window.RevOpsStore.computeRatifiedScoreAverage(args.empId, args.today, args.today, attendance);
+  }, { empId: empId, today: todayStr });
+  assertEqual(avgWithModified.avgScore, 75, 'computeRatifiedScoreAverage counts the Modified day using its finalScore (75), not the autoScore', failures);
+  assertEqual(avgWithModified.daysScored, 1, 'Exactly 1 ratified/modified day is counted for this period', failures);
+
+  // 5. Reject path on a second (synthetic) day: requires a justification,
+  // and a Rejected day must be EXCLUDED from the average, never counted
+  // as 0%.
+  const rejectResult = await page.evaluate(function (ids) {
+    var attendance = window.RevOpsStore.getCollection('attendance') || [];
+    attendance.push({
+      id: 'att_score_reject_test', employeeId: ids.empId, employeeName: 'Score Test Employee', date: '01/01/2026',
+      status: 'Completed', autoScore: 40, scoreRatificationStatus: 'Pending', finalScore: null
+    });
+    window.RevOpsStore.saveCollection('attendance', attendance);
+    return window.RevOpsStore.rejectDailyScore('att_score_reject_test', ids.mgrId, 'Score Test Manager', '');
+  }, { empId: empId, mgrId: mgrId });
+  assertEqual(rejectResult.success, false, 'rejectDailyScore refuses an empty justification', failures);
+  assertEqual(rejectResult.reason, 'no-justification', 'Empty-justification rejection reports reason no-justification', failures);
+
+  const rejectResult2 = await page.evaluate(function (ids) {
+    return window.RevOpsStore.rejectDailyScore('att_score_reject_test', ids.mgrId, 'Score Test Manager', 'DWM data looks inconsistent with field reports, needs discussion.');
+  }, { empId: empId, mgrId: mgrId });
+  assertTrue(rejectResult2.success, 'rejectDailyScore succeeds with a real justification', failures);
+
+  const avgWithRejectedIncluded = await page.evaluate(function (args) {
+    var attendance = window.RevOpsStore.getCollection('attendance') || [];
+    return window.RevOpsStore.computeRatifiedScoreAverage(args.empId, '01/01/2026', args.today, attendance);
+  }, { empId: empId, today: todayStr });
+  assertEqual(avgWithRejectedIncluded.avgScore, 75, 'A Rejected day is excluded from the average entirely - the period average stays at 75 (only the Modified day), not dragged down by the rejected 40%', failures);
+  assertEqual(avgWithRejectedIncluded.daysScored, 1, 'Still exactly 1 day counted - the Rejected day never contributes', failures);
+
+  await page.close();
+  return failures;
+}
+
 const TESTS = [
   ['SLA day-based seeding, migration, severity dropdown & date math', testSlaDayBasedSeedingAndMigration],
   ['Ticket email subject line', testQuotationVerticalAndTicketSubject],
@@ -3342,7 +3849,11 @@ const TESTS = [
   ['Per-employee KRA/DWM template: pre-filled download, fill-in, upload round-trip', testEmployeeKraTemplateDownloadAndUpload],
   ['Seed guard: stale local defaultEmployees fallback never duplicates the real Firestore roster', testEmployeesSeedGuardAgainstDuplication],
   ['DWM tick/time/% rework: Include checkboxes, editable time pre-fill, Punch-In lock, real % Done, plan-changed flag', testDwmTickTimePercentAndPlanChanged],
-  ['checkAuth self-heals an invalid employee role ("Engineer") to "staff" instead of looping on Unauthorized access', testCheckAuthNormalizesInvalidRole]
+  ['checkAuth self-heals an invalid employee role ("Engineer") to "staff" instead of looping on Unauthorized access', testCheckAuthNormalizesInvalidRole],
+  ['DWM "Reset Plan" button: clears ticks + deletes extras before Punch In, disappears once nothing to reset', testDwmResetPlanButton],
+  ['Executive Dashboard Workforce & DWM Compliance Snapshot: Today\'s Attendance, Monthly %, DWM Compliance, Today\'s Accomplishment', testDashboardHrSnapshot],
+  ['Attendance correction request + manager approval workflow: past-day-only, pending queue, approve computes hours, reject requires remarks', testAttendanceCorrectionWorkflow],
+  ['Daily Productivity Score ratification: auto-computed at Punch Out, manager ratify/modify/reject, feeds weekly/monthly review average', testScoreRatificationWorkflow]
 ];
 
 (async () => {

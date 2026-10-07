@@ -105,6 +105,7 @@
                 <th class="py-3 px-4 text-center">KPI Snap %</th>
                 <th class="py-3 px-4 text-center">DWM Snap %</th>
                 <th class="py-3 px-4 text-center">Att Snap %</th>
+                <th class="py-3 px-4 text-center">Daily Score</th>
                 <th class="py-3 px-4 text-center">Rating</th>
                 <th class="py-3 px-4">Manager Comments</th>
                 <th class="py-3 px-4 text-center">Date Logged</th>
@@ -163,7 +164,7 @@
           <!-- Live Auto-Computed Snapshots Banner -->
           <div class="p-4 bg-indigo-50/70 border border-indigo-100 rounded-2xl space-y-2">
             <span class="text-[10px] font-black uppercase tracking-wider text-indigo-700 block">Live Auto-Computed Snapshots for Selected Period</span>
-            <div class="grid grid-cols-3 gap-2 text-center">
+            <div class="grid grid-cols-4 gap-2 text-center">
               <div class="bg-white p-2.5 rounded-xl border border-indigo-100">
                 <span class="text-[10px] font-bold text-slate-500 uppercase block">KPI Achievement</span>
                 <span class="text-base font-black text-indigo-700" id="snap-kpi">0.0%</span>
@@ -175,6 +176,10 @@
               <div class="bg-white p-2.5 rounded-xl border border-indigo-100">
                 <span class="text-[10px] font-bold text-slate-500 uppercase block">Attendance</span>
                 <span class="text-base font-black text-blue-700" id="snap-att">0.0%</span>
+              </div>
+              <div class="bg-white p-2.5 rounded-xl border border-indigo-100" title="Average of this employee's manager-ratified Daily Productivity Scores within the selected period">
+                <span class="text-[10px] font-bold text-slate-500 uppercase block">Daily Score (Ratified)</span>
+                <span class="text-base font-black text-purple-700" id="snap-score">--</span>
               </div>
             </div>
           </div>
@@ -332,7 +337,7 @@
         });
 
         if (filtered.length === 0) {
-          tbody.innerHTML = `<tr><td colspan="8" class="py-6 text-center text-slate-400">No performance review records found matching filters.</td></tr>`;
+          tbody.innerHTML = `<tr><td colspan="9" class="py-6 text-center text-slate-400">No performance review records found matching filters.</td></tr>`;
           return;
         }
 
@@ -355,6 +360,7 @@
             <td class="py-3 px-4 text-center font-bold text-indigo-600">${escapeHtml(r.kpiAchievementSnapshot || 0)}%</td>
             <td class="py-3 px-4 text-center font-bold text-emerald-600">${escapeHtml(r.dwmComplianceSnapshot || 0)}%</td>
             <td class="py-3 px-4 text-center font-bold text-blue-600">${escapeHtml(r.attendanceSnapshot || 0)}%</td>
+            <td class="py-3 px-4 text-center font-bold text-purple-600">${typeof r.dailyProductivityScoreSnapshot === 'number' ? escapeHtml(r.dailyProductivityScoreSnapshot) + '%' : '--'}</td>
             <td class="py-3 px-4 text-center">
               <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${ratingClass}">${escapeHtml(r.rating)}</span>
             </td>
@@ -445,6 +451,24 @@
         document.getElementById('snap-kpi').innerText = kpiSnap + "%";
         document.getElementById('snap-dwm').innerText = dwmSnap + "%";
         document.getElementById('snap-att').innerText = attSnap + "%";
+
+        // Daily Productivity Score snapshot - the average of this
+        // employee's manager-RATIFIED daily scores within the exact
+        // review period selected (still-Pending or Rejected days are
+        // excluded, not counted as 0%). Only computable once both dates
+        // are picked.
+        var startDateEl = document.getElementById('modal-start-date');
+        var endDateEl = document.getElementById('modal-end-date');
+        var scoreSnapEl = document.getElementById('snap-score');
+        if (scoreSnapEl && startDateEl.value && endDateEl.value) {
+          var startApp = startDateEl.value.split('-').reverse().join('/');
+          var endApp = endDateEl.value.split('-').reverse().join('/');
+          var scoreResult = window.RevOpsStore.computeRatifiedScoreAverage(empId, startApp, endApp, attendance);
+          scoreSnapEl.innerText = scoreResult.avgScore + "%";
+          scoreSnapEl.title = scoreResult.daysScored + ' ratified day(s) counted';
+        } else if (scoreSnapEl) {
+          scoreSnapEl.innerText = "--";
+        }
       }
 
       function handleSaveReview(e) {
@@ -465,6 +489,8 @@
         var kpiSnap = parseFloat(document.getElementById('snap-kpi').innerText);
         var dwmSnap = parseFloat(document.getElementById('snap-dwm').innerText);
         var attSnap = parseFloat(document.getElementById('snap-att').innerText);
+        var scoreSnapText = document.getElementById('snap-score').innerText;
+        var dailyScoreSnap = scoreSnapText === '--' ? null : parseFloat(scoreSnapText);
 
         var newRev = {
           employeeId: empId,
@@ -478,6 +504,7 @@
           kpiAchievementSnapshot: kpiSnap,
           dwmComplianceSnapshot: dwmSnap,
           attendanceSnapshot: attSnap,
+          dailyProductivityScoreSnapshot: dailyScoreSnap,
           rating: rating,
           managerComments: managerComments,
           employeeComments: employeeComments,

@@ -450,15 +450,304 @@ Object.assign(window.RevOpsStore, {
     var computedHours = Math.round((diffMs / (1000 * 60 * 60)) * 10) / 10;
     if (computedHours <= 0) computedHours = 8.0;
 
+    // Today's Daily Productivity Score, computed the instant the day is
+    // confirmed complete - the same calculateDailyProductivity() the DWM
+    // page itself shows, so what the employee saw live and what gets
+    // ratified are always the identical number. It starts life Pending -
+    // see ratifyDailyScore/rejectDailyScore/modifyDailyScore below - and
+    // only counts toward anything (weekly/monthly reviews) once a
+    // reporting manager has actually ratified or modified it.
+    var autoScoreStats = this.calculateDailyProductivity(tickedDwm, 8.0);
+
     this.updateItem('attendance', todayAtt.id, {
       punchOutTime: punchOutTime.toISOString(),
       punchOutLocation: locationObj,
       workedHours: computedHours,
       dwmAccomplishedCount: accomplishedCount,
-      status: 'Completed'
+      status: 'Completed',
+      autoScore: autoScoreStats.score,
+      scoreRatificationStatus: 'Pending',
+      finalScore: null,
+      scoreRatifiedBy: null,
+      scoreRatifiedByName: null,
+      scoreRatifiedAt: null,
+      scoreRatificationRemarks: null
     });
 
-    return { success: true, workedHours: computedHours, punchOutTime: punchOutTime };
+    return { success: true, workedHours: computedHours, punchOutTime: punchOutTime, autoScore: autoScoreStats.score };
+  },
+
+  // Reporting-manager action: accepts the system-computed Daily
+  // Productivity Score exactly as-is. finalScore (what weekly/monthly
+  // reviews actually average) becomes the autoScore.
+  ratifyDailyScore: function(attId, reviewerEmpId, reviewerName, remarks) {
+    var attendance = this.getCollection('attendance') || [];
+    var att = attendance.find(function(a) { return a.id === attId; });
+    if (!att || att.scoreRatificationStatus !== 'Pending') {
+      return { success: false, reason: 'not-pending' };
+    }
+
+    this.updateItem('attendance', attId, {
+      scoreRatificationStatus: 'Ratified',
+      finalScore: att.autoScore,
+      scoreRatifiedBy: reviewerEmpId,
+      scoreRatifiedByName: reviewerName,
+      scoreRatifiedAt: new Date().toISOString(),
+      scoreRatificationRemarks: (remarks || '').trim()
+    });
+
+    if (this.logAudit) {
+      this.logAudit('Attendance', att.employeeId + '::' + att.date, 'UPDATE', (reviewerName || reviewerEmpId) + ' ratified ' + (att.employeeName || att.employeeId) + "'s Daily Productivity Score (" + att.autoScore + "%) for " + att.date, att, { finalScore: att.autoScore });
+    }
+    return { success: true };
+  },
+
+  // Reporting-manager action: overrides the system-computed score with
+  // their own number, with a mandatory justification (e.g. the DWM data
+  // doesn't reflect a field situation they know about). finalScore
+  // becomes the manager's number, not the autoScore.
+  modifyDailyScore: function(attId, reviewerEmpId, reviewerName, newScore, justification) {
+    justification = (justification || '').trim();
+    if (!justification) return { success: false, reason: 'no-justification' };
+    var scoreNum = Number(newScore);
+    if (isNaN(scoreNum) || scoreNum < 0 || scoreNum > 100) return { success: false, reason: 'invalid-score' };
+
+    var attendance = this.getCollection('attendance') || [];
+    var att = attendance.find(function(a) { return a.id === attId; });
+    if (!att || att.scoreRatificationStatus !== 'Pending') {
+      return { success: false, reason: 'not-pending' };
+    }
+
+    this.updateItem('attendance', attId, {
+      scoreRatificationStatus: 'Modified',
+      finalScore: Math.round(scoreNum),
+      scoreRatifiedBy: reviewerEmpId,
+      scoreRatifiedByName: reviewerName,
+      scoreRatifiedAt: new Date().toISOString(),
+      scoreRatificationRemarks: justification
+    });
+
+    if (this.logAudit) {
+      this.logAudit('Attendance', att.employeeId + '::' + att.date, 'UPDATE', (reviewerName || reviewerEmpId) + ' modified ' + (att.employeeName || att.employeeId) + "'s Daily Productivity Score for " + att.date + ' from ' + att.autoScore + '% to ' + Math.round(scoreNum) + '%: ' + justification, att, { finalScore: Math.round(scoreNum) });
+    }
+    return { success: true };
+  },
+
+  // Reporting-manager action: disputes the day's score entirely, with a
+  // mandatory justification. No finalScore is set - a Rejected day is
+  // excluded from weekly/monthly review averages (computeRatifiedScoreAverage
+  // below) rather than counted as 0%, until someone resolves it (the
+  // employee/manager can discuss and the manager can later re-ratify via
+  // the Employee Directory if needed - rejection here is a flag, not a
+  // dead end).
+  rejectDailyScore: function(attId, reviewerEmpId, reviewerName, justification) {
+    justification = (justification || '').trim();
+    if (!justification) return { success: false, reason: 'no-justification' };
+
+    var attendance = this.getCollection('attendance') || [];
+    var att = attendance.find(function(a) { return a.id === attId; });
+    if (!att || att.scoreRatificationStatus !== 'Pending') {
+      return { success: false, reason: 'not-pending' };
+    }
+
+    this.updateItem('attendance', attId, {
+      scoreRatificationStatus: 'Rejected',
+      scoreRatifiedBy: reviewerEmpId,
+      scoreRatifiedByName: reviewerName,
+      scoreRatifiedAt: new Date().toISOString(),
+      scoreRatificationRemarks: justification
+    });
+
+    if (this.logAudit) {
+      this.logAudit('Attendance', att.employeeId + '::' + att.date, 'UPDATE', (reviewerName || reviewerEmpId) + ' rejected ' + (att.employeeName || att.employeeId) + "'s Daily Productivity Score for " + att.date + ': ' + justification, att, null);
+    }
+    return { success: true };
+  },
+
+  // Averages finalScore across an employee's attendance records in
+  // [startDate, endDate] (DD/MM/YYYY, inclusive, string-compared the same
+  // way as every other date range in this app) - only Ratified or
+  // Modified days count; still-Pending or Rejected days are excluded
+  // rather than silently scored 0%, so a manager who hasn't caught up on
+  // ratifications yet doesn't drag down the team's weekly/monthly review
+  // numbers. Used by reviews.html to drive the review's score snapshot.
+  computeRatifiedScoreAverage: function(empId, startDate, endDate, attendance) {
+    var self = this;
+    var startC = this._appDateToComparable(startDate);
+    var endC = this._appDateToComparable(endDate);
+    var scored = (attendance || []).filter(function(a) {
+      if (a.employeeId !== empId) return false;
+      if (typeof a.finalScore !== 'number') return false;
+      var dC = self._appDateToComparable(a.date);
+      if (!dC) return false;
+      if (startC && dC < startC) return false;
+      if (endC && dC > endC) return false;
+      return true;
+    });
+    if (scored.length === 0) return { avgScore: 0, daysScored: 0 };
+    var sum = 0;
+    scored.forEach(function(a) { sum += a.finalScore; });
+    return { avgScore: Math.round(sum / scored.length), daysScored: scored.length };
+  },
+
+  // DD/MM/YYYY -> a lexicographically-comparable YYYYMMDD string.
+  _appDateToComparable: function(dateStr) {
+    var p = (dateStr || '').split('/');
+    if (p.length < 3) return null;
+    return p[2] + p[1].padStart(2, '0') + p[0].padStart(2, '0');
+  },
+
+  // True only if dateStr is strictly before todayStr (both DD/MM/YYYY) -
+  // attendance corrections are for a genuinely missed PAST day; today
+  // always goes through the normal DWM-driven Punch In/Out flow instead.
+  _isPastAppDate: function(dateStr, todayStr) {
+    var d = this._appDateToComparable(dateStr);
+    var t = this._appDateToComparable(todayStr);
+    if (!d || !t) return false;
+    return d < t;
+  },
+
+  // Combines a DD/MM/YYYY date with an "HH:MM" clock time (local time,
+  // same as every other time input in this app) into an ISO datetime
+  // string, so a requested correction time is stored the same shape as a
+  // real captured punchInTime/punchOutTime.
+  _combineDateAndTimeToIso: function(dateStr, hhmm) {
+    var dp = (dateStr || '').split('/');
+    var tp = (hhmm || '').split(':');
+    if (dp.length < 3 || tp.length < 2) return null;
+    var d = new Date(parseInt(dp[2], 10), parseInt(dp[1], 10) - 1, parseInt(dp[0], 10), parseInt(tp[0], 10), parseInt(tp[1], 10), 0, 0);
+    return isNaN(d.getTime()) ? null : d.toISOString();
+  },
+
+  // Employee-initiated request to fill in a missed Punch In and/or Punch
+  // Out for a genuinely past day - creates a Pending-review attendance
+  // record (if none exists for that day) or layers the request onto an
+  // existing incomplete one (e.g. punched in but never managed to punch
+  // out). The requested times never take effect on their own - they only
+  // become the real punchInTime/punchOutTime once a reporting manager
+  // calls approveAttendanceCorrection below. Rejected by design for
+  // today (today always goes through the normal DWM punch flow) and for
+  // a day that's already fully Completed (nothing missing to correct).
+  requestAttendanceCorrection: function(empId, empName, date, requestedPunchIn, requestedPunchOut, reason) {
+    reason = (reason || '').trim();
+    if (!reason) return { success: false, reason: 'no-reason' };
+    if (!requestedPunchIn && !requestedPunchOut) return { success: false, reason: 'no-times' };
+
+    var today = getFormattedToday();
+    if (!this._isPastAppDate(date, today)) {
+      return { success: false, reason: 'not-past-date' };
+    }
+
+    var attendance = this.getCollection('attendance') || [];
+    var existing = attendance.find(function(a) { return a.employeeId === empId && a.date === date; });
+    if (existing && existing.status === 'Completed') {
+      return { success: false, reason: 'already-complete' };
+    }
+    if (existing && existing.correctionStatus === 'Pending') {
+      return { success: false, reason: 'already-pending' };
+    }
+
+    var updates = {
+      employeeId: empId,
+      employeeName: empName,
+      date: date,
+      status: existing ? existing.status : 'Pending Correction',
+      correctionStatus: 'Pending',
+      requestedPunchInTime: requestedPunchIn ? this._combineDateAndTimeToIso(date, requestedPunchIn) : ((existing && existing.punchInTime) || null),
+      requestedPunchOutTime: requestedPunchOut ? this._combineDateAndTimeToIso(date, requestedPunchOut) : ((existing && existing.punchOutTime) || null),
+      correctionReason: reason,
+      correctionRequestedAt: new Date().toISOString(),
+      correctionReviewedBy: null,
+      correctionReviewedByName: null,
+      correctionReviewedAt: null,
+      correctionReviewRemarks: null
+    };
+
+    if (existing) {
+      this.updateItem('attendance', existing.id, updates);
+    } else {
+      updates.punchInTime = null;
+      updates.punchOutTime = null;
+      updates.workedHours = null;
+      updates.dwmPlanCount = 0;
+      updates.dwmAccomplishedCount = 0;
+      this.addItem('attendance', updates);
+    }
+
+    if (this.logAudit) {
+      this.logAudit('Attendance', empId + '::' + date, 'CREATE', (empName || empId) + ' requested an attendance correction for ' + date + ': ' + reason, null, updates);
+    }
+
+    return { success: true };
+  },
+
+  // Reporting-manager action: approves a Pending correction request,
+  // applying the requested time(s) as the real punchInTime/punchOutTime
+  // and recomputing workedHours once both sides are present. This is the
+  // ONLY path a correction request can actually change real attendance
+  // data - a still-Pending request never does.
+  approveAttendanceCorrection: function(attId, reviewerEmpId, reviewerName, remarks) {
+    var attendance = this.getCollection('attendance') || [];
+    var att = attendance.find(function(a) { return a.id === attId; });
+    if (!att || att.correctionStatus !== 'Pending') {
+      return { success: false, reason: 'not-pending' };
+    }
+
+    var punchInTime = att.requestedPunchInTime || att.punchInTime;
+    var punchOutTime = att.requestedPunchOutTime || att.punchOutTime;
+
+    var updates = {
+      punchInTime: punchInTime,
+      punchOutTime: punchOutTime,
+      correctionStatus: 'Approved',
+      correctionReviewedBy: reviewerEmpId,
+      correctionReviewedByName: reviewerName,
+      correctionReviewedAt: new Date().toISOString(),
+      correctionReviewRemarks: (remarks || '').trim()
+    };
+
+    if (punchInTime && punchOutTime) {
+      var diffMs = new Date(punchOutTime) - new Date(punchInTime);
+      var hours = Math.round((diffMs / (1000 * 60 * 60)) * 10) / 10;
+      updates.workedHours = hours > 0 ? hours : 8.0;
+      updates.status = 'Completed';
+    } else if (punchInTime) {
+      updates.status = 'Punched In';
+    }
+
+    this.updateItem('attendance', attId, updates);
+    if (this.logAudit) {
+      this.logAudit('Attendance', att.employeeId + '::' + att.date, 'UPDATE', (reviewerName || reviewerEmpId) + ' approved ' + (att.employeeName || att.employeeId) + "'s attendance correction for " + att.date, att, updates);
+    }
+    return { success: true };
+  },
+
+  // Reporting-manager action: rejects a Pending correction request. The
+  // real attendance record is left exactly as it was (still missing
+  // whatever it was missing) - a remark explaining why is mandatory so
+  // the employee knows what to fix and resubmit.
+  rejectAttendanceCorrection: function(attId, reviewerEmpId, reviewerName, remarks) {
+    remarks = (remarks || '').trim();
+    if (!remarks) return { success: false, reason: 'no-remarks' };
+
+    var attendance = this.getCollection('attendance') || [];
+    var att = attendance.find(function(a) { return a.id === attId; });
+    if (!att || att.correctionStatus !== 'Pending') {
+      return { success: false, reason: 'not-pending' };
+    }
+
+    this.updateItem('attendance', attId, {
+      correctionStatus: 'Rejected',
+      correctionReviewedBy: reviewerEmpId,
+      correctionReviewedByName: reviewerName,
+      correctionReviewedAt: new Date().toISOString(),
+      correctionReviewRemarks: remarks
+    });
+
+    if (this.logAudit) {
+      this.logAudit('Attendance', att.employeeId + '::' + att.date, 'UPDATE', (reviewerName || reviewerEmpId) + ' rejected ' + (att.employeeName || att.employeeId) + "'s attendance correction for " + att.date + ': ' + remarks, att, null);
+    }
+    return { success: true };
   },
 
   // Special Assignment = work entirely outside the employee's KRA/KPI
@@ -604,19 +893,22 @@ Object.assign(window.RevOpsStore, {
   // every row stays freely editable until Punch In.
   DWM_STANDARD_SHIFT_START: '09:00',
 
-  // Regular DWM rows carry no manually-entered hour estimate by default -
-  // instead whatever's left of the standard 8-hour day after ticked
-  // Special Assignment time blocks (and any row the employee has
-  // hand-edited the time for) are subtracted gets split evenly, in
-  // sequence from DWM_STANDARD_SHIFT_START, across the remaining ticked
-  // Regular DWM rows. Called whenever a Special Assignment or an extra KRA
-  // activity is added/edited/deleted/ticked/unticked, so the split always
-  // reflects the day's current shape. A row the employee has manually
-  // retimed (userEditedTime) is never overwritten here - that's the "pre-
-  // fill, but he can modify it" behaviour - its hours are simply reserved
-  // out of the remaining budget before the rest gets divided.
-  // An unticked row (excluded from today's plan) is reset to 0 hours /
-  // no time, since it isn't part of the day being scheduled.
+  // Regular DWM rows (KRA auto-fill + extra KRA activities) are laid out as
+  // one continuous chain through the standard shift, starting at
+  // DWM_STANDARD_SHIFT_START: each row's Start Time is always wherever the
+  // previous row's End Time landed - never independently chosen - so
+  // editing one row's End Time (which is all the employee can edit; Start
+  // is computed) automatically pushes every row after it later or earlier
+  // in lockstep. A row with no manual edit yet gets an equal share of
+  // whatever's left of the 8-hour day after Special Assignments (fixed,
+  // independent time blocks - never part of this chain) and every
+  // manually-set row's own duration are subtracted; a manually-edited row
+  // keeps its own duration (not evenly split) but still slots into the
+  // chain at the right position. Called whenever a Special Assignment or
+  // an extra KRA activity is added/edited/deleted/ticked/unticked/retimed,
+  // so the chain always reflects the day's current shape.
+  // An unticked row (excluded from today's plan) is reset to 0 hours / no
+  // time, since it isn't part of the day being scheduled.
   recomputeRegularDwmHoursForDay: function(empId, date, standardHours) {
     standardHours = standardHours || 8.0;
     var allActs = this.getCollection('dwmActivities') || [];
@@ -650,27 +942,129 @@ Object.assign(window.RevOpsStore, {
     if (regularActs.length === 0) return;
 
     var manualActs = regularActs.filter(function(a) { return a.userEditedTime; });
-    var autoActs = regularActs.filter(function(a) { return !a.userEditedTime; });
+    var autoCount = regularActs.length - manualActs.length;
 
     var manualHours = 0;
     manualActs.forEach(function(a) { manualHours += Number(a.hoursSpent) || 0; });
 
     var remaining = Math.max(0, standardHours - specialHours - manualHours);
-    var perItem = autoActs.length > 0 ? Math.round((remaining / autoActs.length) * 100) / 100 : 0;
+    var perItem = autoCount > 0 ? Math.round((remaining / autoCount) * 100) / 100 : 0;
 
     var cursorMinutes = this._hhmmToMinutes(this.DWM_STANDARD_SHIFT_START);
-    autoActs.forEach(function(a) {
-      var durMinutes = Math.round(perItem * 60);
+    regularActs.forEach(function(a) {
+      var itemHours = a.userEditedTime ? (Number(a.hoursSpent) || 0) : perItem;
+      var durMinutes = Math.round(itemHours * 60);
       var startTime = self._minutesToHHMM(cursorMinutes);
       var endTime = self._minutesToHHMM(cursorMinutes + durMinutes);
       cursorMinutes += durMinutes;
 
       var updates = {};
-      if (a.hoursSpent !== perItem) updates.hoursSpent = perItem;
+      if (a.hoursSpent !== itemHours) updates.hoursSpent = itemHours;
       if (a.startTime !== startTime) updates.startTime = startTime;
       if (a.endTime !== endTime) updates.endTime = endTime;
       if (Object.keys(updates).length > 0) self.updateItem('dwmActivities', a.id, updates);
     });
+  },
+
+  // Clears today's ENTIRE plan before Punch In: unticks every Regular DWM
+  // point (they stay visible, just excluded - they're auto-filled from
+  // KRAs so there's nothing to "delete") and deletes every extra KRA
+  // activity / Special Assignment the employee added for today, since
+  // those exist only because they were explicitly added. A full reset
+  // back to a blank slate, used by the "Reset Plan" button - only ever
+  // callable before Punch In (the DWM page itself enforces that; this
+  // function has no opinion on punch state, same as every other mutator
+  // here).
+  resetTodayDwmPlan: function(empId, date) {
+    var self = this;
+    var todayActs = (this.getCollection('dwmActivities') || []).filter(function(a) {
+      return a.employeeId === empId && a.date === date;
+    });
+    todayActs.forEach(function(a) {
+      if (a.isAutoGenerated) {
+        if (a.isTicked !== false) self.updateItem('dwmActivities', a.id, { isTicked: false, hoursSpent: 0, startTime: '', endTime: '', userEditedTime: false });
+      } else {
+        self.deleteItem('dwmActivities', a.id);
+      }
+    });
+  },
+
+  // Number of working days (everything except Sunday) from the 1st of the
+  // given month up to and including uptoDay. Shared by every attendance/
+  // DWM compliance % calculation so "a working day" means the same thing
+  // everywhere in the app.
+  computeWorkingDaysElapsedInMonth: function(year, month, uptoDay) {
+    var count = 0;
+    for (var d = 1; d <= uptoDay; d++) {
+      var dt = new Date(year, month - 1, d);
+      if (dt.getDay() !== 0) count++;
+    }
+    return count || 1;
+  },
+
+  // Attendance compliance % for a set of employees, for the month
+  // containing refDate (defaults to today). Averages each employee's own
+  // Completed-attendance-day count against the elapsed working days this
+  // month, then expresses that as a %. An employee (or a whole group)
+  // with zero logged attendance this month correctly scores 0% - this
+  // must NEVER fall back to "assume full compliance" just because other
+  // employees elsewhere in the shared attendance collection have records;
+  // that false-confidence shortcut was already identified and removed
+  // from the equivalent DWM compliance calculation, but survived here
+  // unnoticed until now.
+  computeAttendanceCompliance: function(empIds, attendance, refDate) {
+    refDate = refDate || new Date();
+    var curM = refDate.getMonth() + 1;
+    var curY = refDate.getFullYear();
+    var mStr = (curM < 10 ? '0' + curM : curM) + '/' + curY;
+    var workingDaysElapsed = this.computeWorkingDaysElapsedInMonth(curY, curM, refDate.getDate());
+
+    var idSet = {};
+    (empIds || []).forEach(function(id) { idSet[id] = true; });
+
+    var completedByEmp = {};
+    (attendance || []).forEach(function(att) {
+      if (!att || !idSet[att.employeeId] || att.status !== 'Completed') return;
+      if (!att.date || (att.date.indexOf(mStr) === -1 && att.date.indexOf('/' + curM + '/' + curY) === -1)) return;
+      completedByEmp[att.employeeId] = (completedByEmp[att.employeeId] || 0) + 1;
+    });
+
+    var empCount = (empIds || []).length || 1;
+    var totalCompletedDays = 0;
+    Object.keys(completedByEmp).forEach(function(k) { totalCompletedDays += completedByEmp[k]; });
+    var avgCompletedDays = Math.round(totalCompletedDays / empCount);
+    var pct = Math.min(100, Math.round((avgCompletedDays / workingDaysElapsed) * 100));
+
+    return { pct: pct, avgCompletedDays: avgCompletedDays, workingDaysElapsed: workingDaysElapsed };
+  },
+
+  // DWM compliance % for a set of employees, for the month containing
+  // refDate - the % of elapsed calendar days this month on which at least
+  // one of their DWM activities was actually updated off Pending. Same
+  // "zero logged means zero %, never a false fallback" rule as above.
+  computeDwmCompliance: function(empIds, dwmActivities, refDate) {
+    refDate = refDate || new Date();
+    var curM = refDate.getMonth() + 1;
+    var curY = refDate.getFullYear();
+    var mStr = (curM < 10 ? '0' + curM : curM) + '/' + curY;
+    var elapsedDaysThisMonth = refDate.getDate();
+
+    var idSet = {};
+    (empIds || []).forEach(function(id) { idSet[id] = true; });
+
+    var dwmDatesMap = {};
+    (dwmActivities || []).forEach(function(a) {
+      if (!a || !idSet[a.employeeId] || a.isTicked === false) return;
+      if (!a.date || (a.date.indexOf(mStr) === -1 && a.date.indexOf('/' + curM + '/' + curY) === -1)) return;
+      if (a.accomplishmentStatus && a.accomplishmentStatus !== 'Pending') {
+        dwmDatesMap[a.date] = true;
+      }
+    });
+
+    var dwmDaysCount = Object.keys(dwmDatesMap).length;
+    var pct = Math.min(100, Math.round((dwmDaysCount / elapsedDaysThisMonth) * 100));
+
+    return { pct: pct, dwmDaysCount: dwmDaysCount, elapsedDaysThisMonth: elapsedDaysThisMonth };
   },
 
   // Computes a Special Assignment's duration in decimal hours from

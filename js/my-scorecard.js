@@ -299,65 +299,28 @@ var viewingEmpId = null;
           overallPill.innerText = "Needs Improvement";
         }
 
-        // 3. Compute DWM & Attendance Compliance % for this month
-        var todayDate = new Date();
-        var curM = todayDate.getMonth() + 1;
-        var curY = todayDate.getFullYear();
-        var mStr = (curM < 10 ? '0' + curM : curM) + '/' + curY;
-        var elapsedDaysThisMonth = todayDate.getDate();
-
-        // Calculate working days excluding Sundays
-        var workingDaysElapsed = 0;
-        for (var d = 1; d <= elapsedDaysThisMonth; d++) {
-          var testDate = new Date(curY, todayDate.getMonth(), d);
-          if (testDate.getDay() !== 0) { // Not Sunday
-            workingDaysElapsed++;
-          }
-        }
-        if (workingDaysElapsed === 0) workingDaysElapsed = 1;
-
-        // DWM Days with accomplished activities in current month
-        var myDwmActs = dwmActivities.filter(function(a) {
-          if (subEmpIds.indexOf(a.employeeId) === -1) return false;
-          return a.date && (a.date.indexOf(mStr) !== -1 || a.date.indexOf('/' + curM + '/' + curY) !== -1);
-        });
-        var dwmDatesMap = {};
-        myDwmActs.forEach(function(a) {
-          if (a.accomplishmentStatus && a.accomplishmentStatus !== 'Pending') {
-            dwmDatesMap[a.date] = true;
-          }
-        });
-        // No fallback to "assume full compliance" when this employee has
-        // logged nothing this month - that used to hide genuine
-        // non-adoption (a brand-new DWM user looked 100% compliant the
-        // moment anyone else in the org had logged anything at all).
-        // Zero logged days correctly means 0% here.
-        var dwmDaysCount = Object.keys(dwmDatesMap).length;
-
-        var dwmPct = Math.min(100, Math.round((dwmDaysCount / elapsedDaysThisMonth) * 100));
+        // 3. Compute DWM & Attendance Compliance % for this month - shared
+        // helpers (RevOpsStore.computeDwmCompliance / computeAttendanceCompliance)
+        // so every page that shows these numbers uses the exact same rule:
+        // zero logged activity this month means 0%, never a false "assume
+        // full compliance" fallback just because the shared collection
+        // isn't empty elsewhere.
+        var dwmResult = window.RevOpsStore.computeDwmCompliance(subEmpIds, dwmActivities);
+        var dwmPct = dwmResult.pct;
         document.getElementById('dwm-compliance-val').innerText = dwmPct + "%";
         document.getElementById('dwm-bar').style.width = dwmPct + "%";
         var dwmBadge = document.getElementById('dwm-badge');
-        dwmBadge.innerText = (subEmpIds.length > 1 ? "Team DWM: " : "") + dwmDaysCount + " / " + elapsedDaysThisMonth + " Days";
+        dwmBadge.innerText = (subEmpIds.length > 1 ? "Team DWM: " : "") + dwmResult.dwmDaysCount + " / " + dwmResult.elapsedDaysThisMonth + " Days";
         if (dwmPct >= 90) dwmBadge.className = "px-2.5 py-1 rounded-full text-[10px] font-bold uppercase bg-emerald-100 text-emerald-800";
         else if (dwmPct >= 70) dwmBadge.className = "px-2.5 py-1 rounded-full text-[10px] font-bold uppercase bg-amber-100 text-amber-800";
         else dwmBadge.className = "px-2.5 py-1 rounded-full text-[10px] font-bold uppercase bg-rose-100 text-rose-800";
 
-        // Attendance completed days in current month
-        var myAtts = attendance.filter(function(att) {
-          if (subEmpIds.indexOf(att.employeeId) === -1 || att.status !== 'Completed') return false;
-          return att.date && (att.date.indexOf(mStr) !== -1 || att.date.indexOf('/' + curM + '/' + curY) !== -1);
-        });
-        var attDaysCount = Math.round(myAtts.length / (subEmpIds.length || 1));
-        if (myAtts.length === 0 && attendance.length > 0) {
-          attDaysCount = workingDaysElapsed;
-        }
-
-        var attPct = Math.min(100, Math.round((attDaysCount / workingDaysElapsed) * 100));
+        var attResult = window.RevOpsStore.computeAttendanceCompliance(subEmpIds, attendance);
+        var attPct = attResult.pct;
         document.getElementById('att-compliance-val').innerText = attPct + "%";
         document.getElementById('att-bar').style.width = attPct + "%";
         var attBadge = document.getElementById('att-badge');
-        attBadge.innerText = (subEmpIds.length > 1 ? "Avg Team: " : "") + attDaysCount + " / " + workingDaysElapsed + " Work Days";
+        attBadge.innerText = (subEmpIds.length > 1 ? "Avg Team: " : "") + attResult.avgCompletedDays + " / " + attResult.workingDaysElapsed + " Work Days";
         if (attPct >= 90) attBadge.className = "px-2.5 py-1 rounded-full text-[10px] font-bold uppercase bg-blue-100 text-blue-800";
         else if (attPct >= 70) attBadge.className = "px-2.5 py-1 rounded-full text-[10px] font-bold uppercase bg-amber-100 text-amber-800";
         else attBadge.className = "px-2.5 py-1 rounded-full text-[10px] font-bold uppercase bg-rose-100 text-rose-800";

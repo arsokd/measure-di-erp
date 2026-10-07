@@ -122,6 +122,13 @@
           </div>
 
         </div>
+
+        <div class="pt-2 border-t border-slate-100 flex items-center justify-between gap-3">
+          <p class="text-xs text-slate-500">Missed a punch on a previous day? Request a correction - it needs your reporting manager's approval before it counts.</p>
+          <button onclick="openCorrectionModal()" class="px-3.5 py-2 bg-amber-50 hover:bg-amber-100 text-amber-800 font-semibold text-xs rounded-xl border border-amber-200 transition-colors whitespace-nowrap cursor-pointer">
+            ⚠️ Request Attendance Correction
+          </button>
+        </div>
       </div>
 
       <!-- Attendance History Table -->
@@ -162,6 +169,42 @@
       </div>
 
     </main>
+
+    <!-- Modal: Request Attendance Correction (missed Punch In/Out on a past day) -->
+    <div id="correction-modal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+      <div class="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-slate-100 overflow-hidden">
+        <div class="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+          <h3 class="text-base font-bold text-slate-900">Request Attendance Correction</h3>
+          <button onclick="closeCorrectionModal()" class="text-slate-400 hover:text-slate-600 text-lg font-bold">&times;</button>
+        </div>
+        <form onsubmit="handleSubmitCorrection(event)" class="p-6 space-y-4">
+          <p class="text-xs text-slate-500 -mt-1">For a day you missed punching in, out, or both. Your reporting manager must approve before it counts as attendance.</p>
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Date *</label>
+            <input type="date" id="correction-date" required class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Punch In Time</label>
+              <input type="time" id="correction-punch-in" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Punch Out Time</label>
+              <input type="time" id="correction-punch-out" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            </div>
+          </div>
+          <p class="text-[11px] text-slate-400 -mt-2">Fill in whichever you missed - just Punch In, just Punch Out, or both.</p>
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Reason *</label>
+            <textarea id="correction-reason" required rows="2" placeholder="e.g. Field visit, phone battery died before I could punch in" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"></textarea>
+          </div>
+          <div class="pt-4 border-t border-slate-100 flex items-center justify-end space-x-3">
+            <button type="button" onclick="closeCorrectionModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition-colors">Cancel</button>
+            <button type="submit" class="px-5 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold rounded-xl shadow-xs transition-colors cursor-pointer">Submit for Approval</button>
+          </div>
+        </form>
+      </div>
+    </div>
 
     <script src="js/attendance.js"></script>
   </body>
