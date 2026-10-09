@@ -220,6 +220,24 @@ Object.assign(window.RevOpsStore, {
   // (via the /api/sheet-sync Netlify Function proxy). Fire-and-forget: this
   // must never block, delay, or fail a real Firestore/localStorage save, so
   // all errors are swallowed and only logged.
+  // ISO 8601 UTC strings (e.g. punchInTime, createdAt) read fine in JS but
+  // show the raw "T"/"Z" separators when viewed as plain text in a Sheet
+  // cell; GPS fields (e.g. punchInLocation) are a {latitude, longitude, ...}
+  // object that would otherwise get JSON-stringified into an unreadable
+  // blob. Both are reshaped into plain, Sheet/copy-paste-friendly text
+  // here - this only affects what's mirrored to the Sheet, never the real
+  // record saved to Firestore/localStorage.
+  _ISO_DATETIME_RE: /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/,
+  _formatValueForSheet: function(val) {
+    if (typeof val === 'string' && this._ISO_DATETIME_RE.test(val)) {
+      return val.replace('T', ' ').replace(/(\.\d+)?Z$/, '');
+    }
+    if (val && typeof val === 'object' && typeof val.latitude === 'number' && typeof val.longitude === 'number') {
+      return val.latitude + ',' + val.longitude;
+    }
+    return val;
+  },
+
   syncToGoogleSheet: function(colName, action, record) {
     try {
       if (!record || typeof fetch !== 'function') return;
@@ -227,7 +245,7 @@ Object.assign(window.RevOpsStore, {
       var slim = {};
       for (var key in record) {
         if (!Object.prototype.hasOwnProperty.call(record, key)) continue;
-        var val = record[key];
+        var val = this._formatValueForSheet(record[key]);
         if (typeof val === 'string' && val.length > MAX_FIELD_LEN) continue;
         slim[key] = val;
       }
