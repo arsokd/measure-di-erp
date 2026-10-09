@@ -56,6 +56,22 @@ async function newPage(browser) {
   return { page, pageErrors };
 }
 
+// The "Assigned Service Tickets" alert (auth-guard.js) renders itself
+// bottom-right ~400ms after any page load whenever the signed-in employee
+// has open assigned tickets, and then sits there for the rest of that
+// page's life. It's real, intended behavior - but in a few tests the
+// seeded data happens to give the test user open tickets, so the popup
+// can end up sitting on top of a submit button and swallow the click.
+// Call this once per page load (after the usual post-goto settle wait,
+// by which point the popup has already rendered if it's going to) in any
+// test where that's a risk.
+async function closeAssignedTicketsPopupIfAny(page) {
+  await page.evaluate(function () {
+    var el = document.getElementById('assigned-tickets-global-popup');
+    if (el) el.remove();
+  }).catch(function () {});
+}
+
 // ---------------------------------------------------------------------
 // SLA Response Tier Master: hours -> days switch (service-tickets.html)
 // ---------------------------------------------------------------------
@@ -291,6 +307,7 @@ async function testAmcOrderCascadeAndSave(browser) {
 
   await page.goto(BASE_URL + '/amc-orders.html', { waitUntil: 'networkidle', timeout: 30000 });
   await page.waitForTimeout(600);
+  await closeAssignedTicketsPopupIfAny(page);
   await page.evaluate(function () {
     window.RevOpsStore.saveCollection('amcQuotations', [
       { id: 'q1', quoteNumber: 'AMC-QUO-2026-101', customerName: 'JSW Steel Limited', plantSite: 'Toranagallu Plant', contractType: 'Comprehensive AMC', amount: 320000, equipmentCoverage: '2x Weighbridge', status: 'Approved' },
@@ -327,6 +344,7 @@ async function testAmcOrderCascadeAndSave(browser) {
   // ?fromQuote= deep link opens the modal pre-filled.
   await page.goto(BASE_URL + '/amc-orders.html?fromQuote=AMC-QUO-2026-101', { waitUntil: 'networkidle', timeout: 30000 });
   await page.waitForTimeout(600);
+  await closeAssignedTicketsPopupIfAny(page);
   const deepLinkResult = await page.evaluate(function () {
     return {
       modalVisible: !document.getElementById('amc-order-modal').classList.contains('hidden'),
@@ -1884,6 +1902,7 @@ async function testLeadPipelineStageModel(browser) {
 
   await page.goto(BASE_URL + '/leads.html', { waitUntil: 'networkidle', timeout: 30000 });
   await page.waitForTimeout(600);
+  await closeAssignedTicketsPopupIfAny(page);
 
   // advanceLeadStage(): forward-only, merges extraFields, never overrides
   // a lead someone already closed out (Trashed/Lost/Postponed).
@@ -2039,6 +2058,7 @@ async function testLeadAutoSyncFromDocuments(browser) {
     const { page } = await newPage(browser);
     await page.goto(BASE_URL + '/quotations.html', { waitUntil: 'networkidle', timeout: 30000 });
     await page.waitForTimeout(600);
+    await closeAssignedTicketsPopupIfAny(page);
 
     await page.evaluate(function (lead) {
       window.RevOpsStore.saveCollection('leads', [lead]);
@@ -2097,6 +2117,7 @@ async function testLeadAutoSyncFromDocuments(browser) {
     const { page } = await newPage(browser);
     await page.goto(BASE_URL + '/invoices.html', { waitUntil: 'networkidle', timeout: 30000 });
     await page.waitForTimeout(600);
+    await closeAssignedTicketsPopupIfAny(page);
 
     await page.evaluate(function (lead) {
       window.RevOpsStore.saveCollection('leads', [lead]);
