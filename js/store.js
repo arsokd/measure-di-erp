@@ -203,7 +203,11 @@ Object.assign(window.RevOpsStore, {
     if (!banner) {
       banner = document.createElement('div');
       banner.id = 'sync-warning-banner';
-      banner.className = 'fixed top-16 right-4 z-50 p-4 rounded-xl bg-amber-500/90 border border-amber-400 text-slate-900 text-xs font-bold shadow-2xl flex items-center space-x-2 transition-all duration-300';
+      // top-32 on mobile clears both the shared auth-guard header and a
+      // page's own second header bar (e.g. the company branding row) that
+      // sit stacked above it there; md:top-16 is the original desktop
+      // position, below the single desktop header.
+      banner.className = 'fixed top-32 left-3 right-3 md:top-16 md:left-auto md:right-4 z-50 p-4 rounded-xl bg-amber-500/90 border border-amber-400 text-slate-900 text-xs font-bold shadow-2xl flex items-center space-x-2 transition-all duration-300';
       banner.innerHTML = '<svg class="w-4 h-4 text-slate-900 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg><span id="sync-warning-banner-text">' + message + '</span>';
       document.body.appendChild(banner);
     } else {

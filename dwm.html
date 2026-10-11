@@ -6,6 +6,14 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#982B68" />
+    <link rel="icon" href="/icons/favicon-32.png" sizes="32x32" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="K-30 ERP" />
+    <script src="pwa-register.js" defer></script>
     <title>K-30_ERP - Daily Work Management (DWM)</title>
     <link rel="stylesheet" href="/src/index.css">
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
@@ -50,7 +58,7 @@
 
           <div id="dwm-employee-selector" class="hidden flex items-center space-x-2">
             <label class="text-xs font-bold text-slate-600 uppercase tracking-wider">Viewing For:</label>
-            <select id="dwm-select-emp" onchange="onDwmEmpChange()" class="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            <select id="dwm-select-emp" onchange="onDwmEmpChange()" class="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 max-w-[55vw] sm:max-w-xs truncate">
               <!-- Populated dynamically -->
             </select>
           </div>

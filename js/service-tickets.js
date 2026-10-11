@@ -254,7 +254,20 @@ var currentViewMode = 'table';
         if (!custSelect) return;
 
         var registry = getClientEquipmentRegistry();
-        var customerNames = Object.keys(registry).sort();
+        var customerNames = Object.keys(registry);
+
+        // Also list every Lead's customer, even one that hasn't reached
+        // Order/Invoice stage yet (so has no registered equipment) -
+        // staff now raise tickets for existing clients that are still
+        // only Leads in the system. handleCustomerSelectChange already
+        // falls back to generic Model/Serial options when a customer has
+        // no registry entries, so this needs no further wiring.
+        var leads = window.RevOpsStore ? (window.RevOpsStore.getCollection('leads') || []) : [];
+        leads.forEach(function(l) {
+          var cust = (l.customerName || '').trim();
+          if (cust && customerNames.indexOf(cust) === -1) customerNames.push(cust);
+        });
+        customerNames.sort();
 
         var optionsHtml = `<option value="">-- Select Customer from Master List --</option>`;
         customerNames.forEach(function(c) {

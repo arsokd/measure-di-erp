@@ -70,7 +70,11 @@
       type: 'button',
       id: 'report-problem-fab',
       title: 'Report a Problem',
-      class: 'fixed bottom-4 left-4 z-[2147483000] bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold px-3 py-2 rounded-full shadow-lg border border-slate-600 flex items-center space-x-1.5 cursor-pointer'
+      // bottom-20 clears the fixed mobile bottom nav bar (auth-guard.js,
+      // md:hidden) on authenticated pages; md:bottom-4 is the original
+      // desktop position, used on login/pre-auth pages too since they
+      // have no bottom nav to clear anyway.
+      class: 'fixed bottom-20 left-4 md:bottom-4 z-[2147483000] bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold px-3 py-2 rounded-full shadow-lg border border-slate-600 flex items-center space-x-1.5 cursor-pointer'
     });
     btn.innerHTML = '<span>⚠️</span><span>Report Issue</span>';
     btn.onclick = function () { window.openReportProblemModal(); };

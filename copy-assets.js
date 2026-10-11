@@ -17,7 +17,7 @@ try {
   }
 
   // Copy root JS/config assets
-  const rootFiles = ['auth-guard.js', '_redirects', 'firebase-applet-config.json'];
+  const rootFiles = ['auth-guard.js', '_redirects', 'firebase-applet-config.json', 'pwa-register.js'];
   for (const f of rootFiles) {
     if (fs.existsSync(f)) {
       fs.copyFileSync(f, path.join('dist', f));

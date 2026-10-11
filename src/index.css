@@ -1,5 +1,16 @@
 @import "tailwindcss";
 
+/* Mobile safety net: a long dynamic value (an employee's name + role in a
+   filter dropdown, a long customer name, etc.) occasionally pushes an
+   element wider than the viewport, which drags the whole page sideways
+   on a phone instead of just clipping that one element - this is the
+   "it feels like a squeezed desktop page" symptom. overflow-x: hidden
+   here can't fix any individual element's own layout, but it guarantees
+   such a case can never force the whole page to scroll horizontally. */
+html, body {
+  overflow-x: hidden;
+}
+
 /* Native date-input calendar icon fix (app-wide): on this app's dark-
    themed inputs (bg-slate-800 / bg-slate-900 / bg-slate-950), the
    browser's own calendar picker icon renders in its default dark/black

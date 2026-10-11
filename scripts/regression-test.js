@@ -3905,6 +3905,118 @@ async function testGoogleSheetSyncHook(browser) {
   return failures;
 }
 
+// ---------------------------------------------------------------------
+// Service Ticket "Select Customer" dropdown now also lists every Lead's
+// customer, not just customers who already have registered equipment /
+// an Order / a past ticket - staff raise tickets for existing clients
+// before they've reached Invoice stage.
+// ---------------------------------------------------------------------
+async function testServiceTicketLeadsInCustomerDropdown(browser) {
+  const failures = [];
+  const { page } = await newPage(browser);
+
+  await page.goto(BASE_URL + '/service-tickets.html', { waitUntil: 'networkidle', timeout: 30000 });
+  await page.waitForTimeout(600);
+
+  const result = await page.evaluate(function () {
+    window.RevOpsStore.saveCollection('leads', [
+      { id: 'lead_ticket_test', customerName: 'Early Stage Prospect Pvt Ltd', status: 'Qualified', stage: 'Qualified' }
+    ]);
+    window.RevOpsStore.saveCollection('clientEquipmentMaster', []);
+    window.RevOpsStore.saveCollection('orders', []);
+    window.RevOpsStore.saveCollection('serviceTickets', []);
+    populateMasterDropdowns();
+    var options = Array.from(document.getElementById('input-customer-name').options).map(function (o) { return o.value; }).filter(Boolean);
+    return { options: options };
+  });
+  assertIncludes(result.options, 'Early Stage Prospect Pvt Ltd', 'Service Ticket customer dropdown includes a Lead-only customer with no registered equipment/order/past ticket', failures);
+
+  const cascadeResult = await page.evaluate(function () {
+    document.getElementById('input-customer-name').value = 'Early Stage Prospect Pvt Ltd';
+    handleCustomerSelectChange('Early Stage Prospect Pvt Ltd');
+    var modelOptions = Array.from(document.getElementById('input-equipment-model').options).map(function (o) { return o.value; }).filter(Boolean);
+    return { modelOptions: modelOptions };
+  });
+  assertTrue(cascadeResult.modelOptions.length > 0, 'Selecting a Lead-only customer still offers generic Equipment Model fallback options (no crash, no empty dropdown)', failures);
+
+  await page.evaluate(function () { window.RevOpsStore.saveCollection('leads', []); });
+  await page.close();
+  return failures;
+}
+
+// ---------------------------------------------------------------------
+// PWA installability: every page links the manifest + icons + mobile web
+// app meta tags, and registers the (deliberately non-caching) service
+// worker - see public/manifest.json, public/sw.js, pwa-register.js.
+// ---------------------------------------------------------------------
+async function testPwaInstallabilityTags(browser) {
+  const failures = [];
+
+  for (const p of ['login.html', 'dashboard.html', 'dwm.html']) {
+    const { page } = await newPage(browser);
+    await page.goto(BASE_URL + '/' + p, { waitUntil: 'networkidle', timeout: 30000 });
+    await page.waitForTimeout(400);
+    const result = await page.evaluate(function () {
+      return {
+        manifestHref: document.querySelector('link[rel="manifest"]') && document.querySelector('link[rel="manifest"]').getAttribute('href'),
+        appleTouchIcon: !!document.querySelector('link[rel="apple-touch-icon"]'),
+        themeColor: document.querySelector('meta[name="theme-color"]') && document.querySelector('meta[name="theme-color"]').getAttribute('content'),
+        appleCapable: document.querySelector('meta[name="apple-mobile-web-app-capable"]') && document.querySelector('meta[name="apple-mobile-web-app-capable"]').getAttribute('content'),
+        swScriptPresent: !!document.querySelector('script[src="pwa-register.js"]')
+      };
+    });
+    assertEqual(result.manifestHref, '/manifest.json', p + ': links the PWA manifest at /manifest.json', failures);
+    assertTrue(result.appleTouchIcon, p + ': has an apple-touch-icon link for iOS "Add to Home Screen"', failures);
+    assertEqual(result.themeColor, '#982B68', p + ': sets the brand theme-color', failures);
+    assertEqual(result.appleCapable, 'yes', p + ': declares apple-mobile-web-app-capable for standalone iOS mode', failures);
+    assertTrue(result.swScriptPresent, p + ': includes the service worker registration script', failures);
+    await page.close();
+  }
+
+  const { page } = await newPage(browser);
+  const manifestResp = await page.goto(BASE_URL + '/manifest.json');
+  const manifest = await manifestResp.json();
+  assertEqual(manifest.display, 'standalone', 'manifest.json declares standalone display mode', failures);
+  assertTrue(Array.isArray(manifest.icons) && manifest.icons.length >= 2, 'manifest.json declares at least 2 icons', failures);
+  assertTrue(manifest.icons.some(function (i) { return i.purpose === 'maskable'; }), 'manifest.json includes a maskable icon for Android adaptive icons', failures);
+
+  const swResp = await page.goto(BASE_URL + '/sw.js');
+  assertEqual(swResp.status(), 200, '/sw.js is reachable at the site root (required for installability scope)', failures);
+
+  await page.close();
+  return failures;
+}
+
+// ---------------------------------------------------------------------
+// Mobile layout: at a real phone viewport, the page must never force
+// horizontal scrolling of the whole document - a long dynamic value (an
+// employee's name+role in a filter dropdown, etc.) pushing the page
+// sideways is exactly what made the app "feel like a squeezed desktop
+// page" on mobile. Covers the pages field staff actually live in.
+// ---------------------------------------------------------------------
+async function testMobileNoHorizontalOverflow(browser) {
+  const failures = [];
+  const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  await page.addInitScript(function () {
+    localStorage.setItem('userRole', 'super_admin');
+    localStorage.setItem('userEmail', 'murugan@measuredi.com');
+    localStorage.setItem('userName', 'Mr. Murugan V');
+    localStorage.setItem('employeeId', 'E-001');
+  });
+
+  for (const p of ['dashboard.html', 'dwm.html', 'attendance.html']) {
+    await page.goto(BASE_URL + '/' + p, { waitUntil: 'networkidle', timeout: 30000 });
+    await page.waitForTimeout(1000);
+    const overflow = await page.evaluate(function () {
+      return document.documentElement.scrollWidth - document.documentElement.clientWidth;
+    });
+    assertTrue(overflow <= 1, p + ' at 390px width: no horizontal page overflow (scrollWidth - clientWidth = ' + overflow + ')', failures);
+  }
+
+  await page.close();
+  return failures;
+}
+
 const TESTS = [
   ['SLA day-based seeding, migration, severity dropdown & date math', testSlaDayBasedSeedingAndMigration],
   ['Ticket email subject line', testQuotationVerticalAndTicketSubject],
@@ -3944,7 +4056,10 @@ const TESTS = [
   ['Executive Dashboard Workforce & DWM Compliance Snapshot: Today\'s Attendance, Monthly %, DWM Compliance, Today\'s Accomplishment', testDashboardHrSnapshot],
   ['Attendance correction request + manager approval workflow: past-day-only, pending queue, approve computes hours, reject requires remarks', testAttendanceCorrectionWorkflow],
   ['Daily Productivity Score ratification: auto-computed at Punch Out, manager ratify/modify/reject, feeds weekly/monthly review average', testScoreRatificationWorkflow],
-  ['Google Sheet mirror: saveRecord/deleteRecord fire a non-blocking /api/sheet-sync call, oversized fields trimmed, real save always succeeds', testGoogleSheetSyncHook]
+  ['Google Sheet mirror: saveRecord/deleteRecord fire a non-blocking /api/sheet-sync call, oversized fields trimmed, real save always succeeds', testGoogleSheetSyncHook],
+  ['Service Ticket customer dropdown lists Lead-only customers, not just Order/Invoice-stage ones', testServiceTicketLeadsInCustomerDropdown],
+  ['PWA installability: manifest/icons/meta tags on every page, manifest.json and sw.js reachable', testPwaInstallabilityTags],
+  ['Mobile layout: Dashboard/DWM/Attendance never force horizontal page scroll at 390px width', testMobileNoHorizontalOverflow]
 ];
 
 (async () => {

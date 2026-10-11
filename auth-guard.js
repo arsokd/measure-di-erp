@@ -527,7 +527,11 @@ function checkAssignedServiceTicketsPopup() {
 
     var popup = document.createElement('div');
     popup.id = popupId;
-    popup.className = "fixed bottom-5 right-5 z-50 max-w-md w-full bg-slate-900 border-2 border-amber-500/80 rounded-2xl shadow-2xl p-5 text-white animate-bounce-short";
+    // bottom-20 on mobile clears the fixed bottom nav bar (md:hidden,
+    // ~56-60px tall) so this doesn't sit on top of it or the page's main
+    // call-to-action button; md:bottom-5 restores the original desktop
+    // position, where there's no bottom nav to clear.
+    popup.className = "fixed bottom-20 right-3 left-3 md:left-auto md:bottom-5 md:right-5 z-50 max-w-md md:w-full bg-slate-900 border-2 border-amber-500/80 rounded-2xl shadow-2xl p-5 text-white animate-bounce-short";
     popup.innerHTML = `
       <div class="flex items-start justify-between gap-3 pb-2 border-b border-slate-800">
         <div class="flex items-center space-x-2.5">
