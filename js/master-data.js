@@ -1108,13 +1108,13 @@ var activeMasterTab = 'products';
       document.body.removeChild(link);
     }
 
-    // ---- Go-Live: Clear Demo Data ----
+    // ---- Delete Data Before Date ----
     // Deliberately gated by canEditMasterData() again here (not just the
     // button's own hidden state at page load) - a role switch mid-session
     // shouldn't leave this reachable from a stale DOM state.
     function openClearDemoDataModal() {
       if (!canEditMasterData()) {
-        alert("Only Super Admin or Admin can clear demo data.");
+        alert("Only Super Admin or Admin can delete data.");
         return;
       }
       document.getElementById('inp-clear-demo-confirm').value = '';
@@ -1122,37 +1122,61 @@ var activeMasterTab = 'products';
       document.getElementById('clear-demo-data-progress-view').classList.add('hidden');
       document.getElementById('clear-demo-data-done-view').classList.add('hidden');
       document.getElementById('clear-demo-data-modal').classList.remove('hidden');
+      refreshClearDemoPreview();
     }
 
     function closeClearDemoDataModal() {
       document.getElementById('clear-demo-data-modal').classList.add('hidden');
     }
 
+    // Recomputes and renders the "what would be deleted" preview for the
+    // currently-selected cutoff date - a pure read (previewDataBeforeDate
+    // has zero side effects), so this can safely run on every date change.
+    function refreshClearDemoPreview() {
+      var cutoff = document.getElementById('inp-clear-demo-cutoff-date').value;
+      var listEl = document.getElementById('clear-demo-preview-list');
+      var totalEl = document.getElementById('clear-demo-preview-total');
+      if (!cutoff) {
+        listEl.innerHTML = '';
+        totalEl.innerText = '0';
+        return;
+      }
+      var preview = window.RevOpsStore.previewDataBeforeDate(cutoff);
+      var nonZero = preview.perCollection.filter(function(c) { return c.toDelete > 0; });
+      listEl.innerHTML = nonZero.length === 0
+        ? '<span class="text-slate-600">Nothing to delete before this date.</span>'
+        : nonZero.map(function(c) { return c.collection + ': <span class="text-rose-300">' + c.toDelete + '</span> of ' + c.total; }).join('<br>');
+      totalEl.innerText = preview.grandTotalToDelete;
+    }
+
     function executeClearDemoData() {
       if (!canEditMasterData()) {
-        alert("Only Super Admin or Admin can clear demo data.");
+        alert("Only Super Admin or Admin can delete data.");
+        return;
+      }
+      var cutoff = document.getElementById('inp-clear-demo-cutoff-date').value;
+      if (!cutoff) {
+        alert('Please choose a cutoff date.');
         return;
       }
       var typed = document.getElementById('inp-clear-demo-confirm').value.trim();
-      if (typed !== 'DELETE DEMO DATA') {
-        alert('Please type "DELETE DEMO DATA" exactly (case-sensitive) to confirm.');
+      if (typed !== 'DELETE') {
+        alert('Please type "DELETE" exactly (case-sensitive) to confirm.');
         return;
       }
 
       document.getElementById('clear-demo-data-confirm-view').classList.add('hidden');
       document.getElementById('clear-demo-data-progress-view').classList.remove('hidden');
 
-      var total = (window.RevOpsStore.DEMO_DATA_COLLECTIONS || []).length;
-      window.RevOpsStore.clearDummyDataForGoLive(function(colName, index, totalCount) {
-        document.getElementById('clear-demo-progress-text').innerText = 'Clearing ' + colName + '… (' + index + ' / ' + totalCount + ')';
+      window.RevOpsStore.deleteDataCreatedBeforeDate(cutoff, function(colName, index, totalCount) {
+        document.getElementById('clear-demo-progress-text').innerText = 'Checking ' + colName + '… (' + index + ' / ' + totalCount + ')';
         document.getElementById('clear-demo-progress-bar').style.width = Math.round((index / totalCount) * 100) + '%';
       }).then(function(results) {
         document.getElementById('clear-demo-data-progress-view').classList.add('hidden');
         document.getElementById('clear-demo-data-done-view').classList.remove('hidden');
         document.getElementById('clear-demo-done-summary').innerText =
-          'Cleared ' + results.cleared.length + ' collection(s) locally' +
-          (window.RevOpsStore.isFirebaseAvailable() ? ' and deleted ' + results.firestoreDeleted + ' document(s) from Firestore.' : ' (Firestore not connected in this session - local only).') +
-          ' The app is ready for your real bulk data upload.';
+          'Permanently deleted ' + results.grandTotalDeleted + ' record(s) created before ' + cutoff + ', locally' +
+          (window.RevOpsStore.isFirebaseAvailable() ? ' and in Firestore (' + results.firestoreDeleted + ' document(s)).' : ' (Firestore not connected in this session - local only).');
         if (results.errors && results.errors.length > 0) {
           var errBox = document.getElementById('clear-demo-done-errors');
           errBox.classList.remove('hidden');
@@ -1163,7 +1187,7 @@ var activeMasterTab = 'products';
       }).catch(function(err) {
         document.getElementById('clear-demo-data-progress-view').classList.add('hidden');
         document.getElementById('clear-demo-data-done-view').classList.remove('hidden');
-        document.getElementById('clear-demo-done-summary').innerText = 'Something went wrong partway through - check the browser console for details. Safe to re-run; already-cleared collections will simply clear again (no harm done).';
-        console.error('clearDummyDataForGoLive failed:', err);
+        document.getElementById('clear-demo-done-summary').innerText = 'Something went wrong partway through - check the browser console for details. Safe to re-run; already-deleted records simply won\'t match again (no harm done).';
+        console.error('deleteDataCreatedBeforeDate failed:', err);
       });
     }

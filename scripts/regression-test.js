@@ -1313,15 +1313,18 @@ async function testQuoteEditReasonMandatory(browser) {
 }
 
 // ---------------------------------------------------------------------
-// Go-Live "Clear Demo Data" (Master Data > Danger Zone): Super Admin/
-// Admin only, requires typing an exact confirmation phrase, clears every
-// demo/transactional collection while leaving Employees, Company Master
-// and every classification list untouched, and sets the retirement flag.
-// Separately verifies the actual seed-guard code change this relies on:
-// once isFirebaseAvailable() is true, a cleared collection must not
-// auto-refill, whether its guard checks mere presence or parsed length.
+// "Delete Data Before Date" (Master Data > Danger Zone): Super Admin/
+// Admin only, requires typing an exact confirmation phrase, previews an
+// exact count before anything happens, deletes only records created
+// before the chosen cutoff (never a record created on/after it, and
+// never a record whose creation date can't be confidently resolved),
+// leaves Employees/Company Master/classification lists untouched, and
+// sets the retirement flag. Separately verifies the seed-guard code
+// change this relies on: once isFirebaseAvailable() is true, a cleared
+// collection must not auto-refill, whether its guard checks mere
+// presence or parsed length.
 // ---------------------------------------------------------------------
-async function testClearDummyDataGoLiveReset(browser) {
+async function testDeleteDataBeforeDate(browser) {
   const failures = [];
   const { page } = await newPage(browser);
 
@@ -1331,32 +1334,55 @@ async function testClearDummyDataGoLiveReset(browser) {
   const dangerVisibleAdmin = await page.evaluate(function () {
     return !document.getElementById('go-live-danger-zone').classList.contains('hidden');
   });
-  assertTrue(dangerVisibleAdmin, 'Go-Live Danger Zone is visible for super_admin', failures);
+  assertTrue(dangerVisibleAdmin, 'Delete Data Before Date: Danger Zone is visible for super_admin', failures);
 
-  // Wrong confirmation text must not proceed.
-  await page.click('#go-live-danger-zone button');
-  await page.waitForTimeout(150);
-  await page.fill('#inp-clear-demo-confirm', 'wrong text');
-  const rejectedWrongText = await page.evaluate(function () {
-    document.getElementById('btn-execute-clear-demo').click();
-    return !document.getElementById('clear-demo-data-confirm-view').classList.contains('hidden');
-  });
-  assertTrue(rejectedWrongText, 'Clear Demo Data: wrong confirmation text does not proceed (stays on confirm view)', failures);
-
-  // Seed some demo-shaped records, then clear with the correct phrase.
+  // Clear every collection this tool is allowed to touch first - the app
+  // auto-seeds a large realistic demo dataset (mostly dated well before
+  // Oct 2026) the moment any of these collections is empty with no
+  // Firebase connected, which would otherwise swamp this test's exact
+  // counts. Then seed records that span: created before the cutoff
+  // (real-ID-style and createdDate-style), created on/after the cutoff,
+  // and one with no resolvable creation date at all.
   const beforeCounts = await page.evaluate(function () {
-    window.RevOpsStore.saveCollection('leads', [{ id: 'l1' }]);
-    window.RevOpsStore.saveCollection('quotations', [{ id: 'q1', quoteNumber: 'QT-REGR-1' }]);
-    window.RevOpsStore.saveCollection('clientsMaster', [{ id: 'c1', clientName: 'Demo Co' }]);
+    (window.RevOpsStore.DEMO_DATA_COLLECTIONS || []).forEach(function (col) {
+      window.RevOpsStore.saveCollection(col, []);
+    });
+    window.RevOpsStore.saveCollection('leads', [
+      { id: 'lea_1696118400000_ab12', customerName: 'Old Real Lead' }, // 2023-09-30 epoch ms -> before cutoff
+      { id: 'lead_seed_old', customerName: 'Old Seed Lead', createdDate: '15/09/2026' }, // before cutoff
+      { id: 'lead_seed_new', customerName: 'New Seed Lead', createdDate: '05/10/2026' }, // on/after cutoff -> keep
+      { id: 'lead_no_date', customerName: 'Unknown Date Lead' } // unresolvable -> always keep
+    ]);
+    window.RevOpsStore.saveCollection('quotations', [{ id: 'q1', quoteNumber: 'QT-REGR-1', createdDate: '01/09/2026' }]);
+    window.RevOpsStore.saveCollection('clientsMaster', [{ id: 'c1', clientName: 'Demo Co', createdDate: '01/09/2026' }]);
     return {
       employees: (window.RevOpsStore.getCollection('employees') || []).length,
       companyMaster: (window.RevOpsStore.getCollection('companyMaster') || []).length,
       leadSourceMaster: (window.RevOpsStore.getCollection('leadSourceMaster') || []).length
     };
   });
-  assertTrue(beforeCounts.employees > 0, 'Precondition: employees non-empty before clearing', failures);
+  assertTrue(beforeCounts.employees > 0, 'Precondition: employees non-empty before deleting', failures);
 
-  await page.fill('#inp-clear-demo-confirm', 'DELETE DEMO DATA');
+  await page.click('#go-live-danger-zone button');
+  await page.waitForTimeout(150);
+
+  // Default cutoff is 2026-10-01 - the preview should already reflect it
+  // without any further interaction (2 of the 4 leads, 1 quotation, 1
+  // clientsMaster record = 4).
+  const preview = await page.evaluate(function () {
+    return document.getElementById('clear-demo-preview-total').innerText;
+  });
+  assertEqual(preview, '4', 'Delete Data Before Date: live preview shows the correct total for the default cutoff before any confirmation', failures);
+
+  // Wrong confirmation text must not proceed.
+  await page.fill('#inp-clear-demo-confirm', 'wrong text');
+  const rejectedWrongText = await page.evaluate(function () {
+    document.getElementById('btn-execute-clear-demo').click();
+    return !document.getElementById('clear-demo-data-confirm-view').classList.contains('hidden');
+  });
+  assertTrue(rejectedWrongText, 'Delete Data Before Date: wrong confirmation text does not proceed (stays on confirm view)', failures);
+
+  await page.fill('#inp-clear-demo-confirm', 'DELETE');
   const afterClear = await page.evaluate(function () {
     document.getElementById('btn-execute-clear-demo').click();
     return true;
@@ -1364,9 +1390,10 @@ async function testClearDummyDataGoLiveReset(browser) {
   await page.waitForTimeout(500);
 
   const cleared = await page.evaluate(function () {
+    var leadsLeft = window.RevOpsStore.getCollection('leads') || [];
     return {
       doneVisible: !document.getElementById('clear-demo-data-done-view').classList.contains('hidden'),
-      leads: (window.RevOpsStore.getCollection('leads') || []).length,
+      leadIdsLeft: leadsLeft.map(function (l) { return l.id; }),
       quotations: (window.RevOpsStore.getCollection('quotations') || []).length,
       clientsMaster: (window.RevOpsStore.getCollection('clientsMaster') || []).length,
       employees: (window.RevOpsStore.getCollection('employees') || []).length,
@@ -1375,14 +1402,14 @@ async function testClearDummyDataGoLiveReset(browser) {
       retiredFlag: localStorage.getItem('revops_demo_data_retired')
     };
   });
-  assertTrue(cleared.doneVisible, 'Clear Demo Data: completes and shows the done view', failures);
-  assertEqual(cleared.leads, 0, 'Clear Demo Data: leads cleared', failures);
-  assertEqual(cleared.quotations, 0, 'Clear Demo Data: quotations cleared', failures);
-  assertEqual(cleared.clientsMaster, 0, 'Clear Demo Data: clientsMaster cleared', failures);
-  assertEqual(cleared.employees, beforeCounts.employees, 'Clear Demo Data: employees left untouched', failures);
-  assertEqual(cleared.companyMaster, beforeCounts.companyMaster, 'Clear Demo Data: companyMaster left untouched', failures);
-  assertEqual(cleared.leadSourceMaster, beforeCounts.leadSourceMaster, 'Clear Demo Data: classification lists (e.g. Lead Source) left untouched', failures);
-  assertEqual(cleared.retiredFlag, 'true', 'Clear Demo Data: sets the demo-data-retired flag', failures);
+  assertTrue(cleared.doneVisible, 'Delete Data Before Date: completes and shows the done view', failures);
+  assertEqual(cleared.leadIdsLeft.sort(), ['lead_no_date', 'lead_seed_new'], 'Delete Data Before Date: only pre-cutoff leads removed - the on/after-cutoff lead and the unresolvable-date lead both survive', failures);
+  assertEqual(cleared.quotations, 0, 'Delete Data Before Date: pre-cutoff quotation deleted', failures);
+  assertEqual(cleared.clientsMaster, 0, 'Delete Data Before Date: pre-cutoff clientsMaster record deleted', failures);
+  assertEqual(cleared.employees, beforeCounts.employees, 'Delete Data Before Date: employees left untouched', failures);
+  assertEqual(cleared.companyMaster, beforeCounts.companyMaster, 'Delete Data Before Date: companyMaster left untouched', failures);
+  assertEqual(cleared.leadSourceMaster, beforeCounts.leadSourceMaster, 'Delete Data Before Date: classification lists (e.g. Lead Source) left untouched', failures);
+  assertEqual(cleared.retiredFlag, 'true', 'Delete Data Before Date: sets the demo-data-retired flag', failures);
 
   // Danger Zone must stay hidden for a non-admin role.
   const staffPage = await browser.newPage();
@@ -1398,7 +1425,7 @@ async function testClearDummyDataGoLiveReset(browser) {
   const dangerHiddenStaff = await staffPage.evaluate(function () {
     return document.getElementById('go-live-danger-zone').classList.contains('hidden');
   });
-  assertTrue(dangerHiddenStaff, 'Go-Live Danger Zone is hidden for staff role', failures);
+  assertTrue(dangerHiddenStaff, 'Delete Data Before Date: Danger Zone is hidden for staff role', failures);
   await staffPage.close();
 
   // The seed-guard code change this whole feature relies on: once
@@ -4036,7 +4063,7 @@ const TESTS = [
   ['Multi-company support: Lead/Quotation/Invoice numbering & branding', testMultiCompanySupport],
   ['Lead product dropdown vertical-normalization fix & quick "+ New Product" role gate', testLeadProductDropdownAndQuickAddProduct],
   ['Quotation edit: mandatory reason field', testQuoteEditReasonMandatory],
-  ['Go-Live "Clear Demo Data" reset', testClearDummyDataGoLiveReset],
+  ['Delete Data Before Date: preview, confirmation, selective date-scoped deletion', testDeleteDataBeforeDate],
   ['Bulk CSV parser handles quoted/comma/multi-line fields', testBulkCsvParserHandlesQuotedFields],
   ['Password policy: forced first-time/90-day change, developer exemption, self-service flow', testPasswordPolicyEnforcement],
   ['Lead pipeline stage model: advanceLeadStage, Lost/Trashed/Postponed guards, pending follow-ups', testLeadPipelineStageModel],

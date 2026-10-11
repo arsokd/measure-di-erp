@@ -284,7 +284,7 @@
         var existing = window.RevOpsStore.getCollection('amcQuotations') || [];
         // Only in a pure offline/no-Firebase demo install does empty mean
         // "nothing entered yet" - once Firebase is connected, empty means
-        // it was deliberately cleared (see RevOpsStore.clearDummyDataForGoLive)
+        // it was deliberately cleared (see RevOpsStore.deleteDataCreatedBeforeDate)
         // and should stay empty.
         if (existing.length === 0 && !window.RevOpsStore.isFirebaseAvailable()) {
           var samples = [
