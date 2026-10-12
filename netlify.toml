@@ -63,3 +63,21 @@
   for = "/js/*"
     [headers.values]
       Cache-Control = "no-cache"
+
+# The two root-level JS files actually shipped to the browser (everything
+# else at the root is build tooling, never served) - easy to overlook since
+# they're not under /js/, but auth-guard.js especially needs the same
+# no-cache treatment as everything above: it runs on almost every page,
+# determines the signed-in user's role, and gates role-restricted UI (e.g.
+# the Leads page's "+ New Product" quick-add button) - a stale cached copy
+# is exactly the kind of bug that "disappears" in a fresh Incognito window
+# (no cache to be stale) but keeps recurring for a returning browser.
+[[headers]]
+  for = "/auth-guard.js"
+    [headers.values]
+      Cache-Control = "no-cache"
+
+[[headers]]
+  for = "/pwa-register.js"
+    [headers.values]
+      Cache-Control = "no-cache"
