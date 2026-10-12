@@ -495,9 +495,11 @@ function renderRevOpsNavbar(userName, userRole, hasDirectReports) {
     document.body.appendChild(footer);
   }
 
-  // Trigger popup for assigned tickets if any exist for current user
+  // Trigger popups for assigned tickets / pending approvals, if any exist
+  // for the current user
   setTimeout(function() {
     checkAssignedServiceTicketsPopup();
+    checkPendingApprovalsPopup();
   }, 400);
 }
 
@@ -583,6 +585,81 @@ function dismissAssignedTicketsPopup(sessionKey) {
   try {
     sessionStorage.setItem(sessionKey, 'true');
     var el = document.getElementById('assigned-tickets-global-popup');
+    if (el) el.remove();
+  } catch(e) {}
+}
+
+// Pending Approvals Pop-up Notification Engine. Shares the exact same
+// routing logic as the Approvals hub page and the email notifications
+// (window.RevOpsStore.getApprovalSections, store.js) so this can never
+// show a different count than what's actually on approvals.html.
+// Positioned at the TOP of the screen (unlike the bottom-anchored
+// Assigned Tickets alert above) so the two can never overlap each other
+// or the mobile bottom nav bar.
+function checkPendingApprovalsPopup() {
+  try {
+    var empId = localStorage.getItem('employeeId');
+    if (!empId || !window.RevOpsStore || typeof window.RevOpsStore.getApprovalSections !== 'function') return;
+
+    var sections = window.RevOpsStore.getApprovalSections();
+    var totalCount = sections.reduce(function(sum, s) { return sum + (s.items ? s.items.length : 0); }, 0);
+    if (totalCount === 0) return;
+
+    var sessionKey = 'notified_approvals_' + empId + '_' + new Date().toISOString().slice(0, 10);
+    if (sessionStorage.getItem(sessionKey)) return;
+
+    var popupId = 'pending-approvals-global-popup';
+    if (document.getElementById(popupId)) return;
+
+    var popup = document.createElement('div');
+    popup.id = popupId;
+    popup.className = "fixed top-32 left-3 right-3 md:top-16 md:left-auto md:right-5 z-50 max-w-md md:w-full bg-slate-900 border-2 border-indigo-500/80 rounded-2xl shadow-2xl p-5 text-white animate-bounce-short";
+    popup.innerHTML = `
+      <div class="flex items-start justify-between gap-3 pb-2 border-b border-slate-800">
+        <div class="flex items-center space-x-2.5">
+          <div class="w-8 h-8 rounded-xl bg-indigo-500 text-slate-950 flex items-center justify-center font-black text-sm shrink-0">
+            📋
+          </div>
+          <div>
+            <h4 class="text-xs font-black uppercase tracking-wider text-indigo-400">Pending Approvals</h4>
+            <p class="text-[11px] text-slate-300">You have <span class="font-bold text-white">${totalCount} item(s)</span> awaiting your approval.</p>
+          </div>
+        </div>
+        <button onclick="dismissPendingApprovalsPopup('${sessionKey}')" class="text-slate-400 hover:text-white text-lg font-bold p-1 cursor-pointer">&times;</button>
+      </div>
+
+      <div class="py-2.5 space-y-1.5 max-h-40 overflow-y-auto">
+        ${sections.filter(function(s) { return s.items.length > 0; }).map(function(s) {
+          return `
+            <div class="flex items-center justify-between bg-slate-800/90 px-2.5 py-1.5 rounded-lg border border-slate-700 text-xs">
+              <span class="text-slate-200">${s.icon} ${escapeHtml(s.title)}</span>
+              <span class="font-bold text-indigo-300">${s.items.length}</span>
+            </div>
+          `;
+        }).join('')}
+      </div>
+
+      <div class="pt-2 border-t border-slate-800 flex items-center justify-between gap-2">
+        <button onclick="dismissPendingApprovalsPopup('${sessionKey}')" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-semibold cursor-pointer">
+          Dismiss
+        </button>
+        <a href="approvals.html" class="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold shadow-xs transition-colors flex items-center space-x-1 cursor-pointer">
+          <span>Review Approvals</span>
+          <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+        </a>
+      </div>
+    `;
+
+    document.body.appendChild(popup);
+  } catch(e) {
+    console.warn("Pending approvals popup check failed:", e);
+  }
+}
+
+function dismissPendingApprovalsPopup(sessionKey) {
+  try {
+    sessionStorage.setItem(sessionKey, 'true');
+    var el = document.getElementById('pending-approvals-global-popup');
     if (el) el.remove();
   } catch(e) {}
 }

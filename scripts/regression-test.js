@@ -4092,6 +4092,118 @@ async function testPruneStaleLocalEmployees(browser) {
   return failures;
 }
 
+// ---------------------------------------------------------------------
+// Pending Approvals notification system: the popup (auth-guard.js) and
+// the Approvals hub page (approvals.html) now share one routing source
+// (RevOpsStore.getApprovalSections), and saveRecord fires a non-blocking
+// approver-notification email whenever a record newly enters an
+// approval-pending stage (RevOpsStore.notifyApproversIfNeeded).
+// ---------------------------------------------------------------------
+async function testApprovalNotifications(browser) {
+  const failures = [];
+  const { page } = await newPage(browser);
+
+  await page.goto(BASE_URL + '/approvals.html', { waitUntil: 'networkidle', timeout: 30000 });
+  await page.waitForTimeout(600);
+
+  // Seed a small, controlled employee master: one Primary Approver, one
+  // Final Approver, a manager + their direct report (for the reportsTo-
+  // routed Travel Expense Claim rule), all distinct from the logged-in
+  // test user (E-001) so recipient resolution is unambiguous.
+  await page.evaluate(function () {
+    window.RevOpsStore.saveCollection('employees', [
+      { employeeId: 'E-001', fullName: 'Mr. Murugan V', email: 'murugan@measuredi.com', isActive: true },
+      { employeeId: 'APPR-1', fullName: 'Primary Approver Test', email: 'primary-approver@test.com', isPrimaryApprover: true, isActive: true },
+      { employeeId: 'APPR-2', fullName: 'Final Approver Test', email: 'final-approver@test.com', isFinalApprover: true, isActive: true },
+      { employeeId: 'MGR-1', fullName: 'Reporting Manager Test', email: 'manager@test.com', isActive: true },
+      { employeeId: 'REP-1', fullName: 'Direct Report Test', email: 'report@test.com', reportsTo: 'MGR-1', isActive: true }
+    ]);
+    window.RevOpsStore.saveCollection('quotations', []);
+    window.RevOpsStore.saveCollection('expenses', []);
+  });
+
+  // --- Shared routing source: getApprovalSections() is callable and
+  // returns the expected shape (array of sections with items[]) ---
+  const sectionsShape = await page.evaluate(function () {
+    var sections = window.RevOpsStore.getApprovalSections();
+    return { isArray: Array.isArray(sections), hasItemsArrays: sections.every(function (s) { return Array.isArray(s.items); }) };
+  });
+  assertTrue(sectionsShape.isArray, 'getApprovalSections() returns an array', failures);
+  assertTrue(sectionsShape.hasItemsArrays, 'Every section has an items array', failures);
+
+  // --- Flag-based recipient resolution: Quotation -> Pending Approval
+  // notifies every isPrimaryApprover-flagged employee, exactly once, and
+  // does NOT re-notify on a no-op re-save of the same status ---
+  const quoteResult = await page.evaluate(async function () {
+    var calls = [];
+    window.BrevoMailer = {
+      sendViaGmailWithFallback: function (opts) { calls.push(opts); return Promise.resolve({ channel: 'gmail' }); }
+    };
+    await window.RevOpsStore.saveRecord('quotations', { id: 'quo_notify_1', quoteNumber: 'QT-NOTIFY-1', customerName: 'Notify Test Co', grandTotal: 500000, status: 'Pending Approval' });
+    await new Promise(function (r) { setTimeout(r, 50); });
+    var afterFirstSave = calls.length;
+    // Re-save with the SAME status - must not fire a second notification.
+    await window.RevOpsStore.saveRecord('quotations', { id: 'quo_notify_1', remarks: 'no status change' });
+    await new Promise(function (r) { setTimeout(r, 50); });
+    return { afterFirstSave: afterFirstSave, afterNoOpResave: calls.length, calls: calls };
+  });
+  assertEqual(quoteResult.afterFirstSave, 1, 'Quotation entering Pending Approval fires exactly one notification email (one Primary Approver in the seeded roster)', failures);
+  assertEqual(quoteResult.calls[0] && quoteResult.calls[0].to, 'primary-approver@test.com', 'Notification goes to the correct Primary Approver', failures);
+  assertTrue(!!(quoteResult.calls[0] && quoteResult.calls[0].subject && quoteResult.calls[0].subject.indexOf('QT-NOTIFY-1') !== -1), 'Notification subject references the quotation number', failures);
+  assertEqual(quoteResult.afterNoOpResave, 1, 'Re-saving with no status change does not fire a second notification', failures);
+
+  // --- reportsTo-based recipient resolution: a Travel Expense Claim
+  // notifies the claimant's actual Reporting Manager, not every approver ---
+  const claimResult = await page.evaluate(async function () {
+    var calls = [];
+    window.BrevoMailer = {
+      sendViaGmailWithFallback: function (opts) { calls.push(opts); return Promise.resolve({ channel: 'gmail' }); }
+    };
+    await window.RevOpsStore.saveRecord('expenses', { id: 'exp_notify_1', voucherNo: 'TRV-NOTIFY-1', category: 'Travelling', employeeId: 'REP-1', payee: 'Direct Report Test', amount: 12000, status: 'Pending Manager Approval' });
+    await new Promise(function (r) { setTimeout(r, 50); });
+    return { calls: calls };
+  });
+  assertEqual(claimResult.calls.length, 1, 'Travel expense claim entering Pending Manager Approval fires exactly one notification', failures);
+  assertEqual(claimResult.calls[0] && claimResult.calls[0].to, 'manager@test.com', "Notification goes to the claimant's actual Reporting Manager, not a generic approver flag", failures);
+
+  // --- Pending Approvals popup: reflects the real pending count and
+  // respects per-session dismissal ---
+  await page.evaluate(function () {
+    localStorage.setItem('isPrimaryApprover', 'true');
+    sessionStorage.clear();
+  });
+  await page.reload({ waitUntil: 'networkidle', timeout: 30000 });
+  await page.waitForTimeout(700);
+  const popupShown = await page.evaluate(function () {
+    var el = document.getElementById('pending-approvals-global-popup');
+    return { present: !!el, text: el ? el.innerText : '' };
+  });
+  assertTrue(popupShown.present, 'Pending Approvals popup appears when the signed-in user has approval authority and items are pending', failures);
+  assertTrue(popupShown.text.indexOf('1') !== -1, 'Popup reflects the correct pending count', failures);
+
+  const dismissedResult = await page.evaluate(function () {
+    var btn = document.querySelector('#pending-approvals-global-popup button');
+    if (btn) btn.click();
+    return !document.getElementById('pending-approvals-global-popup');
+  });
+  assertTrue(dismissedResult, 'Dismissing the popup removes it from the page', failures);
+
+  await page.reload({ waitUntil: 'networkidle', timeout: 30000 });
+  await page.waitForTimeout(700);
+  const staysHiddenAfterDismiss = await page.evaluate(function () {
+    return !document.getElementById('pending-approvals-global-popup');
+  });
+  assertTrue(staysHiddenAfterDismiss, 'Popup stays dismissed for the rest of the day after being closed once (same-day sessionStorage key)', failures);
+
+  await page.evaluate(function () {
+    window.RevOpsStore.saveCollection('quotations', []);
+    window.RevOpsStore.saveCollection('expenses', []);
+    localStorage.removeItem('isPrimaryApprover');
+  });
+  await page.close();
+  return failures;
+}
+
 const TESTS = [
   ['SLA day-based seeding, migration, severity dropdown & date math', testSlaDayBasedSeedingAndMigration],
   ['Ticket email subject line', testQuotationVerticalAndTicketSubject],
@@ -4135,7 +4247,8 @@ const TESTS = [
   ['Service Ticket customer dropdown lists Lead-only customers, not just Order/Invoice-stage ones', testServiceTicketLeadsInCustomerDropdown],
   ['PWA installability: manifest/icons/meta tags on every page, manifest.json and sw.js reachable', testPwaInstallabilityTags],
   ['Mobile layout: Dashboard/DWM/Attendance never force horizontal page scroll at 390px width', testMobileNoHorizontalOverflow],
-  ['Realtime sync self-heals stale local-only employee duplicates once Firestore is authoritative', testPruneStaleLocalEmployees]
+  ['Realtime sync self-heals stale local-only employee duplicates once Firestore is authoritative', testPruneStaleLocalEmployees],
+  ['Pending Approvals: shared routing, popup, and email notifications on entering an approval stage', testApprovalNotifications]
 ];
 
 (async () => {

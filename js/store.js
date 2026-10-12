@@ -346,6 +346,286 @@ Object.assign(window.RevOpsStore, {
     }
   },
 
+  // Every pending-approval situation the Approvals hub (approvals.html)
+  // shows, in one shared place - used both by that page and by the
+  // "pending approvals" popup (auth-guard.js), so the two can never drift
+  // out of sync with each other. hasApprovalAuthority() is defined
+  // globally in auth-guard.js.
+  getApprovalSections: function() {
+    var quotes = this.getCollection('quotations') || [];
+    var orders = this.getCollection('orders') || [];
+    var invoices = this.getCollection('invoices') || [];
+    var payments = this.getCollection('payments') || [];
+    var arAdjustments = this.getCollection('arAdjustments') || [];
+    var travelApprovals = this.getCollection('travelApprovals') || [];
+    var expenses = this.getCollection('expenses') || [];
+    var employeesForReporting = this.getCollection('employees') || [];
+
+    var sections = [];
+
+    var myEmpIdForReporting = (typeof localStorage !== 'undefined') ? localStorage.getItem('employeeId') : null;
+    var iAmSomeonesManager = employeesForReporting.some(function(e) { return e.reportsTo === myEmpIdForReporting; });
+    if (iAmSomeonesManager || window.hasApprovalAuthority('isDirector')) {
+      sections.push({
+        key: 'travel-claim-manager',
+        title: 'Travel Expense Claims — Reporting Manager Approval',
+        icon: '🧳',
+        items: expenses.filter(function(e) {
+          if (e.category !== 'Travelling' || e.status !== 'Pending Manager Approval') return false;
+          if (myEmpIdForReporting && myEmpIdForReporting === e.employeeId) return false;
+          if (window.hasApprovalAuthority('isDirector')) return true;
+          var traveler = employeesForReporting.find(function(emp) { return emp.employeeId === e.employeeId; });
+          return !!(traveler && traveler.reportsTo && myEmpIdForReporting === traveler.reportsTo);
+        }),
+        rowFn: function(e) {
+          return { ref: e.voucherNo || e.id, customer: e.clientName || e.payee, amount: e.amount, by: e.payee, date: e.date, link: 'expenses.html?claimApproveId=' + encodeURIComponent(e.id) };
+        }
+      });
+    }
+
+    if (window.hasApprovalAuthority('isPrimaryApprover')) {
+      sections.push({
+        key: 'quote-primary', title: 'Quotations — Primary Approval', icon: '📑',
+        items: quotes.filter(function(q) { return q.status === 'Pending Approval'; }),
+        rowFn: function(q) { return { ref: q.quoteNumber || q.id, customer: q.customerName, amount: q.grandTotal, by: q.employeeName, date: q.createdDate, link: 'quotations.html?approveId=' + encodeURIComponent(q.id) }; }
+      });
+    }
+
+    if (window.hasApprovalAuthority('isFinalApprover')) {
+      sections.push({
+        key: 'quote-ratify', title: 'Quotations — Final Approval', icon: '✅',
+        items: quotes.filter(function(q) { return q.status === 'Approved' && q.directorRatificationStatus === 'Pending'; }),
+        rowFn: function(q) { return { ref: q.quoteNumber || q.id, customer: q.customerName, amount: q.grandTotal, by: q.primaryApprovedBy, date: q.primaryApprovedAt, link: 'quotations.html?approveId=' + encodeURIComponent(q.id) }; }
+      });
+    }
+
+    if (window.hasApprovalAuthority('isPrimaryApprover')) {
+      sections.push({
+        key: 'order-primary', title: 'Orders — Primary Approval', icon: '📦',
+        items: orders.filter(function(o) { return o.status === 'Pending Primary Approval'; }),
+        rowFn: function(o) { return { ref: o.poNumber || o.id, customer: o.customerName, amount: o.orderValue || o.value, by: o.employeeName, date: o.createdDate, link: 'orders.html?approveId=' + encodeURIComponent(o.id) }; }
+      });
+    }
+
+    if (window.hasApprovalAuthority('isFinalApprover')) {
+      sections.push({
+        key: 'order-ratify', title: 'Orders — Final Approval', icon: '✅',
+        items: orders.filter(function(o) { return o.status === 'Booked' && o.directorRatificationStatus === 'Pending'; }),
+        rowFn: function(o) { return { ref: o.poNumber || o.id, customer: o.customerName, amount: o.orderValue || o.value, by: o.primaryApprovedBy, date: o.primaryApprovedAt, link: 'orders.html?approveId=' + encodeURIComponent(o.id) }; }
+      });
+    }
+
+    if (window.hasApprovalAuthority('isPrimaryApprover')) {
+      sections.push({
+        key: 'invoice-primary', title: 'Invoices — Primary Approval', icon: '🧾',
+        items: invoices.filter(function(i) { return i.status === 'Pending Senior Approval'; }),
+        rowFn: function(i) { return { ref: i.invoiceNumber || i.id, customer: i.customerName, amount: i.grandTotal, by: i.employeeName, date: i.invoiceDate, link: 'invoices.html?approveId=' + encodeURIComponent(i.id) }; }
+      });
+    }
+
+    if (window.hasApprovalAuthority('isFinalApprover')) {
+      sections.push({
+        key: 'invoice-ratify', title: 'Invoices — Final Approval', icon: '✅',
+        items: invoices.filter(function(i) { return (i.status === 'Approved' || i.status === 'Issued') && i.directorRatificationStatus === 'Pending'; }),
+        rowFn: function(i) { return { ref: i.invoiceNumber || i.id, customer: i.customerName, amount: i.grandTotal, by: i.approvalInfo ? i.approvalInfo.approvedBy : '', date: i.invoiceDate, link: 'invoices.html?approveId=' + encodeURIComponent(i.id) }; }
+      });
+    }
+
+    if (window.hasApprovalAuthority('isPrimaryApprover')) {
+      sections.push({
+        key: 'travel-primary', title: 'Travel Pre-Approvals — Reporting Manager Approval', icon: '✈️',
+        items: travelApprovals.filter(function(t) { return t.status === 'Pending Manager Approval'; }),
+        rowFn: function(t) { return { ref: t.id, customer: t.places, amount: t.estimatedBudget, by: t.employeeName, date: t.appliedDate, link: 'expenses.html?tab=travel-app&approveId=' + encodeURIComponent(t.id) }; }
+      });
+    }
+
+    if (window.hasApprovalAuthority('isFinalApprover')) {
+      sections.push({
+        key: 'travel-ratify', title: 'Travel Pre-Approvals — Director Approval', icon: '✅',
+        items: travelApprovals.filter(function(t) { return t.status === 'Pending Director Approval'; }),
+        rowFn: function(t) { return { ref: t.id, customer: t.places, amount: t.estimatedBudget, by: t.managerApprovedBy || t.employeeName, date: t.startDate, link: 'expenses.html?tab=travel-app&approveId=' + encodeURIComponent(t.id) }; }
+      });
+    }
+
+    if (window.hasApprovalAuthority('isFinanceHead')) {
+      sections.push({
+        key: 'payment-verify', title: 'Payments — Finance Verification', icon: '💳',
+        items: payments.filter(function(p) { return p.status === 'Pending Finance Verification'; }),
+        rowFn: function(p) { return { ref: p.receiptNumber || p.id, customer: p.customerName, amount: p.amount, by: p.employeeName, date: p.paymentDate, link: 'payments.html?approveId=' + encodeURIComponent(p.id) }; }
+      });
+    }
+
+    if (window.hasApprovalAuthority('isPrimaryApprover') || window.hasApprovalAuthority('isFinanceHead') || window.hasApprovalAuthority('isDirector')) {
+      sections.push({
+        key: 'writeoff-signoff', title: 'Payment Write-Offs / Goodwill — Your Sign-Off', icon: '⚖️',
+        items: arAdjustments.filter(function(adj) {
+          if (adj.status !== 'Pending Director Approval') return false;
+          return (window.hasApprovalAuthority('isPrimaryApprover') && !adj.primaryApproverSignoff) ||
+                 (window.hasApprovalAuthority('isFinanceHead') && !adj.financeHeadSignoff) ||
+                 (window.hasApprovalAuthority('isDirector') && !adj.directorSignoff);
+        }),
+        rowFn: function(adj) { return { ref: adj.adjustmentNumber || adj.refNumber || adj.id, customer: adj.customerName, amount: adj.adjustmentAmount, by: adj.requestedBy, date: adj.requestedDate, link: 'payments.html?action=adjustments&approveId=' + encodeURIComponent(adj.id) }; }
+      });
+    }
+
+    return sections;
+  },
+
+  // Resolves to every active employee holding a given approval-authority
+  // flag, as {email, name} pairs - used to pick who gets notified by
+  // email when something newly needs their approval.
+  _employeesWithFlag: function(employees, flag) {
+    return (employees || [])
+      .filter(function(e) { return e && e[flag] === true && e.isActive !== false && e.email; })
+      .map(function(e) { return { email: e.email, name: e.fullName }; });
+  },
+
+  // A travel expense claim/bill routes to the claimant's actual Reporting
+  // Manager specifically (see getApprovalSections above), not a flag -
+  // falls back to notifying the Director(s) if the claimant has no
+  // reportsTo set, so a claim never silently notifies nobody.
+  _reportingManagerOf: function(employees, employeeId) {
+    var emp = (employees || []).find(function(e) { return e.employeeId === employeeId; });
+    if (emp && emp.reportsTo) {
+      var mgr = employees.find(function(e) { return e.employeeId === emp.reportsTo; });
+      if (mgr && mgr.email) return [{ email: mgr.email, name: mgr.fullName }];
+    }
+    return this._employeesWithFlag(employees, 'isDirector');
+  },
+
+  // One entry per approval stage shown in getApprovalSections above -
+  // matches(oldRecord, newRecord) detects the record *newly* entering
+  // that stage (oldRecord is null for a brand-new record), so a plain
+  // re-save that leaves the status unchanged never re-notifies anyone.
+  APPROVAL_NOTIFICATION_RULES: [
+    {
+      collection: 'quotations',
+      matches: function(o, n) { return n.status === 'Pending Approval' && (!o || o.status !== 'Pending Approval'); },
+      recipients: function(n, emps, self) { return self._employeesWithFlag(emps, 'isPrimaryApprover'); },
+      subject: function(n) { return 'Approval needed: Quotation ' + (n.quoteNumber || n.id) + ' - ' + (n.customerName || ''); },
+      summary: function(n) { return 'Quotation ' + (n.quoteNumber || n.id) + ' for ' + (n.customerName || '') + ' (' + (window.formatINR ? window.formatINR(n.grandTotal) : n.grandTotal) + '), raised by ' + (n.employeeName || '') + ', is awaiting your Primary Approval.'; },
+      link: function(n) { return 'quotations.html?approveId=' + encodeURIComponent(n.id); }
+    },
+    {
+      collection: 'quotations',
+      matches: function(o, n) { return n.status === 'Approved' && n.directorRatificationStatus === 'Pending' && !(o && o.status === 'Approved' && o.directorRatificationStatus === 'Pending'); },
+      recipients: function(n, emps, self) { return self._employeesWithFlag(emps, 'isFinalApprover'); },
+      subject: function(n) { return 'Final approval needed: Quotation ' + (n.quoteNumber || n.id) + ' - ' + (n.customerName || ''); },
+      summary: function(n) { return 'Quotation ' + (n.quoteNumber || n.id) + ' for ' + (n.customerName || '') + ' (' + (window.formatINR ? window.formatINR(n.grandTotal) : n.grandTotal) + ') has cleared Primary Approval and is awaiting your Final Approval.'; },
+      link: function(n) { return 'quotations.html?approveId=' + encodeURIComponent(n.id); }
+    },
+    {
+      collection: 'orders',
+      matches: function(o, n) { return n.status === 'Pending Primary Approval' && (!o || o.status !== 'Pending Primary Approval'); },
+      recipients: function(n, emps, self) { return self._employeesWithFlag(emps, 'isPrimaryApprover'); },
+      subject: function(n) { return 'Approval needed: Order ' + (n.poNumber || n.id) + ' - ' + (n.customerName || ''); },
+      summary: function(n) { return 'Order ' + (n.poNumber || n.id) + ' for ' + (n.customerName || '') + ' (' + (window.formatINR ? window.formatINR(n.orderValue || n.value) : (n.orderValue || n.value)) + '), raised by ' + (n.employeeName || '') + ', is awaiting your Primary Approval.'; },
+      link: function(n) { return 'orders.html?approveId=' + encodeURIComponent(n.id); }
+    },
+    {
+      collection: 'orders',
+      matches: function(o, n) { return n.status === 'Booked' && n.directorRatificationStatus === 'Pending' && !(o && o.status === 'Booked' && o.directorRatificationStatus === 'Pending'); },
+      recipients: function(n, emps, self) { return self._employeesWithFlag(emps, 'isFinalApprover'); },
+      subject: function(n) { return 'Final approval needed: Order ' + (n.poNumber || n.id) + ' - ' + (n.customerName || ''); },
+      summary: function(n) { return 'Order ' + (n.poNumber || n.id) + ' for ' + (n.customerName || '') + ' has cleared Primary Approval and is awaiting your Final Approval.'; },
+      link: function(n) { return 'orders.html?approveId=' + encodeURIComponent(n.id); }
+    },
+    {
+      collection: 'invoices',
+      matches: function(o, n) { return n.status === 'Pending Senior Approval' && (!o || o.status !== 'Pending Senior Approval'); },
+      recipients: function(n, emps, self) { return self._employeesWithFlag(emps, 'isPrimaryApprover'); },
+      subject: function(n) { return 'Approval needed: Invoice ' + (n.invoiceNumber || n.id) + ' - ' + (n.customerName || ''); },
+      summary: function(n) { return 'Invoice ' + (n.invoiceNumber || n.id) + ' for ' + (n.customerName || '') + ' (' + (window.formatINR ? window.formatINR(n.grandTotal) : n.grandTotal) + '), raised by ' + (n.employeeName || '') + ', is awaiting your Primary Approval.'; },
+      link: function(n) { return 'invoices.html?approveId=' + encodeURIComponent(n.id); }
+    },
+    {
+      collection: 'invoices',
+      matches: function(o, n) { return (n.status === 'Approved' || n.status === 'Issued') && n.directorRatificationStatus === 'Pending' && !(o && (o.status === 'Approved' || o.status === 'Issued') && o.directorRatificationStatus === 'Pending'); },
+      recipients: function(n, emps, self) { return self._employeesWithFlag(emps, 'isFinalApprover'); },
+      subject: function(n) { return 'Final approval needed: Invoice ' + (n.invoiceNumber || n.id) + ' - ' + (n.customerName || ''); },
+      summary: function(n) { return 'Invoice ' + (n.invoiceNumber || n.id) + ' for ' + (n.customerName || '') + ' has cleared Primary Approval and is awaiting your Final Approval.'; },
+      link: function(n) { return 'invoices.html?approveId=' + encodeURIComponent(n.id); }
+    },
+    {
+      collection: 'travelApprovals',
+      matches: function(o, n) { return n.status === 'Pending Manager Approval' && (!o || o.status !== 'Pending Manager Approval'); },
+      recipients: function(n, emps, self) { return self._employeesWithFlag(emps, 'isPrimaryApprover'); },
+      subject: function(n) { return 'Approval needed: Travel Pre-Approval - ' + (n.places || n.id); },
+      summary: function(n) { return 'A travel pre-approval request for ' + (n.places || '') + ' by ' + (n.employeeName || '') + ' is awaiting your Reporting Manager Approval.'; },
+      link: function(n) { return 'expenses.html?tab=travel-app&approveId=' + encodeURIComponent(n.id); }
+    },
+    {
+      collection: 'travelApprovals',
+      matches: function(o, n) { return n.status === 'Pending Director Approval' && (!o || o.status !== 'Pending Director Approval'); },
+      recipients: function(n, emps, self) { return self._employeesWithFlag(emps, 'isFinalApprover'); },
+      subject: function(n) { return 'Final approval needed: Travel Pre-Approval - ' + (n.places || n.id); },
+      summary: function(n) { return 'A travel pre-approval request for ' + (n.places || '') + ' by ' + (n.employeeName || '') + ' has cleared Manager Approval and is awaiting your Director Approval.'; },
+      link: function(n) { return 'expenses.html?tab=travel-app&approveId=' + encodeURIComponent(n.id); }
+    },
+    {
+      collection: 'payments',
+      matches: function(o, n) { return n.status === 'Pending Finance Verification' && (!o || o.status !== 'Pending Finance Verification'); },
+      recipients: function(n, emps, self) { return self._employeesWithFlag(emps, 'isFinanceHead'); },
+      subject: function(n) { return 'Verification needed: Payment ' + (n.receiptNumber || n.id) + ' - ' + (n.customerName || ''); },
+      summary: function(n) { return 'Payment ' + (n.receiptNumber || n.id) + ' for ' + (n.customerName || '') + ' (' + (window.formatINR ? window.formatINR(n.amount) : n.amount) + ') is awaiting your Finance Verification.'; },
+      link: function(n) { return 'payments.html?approveId=' + encodeURIComponent(n.id); }
+    },
+    {
+      collection: 'expenses',
+      matches: function(o, n) { return n.category === 'Travelling' && n.status === 'Pending Manager Approval' && (!o || o.status !== 'Pending Manager Approval'); },
+      recipients: function(n, emps, self) { return self._reportingManagerOf(emps, n.employeeId); },
+      subject: function(n) { return 'Approval needed: Travel Expense Claim - ' + (n.voucherNo || n.id); },
+      summary: function(n) { return 'A travel expense claim (' + (n.voucherNo || n.id) + ') from ' + (n.payee || '') + ' for ' + (window.formatINR ? window.formatINR(n.amount) : n.amount) + ' is awaiting your approval as their Reporting Manager.'; },
+      link: function(n) { return 'expenses.html?claimApproveId=' + encodeURIComponent(n.id); }
+    },
+    {
+      collection: 'arAdjustments',
+      matches: function(o, n) { return n.status === 'Pending Director Approval' && (!o || o.status !== 'Pending Director Approval'); },
+      recipients: function(n, emps, self) {
+        var a = self._employeesWithFlag(emps, 'isPrimaryApprover');
+        var b = self._employeesWithFlag(emps, 'isFinanceHead');
+        var c = self._employeesWithFlag(emps, 'isDirector');
+        var seen = {};
+        return a.concat(b, c).filter(function(r) { if (seen[r.email]) return false; seen[r.email] = true; return true; });
+      },
+      subject: function(n) { return 'Sign-off needed: Payment Write-Off/Goodwill - ' + (n.adjustmentNumber || n.refNumber || n.id); },
+      summary: function(n) { return 'A payment write-off/goodwill adjustment (' + (n.adjustmentNumber || n.refNumber || n.id) + ') for ' + (n.customerName || '') + ' (' + (window.formatINR ? window.formatINR(n.adjustmentAmount) : n.adjustmentAmount) + ') is awaiting your sign-off.'; },
+      link: function(n) { return 'payments.html?action=adjustments&approveId=' + encodeURIComponent(n.id); }
+    }
+  ],
+
+  // Fire-and-forget: never blocks or fails the real save. Sends one email
+  // per matching rule per recipient, from the current signed-in user's
+  // own mailbox (Gmail-first, Brevo fallback - see email-service.js),
+  // whenever a record newly enters a stage listed in
+  // APPROVAL_NOTIFICATION_RULES above.
+  notifyApproversIfNeeded: function(colName, oldRecord, newRecord) {
+    try {
+      if (!newRecord || !window.BrevoMailer || typeof window.hasApprovalAuthority !== 'function') return;
+      var self = this;
+      var employees = this.getCollection('employees') || [];
+      var rules = this.APPROVAL_NOTIFICATION_RULES.filter(function(r) { return r.collection === colName; });
+      rules.forEach(function(rule) {
+        if (!rule.matches(oldRecord, newRecord)) return;
+        var recipients = rule.recipients(newRecord, employees, self) || [];
+        recipients.forEach(function(rec) {
+          if (!rec || !rec.email) return;
+          var body = rule.summary(newRecord) + '\n\nReview it here: ' + (typeof window !== 'undefined' ? window.location.origin : '') + '/' + rule.link(newRecord);
+          window.BrevoMailer.sendViaGmailWithFallback({
+            to: rec.email,
+            toName: rec.name || '',
+            subject: rule.subject(newRecord),
+            textContent: body
+          }).catch(function(err) {
+            console.warn('Approval notification email failed (' + colName + '/' + newRecord.id + ' -> ' + rec.email + '):', err);
+          });
+        });
+      });
+    } catch (e) {
+      console.warn('notifyApproversIfNeeded error:', e);
+    }
+  },
+
   saveRecord: function(colName, record) {
     if (!record || typeof record !== 'object') return Promise.resolve({ record: null, synced: false });
     var sanitized = this.sanitizeRecord(record);
@@ -355,13 +635,16 @@ Object.assign(window.RevOpsStore, {
 
     var items = this.getCollection(colName);
     var index = items.findIndex(function(it) { return it.id === sanitized.id || it.docId === sanitized.id; });
+    var oldRecordForNotify = index >= 0 ? items[index] : null;
     if (index >= 0) {
       items[index] = Object.assign({}, items[index], sanitized);
     } else {
       items.push(sanitized);
     }
+    var savedRecord = index >= 0 ? items[index] : sanitized;
     this.saveCollection(colName, items);
     this.syncToGoogleSheet(colName, index >= 0 ? 'update' : 'create', sanitized);
+    this.notifyApproversIfNeeded(colName, oldRecordForNotify, savedRecord);
 
     if (this.isFirebaseAvailable()) {
       try {
