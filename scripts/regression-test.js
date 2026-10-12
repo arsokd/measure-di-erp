@@ -1618,7 +1618,12 @@ async function testPasswordPolicyEnforcement(browser) {
     await page.fill('#new-password', 'newSecret123');
     await page.fill('#confirm-password', 'newSecret123');
     await page.click('#submit-btn');
-    await page.waitForTimeout(1800);
+    // A fixed-duration wait here raced against the client-side redirect +
+    // the new page's own script load under system load - explicitly
+    // waiting for both the URL to change and RevOpsStore to exist on the
+    // new page removes that race instead of just padding the timeout.
+    await page.waitForURL(/dashboard\.html/, { timeout: 10000 }).catch(function () {});
+    await page.waitForFunction(function () { return !!window.RevOpsStore; }, { timeout: 10000 }).catch(function () {});
     assertTrue(page.url().indexOf('dashboard.html') !== -1, 'Password policy: successful self-service change redirects to dashboard, got ' + page.url(), failures);
     const empAfter = await page.evaluate(function () {
       var emps = window.RevOpsStore.getCollection('employees');
@@ -4044,6 +4049,49 @@ async function testMobileNoHorizontalOverflow(browser) {
   return failures;
 }
 
+// ---------------------------------------------------------------------
+// _pruneEmployeesNotInRemoteSnapshot (subscribeRealtimeSync's employees-
+// only self-heal): a stale local-only employee record (e.g. the
+// hardcoded defaultEmployees demo seed written straight to localStorage
+// on a device that predates ever connecting to Firestore) has no
+// Firestore doc to ever trigger a "removed" docChange, so it would
+// otherwise sit duplicated alongside the real synced employee forever -
+// this is what finally reconciles it away once a real snapshot arrives.
+// ---------------------------------------------------------------------
+async function testPruneStaleLocalEmployees(browser) {
+  const failures = [];
+  const { page } = await newPage(browser);
+
+  await page.goto(BASE_URL + '/dashboard.html', { waitUntil: 'networkidle', timeout: 30000 });
+  await page.waitForTimeout(600);
+
+  const result = await page.evaluate(function () {
+    var local = [
+      { id: 'emp_dev', fullName: 'Developer (ars.okd)' }, // stale local-only seed record
+      { id: 'emp_1', fullName: 'Mr. Ravichandran (stale local)' }, // stale local-only seed record
+      { id: 'emp_real_123', fullName: 'Mr. Ravichandran' } // the real, Firestore-synced record
+    ];
+    var remoteIds = ['emp_real_123']; // only this one actually exists in Firestore
+    return window.RevOpsStore._pruneEmployeesNotInRemoteSnapshot(local, remoteIds);
+  });
+
+  assertEqual(result.length, 1, 'Stale local-only employees (no matching Firestore doc) are pruned, leaving only the real synced record', failures);
+  assertEqual(result[0] && result[0].id, 'emp_real_123', 'The surviving record is the real Firestore-synced employee, not a stale local duplicate', failures);
+
+  const emptyRemoteResult = await page.evaluate(function () {
+    return window.RevOpsStore._pruneEmployeesNotInRemoteSnapshot([{ id: 'e1' }, { id: 'e2' }], []);
+  });
+  assertEqual(emptyRemoteResult.length, 0, 'An empty remote snapshot prunes every local record (no silent no-op)', failures);
+
+  const noStaleResult = await page.evaluate(function () {
+    return window.RevOpsStore._pruneEmployeesNotInRemoteSnapshot([{ id: 'e1' }, { id: 'e2' }], ['e1', 'e2']);
+  });
+  assertEqual(noStaleResult.length, 2, 'Nothing is pruned when every local record matches a remote one', failures);
+
+  await page.close();
+  return failures;
+}
+
 const TESTS = [
   ['SLA day-based seeding, migration, severity dropdown & date math', testSlaDayBasedSeedingAndMigration],
   ['Ticket email subject line', testQuotationVerticalAndTicketSubject],
@@ -4086,7 +4134,8 @@ const TESTS = [
   ['Google Sheet mirror: saveRecord/deleteRecord fire a non-blocking /api/sheet-sync call, oversized fields trimmed, real save always succeeds', testGoogleSheetSyncHook],
   ['Service Ticket customer dropdown lists Lead-only customers, not just Order/Invoice-stage ones', testServiceTicketLeadsInCustomerDropdown],
   ['PWA installability: manifest/icons/meta tags on every page, manifest.json and sw.js reachable', testPwaInstallabilityTags],
-  ['Mobile layout: Dashboard/DWM/Attendance never force horizontal page scroll at 390px width', testMobileNoHorizontalOverflow]
+  ['Mobile layout: Dashboard/DWM/Attendance never force horizontal page scroll at 390px width', testMobileNoHorizontalOverflow],
+  ['Realtime sync self-heals stale local-only employee duplicates once Firestore is authoritative', testPruneStaleLocalEmployees]
 ];
 
 (async () => {

@@ -1442,6 +1442,14 @@ Object.assign(window.RevOpsStore, {
     return result;
   },
 
+  // Pure reconciliation step used by subscribeRealtimeSync for the
+  // 'employees' collection (see the call site there for why employees
+  // specifically). Kept as its own function so it's directly testable
+  // without mocking a full Firestore onSnapshot listener.
+  _pruneEmployeesNotInRemoteSnapshot: function(localItems, remoteIds) {
+    return (localItems || []).filter(function(it) { return remoteIds.indexOf(it.id) !== -1; });
+  },
+
   subscribeRealtimeSync: function(colName, onDataUpdated) {
     if (!this.isFirebaseAvailable()) return null;
     try {
@@ -1476,6 +1484,23 @@ Object.assign(window.RevOpsStore, {
             }
           }
         });
+
+        // Employees is centrally admin-managed - never something a field
+        // user creates while briefly offline - so once Firestore has
+        // delivered a real (not merely cached) snapshot, it's fully
+        // authoritative here. A stale local-only record (most commonly
+        // the hardcoded defaultEmployees demo seed in seed-data.js,
+        // written straight to localStorage on a device that predates
+        // this one ever connecting to Firestore, e.g. "Developer
+        // (ars.okd)" plus the old starter roster) has no Firestore doc
+        // to ever trigger a "removed" docChange above, so without this
+        // it sits duplicated alongside the real synced employee forever.
+        // Deliberately NOT applied to other collections: a genuine
+        // just-created, not-yet-synced local record there must survive.
+        if (colName === 'employees' && !snapshot.metadata.fromCache) {
+          var remoteIds = snapshot.docs.map(function(doc) { return doc.id; });
+          localItems = window.RevOpsStore._pruneEmployeesNotInRemoteSnapshot(localItems, remoteIds);
+        }
 
         window.RevOpsStore.saveCollection(colName, localItems);
         if (typeof onDataUpdated === 'function') onDataUpdated(localItems);
