@@ -3990,10 +3990,17 @@ async function testGoogleSheetSyncHook(browser) {
   assertEqual(saveResult.calls[0] && saveResult.calls[0].body && saveResult.calls[0].body.collection, 'sheetSyncTestCollection', 'Sync payload carries the collection name', failures);
   assertEqual(saveResult.calls[0] && saveResult.calls[0].body && saveResult.calls[0].body.action, 'create', 'Sync payload reports action "create" for a brand-new record', failures);
   assertTrue(!!(saveResult.calls[0] && saveResult.calls[0].body && saveResult.calls[0].body.record && !('hugeField' in saveResult.calls[0].body.record)), 'Oversized field (>1500 chars) is stripped from the payload sent to the Sheet', failures);
-  assertEqual(saveResult.calls[0] && saveResult.calls[0].body && saveResult.calls[0].body.record && saveResult.calls[0].body.record.punchInTime, '2026-10-09 14:23:45', 'ISO timestamp (punchInTime) loses its T/Z separators in the Sheet payload', failures);
+  assertEqual(saveResult.calls[0] && saveResult.calls[0].body && saveResult.calls[0].body.record && saveResult.calls[0].body.record.punchInTime, '2026-10-09 19:53:45', 'ISO timestamp (punchInTime) is converted from UTC to IST (+5:30) in the Sheet payload, not just stripped of T/Z', failures);
   assertEqual(saveResult.calls[0] && saveResult.calls[0].body && saveResult.calls[0].body.record && saveResult.calls[0].body.record.punchInLocation, '12.9716,77.5946', 'GPS location object collapses to a plain "lat,lng" string in the Sheet payload', failures);
   assertEqual(saveResult.saved && saveResult.saved.punchInTime, '2026-10-09T14:23:45.123Z', 'The real saved record keeps the original ISO timestamp (only the Sheet copy is reformatted)', failures);
   assertTrue(!!(saveResult.saved && saveResult.saved.punchInLocation && saveResult.saved.punchInLocation.latitude === 12.9716), 'The real saved record keeps the full GPS location object (only the Sheet copy is reformatted)', failures);
+
+  const rolloverResult = await page.evaluate(function () {
+    // 20:00 UTC + 5:30 rolls into the next calendar day in IST (01:30) -
+    // the conversion must carry the date forward, not just add minutes.
+    return window.RevOpsStore._formatValueForSheet('2026-10-09T20:00:00.000Z');
+  });
+  assertEqual(rolloverResult, '2026-10-10 01:30:00', 'IST conversion correctly rolls over to the next calendar day for a late-UTC timestamp', failures);
 
   const updateAndDeleteResult = await page.evaluate(async function () {
     var calls = [];

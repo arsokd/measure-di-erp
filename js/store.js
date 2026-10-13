@@ -319,12 +319,30 @@ Object.assign(window.RevOpsStore, {
   _ISO_DATETIME_RE: /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/,
   _formatValueForSheet: function(val) {
     if (typeof val === 'string' && this._ISO_DATETIME_RE.test(val)) {
-      return val.replace('T', ' ').replace(/(\.\d+)?Z$/, '');
+      return this._formatIsoAsIst(val);
     }
     if (val && typeof val === 'object' && typeof val.latitude === 'number' && typeof val.longitude === 'number') {
       return val.latitude + ',' + val.longitude;
     }
     return val;
+  },
+
+  // The app's own screens already show correct local times (they call
+  // toLocaleTimeString() in the user's browser, which is IST for every
+  // field employee), but the Google Sheet mirror has no browser to lean
+  // on - a raw new Date().toISOString() value is always UTC, so without
+  // this it looked like a normal timestamp while actually running ~5.5
+  // hours behind. Shift the instant by the fixed IST offset (+5:30, no
+  // DST in India) and read it back with the UTC getters, which is the
+  // standard way to render a fixed-offset wall-clock time regardless of
+  // what timezone this function itself happens to run in.
+  _formatIsoAsIst: function(isoStr) {
+    var d = new Date(isoStr);
+    if (isNaN(d.getTime())) return isoStr;
+    var ist = new Date(d.getTime() + 5.5 * 60 * 60 * 1000);
+    var pad = function(n) { return String(n).padStart(2, '0'); };
+    return ist.getUTCFullYear() + '-' + pad(ist.getUTCMonth() + 1) + '-' + pad(ist.getUTCDate()) + ' ' +
+      pad(ist.getUTCHours()) + ':' + pad(ist.getUTCMinutes()) + ':' + pad(ist.getUTCSeconds());
   },
 
   syncToGoogleSheet: function(colName, action, record) {
