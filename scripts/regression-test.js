@@ -1411,6 +1411,47 @@ async function testDeleteDataBeforeDate(browser) {
   assertEqual(cleared.leadSourceMaster, beforeCounts.leadSourceMaster, 'Delete Data Before Date: classification lists (e.g. Lead Source) left untouched', failures);
   assertEqual(cleared.retiredFlag, 'true', 'Delete Data Before Date: sets the demo-data-retired flag', failures);
 
+  // The done view from the first run is still open - close it before
+  // reopening the modal for the next scenario, or the overlay intercepts
+  // the button click.
+  await page.evaluate(function () { closeClearDemoDataModal(); });
+
+  // Narrowing the selection: unchecking everything except Leads must
+  // leave an equally-old Order untouched, and leave the preview/delete
+  // count scoped to only the checked record types.
+  await page.evaluate(function () {
+    window.RevOpsStore.saveCollection('leads', [
+      { id: 'lead_scope_old', customerName: 'Old Lead For Scope Test', createdDate: '01/09/2026' }
+    ]);
+    window.RevOpsStore.saveCollection('orders', [
+      { id: 'order_scope_old', customerName: 'Old Order For Scope Test', createdDate: '01/09/2026' }
+    ]);
+  });
+  await page.click('#go-live-danger-zone button');
+  await page.waitForTimeout(150);
+  await page.evaluate(function () {
+    document.querySelectorAll('#clear-demo-collections-list input[type="checkbox"]').forEach(function (cb) {
+      cb.checked = (cb.value === 'leads');
+    });
+    refreshClearDemoPreview();
+  });
+  const scopedPreview = await page.evaluate(function () {
+    return document.getElementById('clear-demo-preview-total').innerText;
+  });
+  assertEqual(scopedPreview, '1', 'Delete Data Before Date: unchecking all but Leads scopes the preview to only Leads (the equally-old Order is excluded)', failures);
+
+  await page.fill('#inp-clear-demo-confirm', 'DELETE');
+  await page.evaluate(function () { document.getElementById('btn-execute-clear-demo').click(); });
+  await page.waitForTimeout(500);
+  const scopedResult = await page.evaluate(function () {
+    return {
+      leads: (window.RevOpsStore.getCollection('leads') || []).map(function (l) { return l.id; }),
+      orders: (window.RevOpsStore.getCollection('orders') || []).map(function (o) { return o.id; })
+    };
+  });
+  assertEqual(scopedResult.leads.indexOf('lead_scope_old'), -1, 'Delete Data Before Date: the checked collection (Leads) is actually deleted', failures);
+  assertEqual(scopedResult.orders.indexOf('order_scope_old'), 0, 'Delete Data Before Date: an unchecked collection (Orders) survives even though its record is equally old', failures);
+
   // Danger Zone must stay hidden for a non-admin role.
   const staffPage = await browser.newPage();
   staffPage.on('dialog', async function (d) { await d.dismiss().catch(function () {}); });
@@ -3103,6 +3144,44 @@ async function testCheckAuthNormalizesInvalidRole(browser) {
   return failures;
 }
 
+async function testCheckAuthNormalizesInvalidRoleWithNoEmployeeRecordYet(browser) {
+  const failures = [];
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  page.on('dialog', async function (d) { await d.dismiss().catch(function () {}); });
+  await page.addInitScript(function () {
+    // Simulates the real production race: login.html can write an
+    // invalid role (e.g. a designation like "Engineer" that ended up in
+    // the role field) straight into localStorage before the employees
+    // collection has synced from Firestore on this device - e.g. a
+    // fresh Incognito session on a slow field connection. checkAuth's
+    // currentEmp-based self-heal has nothing to match against yet in
+    // that case, so the EARLY, currentEmp-independent normalization
+    // must catch this on its own or the user loops forever on
+    // "Unauthorized access. Redirecting to your default workspace."
+    localStorage.setItem('userRole', 'Engineer');
+    localStorage.setItem('userEmail', 'noemployeeyet@measuredi.com');
+    localStorage.setItem('userName', 'No Employee Record Yet');
+    localStorage.setItem('employeeId', 'E-NOT-CACHED-01');
+  });
+
+  await page.goto(BASE_URL + '/dashboard.html', { waitUntil: 'networkidle', timeout: 30000 });
+  await page.waitForTimeout(500);
+
+  const result = await page.evaluate(function () {
+    return {
+      localStorageRole: localStorage.getItem('userRole'),
+      noAlertLoop: document.body.innerText.indexOf('Unauthorized access') === -1,
+      dashboardAccessible: !!document.getElementById('navbar-container') && document.getElementById('navbar-container').innerHTML.length > 0
+    };
+  });
+  assertEqual(result.localStorageRole, 'staff', 'checkAuth normalizes an invalid role to "staff" even when no matching employees record is cached locally yet (the real race condition behind the field "Unauthorized access" reports)', failures);
+  assertTrue(result.noAlertLoop, 'No "Unauthorized access" alert loop when the employee record cannot be resolved locally', failures);
+  assertTrue(result.dashboardAccessible, 'Page loads normally even without a cached employees record for this user', failures);
+
+  await page.close();
+  return failures;
+}
+
 // ---------------------------------------------------------------------
 // DWM Section A/B rework: every planned activity (auto KRA point, extra
 // KRA activity, or Special Assignment) now carries a tick ("Include")
@@ -4239,6 +4318,7 @@ const TESTS = [
   ['Seed guard: stale local defaultEmployees fallback never duplicates the real Firestore roster', testEmployeesSeedGuardAgainstDuplication],
   ['DWM tick/time/% rework: Include checkboxes, editable time pre-fill, Punch-In lock, real % Done, plan-changed flag', testDwmTickTimePercentAndPlanChanged],
   ['checkAuth self-heals an invalid employee role ("Engineer") to "staff" instead of looping on Unauthorized access', testCheckAuthNormalizesInvalidRole],
+  ['checkAuth normalizes an invalid role even before the employees record is cached locally (the field "Unauthorized access" race condition)', testCheckAuthNormalizesInvalidRoleWithNoEmployeeRecordYet],
   ['DWM "Reset Plan" button: clears ticks + deletes extras before Punch In, disappears once nothing to reset', testDwmResetPlanButton],
   ['Executive Dashboard Workforce & DWM Compliance Snapshot: Today\'s Attendance, Monthly %, DWM Compliance, Today\'s Accomplishment', testDashboardHrSnapshot],
   ['Attendance correction request + manager approval workflow: past-day-only, pending queue, approve computes hours, reject requires remarks', testAttendanceCorrectionWorkflow],

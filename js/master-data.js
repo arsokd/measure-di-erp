@@ -1112,6 +1112,18 @@ var activeMasterTab = 'products';
     // Deliberately gated by canEditMasterData() again here (not just the
     // button's own hidden state at page load) - a role switch mid-session
     // shouldn't leave this reachable from a stale DOM state.
+    // Human-readable labels for the checkbox list - falls back to the raw
+    // collection name for any future addition to DEMO_DATA_COLLECTIONS
+    // that isn't listed here yet, so the UI never silently hides one.
+    var CLEAR_DEMO_COLLECTION_LABELS = {
+      leads: 'Leads', quotations: 'Quotations', orders: 'Orders', invoices: 'Invoices',
+      serviceTickets: 'Service Tickets', serviceLeads: 'Service Leads',
+      amcContracts: 'AMC Contracts', amcQuotations: 'AMC Quotations', amcOrders: 'AMC Orders', amcInvoices: 'AMC Invoices',
+      clientsMaster: 'Clients Master', sparePartsMaster: 'Spare Parts Master', bankDetailsMaster: 'Bank Details Master', clientEquipmentMaster: 'Installed Equipment',
+      attendance: 'Attendance', dwmActivities: 'DWM Activities', reviews: 'Reviews',
+      kraTargets: 'KRA Targets', aopTargets: 'AOP Targets', payments: 'Payments', expenses: 'Expenses', expenseSplits: 'Expense Splits', projectsMaster: 'Projects Master'
+    };
+
     function openClearDemoDataModal() {
       if (!canEditMasterData()) {
         alert("Only Super Admin or Admin can delete data.");
@@ -1122,6 +1134,7 @@ var activeMasterTab = 'products';
       document.getElementById('clear-demo-data-progress-view').classList.add('hidden');
       document.getElementById('clear-demo-data-done-view').classList.add('hidden');
       document.getElementById('clear-demo-data-modal').classList.remove('hidden');
+      populateClearDemoCollectionsList();
       refreshClearDemoPreview();
     }
 
@@ -1129,23 +1142,46 @@ var activeMasterTab = 'products';
       document.getElementById('clear-demo-data-modal').classList.add('hidden');
     }
 
+    // Renders one checkbox per DEMO_DATA_COLLECTIONS entry, all checked by
+    // default (preserving the original "everything" behavior unless the
+    // user deliberately narrows it down).
+    function populateClearDemoCollectionsList() {
+      var listEl = document.getElementById('clear-demo-collections-list');
+      var collections = window.RevOpsStore.DEMO_DATA_COLLECTIONS || [];
+      listEl.innerHTML = collections.map(function(col) {
+        var label = CLEAR_DEMO_COLLECTION_LABELS[col] || col;
+        return '<label class="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" checked value="' + col + '" onchange="refreshClearDemoPreview()" class="accent-rose-600" />' + label + '</label>';
+      }).join('');
+    }
+
+    function setAllClearDemoCollections(checked) {
+      document.querySelectorAll('#clear-demo-collections-list input[type="checkbox"]').forEach(function(cb) { cb.checked = checked; });
+      refreshClearDemoPreview();
+    }
+
+    function getSelectedClearDemoCollections() {
+      return Array.from(document.querySelectorAll('#clear-demo-collections-list input[type="checkbox"]:checked')).map(function(cb) { return cb.value; });
+    }
+
     // Recomputes and renders the "what would be deleted" preview for the
-    // currently-selected cutoff date - a pure read (previewDataBeforeDate
-    // has zero side effects), so this can safely run on every date change.
+    // currently-selected cutoff date + collections - a pure read
+    // (previewDataBeforeDate has zero side effects), so this can safely
+    // run on every date/checkbox change.
     function refreshClearDemoPreview() {
       var cutoff = document.getElementById('inp-clear-demo-cutoff-date').value;
       var listEl = document.getElementById('clear-demo-preview-list');
       var totalEl = document.getElementById('clear-demo-preview-total');
-      if (!cutoff) {
-        listEl.innerHTML = '';
+      var selected = getSelectedClearDemoCollections();
+      if (!cutoff || selected.length === 0) {
+        listEl.innerHTML = selected.length === 0 ? '<span class="text-slate-600">No record types selected.</span>' : '';
         totalEl.innerText = '0';
         return;
       }
-      var preview = window.RevOpsStore.previewDataBeforeDate(cutoff);
+      var preview = window.RevOpsStore.previewDataBeforeDate(cutoff, selected);
       var nonZero = preview.perCollection.filter(function(c) { return c.toDelete > 0; });
       listEl.innerHTML = nonZero.length === 0
         ? '<span class="text-slate-600">Nothing to delete before this date.</span>'
-        : nonZero.map(function(c) { return c.collection + ': <span class="text-rose-300">' + c.toDelete + '</span> of ' + c.total; }).join('<br>');
+        : nonZero.map(function(c) { return (CLEAR_DEMO_COLLECTION_LABELS[c.collection] || c.collection) + ': <span class="text-rose-300">' + c.toDelete + '</span> of ' + c.total; }).join('<br>');
       totalEl.innerText = preview.grandTotalToDelete;
     }
 
@@ -1157,6 +1193,11 @@ var activeMasterTab = 'products';
       var cutoff = document.getElementById('inp-clear-demo-cutoff-date').value;
       if (!cutoff) {
         alert('Please choose a cutoff date.');
+        return;
+      }
+      var selected = getSelectedClearDemoCollections();
+      if (selected.length === 0) {
+        alert('Please select at least one record type to delete.');
         return;
       }
       var typed = document.getElementById('inp-clear-demo-confirm').value.trim();
@@ -1171,7 +1212,7 @@ var activeMasterTab = 'products';
       window.RevOpsStore.deleteDataCreatedBeforeDate(cutoff, function(colName, index, totalCount) {
         document.getElementById('clear-demo-progress-text').innerText = 'Checking ' + colName + '… (' + index + ' / ' + totalCount + ')';
         document.getElementById('clear-demo-progress-bar').style.width = Math.round((index / totalCount) * 100) + '%';
-      }).then(function(results) {
+      }, selected).then(function(results) {
         document.getElementById('clear-demo-data-progress-view').classList.add('hidden');
         document.getElementById('clear-demo-data-done-view').classList.remove('hidden');
         document.getElementById('clear-demo-done-summary').innerText =

@@ -207,6 +207,16 @@
           }
 
           if (!role) role = (employeeRecord && employeeRecord.role) || 'staff';
+          // A role that isn't one of the 4 the app understands (e.g. a
+          // designation like "Engineer" that ended up in the role field
+          // from a bulk import or a direct Firebase Console edit) must
+          // never reach localStorage - auth-guard.js's self-heal for this
+          // only runs once the employees collection is cached locally,
+          // which isn't guaranteed yet on this very first page load (e.g.
+          // a fresh device on a slow field connection), so the raw bad
+          // value would otherwise drive straight into the "Unauthorized
+          // access" redirect loop before the self-heal ever gets a chance.
+          if (['super_admin', 'admin', 'manager', 'staff'].indexOf(role) === -1) role = 'staff';
           if (!employeeId) employeeId = (employeeRecord && (employeeRecord.employeeId || employeeRecord.id)) || uid;
           var empName = (employeeRecord && (employeeRecord.fullName || employeeRecord.name)) || cred.user.displayName || 'User';
 

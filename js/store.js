@@ -96,10 +96,12 @@ Object.assign(window.RevOpsStore, {
   // Dry-run companion to deleteDataCreatedBeforeDate - same selection
   // logic, zero side effects, so the UI can show exactly what a delete
   // would do before anyone commits to it. cutoffDateStr is "YYYY-MM-DD".
-  previewDataBeforeDate: function(cutoffDateStr) {
+  // collections optionally narrows which of DEMO_DATA_COLLECTIONS to
+  // consider (defaults to all of them, the original behavior).
+  previewDataBeforeDate: function(cutoffDateStr, collections) {
     var self = this;
     var cutoff = this._parseCutoffDate(cutoffDateStr);
-    var perCollection = this.DEMO_DATA_COLLECTIONS.map(function(colName) {
+    var perCollection = (collections || this.DEMO_DATA_COLLECTIONS).map(function(colName) {
       var items = self.getCollection(colName) || [];
       var toDelete = 0, unknownSkipped = 0;
       items.forEach(function(it) {
@@ -122,13 +124,15 @@ Object.assign(window.RevOpsStore, {
   // listeners catch up). A record whose creation time can't be
   // confidently resolved is always kept, never deleted on a guess.
   // onProgress(colName, index, total) is called before each collection is
-  // processed, for a progress UI. Returns a promise resolving to
-  // { perCollection: [{collection, deleted, kept}], grandTotalDeleted,
-  //   firestoreDeleted, errors }.
-  deleteDataCreatedBeforeDate: function(cutoffDateStr, onProgress) {
+  // processed, for a progress UI. collections optionally narrows which of
+  // DEMO_DATA_COLLECTIONS to actually touch (defaults to all of them).
+  // Returns a promise resolving to { perCollection:
+  // [{collection, deleted, kept}], grandTotalDeleted, firestoreDeleted,
+  // errors }.
+  deleteDataCreatedBeforeDate: function(cutoffDateStr, onProgress, collections) {
     var self = this;
     var cutoff = this._parseCutoffDate(cutoffDateStr);
-    var collections = this.DEMO_DATA_COLLECTIONS;
+    collections = collections || this.DEMO_DATA_COLLECTIONS;
     var results = { perCollection: [], firestoreDeleted: 0, errors: [] };
 
     var chain = Promise.resolve();

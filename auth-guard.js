@@ -149,6 +149,21 @@ function checkAuth(allowedRoles) {
   if (employeeId === 'null' || employeeId === 'undefined') employeeId = null;
   if (userEmail === 'null' || userEmail === 'undefined') userEmail = null;
 
+  // Normalize an invalid role (e.g. a designation like "Engineer" that
+  // ended up in the role field) before it drives the authorization check
+  // below. The currentEmp-based self-heal further down only fires once
+  // the employees collection is cached locally, which isn't guaranteed
+  // on this very load (a fresh device/session on a slow field
+  // connection) - without this, that race leaves the raw bad value in
+  // place and loops forever on "Unauthorized access. Redirecting to
+  // your default workspace." as described below.
+  var VALID_ROLES = ['super_admin', 'admin', 'manager', 'staff'];
+  if (userRole && VALID_ROLES.indexOf(userRole) === -1) {
+    console.warn('Invalid role ("' + userRole + '") found in session - normalized to "staff".');
+    userRole = 'staff';
+    try { localStorage.setItem('userRole', userRole); } catch (eRoleFix) {}
+  }
+
   if (!userRole || !employeeId || !userEmail) {
     if (window.location.pathname.indexOf('login.html') === -1) {
       window.location.href = 'login.html';
@@ -182,7 +197,6 @@ function checkAuth(allowedRoles) {
     // same check, alerting and redirecting forever. Normalizing here
     // (and saving the correction below) fixes it permanently on the very
     // next page load, no fresh login needed.
-    var VALID_ROLES = ['super_admin', 'admin', 'manager', 'staff'];
     if (currentEmp.role && VALID_ROLES.indexOf(currentEmp.role) === -1) {
       console.warn('Employee ' + currentEmp.employeeId + ' had an invalid role ("' + currentEmp.role + '") - normalized to "staff".');
       currentEmp.role = 'staff';

@@ -473,6 +473,17 @@
 
         <div>
           <div class="flex items-center justify-between mb-1">
+            <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider">Which records to include</label>
+            <span class="text-[10px] space-x-2">
+              <a href="#" onclick="setAllClearDemoCollections(true); return false;" class="text-indigo-300 hover:text-indigo-200">Select all</a>
+              <a href="#" onclick="setAllClearDemoCollections(false); return false;" class="text-indigo-300 hover:text-indigo-200">Select none</a>
+            </span>
+          </div>
+          <div id="clear-demo-collections-list" class="bg-slate-950 border border-slate-800 rounded-xl p-3 grid grid-cols-2 gap-x-3 gap-y-1.5 max-h-40 overflow-y-auto text-xs text-slate-300"></div>
+        </div>
+
+        <div>
+          <div class="flex items-center justify-between mb-1">
             <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider">Preview - what would be deleted</label>
             <span id="clear-demo-preview-loading" class="hidden text-[10px] text-slate-500"><i class="fa-solid fa-spinner fa-spin"></i> calculating…</span>
           </div>
