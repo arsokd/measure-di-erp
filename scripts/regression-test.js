@@ -4290,6 +4290,77 @@ async function testApprovalNotifications(browser) {
   return failures;
 }
 
+// Quotation/Order/Invoice Primary Approval used to show every pending
+// item to every Primary-Approver-flagged employee company-wide, with no
+// concept of "whose vertical is this." Now an approver's own
+// employees.approvalVerticals (set on the Employees page) scopes what
+// they see: unset/empty = unrestricted (legacy behavior), a real
+// assignment = only that vertical, and an item whose vertical matches
+// nobody's assignment falls back to visible-to-everyone so it can never
+// get silently stuck with no one able to approve it.
+async function testApprovalVerticalScoping(browser) {
+  const failures = [];
+  const { page } = await newPage(browser);
+
+  await page.goto(BASE_URL + '/approvals.html', { waitUntil: 'networkidle', timeout: 30000 });
+  await page.waitForTimeout(600);
+
+  await page.evaluate(function () {
+    window.RevOpsStore.saveCollection('employees', [
+      { employeeId: 'E-001', fullName: 'Mr. Murugan V', email: 'murugan@measuredi.com', isActive: true },
+      { employeeId: 'APPR-PROJ', fullName: 'Projects Approver', email: 'proj-approver@test.com', isPrimaryApprover: true, approvalVerticals: ['Projects'], isActive: true },
+      { employeeId: 'APPR-ONBOARD', fullName: 'Onboard Approver', email: 'onboard-approver@test.com', isPrimaryApprover: true, approvalVerticals: ['Onboard'], isActive: true },
+      { employeeId: 'APPR-UNRESTRICTED', fullName: 'Unrestricted Approver', email: 'unrestricted-approver@test.com', isPrimaryApprover: true, isActive: true }
+    ]);
+    window.RevOpsStore.saveCollection('quotations', [
+      { id: 'q_proj_test', quoteNumber: 'Q-PROJ-1', customerName: 'Projects Customer', vertical: 'Projects', status: 'Pending Approval', grandTotal: 100000, employeeName: 'Field Rep' },
+      { id: 'q_onboard_test', quoteNumber: 'Q-ONB-1', customerName: 'Onboard Customer', vertical: 'Onboard', status: 'Pending Approval', grandTotal: 200000, employeeName: 'Field Rep' },
+      { id: 'q_crane_test', quoteNumber: 'Q-CRANE-1', customerName: 'Crane Customer', vertical: 'Crane', status: 'Pending Approval', grandTotal: 300000, employeeName: 'Field Rep' }
+    ]);
+    window.RevOpsStore.saveCollection('orders', []);
+    window.RevOpsStore.saveCollection('invoices', []);
+    window.RevOpsStore.saveCollection('expenses', []);
+    window.RevOpsStore.saveCollection('travelApprovals', []);
+    window.RevOpsStore.saveCollection('payments', []);
+    window.RevOpsStore.saveCollection('arAdjustments', []);
+  });
+
+  async function quotePrimaryRefsFor(empId) {
+    return page.evaluate(function (empId) {
+      localStorage.setItem('employeeId', empId);
+      localStorage.setItem('isPrimaryApprover', 'true');
+      localStorage.setItem('isDirector', 'false');
+      var sections = window.RevOpsStore.getApprovalSections();
+      var quotePrimary = sections.find(function (s) { return s.key === 'quote-primary'; });
+      return (quotePrimary ? quotePrimary.items : []).map(function (q) { return q.quoteNumber; });
+    }, empId);
+  }
+
+  const projApproverRefs = await quotePrimaryRefsFor('APPR-PROJ');
+  assertIncludes(projApproverRefs, 'Q-PROJ-1', 'Projects-scoped approver sees the Projects quotation', failures);
+  assertTrue(projApproverRefs.indexOf('Q-ONB-1') === -1, 'Projects-scoped approver does NOT see the Onboard quotation', failures);
+
+  const onboardApproverRefs = await quotePrimaryRefsFor('APPR-ONBOARD');
+  assertIncludes(onboardApproverRefs, 'Q-ONB-1', 'Onboard-scoped approver sees the Onboard quotation', failures);
+  assertTrue(onboardApproverRefs.indexOf('Q-PROJ-1') === -1, 'Onboard-scoped approver does NOT see the Projects quotation', failures);
+
+  assertIncludes(projApproverRefs, 'Q-CRANE-1', 'Unmatched vertical (Crane, no approver assigned to it) falls back to visible for the Projects approver too', failures);
+  assertIncludes(onboardApproverRefs, 'Q-CRANE-1', 'Unmatched vertical (Crane, no approver assigned to it) falls back to visible for the Onboard approver too', failures);
+
+  const unrestrictedApproverRefs = await quotePrimaryRefsFor('APPR-UNRESTRICTED');
+  assertIncludes(unrestrictedApproverRefs, 'Q-PROJ-1', 'Unrestricted approver (no approvalVerticals set) sees every vertical - Projects', failures);
+  assertIncludes(unrestrictedApproverRefs, 'Q-ONB-1', 'Unrestricted approver (no approvalVerticals set) sees every vertical - Onboard', failures);
+  assertIncludes(unrestrictedApproverRefs, 'Q-CRANE-1', 'Unrestricted approver (no approvalVerticals set) sees every vertical - Crane', failures);
+
+  await page.evaluate(function () {
+    window.RevOpsStore.saveCollection('quotations', []);
+    window.RevOpsStore.saveCollection('employees', []);
+    localStorage.removeItem('isPrimaryApprover');
+  });
+  await page.close();
+  return failures;
+}
+
 const TESTS = [
   ['SLA day-based seeding, migration, severity dropdown & date math', testSlaDayBasedSeedingAndMigration],
   ['Ticket email subject line', testQuotationVerticalAndTicketSubject],
@@ -4335,7 +4406,8 @@ const TESTS = [
   ['PWA installability: manifest/icons/meta tags on every page, manifest.json and sw.js reachable', testPwaInstallabilityTags],
   ['Mobile layout: Dashboard/DWM/Attendance never force horizontal page scroll at 390px width', testMobileNoHorizontalOverflow],
   ['Realtime sync self-heals stale local-only employee duplicates once Firestore is authoritative', testPruneStaleLocalEmployees],
-  ['Pending Approvals: shared routing, popup, and email notifications on entering an approval stage', testApprovalNotifications]
+  ['Pending Approvals: shared routing, popup, and email notifications on entering an approval stage', testApprovalNotifications],
+  ['Quotation/Order/Invoice Primary Approval is scoped to the approver\'s own vertical, with fallback when nobody matches', testApprovalVerticalScoping]
 ];
 
 (async () => {

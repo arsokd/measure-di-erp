@@ -368,12 +368,48 @@ Object.assign(window.RevOpsStore, {
     }
   },
 
+  // Scopes a Quotation/Order/Invoice Primary Approval item to the specific
+  // approver(s) actually responsible for its vertical, instead of every
+  // Primary-Approver-flagged employee company-wide seeing every item. An
+  // approver's own employees.approvalVerticals (set on the Employees page)
+  // lists which verticals they handle - empty/unset means unrestricted
+  // (sees everything, the safe default for anyone not yet explicitly
+  // scoped). If nobody's approvalVerticals actually matches an item (a
+  // typo'd vertical, or a vertical with no assigned approver), it falls
+  // back to visible-to-everyone rather than silently getting stuck with
+  // no one able to approve it.
+  _isApprovalVisibleToMe: function(itemVertical, employees) {
+    var myEmpId = (typeof localStorage !== 'undefined') ? localStorage.getItem('employeeId') : null;
+    var me = (employees || []).find(function(e) { return e.employeeId === myEmpId; });
+    if (!me) return true;
+
+    function matches(verticals) {
+      if (!verticals || !verticals.length) return false;
+      if (!itemVertical) return false;
+      return verticals.some(function(v) { return itemVertical.indexOf(v) !== -1; });
+    }
+
+    var myVerticals = me.approvalVerticals || [];
+    if (!myVerticals.length) return true; // unrestricted approver sees everything
+    if (matches(myVerticals)) return true; // it's in my own assigned scope
+
+    // I'm restricted and this isn't mine - defer to whichever restricted
+    // approver DOES match. Only fall back to showing it to me if nobody
+    // else with an explicit vertical assignment matches either.
+    var someoneElseMatches = (employees || []).some(function(e) {
+      if (e.employeeId === myEmpId || !e.isPrimaryApprover) return false;
+      return matches(e.approvalVerticals || []);
+    });
+    return !someoneElseMatches;
+  },
+
   // Every pending-approval situation the Approvals hub (approvals.html)
   // shows, in one shared place - used both by that page and by the
   // "pending approvals" popup (auth-guard.js), so the two can never drift
   // out of sync with each other. hasApprovalAuthority() is defined
   // globally in auth-guard.js.
   getApprovalSections: function() {
+    var self = this;
     var quotes = this.getCollection('quotations') || [];
     var orders = this.getCollection('orders') || [];
     var invoices = this.getCollection('invoices') || [];
@@ -408,7 +444,7 @@ Object.assign(window.RevOpsStore, {
     if (window.hasApprovalAuthority('isPrimaryApprover')) {
       sections.push({
         key: 'quote-primary', title: 'Quotations — Primary Approval', icon: '📑',
-        items: quotes.filter(function(q) { return q.status === 'Pending Approval'; }),
+        items: quotes.filter(function(q) { return q.status === 'Pending Approval' && self._isApprovalVisibleToMe(q.vertical, employeesForReporting); }),
         rowFn: function(q) { return { ref: q.quoteNumber || q.id, customer: q.customerName, amount: q.grandTotal, by: q.employeeName, date: q.createdDate, link: 'quotations.html?approveId=' + encodeURIComponent(q.id) }; }
       });
     }
@@ -424,7 +460,7 @@ Object.assign(window.RevOpsStore, {
     if (window.hasApprovalAuthority('isPrimaryApprover')) {
       sections.push({
         key: 'order-primary', title: 'Orders — Primary Approval', icon: '📦',
-        items: orders.filter(function(o) { return o.status === 'Pending Primary Approval'; }),
+        items: orders.filter(function(o) { return o.status === 'Pending Primary Approval' && self._isApprovalVisibleToMe(o.vertical, employeesForReporting); }),
         rowFn: function(o) { return { ref: o.poNumber || o.id, customer: o.customerName, amount: o.orderValue || o.value, by: o.employeeName, date: o.createdDate, link: 'orders.html?approveId=' + encodeURIComponent(o.id) }; }
       });
     }
@@ -440,7 +476,7 @@ Object.assign(window.RevOpsStore, {
     if (window.hasApprovalAuthority('isPrimaryApprover')) {
       sections.push({
         key: 'invoice-primary', title: 'Invoices — Primary Approval', icon: '🧾',
-        items: invoices.filter(function(i) { return i.status === 'Pending Senior Approval'; }),
+        items: invoices.filter(function(i) { return i.status === 'Pending Senior Approval' && self._isApprovalVisibleToMe(i.vertical, employeesForReporting); }),
         rowFn: function(i) { return { ref: i.invoiceNumber || i.id, customer: i.customerName, amount: i.grandTotal, by: i.employeeName, date: i.invoiceDate, link: 'invoices.html?approveId=' + encodeURIComponent(i.id) }; }
       });
     }

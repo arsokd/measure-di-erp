@@ -149,6 +149,7 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('inp-role').value = "staff";
         updateRoleAccessHint();
         document.getElementById('inp-is-primary-approver').checked = false;
+        populatePrimaryApproverVerticalsCheckboxes([]);
         document.getElementById('inp-is-director-ratifier').checked = false;
         document.getElementById('inp-is-final-approver').checked = false;
         document.getElementById('inp-is-finance-head').checked = false;
@@ -200,6 +201,7 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('inp-role').value = emp.role || 'staff';
         updateRoleAccessHint();
         document.getElementById('inp-is-primary-approver').checked = !!emp.isPrimaryApprover;
+        populatePrimaryApproverVerticalsCheckboxes(emp.approvalVerticals || []);
         document.getElementById('inp-is-director-ratifier').checked = !!emp.isDirector;
         document.getElementById('inp-is-final-approver').checked = !!emp.isFinalApprover;
         document.getElementById('inp-is-finance-head').checked = !!emp.isFinanceHead;
@@ -430,6 +432,36 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('digital-dossier-modal').classList.add('hidden');
       }
 
+      // Which verticals a Primary Approver handles, so the "Pending
+      // Approvals" popup/hub only shows quotations/orders/invoices in
+      // their own vertical rather than every one company-wide. Sourced
+      // from the same verticalClassificationMaster list every other
+      // vertical dropdown in the app uses, so it never drifts out of
+      // sync with what verticals actually exist.
+      function populatePrimaryApproverVerticalsCheckboxes(selected) {
+        var container = document.getElementById('primary-approver-verticals-list');
+        if (!container) return;
+        var verticals = (window.RevOpsStore.getCollection('verticalClassificationMaster') || [])
+          .filter(function(it) { return it.isActive !== false; })
+          .map(function(it) { return it.name; })
+          .filter(Boolean);
+        var selectedSet = {};
+        (selected || []).forEach(function(v) { selectedSet[v] = true; });
+        container.innerHTML = verticals.map(function(v) {
+          var id = 'inp-approval-vertical-' + v.replace(/[^a-zA-Z0-9]/g, '-');
+          var checked = selectedSet[v] ? 'checked' : '';
+          return '<label class="flex items-center space-x-1.5 text-[11px] font-semibold text-slate-700 bg-white border border-slate-200 rounded-lg px-2 py-1 cursor-pointer">' +
+            '<input type="checkbox" class="w-3.5 h-3.5 inp-approval-vertical-checkbox" value="' + v.replace(/"/g, '&quot;') + '" id="' + id + '" ' + checked + ' />' +
+            '<span>' + escapeHtml(v) + '</span></label>';
+        }).join('');
+      }
+
+      function getSelectedPrimaryApproverVerticals() {
+        var container = document.getElementById('primary-approver-verticals-list');
+        if (!container) return [];
+        return Array.from(container.querySelectorAll('.inp-approval-vertical-checkbox:checked')).map(function(cb) { return cb.value; });
+      }
+
       function handleSaveEmployee(e) {
         e.preventDefault();
         var docId = document.getElementById('emp-doc-id').value;
@@ -446,6 +478,7 @@ document.addEventListener('DOMContentLoaded', function() {
           location: document.getElementById('inp-location').value.trim(),
           role: document.getElementById('inp-role').value,
           isPrimaryApprover: document.getElementById('inp-is-primary-approver').checked,
+          approvalVerticals: getSelectedPrimaryApproverVerticals(),
           isDirector: document.getElementById('inp-is-director-ratifier').checked,
           isFinalApprover: document.getElementById('inp-is-final-approver').checked,
           isFinanceHead: document.getElementById('inp-is-finance-head').checked,
