@@ -4063,6 +4063,85 @@ async function testServiceTicketLeadsInCustomerDropdown(browser) {
 }
 
 // ---------------------------------------------------------------------
+// Service Ticket "Enter Existing Customer" - for a long-standing client
+// (1-3+ years old) with no Lead/Order/registered-equipment entry, who
+// couldn't be picked from the dropdown at all before this. Clients
+// Master entries now also populate the dropdown directly, and the new
+// modal lets staff type a name that doesn't exist anywhere yet, saving
+// it to Clients Master so it's a normal reusable option from then on.
+// ---------------------------------------------------------------------
+async function testServiceTicketOldCustomerEntry(browser) {
+  const failures = [];
+  const { page } = await newPage(browser);
+
+  await page.goto(BASE_URL + '/service-tickets.html', { waitUntil: 'networkidle', timeout: 30000 });
+  await page.waitForTimeout(600);
+
+  const clientsMasterResult = await page.evaluate(function () {
+    window.RevOpsStore.saveCollection('leads', []);
+    window.RevOpsStore.saveCollection('clientEquipmentMaster', []);
+    window.RevOpsStore.saveCollection('orders', []);
+    window.RevOpsStore.saveCollection('serviceTickets', []);
+    window.RevOpsStore.saveCollection('clientsMaster', [
+      { id: 'client_existing_test', clientName: 'Old Standing Client Pvt Ltd', name: 'Old Standing Client Pvt Ltd', isActive: true }
+    ]);
+    populateMasterDropdowns();
+    var options = Array.from(document.getElementById('input-customer-name').options).map(function (o) { return o.value; }).filter(Boolean);
+    return { options: options };
+  });
+  assertIncludes(clientsMasterResult.options, 'Old Standing Client Pvt Ltd', 'A Clients Master entry with no Lead/Order/equipment now shows directly in the Service Ticket customer dropdown', failures);
+
+  // Open the raise-ticket modal, then the "Enter Existing Customer" modal.
+  await page.evaluate(function () { openRaiseTicketModal(); });
+  await page.waitForTimeout(200);
+  await page.evaluate(function () { openOldCustomerModal(); });
+  await page.waitForTimeout(200);
+
+  const modalVisible = await page.evaluate(function () {
+    return !document.getElementById('ticket-old-customer-modal').classList.contains('hidden');
+  });
+  assertTrue(modalVisible, '"Enter Existing Customer" modal opens from the Service Ticket form', failures);
+
+  const newCustomerName = 'Genuinely Old Customer Not In App Pvt Ltd';
+  const saveResult = await page.evaluate(function (name) {
+    document.getElementById('inp-old-customer-name').value = name;
+    document.getElementById('form-old-customer').dispatchEvent(new Event('submit', { cancelable: true }));
+    return {
+      modalHidden: document.getElementById('ticket-old-customer-modal').classList.contains('hidden'),
+      selectedCustomer: document.getElementById('input-customer-name').value,
+      clientsMaster: window.RevOpsStore.getCollection('clientsMaster').map(function (c) { return c.clientName; }),
+      modelOptions: Array.from(document.getElementById('input-equipment-model').options).map(function (o) { return o.value; }).filter(Boolean)
+    };
+  }, newCustomerName);
+
+  assertTrue(saveResult.modalHidden, 'Modal closes after saving a new old customer', failures);
+  assertEqual(saveResult.selectedCustomer, newCustomerName, 'The new customer is auto-selected in the ticket form right after saving', failures);
+  assertIncludes(saveResult.clientsMaster, newCustomerName, 'The new customer is saved to Clients Master, not just used once for this ticket', failures);
+  assertTrue(saveResult.modelOptions.length > 0, 'Equipment Model still offers generic fallback options for a customer with no registered equipment', failures);
+
+  // Reusing an existing name (different case) must not create a duplicate
+  // Clients Master record.
+  const dupeResult = await page.evaluate(function () {
+    var before = window.RevOpsStore.getCollection('clientsMaster').length;
+    openOldCustomerModal();
+    document.getElementById('inp-old-customer-name').value = 'old standing client pvt ltd';
+    document.getElementById('form-old-customer').dispatchEvent(new Event('submit', { cancelable: true }));
+    var after = window.RevOpsStore.getCollection('clientsMaster').length;
+    return { before: before, after: after, selectedCustomer: document.getElementById('input-customer-name').value };
+  });
+  assertEqual(dupeResult.after, dupeResult.before, 'Re-entering an already-existing customer name (case-insensitive) does not create a duplicate Clients Master record', failures);
+  assertEqual(dupeResult.selectedCustomer, 'Old Standing Client Pvt Ltd', 'Re-entering an existing name reuses and selects the existing dropdown entry', failures);
+
+  await page.evaluate(function () {
+    window.RevOpsStore.saveCollection('clientsMaster', []);
+    closeOldCustomerModal();
+    closeRaiseTicketModal();
+  });
+  await page.close();
+  return failures;
+}
+
+// ---------------------------------------------------------------------
 // PWA installability: every page links the manifest + icons + mobile web
 // app meta tags, and registers the (deliberately non-caching) service
 // worker - see public/manifest.json, public/sw.js, pwa-register.js.
@@ -4403,6 +4482,7 @@ const TESTS = [
   ['Daily Productivity Score ratification: auto-computed at Punch Out, manager ratify/modify/reject, feeds weekly/monthly review average', testScoreRatificationWorkflow],
   ['Google Sheet mirror: saveRecord/deleteRecord fire a non-blocking /api/sheet-sync call, oversized fields trimmed, real save always succeeds', testGoogleSheetSyncHook],
   ['Service Ticket customer dropdown lists Lead-only customers, not just Order/Invoice-stage ones', testServiceTicketLeadsInCustomerDropdown],
+  ['Service Ticket "Enter Existing Customer": Clients Master in dropdown, new old-customer entry saved & reused without duplicates', testServiceTicketOldCustomerEntry],
   ['PWA installability: manifest/icons/meta tags on every page, manifest.json and sw.js reachable', testPwaInstallabilityTags],
   ['Mobile layout: Dashboard/DWM/Attendance never force horizontal page scroll at 390px width', testMobileNoHorizontalOverflow],
   ['Realtime sync self-heals stale local-only employee duplicates once Firestore is authoritative', testPruneStaleLocalEmployees],

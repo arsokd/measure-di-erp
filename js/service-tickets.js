@@ -267,6 +267,19 @@ var currentViewMode = 'table';
           var cust = (l.customerName || '').trim();
           if (cust && customerNames.indexOf(cust) === -1) customerNames.push(cust);
         });
+
+        // Also list every Clients Master entry - this is what lets an old/
+        // existing customer (one with no Lead, Order or registered
+        // equipment, e.g. a 1-3+ year old client never entered into the
+        // app's own pipeline) show up here at all, whether they were added
+        // via Master Data directly or via the "Enter Existing Customer"
+        // option below.
+        var clientsMaster = window.RevOpsStore ? (window.RevOpsStore.getCollection('clientsMaster') || []) : [];
+        clientsMaster.forEach(function(c) {
+          if (c.isActive === false) return;
+          var cust = (c.clientName || c.name || '').trim();
+          if (cust && customerNames.indexOf(cust) === -1) customerNames.push(cust);
+        });
         customerNames.sort();
 
         var optionsHtml = `<option value="">-- Select Customer from Master List --</option>`;
@@ -275,6 +288,56 @@ var currentViewMode = 'table';
         });
 
         custSelect.innerHTML = optionsHtml;
+      }
+
+      // "Enter Existing Customer" - for a long-standing client (1-3+
+      // years old) who predates this app, or was simply never entered,
+      // and so has no Lead/Order/registered-equipment entry to pick from
+      // the dropdown above. Saves straight to Clients Master (the same
+      // collection Master Data > Clients uses) so it becomes a normal,
+      // reusable dropdown option everywhere from then on - not a one-off
+      // typed into just this ticket.
+      function openOldCustomerModal() {
+        document.getElementById('inp-old-customer-name').value = '';
+        var hint = document.getElementById('old-customer-duplicate-hint');
+        if (hint) hint.classList.add('hidden');
+        document.getElementById('ticket-old-customer-modal').classList.remove('hidden');
+      }
+
+      function closeOldCustomerModal() {
+        document.getElementById('ticket-old-customer-modal').classList.add('hidden');
+      }
+
+      function handleSaveOldCustomer(e) {
+        e.preventDefault();
+        var name = document.getElementById('inp-old-customer-name').value.trim();
+        if (!name) return;
+
+        // Avoid creating a duplicate Clients Master entry for a name that
+        // already exists (case-insensitive) anywhere a customer can come
+        // from - just reuse the existing one instead.
+        var custSelect = document.getElementById('input-customer-name');
+        var existingOption = Array.from(custSelect.options).find(function(o) {
+          return o.value && o.value.toLowerCase() === name.toLowerCase();
+        });
+
+        if (!existingOption) {
+          window.RevOpsStore.saveRecord('clientsMaster', {
+            id: 'client_' + Date.now(),
+            clientName: name,
+            name: name,
+            gstin: '',
+            city: '',
+            contactPerson: '',
+            phone: '',
+            email: ''
+          });
+          populateCustomerDropdown();
+        }
+
+        custSelect.value = existingOption ? existingOption.value : name;
+        handleCustomerSelectChange(custSelect.value);
+        closeOldCustomerModal();
       }
 
       // TASK 2: CASCADING DROPDOWNS (Customer -> Model -> Serial)
