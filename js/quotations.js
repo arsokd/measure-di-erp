@@ -119,6 +119,32 @@ var currentEditingQuoteId = null;
       // deal, via RevOpsStore.getDealChainAttachments(). Read-only; the
       // dropzone above is still the only way to add/remove a Quotation's
       // own attachments.
+      // Same bank-details picker pattern Invoices already uses, so a
+      // quotation's printed "Bank Remittance Instructions" section shows
+      // a real selected account instead of a generic placeholder.
+      function populateQuoteBankDropdown() {
+        var bankSelect = document.getElementById('inp-quote-bank');
+        if (!bankSelect) return;
+
+        var banks = window.RevOpsStore.getCollection('bankDetailsMaster') || [];
+        if (banks.length === 0) {
+          banks = [
+            { id: 'bank-1', bankName: 'HDFC Bank', accountNumber: '50200049283719', ifscCode: 'HDFC0000123', branchName: 'Guindy, Chennai', isDefault: true },
+            { id: 'bank-2', bankName: 'State Bank of India', accountNumber: '39281726351', ifscCode: 'SBIN0001824', branchName: 'Industrial Estate, Chennai', isDefault: false },
+            { id: 'bank-3', bankName: 'ICICI Bank', accountNumber: '001105029384', ifscCode: 'ICIC0000011', branchName: 'Nandanam, Chennai', isDefault: false }
+          ];
+        }
+
+        bankSelect.innerHTML = "";
+        banks.forEach(function(b) {
+          var opt = document.createElement('option');
+          opt.value = b.bankName + ' - Current A/c: ' + b.accountNumber + ' (IFSC: ' + b.ifscCode + ', ' + (b.branchName || '') + ')';
+          opt.innerText = b.bankName + ' - ' + b.accountNumber + ' (' + (b.branchName || 'Primary') + ')';
+          if (b.isDefault) opt.selected = true;
+          bankSelect.appendChild(opt);
+        });
+      }
+
       function renderQuoteDealAttachmentsList() {
         var container = document.getElementById('quote-deal-attachments-list');
         if (!container) return;
@@ -700,6 +726,7 @@ var currentEditingQuoteId = null;
         modal.classList.remove('hidden');
         populateQuoteVerticalDropdown();
         populateQuoteCompanyDropdown();
+        populateQuoteBankDropdown();
 
         // Populate Lead dropdown
         var leads = window.RevOpsStore.getCollection('leads') || [];
@@ -758,6 +785,7 @@ var currentEditingQuoteId = null;
             document.getElementById('inp-overall-disc-amount').value = Math.round(q.overallDiscountAmount || 0);
             document.getElementById('inp-quote-terms').value = q.termsAndConditions || '';
             document.getElementById('inp-quote-remarks').value = q.discountRemarks || '';
+            if (q.bankDetails) document.getElementById('inp-quote-bank').value = q.bankDetails;
 
             activeQuoteItems = q.items ? JSON.parse(JSON.stringify(q.items)) : [];
             activeQuoteAttachments = q.attachments ? JSON.parse(JSON.stringify(q.attachments)) : [];
@@ -1292,6 +1320,7 @@ var currentEditingQuoteId = null;
         var overallDiscPercent = parseFloat(document.getElementById('inp-overall-disc-percent').value) || 0;
         var terms = document.getElementById('inp-quote-terms').value;
         var remarks = document.getElementById('inp-quote-remarks').value;
+        var bankDetails = document.getElementById('inp-quote-bank').value;
 
         // Calculate Totals
         var grossSubtotal = 0;
@@ -1360,6 +1389,7 @@ var currentEditingQuoteId = null;
             overallDiscountPercent: overallDiscPercent,
             overallDiscountAmount: overallDiscAmt,
             discountRemarks: remarks,
+            bankDetails: bankDetails,
             netSubtotal: netSubtotal,
             taxAmount: taxAmount,
             grandTotal: grandTotal,
@@ -1413,6 +1443,7 @@ var currentEditingQuoteId = null;
             quotes[idx].overallDiscountPercent = overallDiscPercent;
             quotes[idx].overallDiscountAmount = overallDiscAmt;
             quotes[idx].discountRemarks = remarks;
+            quotes[idx].bankDetails = bankDetails;
             quotes[idx].netSubtotal = netSubtotal;
             quotes[idx].taxAmount = taxAmount;
             quotes[idx].grandTotal = grandTotal;
@@ -1716,6 +1747,11 @@ var currentEditingQuoteId = null;
 
         document.getElementById('pdf-terms-text').innerText = q.termsAndConditions || 'Standard commercial terms apply.';
         document.getElementById('pdf-delivery-leadtime').innerText = q.deliveryLeadTime || '3-4 Weeks from advance PO';
+        document.getElementById('pdf-bank-details').innerHTML =
+          'Account Name: ' + escapeHtml(company.tradeName || company.name) + '<br>' +
+          'Bank & Branch: ' + escapeHtml(q.bankDetails || 'HDFC Bank, Current A/c No: 50200049283719, IFSC: HDFC0000123') + '<br>' +
+          'Payment Mode: RTGS / NEFT / IMPS';
+        document.getElementById('pdf-std-validity').innerText = q.validityDays || 30;
 
         // Render Attached Technical Documents Box
         var attachBox = document.getElementById('pdf-attachments-box');

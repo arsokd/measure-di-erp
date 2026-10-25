@@ -4700,6 +4700,78 @@ async function testHsnCodeMaster(browser) {
   return failures;
 }
 
+// Large-value quotations were printing/emailing as a single thin page
+// (just the line-items table) which looked unprofessional - the PDF now
+// always includes a Bank Remittance Instructions block and a full
+// Standard Terms & Conditions section (9 standing clauses) alongside the
+// deal-specific content, regardless of how few line items a quote has.
+// Both the print-preview modal and the emailed PDF attachment share the
+// exact same renderPrintableQuoteArea() output, so this one render
+// covers both paths.
+async function testQuotationMultiPagePdfContent(browser) {
+  const failures = [];
+  const { page } = await newPage(browser);
+
+  await page.goto(BASE_URL + '/quotations.html', { waitUntil: 'networkidle', timeout: 30000 });
+  await page.waitForTimeout(600);
+
+  // Bank dropdown on the quote form itself.
+  await page.evaluate(function () { openQuoteModal(); });
+  await page.waitForTimeout(200);
+  const bankDropdown = await page.evaluate(function () {
+    var el = document.getElementById('inp-quote-bank');
+    return el ? { optionCount: el.options.length, firstValue: el.options[0] ? el.options[0].value : null } : null;
+  });
+  assertTrue(!!bankDropdown, 'Quotation form: Bank Account dropdown exists', failures);
+  if (bankDropdown) {
+    assertTrue(bankDropdown.optionCount > 0, 'Quotation form: Bank Account dropdown is populated', failures);
+  }
+
+  // Seed a small (few line items) but high-value quote, confirm the
+  // printable area renders the new sections regardless of its size.
+  await page.evaluate(function () {
+    window.RevOpsStore.saveCollection('quotations', [{
+      id: 'quote_pdf_test', quoteNumber: 'QUO-PDFTEST-1', revision: 1, customerName: 'Big Deal Client Co',
+      companyId: 'company_measuredi', vertical: 'Projects', employeeId: 'E-001', employeeName: 'Test Rep',
+      items: [{ description: 'Heavy Duty Weighbridge System', hsnCode: '8423', qty: 1, unitPrice: 8000000, lineDiscountPercent: 0 }],
+      grossSubtotal: 8000000, overallDiscountPercent: 0, overallDiscountAmount: 0, netSubtotal: 8000000,
+      taxAmount: 1440000, grandTotal: 9440000, validityDays: 45, bankDetails: 'ICICI Bank - Current A/c: 001105029384 (IFSC: ICIC0000011, Nandanam, Chennai)',
+      termsAndConditions: 'Custom negotiated terms for this deal.', status: 'Draft'
+    }]);
+    viewPrintQuote('quote_pdf_test');
+  });
+  await page.waitForTimeout(300);
+
+  const pdfContent = await page.evaluate(function () {
+    var area = document.getElementById('printable-quote-area');
+    return {
+      // textContent, not innerText - these section labels carry Tailwind's
+      // "uppercase" class, and innerText reflects CSS-rendered (all-caps)
+      // text rather than the source text, which would make this check
+      // case-sensitively miss them even though they're genuinely present.
+      fullText: area.textContent,
+      bankDetailsText: document.getElementById('pdf-bank-details').innerText,
+      validityText: document.getElementById('pdf-std-validity').innerText,
+      standardTermsClauseCount: area.querySelectorAll('ol li').length
+    };
+  });
+
+  assertTrue(pdfContent.fullText.indexOf('Bank Remittance Instructions') !== -1, 'Quotation PDF includes a Bank Remittance Instructions section', failures);
+  assertTrue(pdfContent.bankDetailsText.indexOf('ICICI Bank') !== -1, 'Quotation PDF\'s bank section shows this specific quote\'s selected bank, not a generic placeholder', failures);
+  assertTrue(pdfContent.fullText.indexOf('Standard Terms & Conditions') !== -1, 'Quotation PDF includes a Standard Terms & Conditions section', failures);
+  assertTrue(pdfContent.standardTermsClauseCount >= 9, 'Standard Terms & Conditions has the full set of standing clauses (Validity, Payment, Delivery, Warranty, Force Majeure, etc.) - got ' + pdfContent.standardTermsClauseCount, failures);
+  assertEqual(pdfContent.validityText, '45', 'Standard Terms & Conditions\' Validity clause reflects this quote\'s own validityDays, not a hardcoded number', failures);
+  assertTrue(pdfContent.fullText.indexOf('Custom negotiated terms for this deal.') !== -1, 'The quote-specific commercial terms are still shown alongside the standard clauses, not replaced by them', failures);
+
+  await page.evaluate(function () {
+    window.RevOpsStore.saveCollection('quotations', []);
+    closePrintQuoteModal();
+    closeQuoteModal();
+  });
+  await page.close();
+  return failures;
+}
+
 const TESTS = [
   ['SLA day-based seeding, migration, severity dropdown & date math', testSlaDayBasedSeedingAndMigration],
   ['Ticket email subject line', testQuotationVerticalAndTicketSubject],
@@ -4750,7 +4822,8 @@ const TESTS = [
   ['Quotation/Order/Invoice Primary Approval is scoped to the approver\'s own vertical, with fallback when nobody matches', testApprovalVerticalScoping],
   ['Shared deal-chain attachments: a file added at any of Lead/Quotation/Order/Invoice shows at every other stage of that deal', testDealChainAttachments],
   ['Mandatory Remarks box present on Lead, Quotation and Order Booking (new on Orders)', testMandatoryRemarksBoxes],
-  ['HSN Code Master: new Master Data tab, mandatory dropdown on Product Master, pickable dropdown on Lead product lines', testHsnCodeMaster]
+  ['HSN Code Master: new Master Data tab, mandatory dropdown on Product Master, pickable dropdown on Lead product lines', testHsnCodeMaster],
+  ['Quotation PDF now includes Bank Remittance Instructions and a full Standard Terms & Conditions section, not just the line-items page', testQuotationMultiPagePdfContent]
 ];
 
 (async () => {

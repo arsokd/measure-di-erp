@@ -326,6 +326,10 @@
                 <label class="block text-xs font-bold text-slate-700 mb-1">Remarks *</label>
                 <input type="text" id="inp-quote-remarks" required placeholder="General remarks, and reason if requesting a high discount (>15%)" class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500">
               </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">Bank Account for Remittance (shown on the quotation)</label>
+                <select id="inp-quote-bank" class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500"></select>
+              </div>
             </div>
             
             <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2 text-xs">
@@ -555,6 +559,39 @@
               <span class="font-bold text-slate-900 block mb-1.5 uppercase text-[10px] tracking-wider">📎 Enclosed Technical Documents & Drawings:</span>
               <div id="pdf-attachments-list" class="grid grid-cols-1 sm:grid-cols-2 gap-2"></div>
             </div>
+          </div>
+
+          <!-- Bank Remittance Instructions - its own clearly separated
+               block (not just a line inside Terms) so it reads as a
+               distinct reference section, same treatment Invoices give it. -->
+          <div class="pt-6 mt-2 border-t-2 border-slate-200 text-[11px]">
+            <span class="font-bold text-slate-900 uppercase block mb-2">Bank Remittance Instructions</span>
+            <div class="p-4 bg-slate-50 border border-slate-200 rounded-xl">
+              <p class="text-slate-600 leading-relaxed font-mono text-[11px]" id="pdf-bank-details">
+                Account Name: Measure DI Technologies<br>
+                Bank & Branch: HDFC Bank, Guindy, Chennai<br>
+                Payment Mode: RTGS / NEFT / IMPS
+              </p>
+            </div>
+          </div>
+
+          <!-- Standard Terms & Conditions - the fuller, standing set of
+               clauses that governs every quotation regardless of deal
+               size, alongside (not instead of) the quote-specific terms
+               already shown above. -->
+          <div class="pt-6 mt-2 border-t-2 border-slate-200 text-[11px] space-y-3">
+            <span class="font-bold text-slate-900 uppercase block">Standard Terms & Conditions</span>
+            <ol class="list-decimal list-outside ml-4 space-y-2 text-slate-600 leading-relaxed">
+              <li><strong class="text-slate-800">Validity:</strong> This offer is valid for <span id="pdf-std-validity">30</span> days from the date of this quotation unless otherwise extended in writing.</li>
+              <li><strong class="text-slate-800">Payment Terms:</strong> As specified in the advance/milestone schedule above. Payments are due strictly as per the agreed schedule; delayed payments may affect the committed delivery timeline.</li>
+              <li><strong class="text-slate-800">Taxes & Duties:</strong> Prices are exclusive of GST unless stated otherwise. Any change in applicable tax rates or statutory levies between the date of this quotation and the date of invoicing will be charged extra, at actuals.</li>
+              <li><strong class="text-slate-800">Delivery & Installation:</strong> Delivery timelines are indicative and commence from receipt of advance payment and a clear purchase order. Installation and commissioning (where applicable) will be scheduled in coordination with the client's site readiness.</li>
+              <li><strong class="text-slate-800">Warranty:</strong> Standard 1-year manufacturer's warranty from the date of commissioning, covering manufacturing defects under normal operating conditions. Warranty excludes damage from misuse, unauthorized modification, or force majeure events.</li>
+              <li><strong class="text-slate-800">Force Majeure:</strong> Neither party shall be liable for delay or failure to perform caused by circumstances beyond its reasonable control, including natural disasters, strikes, government action, or supply chain disruptions.</li>
+              <li><strong class="text-slate-800">Limitation of Liability:</strong> Measure DI's total liability under this quotation, however arising, shall not exceed the total value of the order placed against it.</li>
+              <li><strong class="text-slate-800">Confidentiality:</strong> This quotation, including pricing and technical details, is confidential and intended solely for the named recipient's internal evaluation.</li>
+              <li><strong class="text-slate-800">Governing Law & Jurisdiction:</strong> This offer and any resulting order shall be governed by Indian law, subject to the exclusive jurisdiction of the courts at Chennai, Tamil Nadu.</li>
+            </ol>
           </div>
         </div>
       </div>
