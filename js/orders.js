@@ -650,6 +650,7 @@ var currentSplits = [];
           document.getElementById('inp-ord-vertical').value = normalizeVerticalClassification(orderData.vertical) || 'Projects';
           document.getElementById('ord-lead-id').value = orderData.leadId || '';
           document.getElementById('ord-company-id').value = orderData.companyId || window.RevOpsStore.getDefaultCompanyId();
+          document.getElementById('inp-ord-remarks').value = orderData.remarks || '';
 
           if (orderData.poFileData) {
             document.getElementById('ord-po-file-data').value = orderData.poFileData;
@@ -972,6 +973,7 @@ var currentSplits = [];
           factoryDocAttached: !document.getElementById('inp-no-fac-doc').checked,
           poFileData: poFileData,
           poFileName: poFileName,
+          remarks: document.getElementById('inp-ord-remarks').value.trim(),
           attachments: activeOrderAttachments,
           // Order confirmation (which reconciles the linked quotation/lead
           // and books it) requires the Primary Approver's sign-off — see

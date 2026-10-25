@@ -1004,6 +1004,7 @@ async function testMultiCompanySupport(browser) {
   // below passes, matching a real user filling the form.
   await page.fill('#lead-form input[oninput*="currentLeadContacts[0].name"]', 'Test Contact');
   await page.fill('#lead-form input[oninput*="currentLeadContacts[0].phone"]', '9876543210');
+  await page.fill('#inp-lead-notes', 'Regression test remarks.');
   const savedAdityaLead = await page.evaluate(function () {
     var before = (window.RevOpsStore.getCollection('leads') || []).length;
     document.getElementById('lead-form').requestSubmit();
@@ -1291,6 +1292,7 @@ async function testQuoteEditReasonMandatory(browser) {
   });
   assertTrue(blockedWithoutReason, 'Saving an edit with no reason is blocked - modal stays open', failures);
 
+  await page.fill('#inp-quote-remarks', 'Regression test remarks.');
   await page.fill('#inp-quote-edit-reason', 'Regression test: corrected pricing error');
   const afterSave = await page.evaluate(function () {
     document.getElementById('quoteForm').requestSubmit();
@@ -1963,6 +1965,7 @@ function sampleTestLead(overrides) {
     contactEmail: 'contact@test.com',
     employeeId: 'E-001',
     employeeName: 'Mr. Murugan V',
+    notes: 'Regression test remarks.',
     createdDate: '01/10/2026',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
@@ -4526,6 +4529,64 @@ async function testDealChainAttachments(browser) {
   return failures;
 }
 
+// A mandatory Remarks box must exist on Lead, Quotation and Order
+// Booking - Orders had none at all before this, and Lead's/Quotation's
+// existing notes fields were optional. All three are now required="true"
+// so a record can't be saved without one.
+async function testMandatoryRemarksBoxes(browser) {
+  const failures = [];
+  const { page } = await newPage(browser);
+
+  await page.goto(BASE_URL + '/leads.html', { waitUntil: 'networkidle', timeout: 30000 });
+  await page.waitForTimeout(600);
+  await page.evaluate(function () { openLeadModal(); });
+  await page.waitForTimeout(200);
+  const leadRemarksRequired = await page.evaluate(function () {
+    var el = document.getElementById('inp-lead-notes');
+    return !!(el && el.required);
+  });
+  assertTrue(leadRemarksRequired, 'Lead form\'s Remarks/Requirement Notes field is mandatory (required)', failures);
+  await page.close();
+
+  const { page: page2 } = await newPage(browser);
+  await page2.goto(BASE_URL + '/quotations.html', { waitUntil: 'networkidle', timeout: 30000 });
+  await page2.waitForTimeout(600);
+  await page2.evaluate(function () { openQuoteModal(); });
+  await page2.waitForTimeout(200);
+  const quoteRemarksRequired = await page2.evaluate(function () {
+    var el = document.getElementById('inp-quote-remarks');
+    return !!(el && el.required);
+  });
+  assertTrue(quoteRemarksRequired, 'Quotation form\'s Remarks field is mandatory (required)', failures);
+  await page2.close();
+
+  const { page: page3 } = await newPage(browser);
+  await page3.goto(BASE_URL + '/orders.html', { waitUntil: 'networkidle', timeout: 30000 });
+  await page3.waitForTimeout(600);
+  await page3.evaluate(function () { openOrderModal(); });
+  await page3.waitForTimeout(200);
+  const orderRemarksExistsAndRequired = await page3.evaluate(function () {
+    var el = document.getElementById('inp-ord-remarks');
+    return { exists: !!el, required: !!(el && el.required) };
+  });
+  assertTrue(orderRemarksExistsAndRequired.exists, 'Order Booking form now has a Remarks (Pricing / Order Notes) field - it had none before', failures);
+  assertTrue(orderRemarksExistsAndRequired.required, 'Order Booking\'s Remarks field is mandatory (required)', failures);
+
+  // Edit flow: an existing order's saved remarks pre-fill back into the field.
+  const editPrefillResult = await page3.evaluate(function () {
+    window.RevOpsStore.saveCollection('orders', [
+      { id: 'order_remarks_test', poNumber: 'PO-REMARKS-1', customerName: 'Remarks Test Customer', remarks: 'Negotiated 5% extra discount for bulk order.', splits: [{ employeeId: 'E-002', percent: 100 }] }
+    ]);
+    editOrder('order_remarks_test');
+    return document.getElementById('inp-ord-remarks').value;
+  });
+  assertEqual(editPrefillResult, 'Negotiated 5% extra discount for bulk order.', 'Editing an existing order pre-fills its saved Remarks back into the field', failures);
+
+  await page3.evaluate(function () { window.RevOpsStore.saveCollection('orders', []); closeOrderModal(); });
+  await page3.close();
+  return failures;
+}
+
 const TESTS = [
   ['SLA day-based seeding, migration, severity dropdown & date math', testSlaDayBasedSeedingAndMigration],
   ['Ticket email subject line', testQuotationVerticalAndTicketSubject],
@@ -4574,7 +4635,8 @@ const TESTS = [
   ['Realtime sync self-heals stale local-only employee duplicates once Firestore is authoritative', testPruneStaleLocalEmployees],
   ['Pending Approvals: shared routing, popup, and email notifications on entering an approval stage', testApprovalNotifications],
   ['Quotation/Order/Invoice Primary Approval is scoped to the approver\'s own vertical, with fallback when nobody matches', testApprovalVerticalScoping],
-  ['Shared deal-chain attachments: a file added at any of Lead/Quotation/Order/Invoice shows at every other stage of that deal', testDealChainAttachments]
+  ['Shared deal-chain attachments: a file added at any of Lead/Quotation/Order/Invoice shows at every other stage of that deal', testDealChainAttachments],
+  ['Mandatory Remarks box present on Lead, Quotation and Order Booking (new on Orders)', testMandatoryRemarksBoxes]
 ];
 
 (async () => {
