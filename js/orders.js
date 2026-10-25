@@ -1,5 +1,109 @@
 var currentSplits = [];
       var activeSelectedQuote = null;
+      var activeOrderAttachments = [];
+
+      function formatOrderFileSize(bytes) {
+        if (!bytes || bytes === 0) return '0 B';
+        var k = 1024;
+        var sizes = ['B', 'KB', 'MB', 'GB'];
+        var i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+      }
+
+      function handleOrderFilesSelected(e) {
+        var files = Array.from(e.target.files || []);
+        if (files.length === 0) return;
+
+        var currentCount = activeOrderAttachments.length;
+        if (currentCount + files.length > 10) {
+          alert("Attachment limit exceeded: Maximum 10 files allowed. You can only add " + (10 - currentCount) + " more file(s).");
+          return;
+        }
+
+        var totalCurrentBytes = activeOrderAttachments.reduce(function(acc, f) { return acc + (f.size || 0); }, 0);
+        var maxBytes = 100 * 1024 * 1024;
+
+        var readCount = 0;
+        files.forEach(function(file) {
+          if (totalCurrentBytes + file.size > maxBytes) {
+            alert("File '" + file.name + "' exceeds total 100 MB attachment capacity. Skipping this file.");
+            return;
+          }
+          if (activeOrderAttachments.length >= 10) return;
+
+          totalCurrentBytes += file.size;
+
+          var reader = new FileReader();
+          reader.onload = function(evt) {
+            activeOrderAttachments.push({
+              name: file.name,
+              size: file.size,
+              type: file.type || 'application/octet-stream',
+              lastModified: file.lastModified,
+              dataUrl: evt.target.result
+            });
+            readCount++;
+            if (readCount === files.length || activeOrderAttachments.length >= 10) {
+              renderOrderAttachedFilesList();
+            }
+          };
+          reader.readAsDataURL(file);
+        });
+
+        e.target.value = '';
+      }
+
+      function removeOrderAttachment(idx) {
+        activeOrderAttachments.splice(idx, 1);
+        renderOrderAttachedFilesList();
+      }
+
+      function renderOrderAttachedFilesList() {
+        var container = document.getElementById('order-attached-files-list');
+        var countBadge = document.getElementById('order-files-count-badge');
+        if (!container) return;
+
+        container.innerHTML = '';
+        var totalBytes = activeOrderAttachments.reduce(function(acc, f) { return acc + (f.size || 0); }, 0);
+
+        if (countBadge) {
+          countBadge.innerText = activeOrderAttachments.length + " / 10 files (" + formatOrderFileSize(totalBytes) + " / 100 MB)";
+        }
+
+        activeOrderAttachments.forEach(function(file, idx) {
+          var item = document.createElement('div');
+          item.className = "bg-slate-950 p-2.5 rounded-xl border border-slate-700 flex items-center justify-between";
+          item.innerHTML = `
+            <div class="min-w-0">
+              <p class="text-xs font-bold text-white truncate" title="${escapeHtml(file.name)}">${escapeHtml(file.name)}</p>
+              <p class="text-[10px] text-slate-500 font-medium">${formatOrderFileSize(file.size)}</p>
+            </div>
+            <button type="button" onclick="removeOrderAttachment(${idx})" class="p-1 text-slate-500 hover:text-rose-500 rounded text-base font-bold leading-none cursor-pointer" title="Remove File">&times;</button>
+          `;
+          container.appendChild(item);
+        });
+
+        renderOrderDealAttachmentsList();
+      }
+
+      // "All Attachments for This Deal" - merges this Order's own
+      // (possibly not-yet-saved) attachments with whatever's attached on
+      // its Lead, Quotation, sibling Orders and any Invoices of the same
+      // deal.
+      function renderOrderDealAttachmentsList() {
+        var container = document.getElementById('order-deal-attachments-list');
+        if (!container) return;
+        var docId = document.getElementById('ord-doc-id').value;
+        var orders = window.RevOpsStore.getCollection('orders') || [];
+        var existing = docId ? orders.find(function(o) { return o.id === docId; }) : null;
+        var quoteId = document.getElementById('inp-ord-quote') ? document.getElementById('inp-ord-quote').value : null;
+        var leadId = document.getElementById('ord-lead-id') ? document.getElementById('ord-lead-id').value : null;
+        var recordForChain = existing
+          ? Object.assign({}, existing, { attachments: activeOrderAttachments })
+          : { leadId: leadId, quotationId: quoteId, attachments: activeOrderAttachments };
+        var merged = window.RevOpsStore.getDealChainAttachments('orders', recordForChain);
+        container.innerHTML = window.renderDealAttachmentsListHtml(merged);
+      }
 
       document.addEventListener('DOMContentLoaded', function() {
         if (checkAuth(['admin', 'manager', 'staff'])) {
@@ -523,6 +627,7 @@ var currentSplits = [];
       function openOrderModal(orderData, bookFromQuoteId) {
         currentSplits = [];
         activeSelectedQuote = null;
+        activeOrderAttachments = orderData && Array.isArray(orderData.attachments) ? JSON.parse(JSON.stringify(orderData.attachments)) : [];
         var modal = document.getElementById('order-modal');
         var form = document.getElementById('order-form');
         form.reset();
@@ -597,6 +702,7 @@ var currentSplits = [];
         }
 
         renderSplitRows();
+        renderOrderAttachedFilesList();
         modal.classList.remove('hidden');
       }
 
@@ -866,6 +972,7 @@ var currentSplits = [];
           factoryDocAttached: !document.getElementById('inp-no-fac-doc').checked,
           poFileData: poFileData,
           poFileName: poFileName,
+          attachments: activeOrderAttachments,
           // Order confirmation (which reconciles the linked quotation/lead
           // and books it) requires the Primary Approver's sign-off — see
           // approveOrderDirect(). Saving here only records the raw PO entry.

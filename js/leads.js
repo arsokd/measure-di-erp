@@ -1,5 +1,106 @@
 var currentLeadContacts = [];
       var currentLeadProducts = [];
+      var activeLeadAttachments = [];
+
+      function formatLeadFileSize(bytes) {
+        if (!bytes || bytes === 0) return '0 B';
+        var k = 1024;
+        var sizes = ['B', 'KB', 'MB', 'GB'];
+        var i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+      }
+
+      function handleLeadFilesSelected(e) {
+        var files = Array.from(e.target.files || []);
+        if (files.length === 0) return;
+
+        var currentCount = activeLeadAttachments.length;
+        if (currentCount + files.length > 10) {
+          alert("Attachment limit exceeded: Maximum 10 files allowed. You can only add " + (10 - currentCount) + " more file(s).");
+          return;
+        }
+
+        var totalCurrentBytes = activeLeadAttachments.reduce(function(acc, f) { return acc + (f.size || 0); }, 0);
+        var maxBytes = 100 * 1024 * 1024;
+
+        var readCount = 0;
+        files.forEach(function(file) {
+          if (totalCurrentBytes + file.size > maxBytes) {
+            alert("File '" + file.name + "' exceeds total 100 MB attachment capacity. Skipping this file.");
+            return;
+          }
+          if (activeLeadAttachments.length >= 10) return;
+
+          totalCurrentBytes += file.size;
+
+          var reader = new FileReader();
+          reader.onload = function(evt) {
+            activeLeadAttachments.push({
+              name: file.name,
+              size: file.size,
+              type: file.type || 'application/octet-stream',
+              lastModified: file.lastModified,
+              dataUrl: evt.target.result
+            });
+            readCount++;
+            if (readCount === files.length || activeLeadAttachments.length >= 10) {
+              renderLeadAttachedFilesList();
+            }
+          };
+          reader.readAsDataURL(file);
+        });
+
+        e.target.value = '';
+      }
+
+      function removeLeadAttachment(idx) {
+        activeLeadAttachments.splice(idx, 1);
+        renderLeadAttachedFilesList();
+      }
+
+      function renderLeadAttachedFilesList() {
+        var container = document.getElementById('lead-attached-files-list');
+        var countBadge = document.getElementById('lead-files-count-badge');
+        if (!container) return;
+
+        container.innerHTML = '';
+        var totalBytes = activeLeadAttachments.reduce(function(acc, f) { return acc + (f.size || 0); }, 0);
+
+        if (countBadge) {
+          countBadge.innerText = activeLeadAttachments.length + " / 10 files (" + formatLeadFileSize(totalBytes) + " / 100 MB)";
+        }
+
+        activeLeadAttachments.forEach(function(file, idx) {
+          var item = document.createElement('div');
+          item.className = "bg-slate-950 p-2.5 rounded-xl border border-slate-700 flex items-center justify-between";
+          item.innerHTML = `
+            <div class="min-w-0">
+              <p class="text-xs font-bold text-white truncate" title="${escapeHtml(file.name)}">${escapeHtml(file.name)}</p>
+              <p class="text-[10px] text-slate-500 font-medium">${formatLeadFileSize(file.size)}</p>
+            </div>
+            <button type="button" onclick="removeLeadAttachment(${idx})" class="p-1 text-slate-500 hover:text-rose-500 rounded text-base font-bold leading-none cursor-pointer" title="Remove File">&times;</button>
+          `;
+          container.appendChild(item);
+        });
+
+        renderLeadDealAttachmentsList();
+      }
+
+      // "All Attachments for This Deal" - merges this Lead's own
+      // (possibly not-yet-saved) attachments with whatever's attached on
+      // every Quotation/Order/Invoice raised against it.
+      function renderLeadDealAttachmentsList() {
+        var container = document.getElementById('lead-deal-attachments-list');
+        if (!container) return;
+        var docId = document.getElementById('lead-doc-id').value;
+        var leads = window.RevOpsStore.getCollection('leads') || [];
+        var existing = docId ? leads.find(function(l) { return l.id === docId; }) : null;
+        var recordForChain = existing
+          ? Object.assign({}, existing, { attachments: activeLeadAttachments })
+          : { id: docId || null, attachments: activeLeadAttachments };
+        var merged = window.RevOpsStore.getDealChainAttachments('leads', recordForChain);
+        container.innerHTML = window.renderDealAttachmentsListHtml(merged);
+      }
 
       // Maps older wording ("Project", "Spare/Service" - from before
       // Industry Vertical and Vertical Classification both read the same
@@ -771,6 +872,7 @@ var currentLeadContacts = [];
       function openLeadModal(leadData) {
         currentLeadContacts = [];
         currentLeadProducts = [];
+        activeLeadAttachments = leadData && Array.isArray(leadData.attachments) ? JSON.parse(JSON.stringify(leadData.attachments)) : [];
         var modal = document.getElementById('lead-modal');
         var form = document.getElementById('lead-form');
         form.reset();
@@ -856,6 +958,7 @@ var currentLeadContacts = [];
 
         renderLeadProducts();
         renderContactRows();
+        renderLeadAttachedFilesList();
         modal.classList.remove('hidden');
       }
 
@@ -973,6 +1076,7 @@ var currentLeadContacts = [];
           contactPhone: primaryContact.phone,
           contactEmail: primaryContact.email,
           notes: document.getElementById('inp-lead-notes').value.trim(),
+          attachments: activeLeadAttachments,
           employeeId: existingLead ? existingLead.employeeId : myEmpId,
           employeeName: existingLead ? existingLead.employeeName : myEmpName,
           createdDate: existingLead ? existingLead.createdDate : getFormattedToday(),

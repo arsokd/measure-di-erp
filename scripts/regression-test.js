@@ -4440,6 +4440,92 @@ async function testApprovalVerticalScoping(browser) {
   return failures;
 }
 
+// Attachments added at Lead, Quotation, Order or Invoice stage used to
+// only ever show at the exact stage they were uploaded - a file attached
+// on a Quotation never showed up when someone later opened the Lead it
+// came from, which was misleading for anyone relying on the Lead's own
+// view. RevOpsStore.getDealChainAttachments() now merges attachments
+// from every stage of the SAME deal (resolved via leadId/quotationId/
+// orderId), scoped to one Lead's own lineage - not a customer's entire
+// history across unrelated leads.
+async function testDealChainAttachments(browser) {
+  const failures = [];
+  const { page } = await newPage(browser);
+
+  await page.goto(BASE_URL + '/quotations.html', { waitUntil: 'networkidle', timeout: 30000 });
+  await page.waitForTimeout(600);
+
+  function fakeAttachment(label) {
+    return { name: label + '.pdf', size: 1024, type: 'application/pdf', dataUrl: 'data:application/pdf;base64,AAAA' };
+  }
+
+  const pureLogicResult = await page.evaluate(function () {
+    window.RevOpsStore.saveCollection('leads', [
+      { id: 'lead_chain_test', leadNumber: 'LD-CHAIN-1', customerName: 'Chain Test Customer', attachments: [{ name: 'lead-doc.pdf', size: 1024, type: 'application/pdf', dataUrl: 'data:application/pdf;base64,AAAA' }] },
+      { id: 'lead_other_test', leadNumber: 'LD-OTHER-1', customerName: 'Unrelated Customer', attachments: [{ name: 'unrelated-doc.pdf', size: 1024, type: 'application/pdf', dataUrl: 'data:application/pdf;base64,AAAA' }] }
+    ]);
+    window.RevOpsStore.saveCollection('quotations', [
+      { id: 'quote_chain_test', quoteNumber: 'Q-CHAIN-1', leadId: 'lead_chain_test', customerName: 'Chain Test Customer', attachments: [{ name: 'quote-doc.pdf', size: 2048, type: 'application/pdf', dataUrl: 'data:application/pdf;base64,BBBB' }] }
+    ]);
+    window.RevOpsStore.saveCollection('orders', [
+      { id: 'order_chain_test', poNumber: 'PO-CHAIN-1', quotationId: 'quote_chain_test', leadId: 'lead_chain_test', customerName: 'Chain Test Customer', attachments: [{ name: 'order-doc.pdf', size: 3072, type: 'application/pdf', dataUrl: 'data:application/pdf;base64,CCCC' }] }
+    ]);
+    window.RevOpsStore.saveCollection('invoices', [
+      { id: 'invoice_chain_test', invoiceNumber: 'INV-CHAIN-1', orderId: 'order_chain_test', customerName: 'Chain Test Customer', attachments: [{ name: 'invoice-doc.pdf', size: 4096, type: 'application/pdf', dataUrl: 'data:application/pdf;base64,DDDD' }] }
+    ]);
+
+    var lead = window.RevOpsStore.getCollection('leads').find(function (l) { return l.id === 'lead_chain_test'; });
+    var quote = window.RevOpsStore.getCollection('quotations').find(function (q) { return q.id === 'quote_chain_test'; });
+    var order = window.RevOpsStore.getCollection('orders').find(function (o) { return o.id === 'order_chain_test'; });
+    var invoice = window.RevOpsStore.getCollection('invoices').find(function (i) { return i.id === 'invoice_chain_test'; });
+
+    function names(colName, rec) {
+      return window.RevOpsStore.getDealChainAttachments(colName, rec).map(function (a) { return a.name; }).sort();
+    }
+
+    var noChainQuote = { id: 'quote_standalone', quoteNumber: 'Q-STANDALONE', attachments: [{ name: 'standalone-doc.pdf', size: 512, type: 'application/pdf', dataUrl: 'x' }] };
+
+    return {
+      fromLead: names('leads', lead),
+      fromQuote: names('quotations', quote),
+      fromOrder: names('orders', order),
+      fromInvoice: names('invoices', invoice),
+      standalone: names('quotations', noChainQuote)
+    };
+  });
+
+  const allFour = ['invoice-doc.pdf', 'lead-doc.pdf', 'order-doc.pdf', 'quote-doc.pdf'];
+  assertEqual(pureLogicResult.fromLead, allFour, 'Viewing the Lead shows attachments from every stage of its deal (Lead + Quotation + Order + Invoice)', failures);
+  assertEqual(pureLogicResult.fromQuote, allFour, 'Viewing the Quotation shows the same full merged set', failures);
+  assertEqual(pureLogicResult.fromOrder, allFour, 'Viewing the Order shows the same full merged set', failures);
+  assertEqual(pureLogicResult.fromInvoice, allFour, 'Viewing the Invoice shows the same full merged set', failures);
+  assertTrue(pureLogicResult.fromLead.indexOf('unrelated-doc.pdf') === -1, 'An unrelated Lead\'s attachment never leaks into a different deal\'s merged list', failures);
+  assertEqual(pureLogicResult.standalone, ['standalone-doc.pdf'], 'A record with no resolvable chain (no leadId) falls back to just its own attachments', failures);
+
+  // End-to-end UI check: opening the Quotation for edit renders the full
+  // merged list in its "All Attachments for This Deal" section, not just
+  // this Quotation's own file.
+  await page.evaluate(function () { editQuote('quote_chain_test'); });
+  await page.waitForTimeout(300);
+  const uiText = await page.evaluate(function () {
+    var el = document.getElementById('quote-deal-attachments-list');
+    return el ? el.innerText : '';
+  });
+  assertTrue(uiText.indexOf('lead-doc.pdf') !== -1, 'Quotation edit modal\'s merged attachments section shows the Lead\'s file', failures);
+  assertTrue(uiText.indexOf('order-doc.pdf') !== -1, 'Quotation edit modal\'s merged attachments section shows the Order\'s file', failures);
+  assertTrue(uiText.indexOf('invoice-doc.pdf') !== -1, 'Quotation edit modal\'s merged attachments section shows the Invoice\'s file', failures);
+
+  await page.evaluate(function () {
+    window.RevOpsStore.saveCollection('leads', []);
+    window.RevOpsStore.saveCollection('quotations', []);
+    window.RevOpsStore.saveCollection('orders', []);
+    window.RevOpsStore.saveCollection('invoices', []);
+    closeQuoteModal();
+  });
+  await page.close();
+  return failures;
+}
+
 const TESTS = [
   ['SLA day-based seeding, migration, severity dropdown & date math', testSlaDayBasedSeedingAndMigration],
   ['Ticket email subject line', testQuotationVerticalAndTicketSubject],
@@ -4487,7 +4573,8 @@ const TESTS = [
   ['Mobile layout: Dashboard/DWM/Attendance never force horizontal page scroll at 390px width', testMobileNoHorizontalOverflow],
   ['Realtime sync self-heals stale local-only employee duplicates once Firestore is authoritative', testPruneStaleLocalEmployees],
   ['Pending Approvals: shared routing, popup, and email notifications on entering an approval stage', testApprovalNotifications],
-  ['Quotation/Order/Invoice Primary Approval is scoped to the approver\'s own vertical, with fallback when nobody matches', testApprovalVerticalScoping]
+  ['Quotation/Order/Invoice Primary Approval is scoped to the approver\'s own vertical, with fallback when nobody matches', testApprovalVerticalScoping],
+  ['Shared deal-chain attachments: a file added at any of Lead/Quotation/Order/Invoice shows at every other stage of that deal', testDealChainAttachments]
 ];
 
 (async () => {

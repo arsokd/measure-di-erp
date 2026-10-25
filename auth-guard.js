@@ -100,6 +100,36 @@ function escapeHtml(str) {
 }
 window.escapeHtml = escapeHtml;
 
+// Renders the read-only "All Attachments for This Deal" list shared by
+// leads.html/quotations.html/orders.html/invoices.html - each entry
+// tagged with which stage (Lead/Quotation/Order/Invoice) it was actually
+// uploaded at, from window.RevOpsStore.getDealChainAttachments(). This is
+// deliberately view-only (download/preview, no remove) - removing an
+// attachment only ever happens from whichever stage's own upload widget
+// it was added on, not from this merged overview.
+function renderDealAttachmentsListHtml(attachments) {
+  if (!attachments || !attachments.length) {
+    return '<p class="text-xs text-slate-400 italic px-1 py-2">No documents attached anywhere in this deal yet.</p>';
+  }
+  var stageColors = {
+    Lead: 'bg-sky-100 text-sky-800 border-sky-200',
+    Quotation: 'bg-indigo-100 text-indigo-800 border-indigo-200',
+    Order: 'bg-purple-100 text-purple-800 border-purple-200',
+    Invoice: 'bg-emerald-100 text-emerald-800 border-emerald-200'
+  };
+  return attachments.map(function(a) {
+    var badgeClass = stageColors[a._stage] || 'bg-slate-100 text-slate-700 border-slate-200';
+    var sizeKb = a.size ? (Math.round(a.size / 1024)) + ' KB' : '';
+    var href = a.dataUrl || '#';
+    return '<a href="' + href + '" download="' + escapeHtml(a.name || 'file') + '" class="flex items-center justify-between bg-white p-2 rounded-lg border border-slate-200 hover:border-indigo-300 text-xs gap-2">' +
+      '<span class="truncate font-semibold text-slate-700 flex-1 min-w-0" title="' + escapeHtml(a.name || '') + '">' + escapeHtml(a.name || 'Unnamed file') + '</span>' +
+      (sizeKb ? '<span class="shrink-0 text-[10px] text-slate-400">' + sizeKb + '</span>' : '') +
+      '<span class="shrink-0 px-1.5 py-0.5 rounded-full text-[9px] font-extrabold border ' + badgeClass + '">' + escapeHtml(a._stage || '') + (a._stageRef ? (' ' + escapeHtml(String(a._stageRef))) : '') + '</span>' +
+      '</a>';
+  }).join('');
+}
+window.renderDealAttachmentsListHtml = renderDealAttachmentsListHtml;
+
 // Self-healing guard against a desynced session: the app's own "logged in"
 // state lives in localStorage, but every server-side action (Firestore rules,
 // the email-sending function) requires a real, live Firebase Authentication

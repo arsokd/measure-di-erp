@@ -420,6 +420,24 @@
                 </label>
               </div>
             </div>
+
+            <div class="pt-3 mt-3 border-t border-slate-700 space-y-3">
+              <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                <span class="text-xs font-bold uppercase tracking-wider text-slate-300">📎 Attachments (PDF / Images / Docs)</span>
+                <span id="order-files-count-badge" class="text-[11px] font-bold text-slate-500">0 / 10 files (0 MB / 100 MB)</span>
+              </div>
+              <div onclick="document.getElementById('inp-order-attachments').click()" class="border-2 border-dashed border-slate-700 hover:border-indigo-500 bg-slate-950 p-4 rounded-xl text-center cursor-pointer transition-all">
+                <input type="file" id="inp-order-attachments" multiple accept=".pdf,.zip,.png,.jpg,.jpeg,.doc,.docx,.xls,.xlsx" onchange="handleOrderFilesSelected(event)" class="hidden" />
+                <p class="text-xs font-bold text-slate-300">Click to Browse or Drag & Drop files</p>
+                <p class="text-[10px] text-slate-500">Up to 10 files, max 100 MB total</p>
+              </div>
+              <div id="order-attached-files-list" class="grid grid-cols-1 sm:grid-cols-2 gap-2"></div>
+
+              <div class="pt-2 border-t border-slate-700 space-y-1.5">
+                <span class="text-[11px] font-bold uppercase tracking-wider text-slate-400">All Attachments for This Deal (Lead → Quotation → Order → Invoice)</span>
+                <div id="order-deal-attachments-list" class="space-y-1"></div>
+              </div>
+            </div>
           </div>
 
           <div class="pt-4 border-t border-slate-800 flex items-center justify-end space-x-3 shrink-0">

@@ -218,6 +218,7 @@ var currentTab = 'All';
 
         if (currentInvoiceAttachments.length === 0) {
           container.innerHTML = `<div class="col-span-2 text-center text-slate-400 text-xs py-2 italic">No companion files attached yet.</div>`;
+          renderInvoiceDealAttachmentsList();
           return;
         }
 
@@ -235,6 +236,27 @@ var currentTab = 'All';
             </div>
           `;
         }).join('');
+
+        renderInvoiceDealAttachmentsList();
+      }
+
+      // "All Attachments for This Deal" - merges this Invoice's own
+      // (possibly not-yet-saved) attachments with whatever's attached on
+      // its Order, Quotation, Lead and sibling Invoices of the same deal.
+      // Read-only; the attach widget above is still the only way to
+      // add/remove an Invoice's own attachments.
+      function renderInvoiceDealAttachmentsList() {
+        var container = document.getElementById('inv-deal-attachments-list');
+        if (!container) return;
+        var docId = document.getElementById('inv-doc-id').value;
+        var invoices = window.RevOpsStore.getCollection('invoices') || [];
+        var existing = docId ? invoices.find(function(i) { return i.id === docId; }) : null;
+        var orderSourceEl = document.getElementById('inp-inv-order-source');
+        var recordForChain = existing
+          ? Object.assign({}, existing, { attachments: currentInvoiceAttachments })
+          : { orderId: orderSourceEl ? orderSourceEl.value : null, attachments: currentInvoiceAttachments };
+        var merged = window.RevOpsStore.getDealChainAttachments('invoices', recordForChain);
+        container.innerHTML = window.renderDealAttachmentsListHtml(merged);
       }
 
       function filterByTab(tabName) {

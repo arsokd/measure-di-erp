@@ -109,6 +109,27 @@ var currentEditingQuoteId = null;
           `;
           container.appendChild(item);
         });
+
+        renderQuoteDealAttachmentsList();
+      }
+
+      // "All Attachments for This Deal" - merges this Quotation's own
+      // (possibly not-yet-saved) attachments with whatever's attached on
+      // its Lead, any sibling Quotations, Orders and Invoices of the same
+      // deal, via RevOpsStore.getDealChainAttachments(). Read-only; the
+      // dropzone above is still the only way to add/remove a Quotation's
+      // own attachments.
+      function renderQuoteDealAttachmentsList() {
+        var container = document.getElementById('quote-deal-attachments-list');
+        if (!container) return;
+        var docId = document.getElementById('inp-quote-id').value;
+        var quotes = window.RevOpsStore.getCollection('quotations') || [];
+        var existing = docId ? quotes.find(function(q) { return q.id === docId; }) : null;
+        var recordForChain = existing
+          ? Object.assign({}, existing, { attachments: activeQuoteAttachments })
+          : { leadId: document.getElementById('inp-quote-lead').value, attachments: activeQuoteAttachments };
+        var merged = window.RevOpsStore.getDealChainAttachments('quotations', recordForChain);
+        container.innerHTML = window.renderDealAttachmentsListHtml(merged);
       }
 
       function downloadAttachmentDirect(idx) {

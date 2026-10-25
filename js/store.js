@@ -368,6 +368,104 @@ Object.assign(window.RevOpsStore, {
     }
   },
 
+  // Resolves the full family of records belonging to the same deal as the
+  // given record - the Lead it started as, every Quotation raised against
+  // that Lead, every Order booked against one of those Quotations (or
+  // directly against the Lead), and every Invoice raised against one of
+  // those Orders. Scoped to ONE Lead's own lineage, not a customer's
+  // entire history across unrelated leads.
+  _resolveDealChainIds: function(colName, record) {
+    if (!record) return { leadId: null, quoteIds: [], orderIds: [], invoiceIds: [] };
+    var quotes = this.getCollection('quotations') || [];
+    var orders = this.getCollection('orders') || [];
+    var invoices = this.getCollection('invoices') || [];
+
+    var leadId = null;
+    if (colName === 'leads') {
+      leadId = record.id;
+    } else if (colName === 'quotations') {
+      leadId = record.leadId || null;
+    } else if (colName === 'orders') {
+      if (record.leadId) {
+        leadId = record.leadId;
+      } else if (record.quotationId) {
+        var q = quotes.find(function(x) { return x.id === record.quotationId; });
+        leadId = q ? (q.leadId || null) : null;
+      }
+    } else if (colName === 'invoices') {
+      var ord = orders.find(function(x) { return x.id === record.orderId; });
+      if (ord) {
+        if (ord.leadId) {
+          leadId = ord.leadId;
+        } else if (ord.quotationId) {
+          var q2 = quotes.find(function(x) { return x.id === ord.quotationId; });
+          leadId = q2 ? (q2.leadId || null) : null;
+        }
+      }
+    }
+
+    if (!leadId) return { leadId: null, quoteIds: [], orderIds: [], invoiceIds: [] };
+
+    var quoteIds = quotes.filter(function(q) { return q.leadId === leadId; }).map(function(q) { return q.id; });
+    var orderIds = orders.filter(function(o) { return o.leadId === leadId || quoteIds.indexOf(o.quotationId) !== -1; }).map(function(o) { return o.id; });
+    var invoiceIds = invoices.filter(function(i) { return orderIds.indexOf(i.orderId) !== -1; }).map(function(i) { return i.id; });
+
+    return { leadId: leadId, quoteIds: quoteIds, orderIds: orderIds, invoiceIds: invoiceIds };
+  },
+
+  // Merges attachments from every stage of the same deal (Lead ->
+  // Quotation(s) -> Order(s) -> Invoice(s)) into one list, so a document
+  // attached at any stage is visible at every other stage of that same
+  // deal instead of only where it was originally uploaded. Each entry is
+  // tagged with which stage it actually lives on (_stage/_stageRef) so
+  // the UI can label it and only offer removal for the current record's
+  // own attachments. A record with no resolvable chain (e.g. not yet
+  // linked to a Lead) just falls back to its own attachments.
+  getDealChainAttachments: function(colName, record) {
+    if (!record) return [];
+    var chain = this._resolveDealChainIds(colName, record);
+    if (!chain.leadId) return record.attachments || [];
+
+    var leads = this.getCollection('leads') || [];
+    var quotes = this.getCollection('quotations') || [];
+    var orders = this.getCollection('orders') || [];
+    var invoices = this.getCollection('invoices') || [];
+
+    var lead = leads.find(function(l) { return l.id === chain.leadId; });
+    var all = [];
+    function addFrom(rec, stageLabel, ref) {
+      if (!rec || !Array.isArray(rec.attachments)) return;
+      rec.attachments.forEach(function(a) {
+        var copy = {};
+        for (var k in a) { copy[k] = a[k]; }
+        copy._stage = stageLabel;
+        copy._stageRef = ref;
+        copy._stageRecordId = rec.id;
+        all.push(copy);
+      });
+    }
+    addFrom(lead, 'Lead', lead && (lead.leadNumber || lead.id));
+    quotes.filter(function(q) { return chain.quoteIds.indexOf(q.id) !== -1; }).forEach(function(q) {
+      addFrom(q, 'Quotation', q.quoteNumber || q.id);
+    });
+    orders.filter(function(o) { return chain.orderIds.indexOf(o.id) !== -1; }).forEach(function(o) {
+      addFrom(o, 'Order', o.poNumber || o.id);
+    });
+    invoices.filter(function(i) { return chain.invoiceIds.indexOf(i.id) !== -1; }).forEach(function(i) {
+      addFrom(i, 'Invoice', i.invoiceNumber || i.id);
+    });
+
+    // De-dup in case the exact same file somehow ended up saved at two
+    // stages (e.g. copy-pasted rather than cross-referenced).
+    var seen = {};
+    return all.filter(function(a) {
+      var key = (a.name || '') + '|' + (a.size || '') + '|' + a._stage;
+      if (seen[key]) return false;
+      seen[key] = true;
+      return true;
+    });
+  },
+
   // Scopes a Quotation/Order/Invoice Primary Approval item to the specific
   // approver(s) actually responsible for its vertical, instead of every
   // Primary-Approver-flagged employee company-wide seeing every item. An
