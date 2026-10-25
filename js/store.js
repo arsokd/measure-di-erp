@@ -2901,6 +2901,22 @@ Object.assign(window.RevOpsStore, {
       ]);
     }
 
+    // HSN (Harmonized System of Nomenclature) codes - the GST goods
+    // classification required on every Product/Project Master record and
+    // offered as a pick-list on Leads. A starting set covering this
+    // business's own product range; Super Admin/Admin add more via
+    // Master Data > HSN Codes as needed.
+    var hsnExisting = this.getCollection('hsnCodeMaster');
+    if (!hsnExisting || hsnExisting.length === 0) {
+      this.saveCollection('hsnCodeMaster', [
+        { id: 'hsnCodeMaster_1', code: '8423', description: 'Weighing machinery (excluding balances of 5cg or better sensitivity)', isActive: true },
+        { id: 'hsnCodeMaster_2', code: '90318000', description: 'Other measuring/checking instruments, appliances and machines', isActive: true },
+        { id: 'hsnCodeMaster_3', code: '9031', description: 'Measuring/checking instruments & appliances, not elsewhere specified', isActive: true },
+        { id: 'hsnCodeMaster_4', code: '8471', description: 'Automatic data processing machines & units (computers, controllers)', isActive: true },
+        { id: 'hsnCodeMaster_5', code: '8537', description: 'Boards, panels and consoles for electric control or distribution', isActive: true }
+      ]);
+    }
+
     // ---- Service, Spares & AMC master lists (Spare Parts Hub / Service
     // Tickets / AMC Monitoring / AMC Quotes) — previously hardcoded
     // <option> lists duplicated (and inconsistently worded) across

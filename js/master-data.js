@@ -55,6 +55,7 @@ var activeMasterTab = 'products';
       var amcMilestones = window.RevOpsStore.getCollection('amcInvoicingMilestoneMaster') || [];
       var contractDurations = window.RevOpsStore.getCollection('amcContractDurationMaster') || [];
       var companies = window.RevOpsStore.getCollection('companyMaster') || [];
+      var hsnCodes = window.RevOpsStore.getCollection('hsnCodeMaster') || [];
 
       document.getElementById('count-products').innerText = prods.length;
       document.getElementById('count-equipment').innerText = equip.length;
@@ -75,6 +76,7 @@ var activeMasterTab = 'products';
       document.getElementById('count-contractdurations').innerText = contractDurations.length;
       var companiesCountEl = document.getElementById('count-companies');
       if (companiesCountEl) companiesCountEl.innerText = companies.length;
+      document.getElementById('count-hsncodes').innerText = hsnCodes.length;
     }
 
     // Simple name-only master lists (Lead Source, Industry Vertical, Project
@@ -102,6 +104,7 @@ var activeMasterTab = 'products';
       if (tabKey === 'currencies') return 'currencyMaster';
       if (tabKey === 'slapolicy') return 'slaResponseTierMaster';
       if (tabKey === 'companies') return 'companyMaster';
+      if (tabKey === 'hsncodes') return 'hsnCodeMaster';
       if (SIMPLE_MASTER_TABS[tabKey]) return SIMPLE_MASTER_TABS[tabKey].collection;
       return null;
     }
@@ -118,6 +121,17 @@ var activeMasterTab = 'products';
       var items = (window.RevOpsStore.getCollection(collectionName) || []).filter(function(it) { return it.isActive !== false; });
       return items.map(function(it) {
         return `<option value="${escapeHtml(it.name)}" ${it.name === selectedValue ? 'selected' : ''}>${escapeHtml(it.name)}</option>`;
+      }).join('');
+    }
+
+    // HSN dropdown options - unlike optionsHtmlForMaster, the option's
+    // value is the pure HSN code (what GST/invoice logic elsewhere
+    // expects), while the visible label also shows its description so
+    // whoever's picking it can tell codes apart.
+    function hsnCodeOptionsHtml(selectedCode) {
+      var items = (window.RevOpsStore.getCollection('hsnCodeMaster') || []).filter(function(it) { return it.isActive !== false; });
+      return items.map(function(it) {
+        return `<option value="${escapeHtml(it.code)}" ${it.code === selectedCode ? 'selected' : ''}>${escapeHtml(it.code)} — ${escapeHtml(it.description || '')}</option>`;
       }).join('');
     }
 
@@ -367,6 +381,27 @@ var activeMasterTab = 'products';
           `;
           body.appendChild(tr);
         });
+      } else if (activeMasterTab === 'hsncodes') {
+        header.innerHTML = `
+          <tr>
+            <th class="py-3 px-4 font-mono">HSN Code</th>
+            <th class="py-3 px-4">Description</th>
+            <th class="py-3 px-4 text-center">Actions</th>
+          </tr>
+        `;
+        filtered.forEach(function(h) {
+          var tr = document.createElement('tr');
+          tr.className = "hover:bg-slate-800/40 transition-colors";
+          tr.innerHTML = `
+            <td class="py-3 px-4 font-mono font-bold text-amber-300">${escapeHtml(h.code || '')}</td>
+            <td class="py-3 px-4 text-white">${escapeHtml(h.description || '')}</td>
+            <td class="py-3 px-4 text-center">
+              <button onclick="editMasterRecord('${h.id}')" class="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg"><i class="fa-solid fa-pen-to-square"></i></button>
+              <button onclick="deleteMasterRecord('${h.id}')" class="p-1.5 bg-slate-800 hover:bg-rose-900/60 text-rose-400 rounded-lg ml-1"><i class="fa-solid fa-trash-can"></i></button>
+            </td>
+          `;
+          body.appendChild(tr);
+        });
       } else if (activeMasterTab === 'slapolicy') {
         header.innerHTML = `
           <tr>
@@ -442,7 +477,8 @@ var activeMasterTab = 'products';
         'projects': 'Turnkey Automation Project',
         'currencies': 'Currency',
         'slapolicy': 'SLA Response Policy',
-        'companies': 'Company (Legal Entity)'
+        'companies': 'Company (Legal Entity)',
+        'hsncodes': 'HSN Code'
       };
       Object.keys(SIMPLE_MASTER_TABS).forEach(function(k) { titles[k] = SIMPLE_MASTER_TABS[k].label; });
 
@@ -486,7 +522,10 @@ var activeMasterTab = 'products';
           <div class="grid grid-cols-2 gap-3">
             <div>
               <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">HSN Code *</label>
-              <input type="text" id="inp-rec-hsn" required value="${escapeHtml(d.hsnCode || d.hsn || '90318000')}" placeholder="90318000" class="w-full px-3 py-2 bg-slate-950 border border-slate-750 rounded-xl text-xs font-mono text-white" />
+              <select id="inp-rec-hsn" required class="w-full px-3 py-2 bg-slate-950 border border-slate-750 rounded-xl text-xs font-mono text-white">
+                <option value="">-- Select HSN Code --</option>
+                ${hsnCodeOptionsHtml(d.hsnCode || d.hsn || '90318000')}
+              </select>
             </div>
             <div>
               <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">Base Price (₹)</label>
@@ -692,6 +731,23 @@ var activeMasterTab = 'products';
             </div>
           </div>
         `;
+      } else if (activeMasterTab === 'hsncodes') {
+        var d = recordData || {};
+        container.innerHTML = `
+          <div class="p-2.5 bg-indigo-950/30 border border-indigo-800/50 rounded-xl text-[11px] text-indigo-200">
+            This list feeds the HSN Code dropdown on every Product/Project Master entry (required there) and the optional HSN Code picker on Leads — editing it changes what's offered everywhere at once.
+          </div>
+          <div class="grid grid-cols-3 gap-3">
+            <div>
+              <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">HSN Code *</label>
+              <input type="text" id="inp-rec-hsncode" required value="${escapeHtml(d.code || '')}" placeholder="8423" class="w-full px-3 py-2 bg-slate-950 border border-slate-750 rounded-xl text-xs font-mono text-white" />
+            </div>
+            <div class="col-span-2">
+              <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">Description *</label>
+              <input type="text" id="inp-rec-hsndesc" required value="${escapeHtml(d.description || '')}" placeholder="Weighing machinery" class="w-full px-3 py-2 bg-slate-950 border border-slate-750 rounded-xl text-xs text-white" />
+            </div>
+          </div>
+        `;
       } else if (activeMasterTab === 'slapolicy') {
         var d = recordData || {};
         container.innerHTML = `
@@ -852,6 +908,14 @@ var activeMasterTab = 'products';
           symbol: document.getElementById('inp-rec-cursymbol').value.trim(),
           isActive: true
         };
+      } else if (activeMasterTab === 'hsncodes') {
+        colName = 'hsnCodeMaster';
+        recordObj = {
+          id: docId || ('hsnCodeMaster_' + Date.now()),
+          code: document.getElementById('inp-rec-hsncode').value.trim(),
+          description: document.getElementById('inp-rec-hsndesc').value.trim(),
+          isActive: true
+        };
       } else if (activeMasterTab === 'slapolicy') {
         colName = 'slaResponseTierMaster';
         var slaDaysVal = Number(document.getElementById('inp-rec-sladays').value) || 0;
@@ -972,7 +1036,7 @@ var activeMasterTab = 'products';
         return;
       }
 
-      if (SIMPLE_MASTER_TABS[activeMasterTab] || activeMasterTab === 'currencies' || activeMasterTab === 'slapolicy' || activeMasterTab === 'companies') {
+      if (SIMPLE_MASTER_TABS[activeMasterTab] || activeMasterTab === 'currencies' || activeMasterTab === 'slapolicy' || activeMasterTab === 'companies' || activeMasterTab === 'hsncodes') {
         alert("Bulk CSV upload isn't available for this category yet — these are small lists, please add records one at a time using \"+ Add Master Record\".");
         return;
       }

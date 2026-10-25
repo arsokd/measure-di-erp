@@ -4587,6 +4587,119 @@ async function testMandatoryRemarksBoxes(browser) {
   return failures;
 }
 
+// HSN Code Master: a proper admin-editable master list (Master Data >
+// HSN Codes), mandatory dropdown on Product Master (was free-text
+// before), and a real pickable dropdown on each Lead product line
+// (was a locked readonly display before) - sourced from the same
+// master list everywhere, so a new code added in Master Data shows up
+// in both places automatically.
+async function testHsnCodeMaster(browser) {
+  const failures = [];
+
+  // Part A: Master Data > HSN Codes tab - add a new code, confirm it saves.
+  const { page } = await newPage(browser);
+  await page.goto(BASE_URL + '/master-data.html', { waitUntil: 'networkidle', timeout: 30000 });
+  await page.waitForTimeout(600);
+  await page.evaluate(function () {
+    window.canEditMasterData = function () { return true; };
+    switchMasterTab('hsncodes');
+  });
+  await page.waitForTimeout(200);
+  await page.evaluate(function () { openAddSingleModal(); });
+  await page.waitForTimeout(200);
+
+  const hsnFormExists = await page.evaluate(function () {
+    return !!(document.getElementById('inp-rec-hsncode') && document.getElementById('inp-rec-hsndesc'));
+  });
+  assertTrue(hsnFormExists, 'Master Data > HSN Codes: Add form has Code and Description fields', failures);
+
+  if (hsnFormExists) {
+    await page.fill('#inp-rec-hsncode', '9999TEST');
+    await page.fill('#inp-rec-hsndesc', 'Regression test HSN entry');
+    const formSel = await page.evaluate(function () {
+      var el = document.getElementById('inp-rec-hsncode').closest('form');
+      return el ? '#' + el.id : null;
+    });
+    if (formSel) {
+      await page.click(formSel + ' button[type="submit"]');
+      await page.waitForTimeout(200);
+    }
+    const savedHsn = await page.evaluate(function () {
+      return window.RevOpsStore.getCollection('hsnCodeMaster').find(function (h) { return h.code === '9999TEST'; });
+    });
+    assertTrue(!!savedHsn, 'Master Data > HSN Codes: new code persists to hsnCodeMaster', failures);
+    if (savedHsn) assertEqual(savedHsn.description, 'Regression test HSN entry', 'Master Data > HSN Codes: description persists', failures);
+  }
+
+  // Part B: Product Master's HSN field is now a dropdown, not free text.
+  await page.evaluate(function () { switchMasterTab('products'); });
+  await page.waitForTimeout(200);
+  await page.evaluate(function () { openAddSingleModal(); });
+  await page.waitForTimeout(200);
+  const productHsnField = await page.evaluate(function () {
+    var el = document.getElementById('inp-rec-hsn');
+    return el ? { tag: el.tagName, optionCount: el.tagName === 'SELECT' ? el.options.length : 0, hasTestCode: el.tagName === 'SELECT' && Array.from(el.options).some(function (o) { return o.value === '9999TEST'; }) } : null;
+  });
+  assertTrue(!!productHsnField, 'Product Master: HSN field exists', failures);
+  if (productHsnField) {
+    assertEqual(productHsnField.tag, 'SELECT', 'Product Master: HSN field is a dropdown (was free text before)', failures);
+    assertTrue(productHsnField.optionCount > 1, 'Product Master: HSN dropdown has real options from the master list', failures);
+    assertTrue(productHsnField.hasTestCode, 'Product Master: HSN dropdown includes the code just added to the master list', failures);
+  }
+
+  await page.evaluate(function () {
+    window.RevOpsStore.saveCollection('hsnCodeMaster', (window.RevOpsStore.getCollection('hsnCodeMaster') || []).filter(function (h) { return h.code !== '9999TEST'; }));
+  });
+  await page.close();
+
+  // Part C: Lead's "+ New Product" quick-add modal HSN field is a dropdown.
+  const { page: page2 } = await newPage(browser);
+  await page2.goto(BASE_URL + '/leads.html', { waitUntil: 'networkidle', timeout: 30000 });
+  await page2.waitForTimeout(600);
+  await page2.evaluate(function () { openLeadModal(); });
+  await page2.waitForTimeout(200);
+  await page2.evaluate(function () { openLeadNewProductModal(); });
+  await page2.waitForTimeout(200);
+  const newProdHsnField = await page2.evaluate(function () {
+    var el = document.getElementById('inp-newprod-hsn');
+    return el ? { tag: el.tagName, optionCount: el.options ? el.options.length : 0 } : null;
+  });
+  assertTrue(!!newProdHsnField, 'Lead "+ New Product" modal: HSN field exists', failures);
+  if (newProdHsnField) {
+    assertEqual(newProdHsnField.tag, 'SELECT', 'Lead "+ New Product" modal: HSN field is a dropdown', failures);
+    assertTrue(newProdHsnField.optionCount > 0, 'Lead "+ New Product" modal: HSN dropdown is populated', failures);
+  }
+
+  // Part D: a Lead's own product line HSN is a pickable dropdown, and
+  // selecting a product auto-fills it from that product's own HSN.
+  await page2.evaluate(function () {
+    window.RevOpsStore.saveCollection('productsMaster', [
+      { id: 'prod_hsn_test', name: 'HSN Test Product', vertical: 'Projects', spec: 'Test spec', hsnCode: '8537', hsn: '8537', price: 10000, isActive: true }
+    ]);
+  });
+  await page2.evaluate(function () { closeLeadNewProductModal(); openLeadModal(); });
+  await page2.waitForTimeout(200);
+  const leadProductHsn = await page2.evaluate(function () {
+    onLeadProductSelected(0, 'HSN Test Product');
+    var select = document.querySelector('#lead-form select[onchange^="currentLeadProducts[0].hsn"]');
+    return {
+      storedValue: currentLeadProducts[0] ? currentLeadProducts[0].hsn : null,
+      renderedTag: select ? select.tagName : null,
+      renderedSelected: select ? select.value : null
+    };
+  });
+  assertEqual(leadProductHsn.storedValue, '8537', 'Lead product line: selecting a product auto-fills HSN from its Product Master entry', failures);
+  assertEqual(leadProductHsn.renderedTag, 'SELECT', 'Lead product line: HSN is rendered as a real dropdown, not a locked readonly field', failures);
+  assertEqual(leadProductHsn.renderedSelected, '8537', 'Lead product line: the dropdown shows the auto-filled code selected', failures);
+
+  await page2.evaluate(function () {
+    window.RevOpsStore.saveCollection('productsMaster', []);
+    closeLeadModal();
+  });
+  await page2.close();
+  return failures;
+}
+
 const TESTS = [
   ['SLA day-based seeding, migration, severity dropdown & date math', testSlaDayBasedSeedingAndMigration],
   ['Ticket email subject line', testQuotationVerticalAndTicketSubject],
@@ -4636,7 +4749,8 @@ const TESTS = [
   ['Pending Approvals: shared routing, popup, and email notifications on entering an approval stage', testApprovalNotifications],
   ['Quotation/Order/Invoice Primary Approval is scoped to the approver\'s own vertical, with fallback when nobody matches', testApprovalVerticalScoping],
   ['Shared deal-chain attachments: a file added at any of Lead/Quotation/Order/Invoice shows at every other stage of that deal', testDealChainAttachments],
-  ['Mandatory Remarks box present on Lead, Quotation and Order Booking (new on Orders)', testMandatoryRemarksBoxes]
+  ['Mandatory Remarks box present on Lead, Quotation and Order Booking (new on Orders)', testMandatoryRemarksBoxes],
+  ['HSN Code Master: new Master Data tab, mandatory dropdown on Product Master, pickable dropdown on Lead product lines', testHsnCodeMaster]
 ];
 
 (async () => {

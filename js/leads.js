@@ -398,8 +398,10 @@ var currentLeadContacts = [];
                 </select>
               </div>
               <div class="sm:col-span-4">
-                <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">HSN Code (from master)</label>
-                <input type="text" value="${escapeHtml(prod.hsn || '')}" readonly class="w-full px-2.5 py-1.5 bg-slate-950/60 border border-slate-800 rounded-lg text-xs text-slate-400 cursor-not-allowed" />
+                <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">HSN Code</label>
+                <select onchange="currentLeadProducts[${i}].hsn = this.value;" class="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white font-semibold focus:outline-none focus:border-indigo-500">
+                  ${leadProductHsnOptionsHtml(prod.hsn)}
+                </select>
               </div>
             </div>
 
@@ -430,6 +432,19 @@ var currentLeadContacts = [];
         });
 
         updateLeadProductsTotal();
+      }
+
+      // HSN picker for each Lead product line - auto-fills from the
+      // selected Product Master entry's own HSN (onLeadProductSelected),
+      // but stays a real, changeable dropdown rather than a locked
+      // readonly field, sourced from Master Data > HSN Codes so only
+      // real codes can ever be chosen. A new code needed is added via
+      // Master Data, not typed in here.
+      function leadProductHsnOptionsHtml(selectedCode) {
+        var items = (window.RevOpsStore.getCollection('hsnCodeMaster') || []).filter(function(it) { return it.isActive !== false; });
+        return items.map(function(it) {
+          return '<option value="' + escapeHtml(it.code) + '" ' + (it.code === selectedCode ? 'selected' : '') + '>' + escapeHtml(it.code) + ' — ' + escapeHtml(it.description || '') + '</option>';
+        }).join('');
       }
 
       function updateLeadProductField(idx, field, val, inputEl) {
@@ -474,7 +489,7 @@ var currentLeadContacts = [];
         populateLeadNewProductDropdowns(cascade);
         document.getElementById('inp-newprod-name').value = '';
         document.getElementById('inp-newprod-spec').value = '';
-        document.getElementById('inp-newprod-hsn').value = '90318000';
+        document.getElementById('inp-newprod-hsn').value = '90318000'; // selects that option once populateLeadNewProductDropdowns (just ran above) has rendered it
         document.getElementById('inp-newprod-price').value = '0';
         document.getElementById('lead-new-product-modal').classList.remove('hidden');
       }
@@ -496,6 +511,14 @@ var currentLeadContacts = [];
         fillOptions('inp-newprod-industryvertical', 'verticalClassificationMaster', true);
         fillOptions('inp-newprod-projectsector', 'projectSectorMaster', true);
         fillOptions('inp-newprod-vertical', 'verticalClassificationMaster', false);
+
+        var hsnSelect = document.getElementById('inp-newprod-hsn');
+        if (hsnSelect) {
+          var hsnItems = (window.RevOpsStore.getCollection('hsnCodeMaster') || []).filter(function(it) { return it.isActive !== false; });
+          hsnSelect.innerHTML = hsnItems.map(function(it) {
+            return '<option value="' + escapeHtml(it.code) + '">' + escapeHtml(it.code) + ' — ' + escapeHtml(it.description || '') + '</option>';
+          }).join('');
+        }
 
         // Defaults to whatever this Lead is currently classified under -
         // that's almost always exactly why a product is missing in the
