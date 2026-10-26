@@ -1296,3 +1296,96 @@ var activeMasterTab = 'products';
         console.error('deleteDataCreatedBeforeDate failed:', err);
       });
     }
+
+    function parseDeleteLeadsNumbersInput() {
+      var raw = document.getElementById('inp-delete-leads-numbers').value || '';
+      return raw.split(/[\n,]/).map(function(s) { return s.trim(); }).filter(Boolean);
+    }
+
+    function openDeleteLeadsByNumberModal() {
+      if (!canEditMasterData()) {
+        alert("Only Super Admin or Admin can delete data.");
+        return;
+      }
+      document.getElementById('inp-delete-leads-numbers').value = '';
+      document.getElementById('inp-delete-leads-confirm').value = '';
+      document.getElementById('delete-leads-by-number-confirm-view').classList.remove('hidden');
+      document.getElementById('delete-leads-by-number-progress-view').classList.add('hidden');
+      document.getElementById('delete-leads-by-number-done-view').classList.add('hidden');
+      document.getElementById('delete-leads-by-number-modal').classList.remove('hidden');
+      refreshDeleteLeadsByNumberPreview();
+    }
+
+    function closeDeleteLeadsByNumberModal() {
+      document.getElementById('delete-leads-by-number-modal').classList.add('hidden');
+    }
+
+    // Recomputes and renders the "what would be deleted" preview for the
+    // currently-pasted lead numbers - a pure read (previewLeadsByNumber has
+    // zero side effects), so this can safely run on every keystroke.
+    function refreshDeleteLeadsByNumberPreview() {
+      var numbers = parseDeleteLeadsNumbersInput();
+      var listEl = document.getElementById('delete-leads-preview-list');
+      var totalEl = document.getElementById('delete-leads-preview-total');
+      if (numbers.length === 0) {
+        listEl.innerHTML = '<span class="text-slate-600">Paste one or more lead numbers above.</span>';
+        totalEl.innerText = '0';
+        return;
+      }
+      var preview = window.RevOpsStore.previewLeadsByNumber(numbers);
+      listEl.innerHTML = preview.results.map(function(r) {
+        if (!r.matched) {
+          return '<div><span class="text-amber-400">' + escapeHtml(r.input) + '</span>: <span class="text-slate-600">not found - will be skipped</span></div>';
+        }
+        return r.leads.map(function(l) {
+          return '<div><span class="text-rose-300">' + escapeHtml(l.leadNumber) + '</span>: ' + escapeHtml(l.customerName || '(no customer name)') + ' - <span class="text-slate-500">' + escapeHtml(l.stage || '') + ', created ' + escapeHtml(l.createdDate || '') + '</span></div>';
+        }).join('');
+      }).join('');
+      var totalToDelete = preview.results.reduce(function(s, r) { return s + (r.matched ? r.leads.length : 0); }, 0);
+      totalEl.innerText = totalToDelete;
+    }
+
+    function executeDeleteLeadsByNumber() {
+      if (!canEditMasterData()) {
+        alert("Only Super Admin or Admin can delete data.");
+        return;
+      }
+      var numbers = parseDeleteLeadsNumbersInput();
+      if (numbers.length === 0) {
+        alert('Please paste at least one lead number.');
+        return;
+      }
+      var preview = window.RevOpsStore.previewLeadsByNumber(numbers);
+      var totalToDelete = preview.results.reduce(function(s, r) { return s + (r.matched ? r.leads.length : 0); }, 0);
+      if (totalToDelete === 0) {
+        alert('None of the pasted lead numbers match an existing lead.');
+        return;
+      }
+      var typed = document.getElementById('inp-delete-leads-confirm').value.trim();
+      if (typed !== 'DELETE') {
+        alert('Please type "DELETE" exactly (case-sensitive) to confirm.');
+        return;
+      }
+
+      document.getElementById('delete-leads-by-number-confirm-view').classList.add('hidden');
+      document.getElementById('delete-leads-by-number-progress-view').classList.remove('hidden');
+
+      window.RevOpsStore.deleteLeadsByNumber(numbers, function(index, totalCount) {
+        document.getElementById('delete-leads-progress-text').innerText = 'Deleting lead ' + index + ' of ' + totalCount + '…';
+        document.getElementById('delete-leads-progress-bar').style.width = Math.round((index / totalCount) * 100) + '%';
+      }).then(function(results) {
+        document.getElementById('delete-leads-by-number-progress-view').classList.add('hidden');
+        document.getElementById('delete-leads-by-number-done-view').classList.remove('hidden');
+        var summary = 'Permanently deleted ' + results.deletedCount + ' lead(s)' +
+          (window.RevOpsStore.isFirebaseAvailable() ? ' locally and in Firestore.' : ' locally (Firestore not connected in this session).');
+        if (results.notFound && results.notFound.length > 0) {
+          summary += ' ' + results.notFound.length + ' input(s) did not match any lead and were skipped: ' + results.notFound.join(', ') + '.';
+        }
+        document.getElementById('delete-leads-done-summary').innerText = summary;
+      }).catch(function(err) {
+        document.getElementById('delete-leads-by-number-progress-view').classList.add('hidden');
+        document.getElementById('delete-leads-by-number-done-view').classList.remove('hidden');
+        document.getElementById('delete-leads-done-summary').innerText = 'Something went wrong partway through - check the browser console for details. Safe to re-run; already-deleted leads simply won\'t match again (no harm done).';
+        console.error('deleteLeadsByNumber failed:', err);
+      });
+    }

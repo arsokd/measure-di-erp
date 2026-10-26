@@ -1365,7 +1365,7 @@ async function testDeleteDataBeforeDate(browser) {
   });
   assertTrue(beforeCounts.employees > 0, 'Precondition: employees non-empty before deleting', failures);
 
-  await page.click('#go-live-danger-zone button');
+  await page.click('#go-live-danger-zone [onclick="openClearDemoDataModal()"]');
   await page.waitForTimeout(150);
 
   // Default cutoff is 2026-10-01 - the preview should already reflect it
@@ -1429,7 +1429,7 @@ async function testDeleteDataBeforeDate(browser) {
       { id: 'order_scope_old', customerName: 'Old Order For Scope Test', createdDate: '01/09/2026' }
     ]);
   });
-  await page.click('#go-live-danger-zone button');
+  await page.click('#go-live-danger-zone [onclick="openClearDemoDataModal()"]');
   await page.waitForTimeout(150);
   await page.evaluate(function () {
     document.querySelectorAll('#clear-demo-collections-list input[type="checkbox"]').forEach(function (cb) {
@@ -4772,6 +4772,79 @@ async function testQuotationMultiPagePdfContent(browser) {
   return failures;
 }
 
+async function testDeleteLeadsByNumber(browser) {
+  const failures = [];
+  const { page } = await newPage(browser);
+
+  await page.goto(BASE_URL + '/master-data.html', { waitUntil: 'networkidle', timeout: 30000 });
+  await page.waitForTimeout(600);
+
+  await page.evaluate(function () {
+    window.RevOpsStore.saveCollection('leads', [
+      Object.assign({ id: 'lead_keep_1' }, { leadNumber: 'LD-2026-KEEP', customerName: 'Keep Me Co', stage: 'Contacted', createdDate: '01/10/2026' }),
+      Object.assign({ id: 'lead_del_1' }, { leadNumber: 'LD-2026-DEL1', customerName: 'Delete Me One', stage: 'Contacted', createdDate: '01/10/2026' }),
+      Object.assign({ id: 'lead_del_2' }, { leadNumber: 'LD-ADI-2026-DEL2', customerName: 'Delete Me Two', stage: 'Quoted', createdDate: '02/10/2026' })
+    ]);
+  });
+
+  const dangerVisible = await page.evaluate(function () {
+    return !document.getElementById('go-live-danger-zone').classList.contains('hidden');
+  });
+  assertTrue(dangerVisible, 'Delete Leads by Number: Danger Zone is visible for super_admin', failures);
+
+  await page.click('#go-live-danger-zone [onclick="openDeleteLeadsByNumberModal()"]');
+  await page.waitForTimeout(150);
+
+  // Mixed input: one matching lead (lowercase, to prove case-insensitivity),
+  // one matching lead, and one bogus number that doesn't exist anywhere.
+  await page.fill('#inp-delete-leads-numbers', 'ld-2026-del1\nLD-ADI-2026-DEL2\nLD-2026-NOPE');
+  await page.waitForTimeout(150);
+
+  const preview = await page.evaluate(function () {
+    return {
+      total: document.getElementById('delete-leads-preview-total').innerText,
+      html: document.getElementById('delete-leads-preview-list').innerHTML
+    };
+  });
+  assertEqual(preview.total, '2', 'Delete Leads by Number: live preview counts only the matching leads', failures);
+  assertTrue(preview.html.indexOf('Delete Me One') !== -1 && preview.html.indexOf('Delete Me Two') !== -1, 'Delete Leads by Number: preview shows customer names for matched leads', failures);
+  assertTrue(preview.html.indexOf('not found') !== -1, 'Delete Leads by Number: preview flags the non-matching input as not found', failures);
+
+  // Wrong confirmation text must not proceed.
+  await page.fill('#inp-delete-leads-confirm', 'wrong text');
+  const rejectedWrongText = await page.evaluate(function () {
+    document.getElementById('btn-execute-delete-leads').click();
+    return !document.getElementById('delete-leads-by-number-confirm-view').classList.contains('hidden');
+  });
+  assertTrue(rejectedWrongText, 'Delete Leads by Number: wrong confirmation text does not proceed (stays on confirm view)', failures);
+
+  await page.fill('#inp-delete-leads-confirm', 'DELETE');
+  await page.evaluate(function () {
+    document.getElementById('btn-execute-delete-leads').click();
+  });
+  await page.waitForTimeout(500);
+
+  const after = await page.evaluate(function () {
+    var leadsLeft = window.RevOpsStore.getCollection('leads') || [];
+    return {
+      doneVisible: !document.getElementById('delete-leads-by-number-done-view').classList.contains('hidden'),
+      summary: document.getElementById('delete-leads-done-summary').innerText,
+      leadIdsLeft: leadsLeft.map(function (l) { return l.id; })
+    };
+  });
+  assertTrue(after.doneVisible, 'Delete Leads by Number: shows the done view after executing', failures);
+  assertTrue(after.summary.indexOf('2') !== -1, 'Delete Leads by Number: done summary reports 2 deleted', failures);
+  assertTrue(after.summary.indexOf('LD-2026-NOPE') !== -1, 'Delete Leads by Number: done summary names the not-found input that was skipped', failures);
+  assertEqual(JSON.stringify(after.leadIdsLeft.sort()), JSON.stringify(['lead_keep_1']), 'Delete Leads by Number: only the two targeted leads are removed, the untouched lead survives', failures);
+
+  await page.evaluate(function () {
+    window.RevOpsStore.saveCollection('leads', []);
+    closeDeleteLeadsByNumberModal();
+  });
+  await page.close();
+  return failures;
+}
+
 const TESTS = [
   ['SLA day-based seeding, migration, severity dropdown & date math', testSlaDayBasedSeedingAndMigration],
   ['Ticket email subject line', testQuotationVerticalAndTicketSubject],
@@ -4823,7 +4896,8 @@ const TESTS = [
   ['Shared deal-chain attachments: a file added at any of Lead/Quotation/Order/Invoice shows at every other stage of that deal', testDealChainAttachments],
   ['Mandatory Remarks box present on Lead, Quotation and Order Booking (new on Orders)', testMandatoryRemarksBoxes],
   ['HSN Code Master: new Master Data tab, mandatory dropdown on Product Master, pickable dropdown on Lead product lines', testHsnCodeMaster],
-  ['Quotation PDF now includes Bank Remittance Instructions and a full Standard Terms & Conditions section, not just the line-items page', testQuotationMultiPagePdfContent]
+  ['Quotation PDF now includes Bank Remittance Instructions and a full Standard Terms & Conditions section, not just the line-items page', testQuotationMultiPagePdfContent],
+  ['Delete Leads by Number: preview, confirmation, case-insensitive matching, not-found inputs skipped', testDeleteLeadsByNumber]
 ];
 
 (async () => {

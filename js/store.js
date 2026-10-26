@@ -204,6 +204,67 @@ Object.assign(window.RevOpsStore, {
     });
   },
 
+  // Dry-run for the targeted "Delete Leads by Number" tool - looks up each
+  // pasted lead number (trimmed, case-insensitive) against the leads
+  // collection and reports what it would match, without deleting anything.
+  // Returns { results: [{ input, matched, lead }] } - lead is null when
+  // nothing matches that input. A number matching more than one lead
+  // (shouldn't normally happen) reports all of them under one input entry.
+  previewLeadsByNumber: function(leadNumbers) {
+    var leads = this.getCollection('leads') || [];
+    var results = (leadNumbers || []).map(function(raw) {
+      var input = String(raw || '').trim();
+      if (!input) return null;
+      var needle = input.toLowerCase();
+      var matches = leads.filter(function(l) { return String(l.leadNumber || '').trim().toLowerCase() === needle; });
+      return { input: input, matched: matches.length > 0, leads: matches };
+    }).filter(Boolean);
+    return { results: results };
+  },
+
+  // Permanently deletes the specific leads whose leadNumber matches one of
+  // the pasted leadNumbers (case-insensitive) - local storage, Firestore,
+  // and the Google Sheet mirror, via the same deleteRecord() primitive used
+  // everywhere else. Unmatched inputs are silently skipped (the UI already
+  // shows them as "not found" in the preview before this runs).
+  // onProgress(index, total) is called before each matched lead is deleted.
+  // Returns a promise resolving to { deletedCount, deletedLeadNumbers, notFound }.
+  deleteLeadsByNumber: function(leadNumbers, onProgress) {
+    var self = this;
+    var preview = this.previewLeadsByNumber(leadNumbers);
+    var toDelete = [];
+    var notFound = [];
+    preview.results.forEach(function(r) {
+      if (r.matched) { r.leads.forEach(function(l) { toDelete.push(l); }); }
+      else notFound.push(r.input);
+    });
+
+    var deletedLeadNumbers = [];
+    var chain = Promise.resolve();
+    toDelete.forEach(function(lead, idx) {
+      chain = chain.then(function() {
+        if (typeof onProgress === 'function') onProgress(idx + 1, toDelete.length);
+        return self.deleteRecord('leads', lead.id).then(function() {
+          deletedLeadNumbers.push(lead.leadNumber);
+        });
+      });
+    });
+
+    return chain.then(function() {
+      if (self.logAudit) {
+        self.logAudit(
+          'Leads',
+          deletedLeadNumbers.join(', ') || 'N/A',
+          'DELETE',
+          'Permanently deleted ' + deletedLeadNumbers.length + ' lead(s) by lead number: ' + (deletedLeadNumbers.join(', ') || 'none') + '.',
+          null,
+          { deletedLeadNumbers: deletedLeadNumbers, notFound: notFound }
+        );
+      }
+      return { deletedCount: deletedLeadNumbers.length, deletedLeadNumbers: deletedLeadNumbers, notFound: notFound };
+    });
+  },
+
   syncAllToFirestore: function() {
     if (!window.db) return;
     console.log("Syncing data to Firebase Firestore...");
