@@ -757,15 +757,17 @@
       }
 
       function renderPendingFollowups(leads) {
-        var now = Date.now();
+        // Shared with the global follow-up popup (auth-guard.js) and the
+        // mandatory-field validation on the Lead form, via
+        // RevOpsStore.isLeadFollowUpDue - a lead now only shows here once
+        // its own followUpDate has actually arrived (previously any open
+        // lead showed unconditionally, regardless of when it was last
+        // meant to be chased). A lead with no followUpDate at all (only
+        // possible on a record saved before this field existed) still
+        // falls back to "due now", so nothing silently drops out of view.
+        var todayISO = getLocalTodayISO();
         var pendingLeads = leads.filter(function(l) {
-          var st = l.status || l.stage;
-          if (st === "Won" || st === "Lost" || st === "Trashed") return false;
-          // A Postponed lead only resurfaces here once its 180-day
-          // deferral has actually passed - it's deliberately parked, not
-          // forgotten, so it shouldn't clutter active follow-ups until then.
-          if (st === "Postponed") return !!l.postponedUntil && new Date(l.postponedUntil).getTime() <= now;
-          return true;
+          return window.RevOpsStore.isLeadFollowUpDue(l, todayISO);
         });
         var container = document.getElementById('pending-followups-list');
         if (pendingLeads.length === 0) {
@@ -776,11 +778,12 @@
         var html = "";
         pendingLeads.slice(0, 7).forEach(function(l) {
           var val = l.estimatedValue || l.expectedValue || l.dealValue || 0;
+          var followUpCount = (l.followUpHistory || []).length;
           html += `
             <div class="p-3 bg-slate-50 hover:bg-slate-100 rounded-xl border border-slate-200 transition-colors flex items-center justify-between">
               <div>
                 <div class="font-semibold text-xs text-slate-900">${l.customerName}</div>
-                <div class="text-[11px] text-slate-500">${l.vertical || 'Sales'} &bull; Est: ${formatINR(val)}</div>
+                <div class="text-[11px] text-slate-500">${l.vertical || 'Sales'} &bull; Est: ${formatINR(val)} &bull; ${followUpCount} follow-up${followUpCount === 1 ? '' : 's'} so far</div>
               </div>
               <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-amber-100 text-amber-800">${l.status || 'New'}</span>
             </div>

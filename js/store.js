@@ -3604,6 +3604,132 @@ Object.assign(window.RevOpsStore, {
     } else {
       if (typeof callback === 'function') callback(count, null);
     }
+  },
+
+  // ============ LEAD / QUOTATION FOLLOW-UP SYSTEM ============
+  // Client-reported problem: leads go cold from poor follow-up discipline.
+  // followUpDate is mandatory (enforced in leads.js/quotations.js) on
+  // every Lead/Quotation still "in play"; logFollowUp() below is the only
+  // way to push it forward, and it always requires a note - so there's a
+  // real trail of what was actually said/decided, not just a silently
+  // bumped date. The global popup (auth-guard.js) surfaces anything whose
+  // followUpDate has arrived and keeps doing so on every page load/login
+  // until it's actually logged - by design, never a one-time notice.
+
+  // Matches the existing Dashboard "Pending Follow-ups" widget's own
+  // exclusion rule (Won/Lost/Trashed never need chasing) - kept here as
+  // the single shared source of truth instead of two copies that could
+  // drift apart.
+  leadNeedsFollowUp: function(lead) {
+    var st = (lead && (lead.status || lead.stage)) || '';
+    return ['Won', 'Lost', 'Trashed'].indexOf(st) === -1;
+  },
+
+  // A quotation only needs active chasing while its outcome is still
+  // undecided - once internally Rejected (back to the drafting table, not
+  // a customer-facing wait) or Converted to Order (won), there's nothing
+  // left to follow up on.
+  quotationNeedsFollowUp: function(status) {
+    return ['Rejected', 'Converted to Order'].indexOf(status) === -1;
+  },
+
+  // YYYY-MM-DD strings compare correctly with plain string comparison;
+  // normalizes anything longer (e.g. a full ISO datetime in a legacy
+  // postponedUntil field) down to just the date portion first.
+  _dateOnly: function(d) {
+    var s = String(d || '');
+    return s.length >= 10 ? s.slice(0, 10) : s;
+  },
+
+  isLeadFollowUpDue: function(lead, todayISO) {
+    if (!this.leadNeedsFollowUp(lead)) return false;
+    var due = lead.followUpDate || lead.postponedUntil;
+    // A record with no follow-up date at all (only possible for a legacy
+    // record saved before this field became mandatory) is always treated
+    // as due now - better to nudge it back into view than to let a
+    // genuinely active deal silently fall outside follow-up tracking.
+    if (!due) return true;
+    return this._dateOnly(due) <= todayISO;
+  },
+
+  isQuotationFollowUpDue: function(q, todayISO) {
+    if (!this.quotationNeedsFollowUp(q.status)) return false;
+    if (!q.followUpDate) return true;
+    return this._dateOnly(q.followUpDate) <= todayISO;
+  },
+
+  // Everything the current user needs to chase right now, across both
+  // Leads and Quotations - the single source the global popup renders
+  // from. Scoped to the signed-in employee's own records (matches how
+  // DWM/Attendance/etc. already scope "my work" elsewhere in this app).
+  getDueFollowUps: function(employeeId, todayISO) {
+    var self = this;
+    todayISO = todayISO || getLocalTodayISO();
+    var leads = (this.getCollection('leads') || []).filter(function(l) {
+      return l.employeeId === employeeId && self.isLeadFollowUpDue(l, todayISO);
+    }).map(function(l) {
+      return {
+        colName: 'leads', id: l.id, ref: l.leadNumber || l.id, customerName: l.customerName || 'Unknown Customer',
+        status: l.status || l.stage, followUpDate: l.followUpDate || l.postponedUntil || '',
+        followUpCount: (l.followUpHistory || []).length
+      };
+    });
+    var quotes = (this.getCollection('quotations') || []).filter(function(q) {
+      return q.employeeId === employeeId && self.isQuotationFollowUpDue(q, todayISO);
+    }).map(function(q) {
+      return {
+        colName: 'quotations', id: q.id, ref: q.quoteNumber || q.id, customerName: q.customerName || 'Unknown Customer',
+        status: q.status, followUpDate: q.followUpDate || '',
+        followUpCount: (q.followUpHistory || []).length
+      };
+    });
+    return leads.concat(quotes).sort(function(a, b) {
+      return (a.followUpDate || '').localeCompare(b.followUpDate || '');
+    });
+  },
+
+  // The only way a due follow-up leaves the popup/mandatory-tracking: a
+  // real note plus a real next date, both required - never a silent
+  // "snooze." Works identically for leads and quotations.
+  logFollowUp: function(colName, id, note, nextFollowUpDate) {
+    if (!note || !note.trim()) return { success: false, reason: 'note-required' };
+    if (!nextFollowUpDate) return { success: false, reason: 'date-required' };
+    var items = this.getCollection(colName) || [];
+    var rec = items.find(function(it) { return it.id === id; });
+    if (!rec) return { success: false, reason: 'not-found' };
+
+    var empName = (typeof localStorage !== 'undefined' && localStorage.getItem('userName')) || 'System User';
+    var empId = (typeof localStorage !== 'undefined' && localStorage.getItem('employeeId')) || '';
+    rec.followUpHistory = rec.followUpHistory || [];
+    rec.followUpHistory.push({
+      loggedAt: new Date().toISOString(),
+      loggedBy: empName,
+      loggedByEmpId: empId,
+      note: note.trim(),
+      nextFollowUpDate: nextFollowUpDate
+    });
+    rec.followUpDate = nextFollowUpDate;
+    // Keeps the legacy postponedUntil field (which the Postponed stage
+    // badge/dashboard widget may still read) in sync with the user's own
+    // chosen date, rather than the old blind +180-day guess.
+    if (colName === 'leads' && (rec.status === 'Postponed' || rec.stage === 'Postponed')) {
+      var parsedDate = this._parseCutoffDate ? this._parseCutoffDate(nextFollowUpDate) : new Date(nextFollowUpDate);
+      if (parsedDate && !isNaN(parsedDate.getTime())) rec.postponedUntil = parsedDate.toISOString();
+    }
+    rec.updatedAt = new Date().toISOString();
+    this.saveRecord(colName, rec);
+
+    if (this.logAudit) {
+      this.logAudit(
+        colName === 'leads' ? 'Leads' : 'Quotations',
+        rec.leadNumber || rec.quoteNumber || rec.id,
+        'UPDATE',
+        'Follow-up logged: "' + note.trim() + '" - next follow-up ' + nextFollowUpDate,
+        null,
+        rec
+      );
+    }
+    return { success: true, record: rec };
   }
 });
 
@@ -3614,6 +3740,17 @@ function getFormattedToday() {
   var month = String(d.getMonth() + 1).padStart(2, '0');
   var year = d.getFullYear();
   return day + '/' + month + '/' + year;
+}
+
+// ISO "YYYY-MM-DD" in the device's own local time (not UTC) - matches
+// what a native <input type="date"> stores/compares against, and is the
+// right notion of "today" for follow-up due-dates: a field rep's own
+// local day, not a server clock.
+function getLocalTodayISO() {
+  var d = new Date();
+  var month = String(d.getMonth() + 1).padStart(2, '0');
+  var day = String(d.getDate()).padStart(2, '0');
+  return d.getFullYear() + '-' + month + '-' + day;
 }
 
 function formatINR(val) {

@@ -1005,6 +1005,7 @@ async function testMultiCompanySupport(browser) {
   await page.fill('#lead-form input[oninput*="currentLeadContacts[0].name"]', 'Test Contact');
   await page.fill('#lead-form input[oninput*="currentLeadContacts[0].phone"]', '9876543210');
   await page.fill('#inp-lead-notes', 'Regression test remarks.');
+  await page.fill('#inp-lead-followup-date', '2026-12-01');
   const savedAdityaLead = await page.evaluate(function () {
     var before = (window.RevOpsStore.getCollection('leads') || []).length;
     document.getElementById('lead-form').requestSubmit();
@@ -1294,6 +1295,7 @@ async function testQuoteEditReasonMandatory(browser) {
 
   await page.fill('#inp-quote-remarks', 'Regression test remarks.');
   await page.fill('#inp-quote-edit-reason', 'Regression test: corrected pricing error');
+  await page.fill('#inp-quote-followup-date', '2030-06-01');
   const afterSave = await page.evaluate(function () {
     document.getElementById('quoteForm').requestSubmit();
     var quotes = window.RevOpsStore.getCollection('quotations') || [];
@@ -2095,12 +2097,26 @@ async function testLeadPipelineStageModel(browser) {
   await page.evaluate(function () { editLead('lead_b6'); });
   await page.waitForTimeout(200);
   await page.selectOption('#inp-lead-stage', 'Postponed');
+  await page.evaluate(function () {
+    document.getElementById('inp-lead-followup-date').value = '';
+    document.querySelector('#lead-form button[type="submit"]').click();
+  });
+  await page.waitForTimeout(300);
+  let b6 = await page.evaluate(function () { return window.RevOpsStore.getCollection('leads').find(function (l) { return l.id === 'lead_b6'; }); });
+  assertEqual(b6.status, 'Quoted', 'Postponed without a Next Follow-up Date is blocked - lead stays unchanged', failures);
+
+  const chosenFollowUpDate = await page.evaluate(function () {
+    var d = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    var iso = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    document.getElementById('inp-lead-followup-date').value = iso;
+    return iso;
+  });
   await page.click('#lead-form button[type="submit"]');
   await page.waitForTimeout(300);
-  const b6 = await page.evaluate(function () { return window.RevOpsStore.getCollection('leads').find(function (l) { return l.id === 'lead_b6'; }); });
-  const daysOut = b6.postponedUntil ? Math.round((new Date(b6.postponedUntil).getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : 0;
-  assertEqual(b6.status, 'Postponed', 'Postponed succeeds once a lead has been Quoted', failures);
-  assertTrue(daysOut >= 178 && daysOut <= 181, 'Postponed sets a ~180-day postponedUntil date, got ' + daysOut + ' days out', failures);
+  b6 = await page.evaluate(function () { return window.RevOpsStore.getCollection('leads').find(function (l) { return l.id === 'lead_b6'; }); });
+  assertEqual(b6.status, 'Postponed', 'Postponed succeeds once a lead has been Quoted and a Next Follow-up Date is set', failures);
+  assertEqual(b6.followUpDate, chosenFollowUpDate, 'The user\'s own chosen Next Follow-up Date is stored on the lead', failures);
+  assertEqual((b6.postponedUntil || '').slice(0, 10), chosenFollowUpDate, 'postponedUntil (still read elsewhere) mirrors that same chosen date, not a blind +180-day guess', failures);
 
   await page.close();
 
@@ -2600,6 +2616,213 @@ async function testIosGpsRetryAndInAppBrowserDetection(browser) {
   assertEqual(permissionDeniedResult.callCount, 1, 'A flat permission denial is never retried', failures);
   assertTrue(!!permissionDeniedResult.err, 'A flat permission denial still reports an error to the caller', failures);
 
+  await page.close();
+  return failures;
+}
+
+// ---------------------------------------------------------------------
+// Lead/Quotation Follow-up System: client-reported problem was leads
+// going cold from poor follow-up discipline. Next Follow-up Date is now
+// mandatory on any Lead/Quotation still "in play"; a global popup
+// (auth-guard.js) re-checks and re-shows on every page load for as long
+// as anything is overdue, with NO permanent suppression (unlike the
+// approvals popup) - only actually logging a follow-up (note + next
+// date) clears an item. followUpCount and the next date are also visible
+// directly on both list tables.
+// ---------------------------------------------------------------------
+async function testFollowUpSystem(browser) {
+  const failures = [];
+  const { page } = await newPage(browser);
+  await page.goto(BASE_URL + '/dashboard.html', { waitUntil: 'networkidle', timeout: 30000 });
+  await page.waitForTimeout(600);
+
+  // --- Pure logic: leadNeedsFollowUp / quotationNeedsFollowUp ---
+  const needsFollowUp = await page.evaluate(function () {
+    var S = window.RevOpsStore;
+    return {
+      contacted: S.leadNeedsFollowUp({ status: 'Contacted' }),
+      postponed: S.leadNeedsFollowUp({ status: 'Postponed' }),
+      won: S.leadNeedsFollowUp({ status: 'Won' }),
+      lost: S.leadNeedsFollowUp({ status: 'Lost' }),
+      trashed: S.leadNeedsFollowUp({ status: 'Trashed' }),
+      quotePending: S.quotationNeedsFollowUp('Pending Approval'),
+      quoteSent: S.quotationNeedsFollowUp('Sent to Customer'),
+      quoteRejected: S.quotationNeedsFollowUp('Rejected'),
+      quoteConverted: S.quotationNeedsFollowUp('Converted to Order')
+    };
+  });
+  assertTrue(needsFollowUp.contacted, 'A Contacted lead needs follow-up', failures);
+  assertTrue(needsFollowUp.postponed, 'A Postponed lead still needs follow-up (the whole point of postponing is choosing when to revisit)', failures);
+  assertTrue(!needsFollowUp.won, 'A Won lead never needs follow-up', failures);
+  assertTrue(!needsFollowUp.lost, 'A Lost lead never needs follow-up', failures);
+  assertTrue(!needsFollowUp.trashed, 'A Trashed lead never needs follow-up', failures);
+  assertTrue(needsFollowUp.quotePending, 'A Pending Approval quotation needs follow-up', failures);
+  assertTrue(needsFollowUp.quoteSent, 'A Sent to Customer quotation needs follow-up', failures);
+  assertTrue(!needsFollowUp.quoteRejected, 'A Rejected quotation never needs follow-up', failures);
+  assertTrue(!needsFollowUp.quoteConverted, 'A Converted to Order quotation never needs follow-up', failures);
+
+  // --- isLeadFollowUpDue / isQuotationFollowUpDue date gating ---
+  const dueChecks = await page.evaluate(function () {
+    var S = window.RevOpsStore;
+    var today = '2026-06-15';
+    return {
+      overdue: S.isLeadFollowUpDue({ status: 'Contacted', followUpDate: '2026-06-10' }, today),
+      dueToday: S.isLeadFollowUpDue({ status: 'Contacted', followUpDate: '2026-06-15' }, today),
+      future: S.isLeadFollowUpDue({ status: 'Contacted', followUpDate: '2026-06-20' }, today),
+      noDateAtAll: S.isLeadFollowUpDue({ status: 'Contacted' }, today),
+      wonIgnoredEvenIfOverdue: S.isLeadFollowUpDue({ status: 'Won', followUpDate: '2026-01-01' }, today)
+    };
+  });
+  assertTrue(dueChecks.overdue, 'A lead whose follow-up date has passed is due', failures);
+  assertTrue(dueChecks.dueToday, 'A lead whose follow-up date is today is due', failures);
+  assertTrue(!dueChecks.future, 'A lead whose follow-up date is still ahead is not due', failures);
+  assertTrue(dueChecks.noDateAtAll, 'A lead with no follow-up date at all (legacy record) is treated as due now, not silently hidden', failures);
+  assertTrue(!dueChecks.wonIgnoredEvenIfOverdue, 'A Won lead is never due, even with a stale overdue date left over from before it was won', failures);
+
+  // --- logFollowUp: requires both a note and a next date, appends
+  // history, and updates followUpDate ---
+  const logResult = await page.evaluate(function () {
+    window.RevOpsStore.saveCollection('leads', [
+      { id: 'lead_followup_1', leadNumber: 'LD-FOLLOWUP-1', customerName: 'Follow-up Test Co', status: 'Contacted', employeeId: 'E-001', employeeName: 'Mr. Murugan V', followUpDate: '2026-01-01' }
+    ]);
+    var noNote = window.RevOpsStore.logFollowUp('leads', 'lead_followup_1', '', '2026-07-01');
+    var noDate = window.RevOpsStore.logFollowUp('leads', 'lead_followup_1', 'Spoke to the client', '');
+    var ok = window.RevOpsStore.logFollowUp('leads', 'lead_followup_1', 'Spoke to the client, revisiting next month', '2026-07-01');
+    var updated = window.RevOpsStore.getCollection('leads').find(function (l) { return l.id === 'lead_followup_1'; });
+    return { noNote: noNote, noDate: noDate, ok: ok, updated: updated };
+  });
+  assertTrue(!logResult.noNote.success, 'logFollowUp rejects a missing note', failures);
+  assertTrue(!logResult.noDate.success, 'logFollowUp rejects a missing next date', failures);
+  assertTrue(logResult.ok.success, 'logFollowUp succeeds with both a note and a next date', failures);
+  assertEqual(logResult.updated.followUpDate, '2026-07-01', 'logFollowUp updates the record\'s followUpDate to the new one', failures);
+  assertEqual(logResult.updated.followUpHistory.length, 1, 'logFollowUp appends exactly one history entry', failures);
+  assertEqual(logResult.updated.followUpHistory[0].note, 'Spoke to the client, revisiting next month', 'The history entry stores the note', failures);
+  assertTrue(!!logResult.updated.followUpHistory[0].loggedBy, 'The history entry records who logged it', failures);
+
+  // --- Mandatory field: Lead form blocks save without a follow-up date
+  // for an open stage, but not for Lost (which needs none) ---
+  await page.goto(BASE_URL + '/leads.html', { waitUntil: 'networkidle', timeout: 30000 });
+  await page.waitForTimeout(600);
+  await page.evaluate(function () { openLeadModal(); });
+  await page.waitForTimeout(200);
+  await page.fill('#inp-lead-customer', 'Mandatory Followup Test Co');
+  await page.fill('#inp-lead-value', '250000');
+  await page.fill('#lead-form input[oninput*="currentLeadContacts[0].name"]', 'Test Contact');
+  await page.fill('#lead-form input[oninput*="currentLeadContacts[0].phone"]', '9876543210');
+  await page.fill('#inp-lead-notes', 'Regression test remarks.');
+  const blockedNoFollowUpDate = await page.evaluate(function () {
+    var before = (window.RevOpsStore.getCollection('leads') || []).length;
+    document.getElementById('lead-form').requestSubmit();
+    return (window.RevOpsStore.getCollection('leads') || []).length === before;
+  });
+  assertTrue(blockedNoFollowUpDate, 'Lead save is blocked without a Next Follow-up Date while the stage still needs one (Contacted)', failures);
+
+  // Deliberately far in the future (not just "later this year") so this
+  // fixture is never accidentally "due" and doesn't pollute a later
+  // getDueFollowUps() check in this same test, regardless of what today's
+  // date actually is when this suite runs.
+  await page.fill('#inp-lead-followup-date', '2030-06-01');
+  const savedWithFollowUpDate = await page.evaluate(function () {
+    document.getElementById('lead-form').requestSubmit();
+    return (window.RevOpsStore.getCollection('leads') || []).find(function (l) { return l.customerName === 'Mandatory Followup Test Co'; });
+  });
+  assertTrue(!!savedWithFollowUpDate, 'Lead saves successfully once a Next Follow-up Date is provided', failures);
+  assertEqual(savedWithFollowUpDate.followUpDate, '2030-06-01', 'The saved lead stores the chosen Next Follow-up Date', failures);
+
+  // --- Mandatory field: Quotation form ---
+  await page.goto(BASE_URL + '/quotations.html', { waitUntil: 'networkidle', timeout: 30000 });
+  await page.waitForTimeout(600);
+  await page.evaluate(function () { openQuoteModal(); });
+  await page.waitForTimeout(200);
+  await page.fill('#inp-quote-customer', 'Mandatory Followup Quote Co');
+  await page.fill('#inp-quote-contact', 'Test Contact');
+  await page.fill('#inp-quote-remarks', 'Regression test remarks.');
+  const quoteBlockedNoFollowUpDate = await page.evaluate(function () {
+    var before = (window.RevOpsStore.getCollection('quotations') || []).length;
+    document.getElementById('quoteForm').requestSubmit();
+    return (window.RevOpsStore.getCollection('quotations') || []).length === before;
+  });
+  assertTrue(quoteBlockedNoFollowUpDate, 'Quotation save is blocked without a Next Follow-up Date', failures);
+
+  // Same reasoning as the lead fixture above - far enough out to never be
+  // accidentally "due" and pollute the popup check later in this test.
+  await page.fill('#inp-quote-followup-date', '2030-06-15');
+  const savedQuoteWithFollowUpDate = await page.evaluate(function () {
+    document.getElementById('quoteForm').requestSubmit();
+    return (window.RevOpsStore.getCollection('quotations') || []).find(function (q) { return q.customerName === 'Mandatory Followup Quote Co'; });
+  });
+  assertTrue(!!savedQuoteWithFollowUpDate, 'Quotation saves successfully once a Next Follow-up Date is provided', failures);
+  assertEqual(savedQuoteWithFollowUpDate.followUpDate, '2030-06-15', 'The saved quotation stores the chosen Next Follow-up Date', failures);
+
+  // --- List column: Leads table shows the follow-up status cell ---
+  await page.goto(BASE_URL + '/leads.html', { waitUntil: 'networkidle', timeout: 30000 });
+  await page.waitForTimeout(600);
+  await page.evaluate(function () {
+    window.RevOpsStore.saveCollection('leads', [
+      { id: 'lead_overdue_col', leadNumber: 'LD-COLTEST-1', customerName: 'Overdue Column Test Co', status: 'Contacted', employeeId: 'E-001', employeeName: 'Mr. Murugan V', followUpDate: '2020-01-01', createdDate: '01/10/2026' }
+    ]);
+    renderLeadsTable();
+  });
+  await page.waitForTimeout(200);
+  const leadsTableHtml = await page.evaluate(function () { return document.getElementById('leads-tbody').innerHTML; });
+  assertTrue(leadsTableHtml.indexOf('Overdue:') !== -1, 'Leads table shows an "Overdue" badge for a lead whose follow-up date has long passed', failures);
+  assertTrue(leadsTableHtml.indexOf('follow-up') !== -1, 'Leads table shows the follow-up count alongside the date', failures);
+
+  // --- Persistent popup: shows for a due item, and critically does NOT
+  // permanently suppress itself the way the approvals popup does - it
+  // must still show on a second check with nothing resolved ---
+  await page.evaluate(function () {
+    localStorage.setItem('employeeId', 'E-001');
+    window.RevOpsStore.saveCollection('leads', [
+      { id: 'lead_popup_due', leadNumber: 'LD-POPUP-1', customerName: 'Popup Due Test Co', status: 'Contacted', employeeId: 'E-001', employeeName: 'Mr. Murugan V', followUpDate: '2020-01-01' }
+    ]);
+    checkFollowUpDuePopup();
+  });
+  await page.waitForTimeout(200);
+  let popupPresent = await page.evaluate(function () { return !!document.getElementById('followup-due-global-popup'); });
+  assertTrue(popupPresent, 'The follow-up popup appears when a lead is overdue', failures);
+  const popupHtml = await page.evaluate(function () { return document.getElementById('followup-due-global-popup').innerHTML; });
+  assertTrue(popupHtml.indexOf('Popup Due Test Co') !== -1, 'The popup lists the overdue lead by customer name', failures);
+
+  // Re-running the check with nothing resolved must show it again - no
+  // "already notified" suppression for this popup, unlike approvals.
+  await page.evaluate(function () {
+    document.getElementById('followup-due-global-popup').remove();
+    checkFollowUpDuePopup();
+  });
+  await page.waitForTimeout(200);
+  popupPresent = await page.evaluate(function () { return !!document.getElementById('followup-due-global-popup'); });
+  assertTrue(popupPresent, 'The follow-up popup re-appears on a later check even though nothing changed - it is never permanently dismissed, only resolved by actually logging a follow-up', failures);
+
+  // Logging the follow-up (via the real modal flow) clears it from the popup.
+  await page.evaluate(function () {
+    window.openLogFollowUpModal('leads', 'lead_popup_due', 'LD-POPUP-1', 'Popup Due Test Co');
+  });
+  await page.waitForTimeout(150);
+  await page.fill('#inp-followup-note', 'Called and confirmed interest, following up again later.');
+  await page.fill('#inp-followup-next-date', '2026-12-01');
+  await page.evaluate(function () { document.querySelector('[onclick^="submitLogFollowUp"]').click(); });
+  await page.waitForTimeout(200);
+  const resolvedResult = await page.evaluate(function () {
+    return {
+      modalGone: !document.getElementById('log-followup-modal'),
+      popupGone: !document.getElementById('followup-due-global-popup'),
+      lead: window.RevOpsStore.getCollection('leads').find(function (l) { return l.id === 'lead_popup_due'; })
+    };
+  });
+  assertTrue(resolvedResult.modalGone, 'The Log Follow-up modal closes after a successful save', failures);
+  assertTrue(resolvedResult.popupGone, 'The popup clears once the only due item has been resolved', failures);
+  assertEqual(resolvedResult.lead.followUpDate, '2026-12-01', 'The lead\'s follow-up date reflects the newly logged one', failures);
+  assertEqual(resolvedResult.lead.followUpHistory.length, 1, 'The lead now has one follow-up logged', failures);
+
+  await page.evaluate(function () {
+    window.RevOpsStore.saveCollection('leads', (window.RevOpsStore.getCollection('leads') || []).filter(function (l) {
+      return ['lead_followup_1', 'lead_overdue_col', 'lead_popup_due'].indexOf(l.id) === -1;
+    }));
+    window.RevOpsStore.saveCollection('quotations', (window.RevOpsStore.getCollection('quotations') || []).filter(function (q) {
+      return q.customerName !== 'Mandatory Followup Quote Co';
+    }));
+  });
   await page.close();
   return failures;
 }
@@ -5136,6 +5359,7 @@ const TESTS = [
   ['Realtime sync self-heals stale local records for every collection (not just employees) on a listener\'s first confirmed snapshot - fixes deleted leads reappearing in a returning browser', testPruneStaleLocalRecordsGeneralized],
   ['Single-active-session enforcement: a different device\'s session token forces the older session logged out; same-device/cache/missing-doc cases never do; clearLocalAuthSessionFlags wipes every auth key', testSingleActiveSessionEnforcement],
   ['iPhone GPS fix: detects iOS in-app browsers (WhatsApp/Instagram/etc) that block geolocation outright, and auto-retries once with lower accuracy on a timeout before giving up', testIosGpsRetryAndInAppBrowserDetection],
+  ['Lead/Quotation Follow-up System: mandatory date, due-date gating, logFollowUp, list columns, and a popup that keeps re-showing until a follow-up is actually logged (never permanently dismissed)', testFollowUpSystem],
   ['Pending Approvals: shared routing, popup, and email notifications on entering an approval stage', testApprovalNotifications],
   ['Quotation/Order/Invoice Primary Approval is scoped to the approver\'s own vertical, with fallback when nobody matches', testApprovalVerticalScoping],
   ['Shared deal-chain attachments: a file added at any of Lead/Quotation/Order/Invoice shows at every other stage of that deal', testDealChainAttachments],

@@ -718,6 +718,34 @@ var currentLeadContacts = [];
         var postponedNote = document.getElementById('lead-postponed-note');
         if (lostFields) lostFields.classList.toggle('hidden', stage !== 'Lost');
         if (postponedNote) postponedNote.classList.toggle('hidden', stage !== 'Postponed');
+
+        // Next Follow-up Date is mandatory for any stage still "in play" -
+        // matches RevOpsStore.leadNeedsFollowUp() exactly (Won/Lost/
+        // Trashed are the only stages that never need chasing again).
+        var followUpField = document.getElementById('lead-followup-field');
+        var followUpInput = document.getElementById('inp-lead-followup-date');
+        var needsFollowUp = window.RevOpsStore.leadNeedsFollowUp({ status: stage });
+        if (followUpField) followUpField.classList.toggle('hidden', !needsFollowUp);
+        if (followUpInput) followUpInput.required = needsFollowUp;
+      }
+
+      // Read-only "N follow-ups logged, most recent: ..." summary shown
+      // under the Next Follow-up Date field when editing a lead that
+      // already has history - full history isn't shown inline here (it
+      // would clutter the form); logFollowUp() calls remain the only way
+      // to add to it.
+      function renderLeadFollowUpHistorySummary(history) {
+        var el = document.getElementById('lead-followup-history-summary');
+        if (!el) return;
+        if (!history || !history.length) {
+          el.classList.add('hidden');
+          el.innerHTML = '';
+          return;
+        }
+        var last = history[history.length - 1];
+        el.classList.remove('hidden');
+        el.innerHTML = '<i class="fa-solid fa-clock-rotate-left"></i> ' + history.length + ' follow-up' + (history.length === 1 ? '' : 's') +
+          ' logged so far &bull; last: "' + escapeHtml(last.note || '') + '" (' + escapeHtml(last.loggedBy || '') + ')';
       }
 
       function renderFunnelBar() {
@@ -802,9 +830,11 @@ var currentLeadContacts = [];
         tbody.innerHTML = "";
 
         if (filtered.length === 0) {
-          tbody.innerHTML = `<tr><td colspan="8" class="py-8 text-center text-slate-500">No commercial leads found matching the filters.</td></tr>`;
+          tbody.innerHTML = `<tr><td colspan="9" class="py-8 text-center text-slate-500">No commercial leads found matching the filters.</td></tr>`;
           return;
         }
+
+        var todayISO = getLocalTodayISO();
 
         filtered.forEach(function(l) {
           var val = Number(l.estimatedValue) || Number(l.expectedValue) || Number(l.dealValue) || 0;
@@ -878,6 +908,9 @@ var currentLeadContacts = [];
               <div class="text-[10px] text-slate-400">${escapeHtml(l.employeeId || '')}</div>
             </td>
             <td class="py-3 px-4 text-center">
+              ${renderFollowUpStatusCellHtml(l, todayISO, 'lead')}
+            </td>
+            <td class="py-3 px-4 text-center">
               <div class="flex items-center justify-center space-x-1.5">
                 <button onclick="editLead('${l.id}')" class="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white rounded-lg transition-colors cursor-pointer" title="Edit Lead Details">
                   <i class="fa-solid fa-pen-to-square text-xs"></i>
@@ -885,6 +918,7 @@ var currentLeadContacts = [];
                 <button onclick="createQuoteFromLead('${l.id}')" class="p-1.5 bg-[#982B68]/30 hover:bg-[#982B68] text-[#E283BD] hover:text-white rounded-lg transition-colors border border-[#982B68]/50 cursor-pointer" title="Generate Quotation with Bi-directional Sync">
                   <i class="fa-solid fa-file-invoice text-xs"></i>
                 </button>
+                ${window.RevOpsStore.leadNeedsFollowUp(l) ? `<button onclick="window.openLogFollowUpModal('leads', '${l.id}', '${escapeHtml(l.leadNumber || l.id)}', '${escapeHtml(l.customerName || '')}')" class="p-1.5 bg-amber-900/30 hover:bg-amber-700 text-amber-300 hover:text-white rounded-lg transition-colors border border-amber-700/50 cursor-pointer" title="Log Follow-up"><i class="fa-solid fa-phone-volume text-xs"></i></button>` : ''}
               </div>
             </td>
           `;
@@ -948,6 +982,8 @@ var currentLeadContacts = [];
           document.getElementById('inp-lead-notes').value = leadData.notes || '';
           document.getElementById('inp-lead-lost-reason').value = leadData.lostReason || '';
           document.getElementById('inp-lead-lost-remarks').value = leadData.lostRemarks || '';
+          document.getElementById('inp-lead-followup-date').value = leadData.followUpDate || '';
+          renderLeadFollowUpHistorySummary(leadData.followUpHistory);
           toggleLeadStageExtraFields();
 
           if (leadData.contacts && Array.isArray(leadData.contacts)) {
@@ -973,6 +1009,7 @@ var currentLeadContacts = [];
           document.getElementById('inp-lead-stage').value = 'Contacted';
           document.getElementById('inp-lead-lost-reason').value = '';
           document.getElementById('inp-lead-lost-remarks').value = '';
+          renderLeadFollowUpHistorySummary(null);
           toggleLeadStageExtraFields();
           currentLeadProducts = [];
           addProductRow();
@@ -1072,6 +1109,12 @@ var currentLeadContacts = [];
           return;
         }
 
+        var followUpDate = document.getElementById('inp-lead-followup-date').value;
+        if (window.RevOpsStore.leadNeedsFollowUp({ status: selectedStage }) && !followUpDate) {
+          alert("Please set a Next Follow-up Date — it's required for any lead that's still open, so this deal doesn't go cold.");
+          return;
+        }
+
         var newLead = {
           id: docId || ('lead_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4)),
           leadNumber: nextLeadNum,
@@ -1093,7 +1136,13 @@ var currentLeadContacts = [];
           status: selectedStage,
           lostReason: selectedStage === 'Lost' ? lostReason : '',
           lostRemarks: selectedStage === 'Lost' ? lostRemarks : '',
-          postponedUntil: selectedStage === 'Postponed' ? new Date(Date.now() + 180 * 24 * 60 * 60 * 1000).toISOString() : '',
+          // The user's own chosen Next Follow-up Date is now authoritative
+          // for Postponed too (previously a blind +180-day guess) - kept
+          // in sync here so anything still reading postponedUntil (the
+          // Postponed badge, legacy dashboard logic) sees the real date.
+          postponedUntil: selectedStage === 'Postponed' && followUpDate ? new Date(followUpDate).toISOString() : (existingLead ? existingLead.postponedUntil : ''),
+          followUpDate: followUpDate,
+          followUpHistory: existingLead ? (existingLead.followUpHistory || []) : [],
           contacts: validContacts,
           contactPerson: primaryContact.name,
           contactPhone: primaryContact.phone,

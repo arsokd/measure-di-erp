@@ -462,6 +462,7 @@ var currentEditingQuoteId = null;
           return new Date(b.createdDate || '2026-01-01') - new Date(a.createdDate || '2026-01-01');
         });
 
+        var todayISO = getLocalTodayISO();
         filtered.forEach(function(q) {
           var tr = document.createElement('tr');
           tr.id = 'quote-row-' + q.id;
@@ -535,8 +536,16 @@ var currentEditingQuoteId = null;
             <td class="px-4 py-3 text-center">
               ${statusBadge}
             </td>
+            <td class="px-4 py-3 text-center">
+              ${renderFollowUpStatusCellHtml(q, todayISO, 'quotation', 'light')}
+            </td>
             <td class="px-4 py-3 text-right">
               <div class="flex items-center justify-end space-x-1.5">
+                ${window.RevOpsStore.quotationNeedsFollowUp(q.status) ? `
+                  <button onclick="window.openLogFollowUpModal('quotations', '${q.id}', '${escapeHtml(q.quoteNumber || q.id)}', '${escapeHtml(q.customerName || '')}')" class="p-1.5 text-amber-600 hover:bg-amber-50 rounded-lg transition-colors" title="Log Follow-up">
+                    📞
+                  </button>
+                ` : ''}
                 <button onclick="viewPrintQuote('${q.id}')" class="p-1.5 text-sky-600 hover:bg-sky-50 rounded-lg transition-colors" title="View / Print PDF">
                   👁️
                 </button>
@@ -785,6 +794,8 @@ var currentEditingQuoteId = null;
             document.getElementById('inp-overall-disc-amount').value = Math.round(q.overallDiscountAmount || 0);
             document.getElementById('inp-quote-terms').value = q.termsAndConditions || '';
             document.getElementById('inp-quote-remarks').value = q.discountRemarks || '';
+            document.getElementById('inp-quote-followup-date').value = q.followUpDate || '';
+            renderQuoteFollowUpHistorySummary(q.followUpHistory);
             if (q.bankDetails) document.getElementById('inp-quote-bank').value = q.bankDetails;
 
             activeQuoteItems = q.items ? JSON.parse(JSON.stringify(q.items)) : [];
@@ -823,6 +834,8 @@ var currentEditingQuoteId = null;
           document.getElementById('inp-overall-disc-percent').value = "0";
           document.getElementById('inp-overall-disc-amount').value = "0";
           document.getElementById('inp-quote-remarks').value = "";
+          document.getElementById('inp-quote-followup-date').value = "";
+          renderQuoteFollowUpHistorySummary(null);
           if (document.getElementById('inp-quote-lead-search')) document.getElementById('inp-quote-lead-search').value = "";
           setLeadLinkedFieldsLocked(false);
 
@@ -853,6 +866,24 @@ var currentEditingQuoteId = null;
 
       function closeQuoteModal() {
         document.getElementById('quoteModal').classList.add('hidden');
+      }
+
+      // Read-only "N follow-ups logged, most recent: ..." summary shown
+      // under the Next Follow-up Date field when editing a quotation that
+      // already has history - mirrors renderLeadFollowUpHistorySummary in
+      // leads.js. logFollowUp() remains the only way to add to it.
+      function renderQuoteFollowUpHistorySummary(history) {
+        var el = document.getElementById('quote-followup-history-summary');
+        if (!el) return;
+        if (!history || !history.length) {
+          el.classList.add('hidden');
+          el.innerHTML = '';
+          return;
+        }
+        var last = history[history.length - 1];
+        el.classList.remove('hidden');
+        el.innerHTML = '<i class="fa-solid fa-clock-rotate-left"></i> ' + history.length + ' follow-up' + (history.length === 1 ? '' : 's') +
+          ' logged so far &bull; last: "' + escapeHtml(last.note || '') + '" (' + escapeHtml(last.loggedBy || '') + ')';
       }
 
       function syncLineItemsFromDOM() {
@@ -1321,6 +1352,14 @@ var currentEditingQuoteId = null;
         var terms = document.getElementById('inp-quote-terms').value;
         var remarks = document.getElementById('inp-quote-remarks').value;
         var bankDetails = document.getElementById('inp-quote-bank').value;
+        var followUpDate = document.getElementById('inp-quote-followup-date').value;
+        var existingQuoteForValidation = quoteId ? getQuotationsList().find(function(it) { return it.id === quoteId; }) : null;
+        var existingStatusNeedsFollowUp = window.RevOpsStore.quotationNeedsFollowUp(existingQuoteForValidation ? existingQuoteForValidation.status : 'Pending Approval');
+        if (existingStatusNeedsFollowUp && !followUpDate) {
+          alert("Please set a Next Follow-up Date — it's required for any quotation still awaiting a decision, so it doesn't go cold.");
+          document.getElementById('inp-quote-followup-date').focus();
+          return;
+        }
 
         // Calculate Totals
         var grossSubtotal = 0;
@@ -1378,6 +1417,8 @@ var currentEditingQuoteId = null;
             employeeId: ownerEmpId,
             employeeName: ownerName,
             createdDate: formatDateFromInput(dateVal),
+            followUpDate: followUpDate,
+            followUpHistory: [],
             validityDays: validityDays,
             deliveryLeadTime: leadTime,
             advancePercent: advancePercent,
@@ -1444,6 +1485,7 @@ var currentEditingQuoteId = null;
             quotes[idx].overallDiscountAmount = overallDiscAmt;
             quotes[idx].discountRemarks = remarks;
             quotes[idx].bankDetails = bankDetails;
+            if (followUpDate) quotes[idx].followUpDate = followUpDate;
             quotes[idx].netSubtotal = netSubtotal;
             quotes[idx].taxAmount = taxAmount;
             quotes[idx].grandTotal = grandTotal;

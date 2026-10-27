@@ -164,6 +164,7 @@
                 <th class="py-3 px-4 text-right">Currency & Est. Value</th>
                 <th class="py-3 px-4 text-center">8-Stage Funnel Status</th>
                 <th class="py-3 px-4">Lead Owner</th>
+                <th class="py-3 px-4 text-center">Next Follow-up</th>
                 <th class="py-3 px-4 text-center">Actions</th>
               </tr>
             </thead>
@@ -329,9 +330,16 @@
                 <optgroup label="Closed / Exit">
                   <option value="Trashed">Trashed (not a real opportunity)</option>
                   <option value="Lost">Lost (pursued, but didn't convert)</option>
-                  <option value="Postponed">Postponed (won't decide for ~180 days)</option>
+                  <option value="Postponed">Postponed (pick a date to revisit)</option>
                 </optgroup>
               </select>
+            </div>
+
+            <div id="lead-followup-field" class="space-y-1">
+              <label class="block text-[10px] font-bold uppercase text-amber-400 tracking-wider">Next Follow-up Date *</label>
+              <input type="date" id="inp-lead-followup-date" class="w-full px-3 py-2 bg-slate-950 border border-amber-700/50 rounded-xl text-xs text-white focus:outline-none focus:border-amber-500" />
+              <p class="text-[10px] text-slate-500">Required for any lead that's still open — a reminder pops up for you on this date until a follow-up is actually logged.</p>
+              <div id="lead-followup-history-summary" class="hidden text-[11px] text-slate-400"></div>
             </div>
 
             <div id="lead-lost-reason-fields" class="hidden space-y-2 pt-1">
@@ -348,7 +356,7 @@
             </div>
 
             <div id="lead-postponed-note" class="hidden p-2.5 rounded-lg bg-amber-950/40 border border-amber-700/50 text-[11px] text-amber-300 font-semibold">
-              This lead will be marked for re-engagement in 180 days and will stay out of your active pending follow-ups until then.
+              Pick a real date above — this lead stays out of your active follow-ups until that date arrives, then resurfaces automatically.
             </div>
           </div>
 

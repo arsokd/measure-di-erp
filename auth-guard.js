@@ -130,6 +130,185 @@ function renderDealAttachmentsListHtml(attachments) {
 }
 window.renderDealAttachmentsListHtml = renderDealAttachmentsListHtml;
 
+// ============ LEAD / QUOTATION FOLLOW-UP SYSTEM (shared UI) ============
+// Client-reported problem: leads/quotations go cold from poor follow-up
+// discipline. followUpDate is mandatory wherever a Lead/Quotation is still
+// "in play" (enforced in leads.js/quotations.js); this file provides the
+// shared list-column renderer, the one global "Log Follow-up" modal used
+// from both pages' row actions and the persistent due-follow-ups popup
+// below, and the popup itself - which re-checks and re-shows on every
+// single page load for as long as anything is still due, by deliberate
+// design (not a one-time notice like the approvals popup).
+
+function _isoDateToDisplay(iso) {
+  var s = String(iso || '');
+  if (s.length < 10) return s || '—';
+  var parts = s.slice(0, 10).split('-');
+  return parts.length === 3 ? (parts[2] + '/' + parts[1] + '/' + parts[0]) : s;
+}
+
+// Shared by the Leads (dark theme) and Quotations (light theme) list
+// tables - one compact cell showing the next follow-up date (color-coded
+// overdue/due-today/upcoming) plus how many follow-ups have been logged
+// so far. recordType is 'lead' or 'quotation'; theme is 'dark' (default,
+// matches leads.html) or 'light' (matches quotations.html).
+function renderFollowUpStatusCellHtml(record, todayISO, recordType, theme) {
+  var needsFollowUp = recordType === 'lead'
+    ? window.RevOpsStore.leadNeedsFollowUp(record)
+    : window.RevOpsStore.quotationNeedsFollowUp(record.status);
+  var countTextClass = theme === 'light' ? 'text-slate-400' : 'text-slate-500';
+  if (!needsFollowUp) {
+    return '<span class="' + (theme === 'light' ? 'text-slate-400' : 'text-slate-600') + ' text-[11px]">—</span>';
+  }
+  var dueDate = record.followUpDate || record.postponedUntil || '';
+  var count = (record.followUpHistory || []).length;
+  var countHtml = '<div class="text-[9px] ' + countTextClass + ' mt-0.5">' + count + ' follow-up' + (count === 1 ? '' : 's') + ' so far</div>';
+  var notSetClass = theme === 'light' ? 'bg-rose-50 text-rose-700 border-rose-300' : 'bg-rose-950/80 text-rose-300 border-rose-700/60';
+  if (!dueDate) {
+    return '<span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase ' + notSetClass + '">Not Set</span>' + countHtml;
+  }
+  var dateOnly = String(dueDate).slice(0, 10);
+  var badgeClass = theme === 'light' ? 'bg-slate-100 text-slate-700 border-slate-300' : 'bg-slate-800 text-slate-300 border-slate-700';
+  var label = _isoDateToDisplay(dueDate);
+  if (dateOnly < todayISO) {
+    badgeClass = notSetClass;
+    label = 'Overdue: ' + label;
+  } else if (dateOnly === todayISO) {
+    badgeClass = theme === 'light' ? 'bg-amber-50 text-amber-800 border-amber-300' : 'bg-amber-950/80 text-amber-300 border-amber-700/60';
+    label = 'Due Today';
+  }
+  return '<span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase border ' + badgeClass + '">' + label + '</span>' + countHtml;
+}
+window.renderFollowUpStatusCellHtml = renderFollowUpStatusCellHtml;
+
+// The one global "Log Follow-up" modal - available on every page since
+// this file loads everywhere. Triggered from a Leads/Quotations list row
+// button, or from an item in the persistent due-follow-ups popup below.
+function openLogFollowUpModal(colName, id, ref, customerName) {
+  closeLogFollowUpModal();
+  var modal = document.createElement('div');
+  modal.id = 'log-followup-modal';
+  modal.className = 'fixed inset-0 z-[60] bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4';
+  modal.innerHTML = `
+    <div class="bg-slate-900 w-full max-w-md rounded-2xl shadow-2xl border border-amber-700/60 overflow-hidden">
+      <div class="px-5 py-3.5 bg-amber-950/40 border-b border-amber-900/60 flex items-center justify-between">
+        <h3 class="text-sm font-bold text-amber-200 flex items-center gap-2"><i class="fa-solid fa-phone-volume"></i><span>Log Follow-up</span></h3>
+        <button type="button" onclick="closeLogFollowUpModal()" class="text-slate-400 hover:text-white text-lg font-bold p-1 cursor-pointer">&times;</button>
+      </div>
+      <div class="p-5 space-y-3">
+        <p class="text-xs text-slate-300">${escapeHtml(ref || '')} &bull; <span class="font-semibold text-white">${escapeHtml(customerName || '')}</span></p>
+        <div>
+          <label class="block text-[10px] font-bold uppercase text-slate-400 tracking-wider mb-1">What happened? *</label>
+          <textarea id="inp-followup-note" rows="3" placeholder="e.g. Spoke to purchase manager, awaiting their budget approval next week" class="w-full px-3 py-2 bg-slate-950 border border-slate-750 rounded-xl text-xs text-white focus:outline-none focus:border-amber-500"></textarea>
+        </div>
+        <div>
+          <label class="block text-[10px] font-bold uppercase text-slate-400 tracking-wider mb-1">Next Follow-up Date *</label>
+          <input type="date" id="inp-followup-next-date" class="w-full px-3 py-2 bg-slate-950 border border-slate-750 rounded-xl text-xs text-white focus:outline-none focus:border-amber-500" />
+        </div>
+        <div class="flex items-center justify-end gap-2 pt-1">
+          <button type="button" onclick="closeLogFollowUpModal()" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold cursor-pointer">Cancel</button>
+          <button type="button" onclick="submitLogFollowUp('${colName}', '${id}')" class="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-bold shadow-lg cursor-pointer">Save Follow-up</button>
+        </div>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+}
+window.openLogFollowUpModal = openLogFollowUpModal;
+
+function closeLogFollowUpModal() {
+  var el = document.getElementById('log-followup-modal');
+  if (el) el.remove();
+}
+window.closeLogFollowUpModal = closeLogFollowUpModal;
+
+function submitLogFollowUp(colName, id) {
+  var note = document.getElementById('inp-followup-note').value;
+  var nextDate = document.getElementById('inp-followup-next-date').value;
+  if (!note || !note.trim()) {
+    alert("Please note what happened on this follow-up before saving.");
+    return;
+  }
+  if (!nextDate) {
+    alert("Please set the next follow-up date.");
+    return;
+  }
+  var result = window.RevOpsStore.logFollowUp(colName, id, note, nextDate);
+  if (!result.success) {
+    alert("Could not save this follow-up — please try again.");
+    return;
+  }
+  closeLogFollowUpModal();
+  // Refresh whichever page-level table/popup is present, defensively -
+  // this modal is reachable from leads.html, quotations.html, or the
+  // popup on any other page at all.
+  if (typeof renderLeadsTable === 'function') renderLeadsTable();
+  if (typeof renderQuotations === 'function') renderQuotations();
+  checkFollowUpDuePopup();
+}
+window.submitLogFollowUp = submitLogFollowUp;
+
+// Persistent, intentionally-not-permanently-dismissible popup: re-checks
+// and re-renders on every single page load for as long as the signed-in
+// user has anything due. Unlike checkPendingApprovalsPopup above, there is
+// no "already notified" tracking here at all - that's the whole point
+// (client's explicit ask: keep popping up until a follow-up is actually
+// logged or the record is closed out, never a one-time notice).
+function checkFollowUpDuePopup() {
+  try {
+    var empId = localStorage.getItem('employeeId');
+    var popupId = 'followup-due-global-popup';
+    var existing = document.getElementById(popupId);
+    if (!empId || !window.RevOpsStore || typeof window.RevOpsStore.getDueFollowUps !== 'function') {
+      if (existing) existing.remove();
+      return;
+    }
+
+    var due = window.RevOpsStore.getDueFollowUps(empId);
+    if (due.length === 0) {
+      if (existing) existing.remove();
+      return;
+    }
+
+    // Always rebuild from scratch rather than leaving a stale element in
+    // place - the due list changes every time an item is resolved, and a
+    // second call must never leave two same-ID elements in the DOM (which
+    // would make getElementById/remove() silently act on the wrong one).
+    if (existing) existing.remove();
+
+    var popup = document.createElement('div');
+    popup.id = popupId;
+    popup.className = 'fixed bottom-5 right-5 left-3 md:left-auto z-50 max-w-sm md:w-full bg-slate-900 border-2 border-rose-600/80 rounded-2xl shadow-2xl p-4 text-white';
+    popup.innerHTML = `
+      <div class="flex items-center gap-2 pb-2 border-b border-slate-800">
+        <div class="w-7 h-7 rounded-lg bg-rose-600 flex items-center justify-center text-sm shrink-0">📞</div>
+        <div>
+          <h4 class="text-xs font-black uppercase tracking-wider text-rose-400">Follow-ups Due</h4>
+          <p class="text-[11px] text-slate-300">${due.length} item(s) need a follow-up — log one to clear it from this list.</p>
+        </div>
+      </div>
+      <div class="py-2 space-y-1.5 max-h-48 overflow-y-auto">
+        ${due.map(function(item) {
+          var typeLabel = item.colName === 'leads' ? 'Lead' : 'Quotation';
+          return `
+            <div class="flex items-center justify-between bg-slate-800/90 px-2.5 py-1.5 rounded-lg border border-slate-700 text-xs gap-2">
+              <div class="min-w-0">
+                <div class="font-semibold text-slate-100 truncate">${escapeHtml(item.customerName)}</div>
+                <div class="text-[10px] text-slate-400">${typeLabel} ${escapeHtml(item.ref)} &bull; ${item.followUpCount} logged so far</div>
+              </div>
+              <button onclick="openLogFollowUpModal('${item.colName}', '${item.id}', '${escapeHtml(item.ref)}', '${escapeHtml(item.customerName)}')" class="shrink-0 px-2.5 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-[10px] font-bold cursor-pointer">Log Follow-up</button>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    `;
+    document.body.appendChild(popup);
+  } catch(e) {
+    console.warn("Follow-up due popup check failed:", e);
+  }
+}
+window.checkFollowUpDuePopup = checkFollowUpDuePopup;
+
 // Clears every localStorage flag a real login sets, so a signed-out device
 // is left with no stale "logged in" state of any kind to confuse the next
 // checkAuth() run. Shared by the auth-desync self-heal above and the
@@ -607,6 +786,7 @@ function renderRevOpsNavbar(userName, userRole, hasDirectReports) {
   setTimeout(function() {
     checkAssignedServiceTicketsPopup();
     checkPendingApprovalsPopup();
+    checkFollowUpDuePopup();
   }, 400);
 }
 
