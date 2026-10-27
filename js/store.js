@@ -1951,6 +1951,16 @@ Object.assign(window.RevOpsStore, {
     return (localItems || []).filter(function(it) { return remoteIds.indexOf(it.id) !== -1; });
   },
 
+  // General-purpose version of the above, used by subscribeRealtimeSync's
+  // one-time first-snapshot reconciliation for every collection besides
+  // employees (see the call site). Matches on docId as well as id since
+  // the ongoing docChanges patch logic above does the same.
+  _pruneStaleLocalRecordsNotInRemoteSnapshot: function(localItems, remoteIds) {
+    return (localItems || []).filter(function(it) {
+      return remoteIds.indexOf(it.id) !== -1 || remoteIds.indexOf(it.docId) !== -1;
+    });
+  },
+
   subscribeRealtimeSync: function(colName, onDataUpdated) {
     if (!this.isFirebaseAvailable()) return null;
     try {
@@ -1964,6 +1974,7 @@ Object.assign(window.RevOpsStore, {
         query = query.where('employeeId', '==', empId);
       }
 
+      var hasReconciledOnce = false;
       return query.onSnapshot(function(snapshot) {
         var localItems = window.RevOpsStore.getCollection(colName) || [];
 
@@ -1989,19 +2000,39 @@ Object.assign(window.RevOpsStore, {
         // Employees is centrally admin-managed - never something a field
         // user creates while briefly offline - so once Firestore has
         // delivered a real (not merely cached) snapshot, it's fully
-        // authoritative here. A stale local-only record (most commonly
-        // the hardcoded defaultEmployees demo seed in seed-data.js,
-        // written straight to localStorage on a device that predates
-        // this one ever connecting to Firestore, e.g. "Developer
-        // (ars.okd)" plus the old starter roster) has no Firestore doc
-        // to ever trigger a "removed" docChange above, so without this
-        // it sits duplicated alongside the real synced employee forever.
-        // Deliberately NOT applied to other collections: a genuine
-        // just-created, not-yet-synced local record there must survive.
+        // authoritative here, on every snapshot (not just the first). A
+        // stale local-only record (most commonly the hardcoded
+        // defaultEmployees demo seed in seed-data.js, written straight to
+        // localStorage on a device that predates this one ever connecting
+        // to Firestore, e.g. "Developer (ars.okd)" plus the old starter
+        // roster) has no Firestore doc to ever trigger a "removed"
+        // docChange above, so without this it sits duplicated alongside
+        // the real synced employee forever. Every other collection gets
+        // the same treatment below, just limited to this listener's first
+        // confirmed snapshot only (see that branch for why).
         if (colName === 'employees' && !snapshot.metadata.fromCache) {
           var remoteIds = snapshot.docs.map(function(doc) { return doc.id; });
           localItems = window.RevOpsStore._pruneEmployeesNotInRemoteSnapshot(localItems, remoteIds);
+        } else if (!hasReconciledOnce && !snapshot.metadata.fromCache) {
+          // One-time reconciliation the first time THIS listener (i.e. this
+          // page load/tab) gets a confirmed, server-backed snapshot -
+          // drops any record that exists only in this browser's old local
+          // cache from a past session (e.g. a lead permanently deleted via
+          // Master Data while this browser was closed) but no longer
+          // exists in Firestore. docChanges() alone can never catch this:
+          // a brand-new listener's first batch only reports "added" for
+          // what currently exists, with zero signal for something that
+          // was already gone before the listener started watching - the
+          // exact bug the employees-only fix above was written for,
+          // generalized here to every collection. Limited to once per
+          // listener lifetime (not every snapshot) so a record this same
+          // session creates while briefly offline is never at risk of
+          // being pruned mid-session - by the time a later snapshot is
+          // confirmed non-cache, that record is already included in it.
+          var remoteIds2 = snapshot.docs.map(function(doc) { return doc.id; });
+          localItems = window.RevOpsStore._pruneStaleLocalRecordsNotInRemoteSnapshot(localItems, remoteIds2);
         }
+        if (!snapshot.metadata.fromCache) hasReconciledOnce = true;
 
         window.RevOpsStore.saveCollection(colName, localItems);
         if (typeof onDataUpdated === 'function') onDataUpdated(localItems);

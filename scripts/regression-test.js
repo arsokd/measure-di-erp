@@ -4274,6 +4274,43 @@ async function testPruneStaleLocalEmployees(browser) {
   return failures;
 }
 
+// Same class of bug as above (a returning browser's stale localStorage
+// keeps showing a record Firestore no longer has, because a brand-new
+// onSnapshot listener's first batch only ever reports what currently
+// exists - never what used to), generalized from employees-only to every
+// collection via subscribeRealtimeSync's one-time first-snapshot
+// reconciliation. This is what a client complaint of "deleted leads still
+// showing in my regular Chrome but not in a fresh Incognito window" traces
+// back to.
+async function testPruneStaleLocalRecordsGeneralized(browser) {
+  const failures = [];
+  const { page } = await newPage(browser);
+
+  await page.goto(BASE_URL + '/dashboard.html', { waitUntil: 'networkidle', timeout: 30000 });
+  await page.waitForTimeout(600);
+
+  const result = await page.evaluate(function () {
+    var local = [
+      { id: 'lead_deleted_1', customerName: 'Permanently Deleted Lead' }, // no longer exists in Firestore
+      { id: 'lead_real_1', customerName: 'Still-Active Lead' },
+      { docId: 'lead_real_2', customerName: 'Active Lead matched via docId' }
+    ];
+    var remoteIds = ['lead_real_1', 'lead_real_2'];
+    return window.RevOpsStore._pruneStaleLocalRecordsNotInRemoteSnapshot(local, remoteIds);
+  });
+  assertEqual(result.length, 2, 'A stale local lead no longer in Firestore is pruned, leaving only the still-real records', failures);
+  assertTrue(result.every(function (r) { return r.id !== 'lead_deleted_1'; }), 'The pruned record is specifically the one Firestore no longer has', failures);
+  assertTrue(result.some(function (r) { return r.docId === 'lead_real_2'; }), 'A record matched via docId (not id) survives correctly', failures);
+
+  const emptyRemoteResult = await page.evaluate(function () {
+    return window.RevOpsStore._pruneStaleLocalRecordsNotInRemoteSnapshot([{ id: 'a' }, { id: 'b' }], []);
+  });
+  assertEqual(emptyRemoteResult.length, 0, 'An empty remote snapshot prunes every local record for any collection, not just employees', failures);
+
+  await page.close();
+  return failures;
+}
+
 // ---------------------------------------------------------------------
 // Pending Approvals notification system: the popup (auth-guard.js) and
 // the Approvals hub page (approvals.html) now share one routing source
@@ -4905,6 +4942,7 @@ const TESTS = [
   ['PWA installability: manifest/icons/meta tags on every page, manifest.json and sw.js reachable', testPwaInstallabilityTags],
   ['Mobile layout: Dashboard/DWM/Attendance never force horizontal page scroll at 390px width', testMobileNoHorizontalOverflow],
   ['Realtime sync self-heals stale local-only employee duplicates once Firestore is authoritative', testPruneStaleLocalEmployees],
+  ['Realtime sync self-heals stale local records for every collection (not just employees) on a listener\'s first confirmed snapshot - fixes deleted leads reappearing in a returning browser', testPruneStaleLocalRecordsGeneralized],
   ['Pending Approvals: shared routing, popup, and email notifications on entering an approval stage', testApprovalNotifications],
   ['Quotation/Order/Invoice Primary Approval is scoped to the approver\'s own vertical, with fallback when nobody matches', testApprovalVerticalScoping],
   ['Shared deal-chain attachments: a file added at any of Lead/Quotation/Order/Invoice shows at every other stage of that deal', testDealChainAttachments],
