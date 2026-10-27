@@ -130,6 +130,35 @@ function renderDealAttachmentsListHtml(attachments) {
 }
 window.renderDealAttachmentsListHtml = renderDealAttachmentsListHtml;
 
+// Clears every localStorage flag a real login sets, so a signed-out device
+// is left with no stale "logged in" state of any kind to confuse the next
+// checkAuth() run. Shared by the auth-desync self-heal above and the
+// single-active-session enforcement below.
+function clearLocalAuthSessionFlags() {
+  localStorage.removeItem('userRole');
+  localStorage.removeItem('userName');
+  localStorage.removeItem('userEmail');
+  localStorage.removeItem('employeeId');
+  localStorage.removeItem('isPrimaryApprover');
+  localStorage.removeItem('isDirector');
+  localStorage.removeItem('isFinalApprover');
+  localStorage.removeItem('isFinanceHead');
+  localStorage.removeItem('sessionToken');
+}
+window.clearLocalAuthSessionFlags = clearLocalAuthSessionFlags;
+
+// Pure decision function behind the single-active-session watcher below -
+// kept separate and directly testable without mocking a full Firestore
+// onSnapshot listener (the regression suite has no real Firestore
+// connection to drive one against). fromCache/docExists mirror a
+// snapshot's own metadata.fromCache/exists.
+function shouldForceLogoutForSessionMismatch(remoteToken, localToken, fromCache, docExists) {
+  if (fromCache || !docExists) return false;
+  if (!remoteToken || !localToken) return false;
+  return remoteToken !== localToken;
+}
+window.shouldForceLogoutForSessionMismatch = shouldForceLogoutForSessionMismatch;
+
 // Self-healing guard against a desynced session: the app's own "logged in"
 // state lives in localStorage, but every server-side action (Firestore rules,
 // the email-sending function) requires a real, live Firebase Authentication
@@ -138,19 +167,53 @@ window.renderDealAttachmentsListHtml = renderDealAttachmentsListHtml;
 // or predates a backend migration), clear the stale local flags and send the
 // user back to a real login instead of leaving them in a broken half-logged-in
 // state where pages render but every server call silently fails.
+//
+// The same callback also enforces single-active-session: login.html writes a
+// fresh random token to activeSessions/{uid} and this device's own copy to
+// localStorage.sessionToken on every real sign-in. Keyed on the Firebase Auth
+// uid (not employeeId) so it's completely unaffected by the admin-only
+// "Switch Session User" view feature, which only ever changes employeeId in
+// localStorage for local testing/support and never re-authenticates - it
+// must never be mistaken for a second device logging in. Once a *different*
+// device signs in as the same person, Firestore overwrites that token, this
+// listener sees the mismatch the moment a real (non-cached) snapshot
+// confirms it, and this - the now-older - session is signed out immediately
+// with a clear reason, rather than silently staying logged in forever
+// alongside the new one.
 (function watchForAuthDesync() {
   if (window.location.pathname.indexOf('login.html') !== -1) return;
   if (typeof firebase === 'undefined' || !firebase.auth) return;
+  var sessionUnsub = null;
   try {
     firebase.auth().onAuthStateChanged(function(user) {
+      if (sessionUnsub) { try { sessionUnsub(); } catch (eUnsub) {} sessionUnsub = null; }
+
       if (!user && localStorage.getItem('userRole')) {
         console.warn("Firebase Auth session missing while app session flags are set — signing out.");
-        localStorage.removeItem('userRole');
-        localStorage.removeItem('userName');
-        localStorage.removeItem('userEmail');
-        localStorage.removeItem('employeeId');
+        clearLocalAuthSessionFlags();
         if (window.location.pathname.indexOf('login.html') === -1) {
           window.location.href = 'login.html';
+        }
+        return;
+      }
+
+      if (user && window.db && localStorage.getItem('sessionToken')) {
+        try {
+          sessionUnsub = window.db.collection('activeSessions').doc(user.uid).onSnapshot(function(snap) {
+            var remoteToken = (snap.data() || {}).token;
+            var myToken = localStorage.getItem('sessionToken');
+            if (shouldForceLogoutForSessionMismatch(remoteToken, myToken, snap.metadata.fromCache, snap.exists)) {
+              console.warn("This account was signed in on another device — signing out here.");
+              clearLocalAuthSessionFlags();
+              firebase.auth().signOut().catch(function() {});
+              alert("You've been signed out because this account was just signed in on another device or browser.");
+              window.location.href = 'login.html';
+            }
+          }, function(errSession) {
+            console.warn("Single-session watcher error:", errSession.message || errSession);
+          });
+        } catch (eSession) {
+          console.warn("Failed to attach single-session watcher:", eSession);
         }
       }
     });
@@ -758,10 +821,7 @@ function handleRevOpsLogout() {
     if (typeof auth !== 'undefined' && auth && auth.signOut) {
       auth.signOut();
     }
-    localStorage.removeItem('userRole');
-    localStorage.removeItem('userName');
-    localStorage.removeItem('userEmail');
-    localStorage.removeItem('employeeId');
+    clearLocalAuthSessionFlags();
     window.location.href = 'login.html';
   }
 }

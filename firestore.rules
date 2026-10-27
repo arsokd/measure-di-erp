@@ -78,6 +78,17 @@ service cloud.firestore {
       allow delete: if isLeadershipOrAdmin();
     }
 
+    // Single-active-session enforcement (see login.html / auth-guard.js):
+    // one doc per Firebase Auth uid holding that device's current session
+    // token. Scoped strictly to the signed-in user's own uid, on both read
+    // and write - without this, the broad catch-all at the bottom of this
+    // file would let any signed-in user overwrite anyone else's session
+    // token and force them logged out, which defeats the whole point of a
+    // *security* feature.
+    match /activeSessions/{uid} {
+      allow read, write: if signedIn() && request.auth.uid == uid;
+    }
+
     // ---- Sensitive HR / financial: admin write, self-or-admin read ----
     match /payroll/{docId} {
       allow read: if isLeadershipOrAdmin() ||

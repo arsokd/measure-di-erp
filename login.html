@@ -231,6 +231,30 @@
           localStorage.setItem('isFinalApprover', String(isFinalApprover || (employeeRecord && employeeRecord.isFinalApprover === true)));
           localStorage.setItem('isFinanceHead', String(isFinanceHead || (employeeRecord && employeeRecord.isFinanceHead === true)));
 
+          // Single-active-session enforcement: this device's own copy of a
+          // fresh random token, plus the authoritative copy in Firestore
+          // keyed on the real Firebase Auth uid. auth-guard.js watches this
+          // doc on every other page; the moment a different device signs in
+          // as the same person and overwrites it, this (now older) session
+          // sees the mismatch and is signed out automatically. Awaited
+          // (not fire-and-forget) specifically because the next line
+          // navigates away immediately - an in-flight, un-awaited write
+          // could otherwise be abandoned by the page unload and silently
+          // never reach Firestore at all.
+          var sessionToken = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : (Date.now() + '_' + Math.random().toString(36).slice(2));
+          localStorage.setItem('sessionToken', sessionToken);
+          if (window.db) {
+            try {
+              await window.db.collection('activeSessions').doc(uid).set({
+                token: sessionToken,
+                email: loginEmail,
+                loggedInAt: new Date().toISOString()
+              });
+            } catch (eSession) {
+              console.warn("Could not record active session token (single-session enforcement may not apply this login):", eSession);
+            }
+          }
+
           if (role === 'super_admin' || role === 'admin' || role === 'manager') {
             window.location.href = 'dashboard.html';
           } else if (role === 'staff') {

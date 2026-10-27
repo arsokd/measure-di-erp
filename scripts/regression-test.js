@@ -4311,6 +4311,56 @@ async function testPruneStaleLocalRecordsGeneralized(browser) {
   return failures;
 }
 
+// Single-active-session enforcement: logging in from a second device/
+// browser must sign the first one out automatically (client explicitly
+// confirmed staff only ever use one device at a time). Tested via the pure
+// decision function - this environment has no real Firestore connection to
+// drive a full onSnapshot listener against, same approach as the stale-
+// record-pruning tests above.
+async function testSingleActiveSessionEnforcement(browser) {
+  const failures = [];
+  const { page } = await newPage(browser);
+
+  await page.goto(BASE_URL + '/dashboard.html', { waitUntil: 'networkidle', timeout: 30000 });
+  await page.waitForTimeout(600);
+
+  const cases = await page.evaluate(function () {
+    var f = window.shouldForceLogoutForSessionMismatch;
+    return {
+      matchingTokens: f('tok-A', 'tok-A', false, true),
+      differentTokens: f('tok-B', 'tok-A', false, true),
+      fromCacheIgnored: f('tok-B', 'tok-A', true, true), // a cache-sourced snapshot can only ever reflect this device's own write
+      docMissingIgnored: f('tok-B', 'tok-A', false, false), // no session doc yet (e.g. pre-feature login) - nothing to enforce
+      noRemoteTokenIgnored: f(null, 'tok-A', false, true),
+      noLocalTokenIgnored: f('tok-B', null, false, true)
+    };
+  });
+  assertTrue(!cases.matchingTokens, 'Matching session tokens (same device) never trigger a forced logout', failures);
+  assertTrue(cases.differentTokens, 'A different, server-confirmed session token (another device logged in) triggers a forced logout', failures);
+  assertTrue(!cases.fromCacheIgnored, 'A cache-sourced snapshot is ignored even if it looks mismatched - only a real server-confirmed snapshot can prove another device logged in', failures);
+  assertTrue(!cases.docMissingIgnored, 'No session doc yet (e.g. a pre-feature login) never forces a logout', failures);
+  assertTrue(!cases.noRemoteTokenIgnored, 'A missing remote token never forces a logout', failures);
+  assertTrue(!cases.noLocalTokenIgnored, 'A missing local token (this device never recorded one) never forces a logout', failures);
+
+  // clearLocalAuthSessionFlags() must wipe every auth-related key a real
+  // login sets, including the single-session token itself - a partial
+  // clear here would leave a stale sessionToken behind that could falsely
+  // re-trigger (or fail to trigger) the mismatch check on the next page.
+  const clearedFlags = await page.evaluate(function () {
+    ['userRole', 'userName', 'userEmail', 'employeeId', 'isPrimaryApprover', 'isDirector', 'isFinalApprover', 'isFinanceHead', 'sessionToken'].forEach(function (k) {
+      localStorage.setItem(k, 'placeholder-value');
+    });
+    window.clearLocalAuthSessionFlags();
+    return ['userRole', 'userName', 'userEmail', 'employeeId', 'isPrimaryApprover', 'isDirector', 'isFinalApprover', 'isFinanceHead', 'sessionToken'].map(function (k) {
+      return localStorage.getItem(k);
+    });
+  });
+  assertTrue(clearedFlags.every(function (v) { return v === null; }), 'clearLocalAuthSessionFlags() removes every auth-related localStorage key, including sessionToken', failures);
+
+  await page.close();
+  return failures;
+}
+
 // ---------------------------------------------------------------------
 // Pending Approvals notification system: the popup (auth-guard.js) and
 // the Approvals hub page (approvals.html) now share one routing source
@@ -4982,6 +5032,7 @@ const TESTS = [
   ['Mobile layout: Dashboard/DWM/Attendance never force horizontal page scroll at 390px width', testMobileNoHorizontalOverflow],
   ['Realtime sync self-heals stale local-only employee duplicates once Firestore is authoritative', testPruneStaleLocalEmployees],
   ['Realtime sync self-heals stale local records for every collection (not just employees) on a listener\'s first confirmed snapshot - fixes deleted leads reappearing in a returning browser', testPruneStaleLocalRecordsGeneralized],
+  ['Single-active-session enforcement: a different device\'s session token forces the older session logged out; same-device/cache/missing-doc cases never do; clearLocalAuthSessionFlags wipes every auth key', testSingleActiveSessionEnforcement],
   ['Pending Approvals: shared routing, popup, and email notifications on entering an approval stage', testApprovalNotifications],
   ['Quotation/Order/Invoice Primary Approval is scoped to the approver\'s own vertical, with fallback when nobody matches', testApprovalVerticalScoping],
   ['Shared deal-chain attachments: a file added at any of Lead/Quotation/Order/Invoice shows at every other stage of that deal', testDealChainAttachments],
