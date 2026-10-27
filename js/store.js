@@ -112,7 +112,8 @@ Object.assign(window.RevOpsStore, {
       return { collection: colName, total: items.length, toDelete: toDelete, toKeep: items.length - toDelete, unknownSkipped: unknownSkipped };
     });
     var grandTotalToDelete = perCollection.reduce(function(s, c) { return s + c.toDelete; }, 0);
-    return { cutoffDateStr: cutoffDateStr, perCollection: perCollection, grandTotalToDelete: grandTotalToDelete };
+    var grandTotalUnknownSkipped = perCollection.reduce(function(s, c) { return s + c.unknownSkipped; }, 0);
+    return { cutoffDateStr: cutoffDateStr, perCollection: perCollection, grandTotalToDelete: grandTotalToDelete, grandTotalUnknownSkipped: grandTotalUnknownSkipped };
   },
 
   // Permanently deletes every record in DEMO_DATA_COLLECTIONS created

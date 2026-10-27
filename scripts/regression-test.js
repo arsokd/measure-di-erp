@@ -1376,6 +1376,20 @@ async function testDeleteDataBeforeDate(browser) {
   });
   assertEqual(preview, '4', 'Delete Data Before Date: live preview shows the correct total for the default cutoff before any confirmation', failures);
 
+  // lead_no_date has no resolvable creation date, so it must show up as a
+  // visible "skipped, unknown date" warning rather than silently vanishing
+  // from the preview with no explanation.
+  const unknownWarning = await page.evaluate(function () {
+    return {
+      visible: !document.getElementById('clear-demo-preview-unknown-warning').classList.contains('hidden'),
+      total: document.getElementById('clear-demo-preview-unknown-total').innerText,
+      listHtml: document.getElementById('clear-demo-preview-list').innerHTML
+    };
+  });
+  assertTrue(unknownWarning.visible, 'Delete Data Before Date: unknown-creation-date warning is shown when a record would be silently kept', failures);
+  assertEqual(unknownWarning.total, '1', 'Delete Data Before Date: unknown-creation-date warning reports the correct count (lead_no_date)', failures);
+  assertTrue(unknownWarning.listHtml.indexOf('skipped, unknown date') !== -1, 'Delete Data Before Date: per-collection breakdown names the skipped-unknown-date count inline', failures);
+
   // Wrong confirmation text must not proceed.
   await page.fill('#inp-clear-demo-confirm', 'wrong text');
   const rejectedWrongText = await page.evaluate(function () {

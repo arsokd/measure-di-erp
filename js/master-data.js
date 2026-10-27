@@ -1235,18 +1235,39 @@ var activeMasterTab = 'products';
       var cutoff = document.getElementById('inp-clear-demo-cutoff-date').value;
       var listEl = document.getElementById('clear-demo-preview-list');
       var totalEl = document.getElementById('clear-demo-preview-total');
+      var unknownWarningEl = document.getElementById('clear-demo-preview-unknown-warning');
+      var unknownTotalEl = document.getElementById('clear-demo-preview-unknown-total');
       var selected = getSelectedClearDemoCollections();
       if (!cutoff || selected.length === 0) {
         listEl.innerHTML = selected.length === 0 ? '<span class="text-slate-600">No record types selected.</span>' : '';
         totalEl.innerText = '0';
+        unknownWarningEl.classList.add('hidden');
         return;
       }
       var preview = window.RevOpsStore.previewDataBeforeDate(cutoff, selected);
-      var nonZero = preview.perCollection.filter(function(c) { return c.toDelete > 0; });
-      listEl.innerHTML = nonZero.length === 0
+      // Show every collection with anything to report - either records that
+      // would be deleted, or records being silently kept because their
+      // creation date can't be confidently resolved (previously invisible -
+      // see TIME_LOG.md 27/10/2026 for why this matters: those records
+      // survive every cleanup run with no indication why).
+      var relevant = preview.perCollection.filter(function(c) { return c.toDelete > 0 || c.unknownSkipped > 0; });
+      listEl.innerHTML = relevant.length === 0
         ? '<span class="text-slate-600">Nothing to delete before this date.</span>'
-        : nonZero.map(function(c) { return (CLEAR_DEMO_COLLECTION_LABELS[c.collection] || c.collection) + ': <span class="text-rose-300">' + c.toDelete + '</span> of ' + c.total; }).join('<br>');
+        : relevant.map(function(c) {
+            var label = CLEAR_DEMO_COLLECTION_LABELS[c.collection] || c.collection;
+            var line = label + ': <span class="text-rose-300">' + c.toDelete + '</span> of ' + c.total;
+            if (c.unknownSkipped > 0) {
+              line += ' <span class="text-amber-400">(+' + c.unknownSkipped + ' skipped, unknown date)</span>';
+            }
+            return line;
+          }).join('<br>');
       totalEl.innerText = preview.grandTotalToDelete;
+      if (preview.grandTotalUnknownSkipped > 0) {
+        unknownTotalEl.innerText = preview.grandTotalUnknownSkipped;
+        unknownWarningEl.classList.remove('hidden');
+      } else {
+        unknownWarningEl.classList.add('hidden');
+      }
     }
 
     function executeClearDemoData() {
