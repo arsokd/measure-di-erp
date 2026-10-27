@@ -2699,6 +2699,51 @@ async function testFollowUpSystem(browser) {
   assertEqual(logResult.updated.followUpHistory[0].note, 'Spoke to the client, revisiting next month', 'The history entry stores the note', failures);
   assertTrue(!!logResult.updated.followUpHistory[0].loggedBy, 'The history entry records who logged it', failures);
 
+  // --- Ownership scoping: the popup/getDueFollowUps must only ever
+  // surface a lead to the person who originated it (its employeeId),
+  // never to anyone else signed in - and that ownership must survive
+  // someone else later editing the lead (e.g. a manager correcting a
+  // field), not silently reassign to whoever happens to save it next. ---
+  await page.goto(BASE_URL + '/leads.html', { waitUntil: 'networkidle', timeout: 30000 });
+  await page.waitForTimeout(600);
+  const ownershipCheck = await page.evaluate(function (sample) {
+    window.RevOpsStore.saveCollection('leads', [
+      Object.assign({}, sample, { id: 'lead_owner_mine', leadNumber: 'LD-OWNER-MINE', customerName: 'My Own Lead Co', employeeId: 'E-001', employeeName: 'Mr. Murugan V', followUpDate: '2020-01-01' }),
+      Object.assign({}, sample, { id: 'lead_owner_other', leadNumber: 'LD-OWNER-OTHER', customerName: 'Someone Elses Lead Co', employeeId: 'E-999-OTHER', employeeName: 'A Different Salesperson', followUpDate: '2020-01-01' })
+    ]);
+    var dueForMe = window.RevOpsStore.getDueFollowUps('E-001').map(function (d) { return d.id; });
+    var dueForOther = window.RevOpsStore.getDueFollowUps('E-999-OTHER').map(function (d) { return d.id; });
+    return { dueForMe: dueForMe, dueForOther: dueForOther };
+  }, sampleTestLead());
+  assertTrue(ownershipCheck.dueForMe.indexOf('lead_owner_mine') !== -1, 'A signed-in employee sees their own overdue lead', failures);
+  assertTrue(ownershipCheck.dueForMe.indexOf('lead_owner_other') === -1, 'A signed-in employee never sees another employee\'s overdue lead in their own due-follow-ups list', failures);
+  assertTrue(ownershipCheck.dueForOther.indexOf('lead_owner_other') !== -1, 'The other employee does see their own overdue lead when queried under their own id', failures);
+
+  // A different person (not the lead's original owner) edits it.
+  await page.evaluate(function () {
+    localStorage.setItem('employeeId', 'E-001');
+    localStorage.setItem('userName', 'Mr. Ravichandran');
+    editLead('lead_owner_other');
+  });
+  await page.waitForTimeout(200);
+  await page.fill('#inp-lead-notes', 'Edited by someone else - remarks updated.');
+  await page.fill('#inp-lead-followup-date', '2030-01-01');
+  const ownerPreservedOnEdit = await page.evaluate(function () {
+    document.getElementById('lead-form').requestSubmit();
+    var saved = window.RevOpsStore.getCollection('leads').find(function (l) { return l.id === 'lead_owner_other'; });
+    return saved ? { employeeId: saved.employeeId, followUpDate: saved.followUpDate } : null;
+  });
+  assertEqual(ownerPreservedOnEdit && ownerPreservedOnEdit.employeeId, 'E-999-OTHER', 'A lead\'s original owner (employeeId) never changes just because someone else edits/saves it - follow-up stays with whoever originated it', failures);
+  assertEqual(ownerPreservedOnEdit && ownerPreservedOnEdit.followUpDate, '2030-01-01', 'The edit itself still saves correctly (proves this was a real save, not a validation block masking a false pass)', failures);
+
+  await page.evaluate(function () {
+    localStorage.setItem('employeeId', 'E-001');
+    localStorage.setItem('userName', 'Mr. Murugan V');
+    window.RevOpsStore.saveCollection('leads', (window.RevOpsStore.getCollection('leads') || []).filter(function (l) {
+      return ['lead_owner_mine', 'lead_owner_other'].indexOf(l.id) === -1;
+    }));
+  });
+
   // --- Mandatory field: Lead form blocks save without a follow-up date
   // for an open stage, but not for Lost (which needs none) ---
   await page.goto(BASE_URL + '/leads.html', { waitUntil: 'networkidle', timeout: 30000 });
