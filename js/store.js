@@ -944,15 +944,46 @@ Object.assign(window.RevOpsStore, {
     this.deleteRecord(colName, id);
   },
 
+  // True when this page is running inside a known iOS "in-app browser"
+  // (opened from a link inside WhatsApp/Instagram/Facebook/Messenger/Line,
+  // not real Safari or a Home-Screen-installed PWA) - these embedded
+  // WebViews commonly block navigator.geolocation outright regardless of
+  // anything this app does, even though every other feature (which needs
+  // no device permission) works fine in them. This is the single most
+  // common real-world cause of "GPS doesn't work on my iPhone, everything
+  // else does" - no retry/timeout tuning can work around it, only opening
+  // the same link in real Safari can.
+  _isLikelyIosInAppBrowser: function(userAgent) {
+    var ua = String(userAgent || '');
+    if (!/iPhone|iPad|iPod/i.test(ua)) return false;
+    return /FBAN|FBAV|Instagram|Line\/|MicroMessenger|WhatsApp|Twitter|TikTok/i.test(ua);
+  },
+
   // Shared live-GPS capture used by both the Attendance page's own GPS
   // retry control and the DWM "Start/Finish My Day" punch buttons. The
   // inline rose error banner (#gps-error-alert/#gps-error-message) only
   // exists on attendance.html, so it's simply skipped when absent — the
   // caller still gets the error reason via the callback either way.
+  //
+  // iOS Safari routinely takes longer than Android Chrome to get a
+  // high-accuracy GPS fix (especially indoors, where it falls back to
+  // slower WiFi-based positioning) and can time out on a single short
+  // attempt that would have succeeded on a second, lower-accuracy try. On
+  // a genuine timeout or "position unavailable" (but NOT a flat permission
+  // denial, which no retry fixes), this automatically retries once with
+  // enableHighAccuracy off and a longer timeout before giving up.
   captureLiveGpsLocation: function(callback) {
+    var self = this;
     var errAlert = document.getElementById('gps-error-alert');
     var errMsg = document.getElementById('gps-error-message');
     if (errAlert) errAlert.classList.add('hidden');
+
+    if (this._isLikelyIosInAppBrowser(navigator.userAgent)) {
+      var inAppTxt = "This link was opened inside another app's built-in browser, which blocks location access on iPhone even though the rest of the app works. Tap the ••• or share icon and choose \"Open in Safari\" (or \"Open in Browser\"), then try Punch In/Out again from there.";
+      if (errAlert && errMsg) { errAlert.classList.remove('hidden'); errMsg.innerText = inAppTxt; }
+      callback(null, inAppTxt);
+      return;
+    }
 
     if (!navigator.geolocation) {
       if (errAlert && errMsg) {
@@ -963,50 +994,65 @@ Object.assign(window.RevOpsStore, {
       return;
     }
 
-    var options = { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 };
+    var isIos = /iPhone|iPad|iPod/i.test(navigator.userAgent || '');
 
+    function describeError(error) {
+      switch(error.code) {
+        case error.PERMISSION_DENIED:
+          return isIos
+            ? "Location access permission was denied. Attendance CANNOT be marked when GPS is denied.\n\nOn iPhone: open Settings -> Privacy & Security -> Location Services -> Safari Websites (or this app's name if you added it to your Home Screen) -> set to \"Allow\" or \"Ask Next Time\", then come back and try again."
+            : "Location access permission was denied by user/browser. Attendance CANNOT be marked when GPS is denied. Please allow location access in browser/device settings.";
+        case error.POSITION_UNAVAILABLE:
+          return "GPS / Location Services are turned off or inactive on your device. Attendance CANNOT be marked. Please turn ON GPS on your mobile/computer and try again.";
+        case error.TIMEOUT:
+          return "GPS request timed out. Please ensure location services are turned ON, move near a window if indoors, and retry.";
+        default:
+          return "Could not detect live GPS location (" + (error.message || 'GPS inactive') + "). Attendance cannot be marked without location verification.";
+      }
+    }
+
+    function toLocationObj(position) {
+      var lat = position.coords.latitude;
+      var lng = position.coords.longitude;
+      var acc = Math.round(position.coords.accuracy || 0);
+      return {
+        latitude: lat,
+        longitude: lng,
+        accuracy: acc,
+        timestamp: new Date().toISOString(),
+        formattedLocation: "Lat: " + lat.toFixed(5) + ", Lng: " + lng.toFixed(5) + " (±" + acc + "m)",
+        googleMapsUrl: "https://www.google.com/maps?q=" + lat + "," + lng
+      };
+    }
+
+    function fail(error) {
+      var txt = describeError(error);
+      if (errAlert && errMsg) {
+        errAlert.classList.remove('hidden');
+        errMsg.innerText = txt;
+      }
+      callback(null, txt);
+    }
+
+    // A flat permission denial can never be fixed by retrying with
+    // different options - only a settings change can, so that one case
+    // skips straight to the (iOS-aware) error message instead of wasting
+    // another ~15s on a second attempt that's guaranteed to fail the
+    // same way.
     navigator.geolocation.getCurrentPosition(
-      function(position) {
-        var lat = position.coords.latitude;
-        var lng = position.coords.longitude;
-        var acc = Math.round(position.coords.accuracy || 0);
-        var isoTime = new Date().toISOString();
-
-        var locationObj = {
-          latitude: lat,
-          longitude: lng,
-          accuracy: acc,
-          timestamp: isoTime,
-          formattedLocation: "Lat: " + lat.toFixed(5) + ", Lng: " + lng.toFixed(5) + " (±" + acc + "m)",
-          googleMapsUrl: "https://www.google.com/maps?q=" + lat + "," + lng
-        };
-
-        if (errAlert) errAlert.classList.add('hidden');
-        callback(locationObj, null);
-      },
-      function(error) {
-        var txt = "";
-        switch(error.code) {
-          case error.PERMISSION_DENIED:
-            txt = "Location access permission was denied by user/browser. Attendance CANNOT be marked when GPS is denied. Please allow location access in browser/device settings.";
-            break;
-          case error.POSITION_UNAVAILABLE:
-            txt = "GPS / Location Services are turned off or inactive on your device. Attendance CANNOT be marked. Please turn ON GPS on your mobile/computer and try again.";
-            break;
-          case error.TIMEOUT:
-            txt = "GPS request timed out. Please ensure high accuracy location services are turned ON and retry.";
-            break;
-          default:
-            txt = "Could not detect live GPS location (" + (error.message || 'GPS inactive') + "). Attendance cannot be marked without location verification.";
-            break;
+      function(position) { callback(toLocationObj(position), null); },
+      function(firstError) {
+        if (firstError.code === firstError.PERMISSION_DENIED) {
+          fail(firstError);
+          return;
         }
-        if (errAlert && errMsg) {
-          errAlert.classList.remove('hidden');
-          errMsg.innerText = txt;
-        }
-        callback(null, txt);
+        navigator.geolocation.getCurrentPosition(
+          function(position) { callback(toLocationObj(position), null); },
+          function(secondError) { fail(secondError); },
+          { enableHighAccuracy: false, timeout: 15000, maximumAge: 0 }
+        );
       },
-      options
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
   },
 

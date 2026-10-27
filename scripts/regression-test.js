@@ -2502,6 +2502,108 @@ async function testDwmPunchInOutFlow(browser) {
   return failures;
 }
 
+// Fixes a client-reported bug: Punch In/Out GPS capture worked on every
+// platform except iPhone. Two real iOS-specific causes, both covered here:
+// (1) a known class of iOS in-app browsers (opened from a WhatsApp/
+// Instagram/etc link instead of real Safari) blocks navigator.geolocation
+// outright - detected and short-circuited with actionable guidance instead
+// of a dead-end "GPS inactive" error; (2) iOS Safari's high-accuracy GPS
+// fix is slower than Android's and can time out on a single short attempt
+// that a second, lower-accuracy attempt would have won - captureLiveGpsLocation
+// now retries once automatically on timeout/unavailable (never on a flat
+// permission denial, which no retry can fix).
+async function testIosGpsRetryAndInAppBrowserDetection(browser) {
+  const failures = [];
+  const { page } = await newPage(browser);
+
+  await page.goto(BASE_URL + '/dashboard.html', { waitUntil: 'networkidle', timeout: 30000 });
+  await page.waitForTimeout(600);
+
+  const uaCases = await page.evaluate(function () {
+    var f = window.RevOpsStore._isLikelyIosInAppBrowser;
+    return {
+      whatsappOnIphone: f('Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 WhatsApp/2.23'),
+      instagramOnIphone: f('Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Instagram 300.0'),
+      fbOnIphone: f('Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 [FBAN/FBIOS;FBAV/450.0]'),
+      realSafariOnIphone: f('Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1'),
+      androidChrome: f('Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0 Mobile Safari/537.36'),
+      whatsappOnAndroid: f('Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 WhatsApp/2.23')
+    };
+  });
+  assertTrue(uaCases.whatsappOnIphone, 'Detects WhatsApp\'s in-app browser on iPhone', failures);
+  assertTrue(uaCases.instagramOnIphone, 'Detects Instagram\'s in-app browser on iPhone', failures);
+  assertTrue(uaCases.fbOnIphone, 'Detects Facebook\'s in-app browser on iPhone', failures);
+  assertTrue(!uaCases.realSafariOnIphone, 'Real Mobile Safari on iPhone is never misidentified as an in-app browser', failures);
+  assertTrue(!uaCases.androidChrome, 'Android Chrome is never flagged (this is an iOS-specific problem)', failures);
+  assertTrue(!uaCases.whatsappOnAndroid, 'WhatsApp on Android is not flagged - Android in-app browsers generally still allow geolocation', failures);
+
+  // In-app browser: short-circuits with guidance, never even calls the
+  // real geolocation API.
+  const inAppResult = await page.evaluate(function () {
+    var called = false;
+    var originalGetCurrentPosition = navigator.geolocation.getCurrentPosition;
+    navigator.geolocation.getCurrentPosition = function () { called = true; };
+    var originalUa = navigator.userAgent;
+    try {
+      Object.defineProperty(navigator, 'userAgent', { value: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) Instagram 300.0', configurable: true });
+      var captured = null, err = null;
+      window.RevOpsStore.captureLiveGpsLocation(function (loc, e) { captured = loc; err = e; });
+      return { captured: captured, err: err, calledRealApi: called };
+    } finally {
+      Object.defineProperty(navigator, 'userAgent', { value: originalUa, configurable: true });
+      navigator.geolocation.getCurrentPosition = originalGetCurrentPosition;
+    }
+  });
+  assertTrue(inAppResult.captured === null, 'In-app browser on iPhone never returns a location', failures);
+  assertTrue(!!inAppResult.err && inAppResult.err.toLowerCase().indexOf('safari') !== -1, 'In-app browser error message tells the user to open it in Safari', failures);
+  assertTrue(!inAppResult.calledRealApi, 'In-app browser case never even calls the real geolocation API', failures);
+
+  // Timeout on the first (high-accuracy) attempt retries once with
+  // enableHighAccuracy off, and a success on that second attempt still
+  // returns a usable location.
+  const retryResult = await page.evaluate(function () {
+    var callCount = 0;
+    var secondCallOptions = null;
+    var originalGetCurrentPosition = navigator.geolocation.getCurrentPosition;
+    navigator.geolocation.getCurrentPosition = function (success, error, options) {
+      callCount++;
+      if (callCount === 1) {
+        error({ code: 3, TIMEOUT: 3, PERMISSION_DENIED: 1, POSITION_UNAVAILABLE: 2 }); // TIMEOUT
+      } else {
+        secondCallOptions = options;
+        success({ coords: { latitude: 12.9, longitude: 77.5, accuracy: 50 } });
+      }
+    };
+    var captured = null;
+    window.RevOpsStore.captureLiveGpsLocation(function (loc) { captured = loc; });
+    navigator.geolocation.getCurrentPosition = originalGetCurrentPosition;
+    return { callCount: callCount, captured: captured, secondCallOptions: secondCallOptions };
+  });
+  assertEqual(retryResult.callCount, 2, 'A timeout on the first GPS attempt triggers exactly one automatic retry', failures);
+  assertTrue(!!retryResult.captured, 'The retry succeeding still returns a usable location to the caller', failures);
+  assertTrue(!!retryResult.secondCallOptions && retryResult.secondCallOptions.enableHighAccuracy === false, 'The retry attempt deliberately lowers accuracy (faster WiFi-based fix) rather than repeating the same high-accuracy request that just failed', failures);
+
+  // A flat permission denial must NOT retry - no amount of retrying fixes
+  // a denied permission, it would just waste ~15s before failing anyway.
+  const permissionDeniedResult = await page.evaluate(function () {
+    var callCount = 0;
+    var originalGetCurrentPosition = navigator.geolocation.getCurrentPosition;
+    navigator.geolocation.getCurrentPosition = function (success, error) {
+      callCount++;
+      error({ code: 1, PERMISSION_DENIED: 1, TIMEOUT: 3, POSITION_UNAVAILABLE: 2 });
+    };
+    var err = null;
+    window.RevOpsStore.captureLiveGpsLocation(function (loc, e) { err = e; });
+    navigator.geolocation.getCurrentPosition = originalGetCurrentPosition;
+    return { callCount: callCount, err: err };
+  });
+  assertEqual(permissionDeniedResult.callCount, 1, 'A flat permission denial is never retried', failures);
+  assertTrue(!!permissionDeniedResult.err, 'A flat permission denial still reports an error to the caller', failures);
+
+  await page.close();
+  return failures;
+}
+
 // ---------------------------------------------------------------------
 // DWM Regular/Special redesign: Regular DWM auto-fills from the
 // employee's active KRAs' Daily Control text (no manual daily re-entry),
@@ -5033,6 +5135,7 @@ const TESTS = [
   ['Realtime sync self-heals stale local-only employee duplicates once Firestore is authoritative', testPruneStaleLocalEmployees],
   ['Realtime sync self-heals stale local records for every collection (not just employees) on a listener\'s first confirmed snapshot - fixes deleted leads reappearing in a returning browser', testPruneStaleLocalRecordsGeneralized],
   ['Single-active-session enforcement: a different device\'s session token forces the older session logged out; same-device/cache/missing-doc cases never do; clearLocalAuthSessionFlags wipes every auth key', testSingleActiveSessionEnforcement],
+  ['iPhone GPS fix: detects iOS in-app browsers (WhatsApp/Instagram/etc) that block geolocation outright, and auto-retries once with lower accuracy on a timeout before giving up', testIosGpsRetryAndInAppBrowserDetection],
   ['Pending Approvals: shared routing, popup, and email notifications on entering an approval stage', testApprovalNotifications],
   ['Quotation/Order/Invoice Primary Approval is scoped to the approver\'s own vertical, with fallback when nobody matches', testApprovalVerticalScoping],
   ['Shared deal-chain attachments: a file added at any of Lead/Quotation/Order/Invoice shows at every other stage of that deal', testDealChainAttachments],
