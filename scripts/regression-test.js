@@ -4412,12 +4412,51 @@ async function testApprovalNotifications(browser) {
   const staysHiddenAfterDismiss = await page.evaluate(function () {
     return !document.getElementById('pending-approvals-global-popup');
   });
-  assertTrue(staysHiddenAfterDismiss, 'Popup stays dismissed for the rest of the day after being closed once (same-day sessionStorage key)', failures);
+  assertTrue(staysHiddenAfterDismiss, 'Popup stays hidden permanently (not just same-day) for an item the approver has already been shown, across any number of further reloads/logins', failures);
+
+  // A second, unrelated reload with nothing new still must not re-show it -
+  // this is the exact client complaint being fixed: the popup used to
+  // re-fire on every login for as long as the same item sat unapproved.
+  await page.reload({ waitUntil: 'networkidle', timeout: 30000 });
+  await page.waitForTimeout(700);
+  const staysHiddenOnThirdLogin = await page.evaluate(function () {
+    return !document.getElementById('pending-approvals-global-popup');
+  });
+  assertTrue(staysHiddenOnThirdLogin, 'Popup still does not reappear on a further login for the same still-pending, already-notified item', failures);
+
+  // But it must come back once for a genuinely NEW request - including the
+  // exact same record (quo_notify_1, already notified above) being
+  // rejected and later resubmitted. This is the real-world scenario: B's
+  // approval request to A is rejected, B fixes it and resubmits - A must
+  // be notified again, not stay silenced forever just because this
+  // record's id was seen before.
+  await page.evaluate(function () {
+    window.RevOpsStore.saveRecord('quotations', { id: 'quo_notify_1', status: 'Rejected' });
+  });
+  await page.reload({ waitUntil: 'networkidle', timeout: 30000 });
+  await page.waitForTimeout(700);
+  const hiddenWhileResolved = await page.evaluate(function () {
+    return !document.getElementById('pending-approvals-global-popup');
+  });
+  assertTrue(hiddenWhileResolved, 'Popup stays hidden once the only pending item leaves the pending list entirely (e.g. rejected)', failures);
+
+  await page.evaluate(function () {
+    window.RevOpsStore.saveRecord('quotations', { id: 'quo_notify_1', status: 'Pending Approval' });
+  });
+  await page.reload({ waitUntil: 'networkidle', timeout: 30000 });
+  await page.waitForTimeout(700);
+  const popupReappearsOnResubmit = await page.evaluate(function () {
+    var el = document.getElementById('pending-approvals-global-popup');
+    return { present: !!el, text: el ? el.innerText : '' };
+  });
+  assertTrue(popupReappearsOnResubmit.present, 'Popup fires again once a previously-seen record id genuinely re-enters Pending Approval after being rejected and resubmitted', failures);
+  assertTrue(popupReappearsOnResubmit.text.indexOf('1') !== -1, 'Resubmitted-item popup reflects the correct (new) pending count', failures);
 
   await page.evaluate(function () {
     window.RevOpsStore.saveCollection('quotations', []);
     window.RevOpsStore.saveCollection('expenses', []);
     localStorage.removeItem('isPrimaryApprover');
+    localStorage.removeItem('approvals_already_notified_E-001');
   });
   await page.close();
   return failures;

@@ -640,6 +640,20 @@ function dismissAssignedTicketsPopup(sessionKey) {
 // Positioned at the TOP of the screen (unlike the bottom-anchored
 // Assigned Tickets alert above) so the two can never overlap each other
 // or the mobile bottom nav bar.
+// Identifies every currently-pending approval item as "section:recordId",
+// so the same underlying record re-entering approval later (e.g. rejected,
+// edited, resubmitted) is correctly distinguished from the same pending
+// request the approver has already been shown.
+function _pendingApprovalItemKeys(sections) {
+  var keys = [];
+  (sections || []).forEach(function(s) {
+    (s.items || []).forEach(function(it) {
+      keys.push(s.key + ':' + (it.id || it.docId));
+    });
+  });
+  return keys;
+}
+
 function checkPendingApprovalsPopup() {
   try {
     var empId = localStorage.getItem('employeeId');
@@ -647,10 +661,38 @@ function checkPendingApprovalsPopup() {
 
     var sections = window.RevOpsStore.getApprovalSections();
     var totalCount = sections.reduce(function(sum, s) { return sum + (s.items ? s.items.length : 0); }, 0);
-    if (totalCount === 0) return;
 
-    var sessionKey = 'notified_approvals_' + empId + '_' + new Date().toISOString().slice(0, 10);
-    if (sessionStorage.getItem(sessionKey)) return;
+    // Permanent (not per-day/per-session) record of exactly which pending
+    // items this approver has already been shown a popup for, so a
+    // reporting manager sees the popup exactly once per approval request -
+    // not on every subsequent login while it's still sitting unapproved.
+    var notifiedStorageKey = 'approvals_already_notified_' + empId;
+
+    if (totalCount === 0) {
+      // Nothing pending right now - clear the tracked set so a future
+      // request (even one reusing the same record id, e.g. a quotation
+      // that's rejected and later resubmitted) is correctly treated as
+      // new rather than silently suppressed forever.
+      try { localStorage.removeItem(notifiedStorageKey); } catch(e) {}
+      return;
+    }
+
+    var currentKeys = _pendingApprovalItemKeys(sections);
+    var alreadyNotified = [];
+    try { alreadyNotified = JSON.parse(localStorage.getItem(notifiedStorageKey) || '[]'); } catch(e) { alreadyNotified = []; }
+    var alreadyNotifiedSet = {};
+    alreadyNotified.forEach(function(k) { alreadyNotifiedSet[k] = true; });
+    var hasNewItem = currentKeys.some(function(k) { return !alreadyNotifiedSet[k]; });
+
+    // Bring the tracked set in line with what's actually pending right
+    // now, whether or not the popup fires below. This is what makes a
+    // reject-then-resubmit cycle work correctly: once an item is approved
+    // or rejected it naturally drops out of currentKeys (and so out of
+    // this tracked set too), so if that same record id re-enters approval
+    // later it's no longer "already notified" and correctly pops up again.
+    try { localStorage.setItem(notifiedStorageKey, JSON.stringify(currentKeys)); } catch(e) {}
+
+    if (!hasNewItem) return;
 
     var popupId = 'pending-approvals-global-popup';
     if (document.getElementById(popupId)) return;
@@ -669,7 +711,7 @@ function checkPendingApprovalsPopup() {
             <p class="text-[11px] text-slate-300">You have <span class="font-bold text-white">${totalCount} item(s)</span> awaiting your approval.</p>
           </div>
         </div>
-        <button onclick="dismissPendingApprovalsPopup('${sessionKey}')" class="text-slate-400 hover:text-white text-lg font-bold p-1 cursor-pointer">&times;</button>
+        <button onclick="dismissPendingApprovalsPopup()" class="text-slate-400 hover:text-white text-lg font-bold p-1 cursor-pointer">&times;</button>
       </div>
 
       <div class="py-2.5 space-y-1.5 max-h-40 overflow-y-auto">
@@ -684,7 +726,7 @@ function checkPendingApprovalsPopup() {
       </div>
 
       <div class="pt-2 border-t border-slate-800 flex items-center justify-between gap-2">
-        <button onclick="dismissPendingApprovalsPopup('${sessionKey}')" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-semibold cursor-pointer">
+        <button onclick="dismissPendingApprovalsPopup()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-semibold cursor-pointer">
           Dismiss
         </button>
         <a href="approvals.html" class="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold shadow-xs transition-colors flex items-center space-x-1 cursor-pointer">
@@ -700,9 +742,12 @@ function checkPendingApprovalsPopup() {
   }
 }
 
-function dismissPendingApprovalsPopup(sessionKey) {
+// No longer needs to persist anything itself - checkPendingApprovalsPopup
+// already records every currently-shown item as "notified" in localStorage
+// the moment the popup is created, so it won't reappear for those same
+// items on a later login regardless of whether this was ever clicked.
+function dismissPendingApprovalsPopup() {
   try {
-    sessionStorage.setItem(sessionKey, 'true');
     var el = document.getElementById('pending-approvals-global-popup');
     if (el) el.remove();
   } catch(e) {}
