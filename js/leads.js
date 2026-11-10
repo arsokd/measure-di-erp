@@ -118,29 +118,53 @@ var currentLeadContacts = [];
       document.addEventListener('DOMContentLoaded', function() {
         if (checkAuth(['admin', 'manager', 'staff'])) {
           initLeadsPage();
+          subscribeLeadMasterDataLiveRefresh();
         }
       });
+
+      // The Master Data sync fix (initRealtimeSyncAll) guarantees these
+      // lists eventually land in localStorage, but populateLeadMasterDropdowns
+      // only ever runs once, the instant the Add/Edit Lead modal is opened -
+      // on a device opening it for the very first time, that can race the
+      // async Firestore fetch and render the dropdown empty before the data
+      // has arrived, with nothing to re-populate it afterwards. Subscribing
+      // here means the moment Firestore actually delivers each list, any
+      // open modal (and the vertical filter) refreshes immediately instead
+      // of silently staying empty until the page is manually reloaded.
+      function subscribeLeadMasterDataLiveRefresh() {
+        if (!window.RevOpsStore || typeof window.RevOpsStore.subscribeRealtimeSync !== 'function') return;
+        ['companyMaster', 'leadSourceMaster', 'verticalClassificationMaster', 'projectSectorMaster', 'currencyMaster'].forEach(function(colName) {
+          window.RevOpsStore.subscribeRealtimeSync(colName, function() {
+            populateLeadMasterDropdowns();
+            populateLeadVerticalFilter();
+          });
+        });
+      }
+
+      // Vertical filter - same Master Data > Vertical Classification list
+      // the Vertical Classification field on the lead form itself uses, so
+      // the table can actually be filtered down to every vertical a lead
+      // can be tagged with. Pulled out of initLeadsPage so the live-sync
+      // callback below can also re-run it once Firestore delivers this
+      // list after page load, not only on the initial page render.
+      function populateLeadVerticalFilter() {
+        var vertFilterSelect = document.getElementById('lead-vertical-filter');
+        if (!vertFilterSelect) return;
+        var vertItems = (window.RevOpsStore.getCollection('verticalClassificationMaster') || []).filter(function(it) { return it.isActive !== false; });
+        var currentVertFilter = vertFilterSelect.value;
+        vertFilterSelect.innerHTML = '<option value="All">All Verticals</option>' + vertItems.map(function(it) {
+          return '<option value="' + escapeHtml(it.name) + '">' + escapeHtml(it.name) + '</option>';
+        }).join('');
+        if (currentVertFilter && (currentVertFilter === 'All' || vertItems.some(function(it) { return it.name === currentVertFilter; }))) {
+          vertFilterSelect.value = currentVertFilter;
+        }
+      }
 
       function initLeadsPage() {
         var userRole = localStorage.getItem('userRole');
         var employees = window.RevOpsStore.getCollection('employees') || [];
 
-        // Vertical filter - same Master Data > Vertical Classification list
-        // the Vertical Classification field on the lead form itself uses,
-        // so the table can actually be filtered down to every vertical a
-        // lead can be tagged with (was previously missing "Service and
-        // Parts" as an option entirely).
-        var vertFilterSelect = document.getElementById('lead-vertical-filter');
-        if (vertFilterSelect) {
-          var vertItems = (window.RevOpsStore.getCollection('verticalClassificationMaster') || []).filter(function(it) { return it.isActive !== false; });
-          var currentVertFilter = vertFilterSelect.value;
-          vertFilterSelect.innerHTML = '<option value="All">All Verticals</option>' + vertItems.map(function(it) {
-            return '<option value="' + escapeHtml(it.name) + '">' + escapeHtml(it.name) + '</option>';
-          }).join('');
-          if (currentVertFilter && (currentVertFilter === 'All' || vertItems.some(function(it) { return it.name === currentVertFilter; }))) {
-            vertFilterSelect.value = currentVertFilter;
-          }
-        }
+        populateLeadVerticalFilter();
 
         if (userRole === 'super_admin' || userRole === 'admin' || userRole === 'manager') {
           var wrapper = document.getElementById('lead-filter-wrapper');

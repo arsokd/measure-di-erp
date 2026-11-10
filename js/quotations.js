@@ -207,6 +207,7 @@ var currentEditingQuoteId = null;
 
         setupQuotePageFilters();
         renderQuotations();
+        subscribeQuoteMasterDataLiveRefresh();
 
         // Check URL params for leadId or action=new
         var params = new URLSearchParams(window.location.search);
@@ -694,6 +695,19 @@ var currentEditingQuoteId = null;
         if (/service|parts|spare/i.test(v)) return 'Service and Parts';
         if (/project/i.test(v)) return 'Projects';
         return v;
+      }
+
+      // Same race as the Lead form: initRealtimeSyncAll guarantees these
+      // Master Data lists eventually land in localStorage, but each
+      // populate*Dropdown function only ever runs once when its field is
+      // rendered - on a device syncing one of these lists for the very
+      // first time, that can beat the async Firestore fetch and leave the
+      // dropdown empty with nothing to refresh it afterwards.
+      function subscribeQuoteMasterDataLiveRefresh() {
+        if (!window.RevOpsStore || typeof window.RevOpsStore.subscribeRealtimeSync !== 'function') return;
+        window.RevOpsStore.subscribeRealtimeSync('verticalClassificationMaster', function() { populateQuoteVerticalDropdown(); });
+        window.RevOpsStore.subscribeRealtimeSync('companyMaster', function() { populateQuoteCompanyDropdown(); });
+        window.RevOpsStore.subscribeRealtimeSync('bankDetailsMaster', function() { populateQuoteBankDropdown(); });
       }
 
       function populateQuoteVerticalDropdown() {
