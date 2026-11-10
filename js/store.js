@@ -2097,7 +2097,13 @@ Object.assign(window.RevOpsStore, {
 
   initRealtimeSyncAll: function() {
     if (!this.isFirebaseAvailable()) return;
-    var collections = ['employees', 'kraTargets', 'aopTargets', 'orders', 'dwmActivities', 'attendance', 'leads', 'payments', 'reviews', 'expenses', 'projectsMaster', 'clientsMaster', 'sparePartsMaster', 'expenseSplits', 'travelPolicyMaster', 'travelApprovals', 'budgets', 'serviceTickets', 'quotations', 'invoices'];
+    // Every Master Data lookup list (Master Data hub tabs) belongs here too:
+    // saveRecord() always pushes a local Master Data edit up to Firestore,
+    // but without a listener in this allowlist no OTHER device ever pulls
+    // that change back down, so two devices on the same account silently
+    // diverge forever (e.g. one shows 3 HSN codes, another shows 5) - each
+    // only ever sees whatever it personally added.
+    var collections = ['employees', 'kraTargets', 'aopTargets', 'orders', 'dwmActivities', 'attendance', 'leads', 'payments', 'reviews', 'expenses', 'projectsMaster', 'clientsMaster', 'sparePartsMaster', 'expenseSplits', 'travelPolicyMaster', 'travelApprovals', 'budgets', 'serviceTickets', 'quotations', 'invoices', 'productsMaster', 'clientEquipmentMaster', 'bankDetailsMaster', 'companyMaster', 'leadSourceMaster', 'industryVerticalMaster', 'projectSectorMaster', 'verticalClassificationMaster', 'currencyMaster', 'hsnCodeMaster', 'sparePartCategoryMaster', 'complaintCategoryMaster', 'slaResponseTierMaster', 'amcContractTierMaster', 'pmVisitFrequencyMaster', 'amcInvoicingMilestoneMaster', 'amcContractDurationMaster'];
     var self = this;
     collections.forEach(function(colName) {
       try {

@@ -29,6 +29,30 @@ var activeMasterTab = 'products';
         var dangerZone = document.getElementById('go-live-danger-zone');
         if (dangerZone) dangerZone.classList.remove('hidden');
       }
+
+      subscribeMasterDataLiveRefresh();
+    }
+
+    // Every Master Data collection, with a live-refresh callback so this
+    // page's counts/table catch up the moment Firestore delivers a change
+    // made on ANY device - without this, two devices on the same account
+    // can each sit frozen on their own last-synced snapshot indefinitely.
+    function subscribeMasterDataLiveRefresh() {
+      if (!window.RevOpsStore || typeof window.RevOpsStore.subscribeRealtimeSync !== 'function') return;
+      var liveCollections = [
+        'productsMaster', 'clientEquipmentMaster', 'bankDetailsMaster', 'clientsMaster',
+        'projectsMaster', 'leadSourceMaster', 'industryVerticalMaster', 'projectSectorMaster',
+        'verticalClassificationMaster', 'currencyMaster', 'sparePartCategoryMaster',
+        'complaintCategoryMaster', 'slaResponseTierMaster', 'amcContractTierMaster',
+        'pmVisitFrequencyMaster', 'amcInvoicingMilestoneMaster', 'amcContractDurationMaster',
+        'companyMaster', 'hsnCodeMaster'
+      ];
+      liveCollections.forEach(function(colName) {
+        window.RevOpsStore.subscribeRealtimeSync(colName, function() {
+          updateTabBadges();
+          renderMasterTable();
+        });
+      });
     }
 
     function canEditMasterData() {
