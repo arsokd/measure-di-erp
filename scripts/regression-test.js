@@ -1317,181 +1317,22 @@ async function testQuoteEditReasonMandatory(browser) {
 }
 
 // ---------------------------------------------------------------------
-// "Delete Data Before Date" (Master Data > Danger Zone): Super Admin/
-// Admin only, requires typing an exact confirmation phrase, previews an
-// exact count before anything happens, deletes only records created
-// before the chosen cutoff (never a record created on/after it, and
-// never a record whose creation date can't be confidently resolved),
-// leaves Employees/Company Master/classification lists untouched, and
-// sets the retirement flag. Separately verifies the seed-guard code
-// change this relies on: once isFirebaseAvailable() is true, a cleared
-// collection must not auto-refill, whether its guard checks mere
-// presence or parsed length.
+// Seed guard: once Firebase is connected, a cleared collection must
+// never auto-refill from its demo defaults - true for both a
+// presence-only guard (clientEquipmentMaster) and a parsed-length
+// guard, the two different guard styles this codebase uses. (This
+// used to be verified as a side effect of the "Delete Data Before
+// Date" Master Data tool, which has since been removed from the app;
+// the guard behavior it depended on is still real and still tested
+// here on its own.)
 // ---------------------------------------------------------------------
-async function testDeleteDataBeforeDate(browser) {
+async function testSeedGuardDoesNotRefillClearedCollections(browser) {
   const failures = [];
   const { page } = await newPage(browser);
 
   await page.goto(BASE_URL + '/master-data.html', { waitUntil: 'networkidle', timeout: 30000 });
   await page.waitForTimeout(600);
 
-  const dangerVisibleAdmin = await page.evaluate(function () {
-    return !document.getElementById('go-live-danger-zone').classList.contains('hidden');
-  });
-  assertTrue(dangerVisibleAdmin, 'Delete Data Before Date: Danger Zone is visible for super_admin', failures);
-
-  // Clear every collection this tool is allowed to touch first - the app
-  // auto-seeds a large realistic demo dataset (mostly dated well before
-  // Oct 2026) the moment any of these collections is empty with no
-  // Firebase connected, which would otherwise swamp this test's exact
-  // counts. Then seed records that span: created before the cutoff
-  // (real-ID-style and createdDate-style), created on/after the cutoff,
-  // and one with no resolvable creation date at all.
-  const beforeCounts = await page.evaluate(function () {
-    (window.RevOpsStore.DEMO_DATA_COLLECTIONS || []).forEach(function (col) {
-      window.RevOpsStore.saveCollection(col, []);
-    });
-    window.RevOpsStore.saveCollection('leads', [
-      { id: 'lea_1696118400000_ab12', customerName: 'Old Real Lead' }, // 2023-09-30 epoch ms -> before cutoff
-      { id: 'lead_seed_old', customerName: 'Old Seed Lead', createdDate: '15/09/2026' }, // before cutoff
-      { id: 'lead_seed_new', customerName: 'New Seed Lead', createdDate: '05/10/2026' }, // on/after cutoff -> keep
-      { id: 'lead_no_date', customerName: 'Unknown Date Lead' } // unresolvable -> always keep
-    ]);
-    window.RevOpsStore.saveCollection('quotations', [{ id: 'q1', quoteNumber: 'QT-REGR-1', createdDate: '01/09/2026' }]);
-    window.RevOpsStore.saveCollection('clientsMaster', [{ id: 'c1', clientName: 'Demo Co', createdDate: '01/09/2026' }]);
-    return {
-      employees: (window.RevOpsStore.getCollection('employees') || []).length,
-      companyMaster: (window.RevOpsStore.getCollection('companyMaster') || []).length,
-      leadSourceMaster: (window.RevOpsStore.getCollection('leadSourceMaster') || []).length
-    };
-  });
-  assertTrue(beforeCounts.employees > 0, 'Precondition: employees non-empty before deleting', failures);
-
-  await page.click('#go-live-danger-zone [onclick="openClearDemoDataModal()"]');
-  await page.waitForTimeout(150);
-
-  // Default cutoff is 2026-10-01 - the preview should already reflect it
-  // without any further interaction (2 of the 4 leads, 1 quotation, 1
-  // clientsMaster record = 4).
-  const preview = await page.evaluate(function () {
-    return document.getElementById('clear-demo-preview-total').innerText;
-  });
-  assertEqual(preview, '4', 'Delete Data Before Date: live preview shows the correct total for the default cutoff before any confirmation', failures);
-
-  // lead_no_date has no resolvable creation date, so it must show up as a
-  // visible "skipped, unknown date" warning rather than silently vanishing
-  // from the preview with no explanation.
-  const unknownWarning = await page.evaluate(function () {
-    return {
-      visible: !document.getElementById('clear-demo-preview-unknown-warning').classList.contains('hidden'),
-      total: document.getElementById('clear-demo-preview-unknown-total').innerText,
-      listHtml: document.getElementById('clear-demo-preview-list').innerHTML
-    };
-  });
-  assertTrue(unknownWarning.visible, 'Delete Data Before Date: unknown-creation-date warning is shown when a record would be silently kept', failures);
-  assertEqual(unknownWarning.total, '1', 'Delete Data Before Date: unknown-creation-date warning reports the correct count (lead_no_date)', failures);
-  assertTrue(unknownWarning.listHtml.indexOf('skipped, unknown date') !== -1, 'Delete Data Before Date: per-collection breakdown names the skipped-unknown-date count inline', failures);
-
-  // Wrong confirmation text must not proceed.
-  await page.fill('#inp-clear-demo-confirm', 'wrong text');
-  const rejectedWrongText = await page.evaluate(function () {
-    document.getElementById('btn-execute-clear-demo').click();
-    return !document.getElementById('clear-demo-data-confirm-view').classList.contains('hidden');
-  });
-  assertTrue(rejectedWrongText, 'Delete Data Before Date: wrong confirmation text does not proceed (stays on confirm view)', failures);
-
-  await page.fill('#inp-clear-demo-confirm', 'DELETE');
-  const afterClear = await page.evaluate(function () {
-    document.getElementById('btn-execute-clear-demo').click();
-    return true;
-  });
-  await page.waitForTimeout(500);
-
-  const cleared = await page.evaluate(function () {
-    var leadsLeft = window.RevOpsStore.getCollection('leads') || [];
-    return {
-      doneVisible: !document.getElementById('clear-demo-data-done-view').classList.contains('hidden'),
-      leadIdsLeft: leadsLeft.map(function (l) { return l.id; }),
-      quotations: (window.RevOpsStore.getCollection('quotations') || []).length,
-      clientsMaster: (window.RevOpsStore.getCollection('clientsMaster') || []).length,
-      employees: (window.RevOpsStore.getCollection('employees') || []).length,
-      companyMaster: (window.RevOpsStore.getCollection('companyMaster') || []).length,
-      leadSourceMaster: (window.RevOpsStore.getCollection('leadSourceMaster') || []).length,
-      retiredFlag: localStorage.getItem('revops_demo_data_retired')
-    };
-  });
-  assertTrue(cleared.doneVisible, 'Delete Data Before Date: completes and shows the done view', failures);
-  assertEqual(cleared.leadIdsLeft.sort(), ['lead_no_date', 'lead_seed_new'], 'Delete Data Before Date: only pre-cutoff leads removed - the on/after-cutoff lead and the unresolvable-date lead both survive', failures);
-  assertEqual(cleared.quotations, 0, 'Delete Data Before Date: pre-cutoff quotation deleted', failures);
-  assertEqual(cleared.clientsMaster, 0, 'Delete Data Before Date: pre-cutoff clientsMaster record deleted', failures);
-  assertEqual(cleared.employees, beforeCounts.employees, 'Delete Data Before Date: employees left untouched', failures);
-  assertEqual(cleared.companyMaster, beforeCounts.companyMaster, 'Delete Data Before Date: companyMaster left untouched', failures);
-  assertEqual(cleared.leadSourceMaster, beforeCounts.leadSourceMaster, 'Delete Data Before Date: classification lists (e.g. Lead Source) left untouched', failures);
-  assertEqual(cleared.retiredFlag, 'true', 'Delete Data Before Date: sets the demo-data-retired flag', failures);
-
-  // The done view from the first run is still open - close it before
-  // reopening the modal for the next scenario, or the overlay intercepts
-  // the button click.
-  await page.evaluate(function () { closeClearDemoDataModal(); });
-
-  // Narrowing the selection: unchecking everything except Leads must
-  // leave an equally-old Order untouched, and leave the preview/delete
-  // count scoped to only the checked record types.
-  await page.evaluate(function () {
-    window.RevOpsStore.saveCollection('leads', [
-      { id: 'lead_scope_old', customerName: 'Old Lead For Scope Test', createdDate: '01/09/2026' }
-    ]);
-    window.RevOpsStore.saveCollection('orders', [
-      { id: 'order_scope_old', customerName: 'Old Order For Scope Test', createdDate: '01/09/2026' }
-    ]);
-  });
-  await page.click('#go-live-danger-zone [onclick="openClearDemoDataModal()"]');
-  await page.waitForTimeout(150);
-  await page.evaluate(function () {
-    document.querySelectorAll('#clear-demo-collections-list input[type="checkbox"]').forEach(function (cb) {
-      cb.checked = (cb.value === 'leads');
-    });
-    refreshClearDemoPreview();
-  });
-  const scopedPreview = await page.evaluate(function () {
-    return document.getElementById('clear-demo-preview-total').innerText;
-  });
-  assertEqual(scopedPreview, '1', 'Delete Data Before Date: unchecking all but Leads scopes the preview to only Leads (the equally-old Order is excluded)', failures);
-
-  await page.fill('#inp-clear-demo-confirm', 'DELETE');
-  await page.evaluate(function () { document.getElementById('btn-execute-clear-demo').click(); });
-  await page.waitForTimeout(500);
-  const scopedResult = await page.evaluate(function () {
-    return {
-      leads: (window.RevOpsStore.getCollection('leads') || []).map(function (l) { return l.id; }),
-      orders: (window.RevOpsStore.getCollection('orders') || []).map(function (o) { return o.id; })
-    };
-  });
-  assertEqual(scopedResult.leads.indexOf('lead_scope_old'), -1, 'Delete Data Before Date: the checked collection (Leads) is actually deleted', failures);
-  assertEqual(scopedResult.orders.indexOf('order_scope_old'), 0, 'Delete Data Before Date: an unchecked collection (Orders) survives even though its record is equally old', failures);
-
-  // Danger Zone must stay hidden for a non-admin role.
-  const staffPage = await browser.newPage();
-  staffPage.on('dialog', async function (d) { await d.dismiss().catch(function () {}); });
-  await staffPage.addInitScript(function () {
-    localStorage.setItem('userRole', 'staff');
-    localStorage.setItem('userEmail', 'techsupport@measuredi.com');
-    localStorage.setItem('userName', 'Mrs. Krithika');
-    localStorage.setItem('employeeId', 'E-006');
-  });
-  await staffPage.goto(BASE_URL + '/master-data.html', { waitUntil: 'networkidle', timeout: 30000 });
-  await staffPage.waitForTimeout(600);
-  const dangerHiddenStaff = await staffPage.evaluate(function () {
-    return document.getElementById('go-live-danger-zone').classList.contains('hidden');
-  });
-  assertTrue(dangerHiddenStaff, 'Delete Data Before Date: Danger Zone is hidden for staff role', failures);
-  await staffPage.close();
-
-  // The seed-guard code change this whole feature relies on: once
-  // Firebase is connected, a cleared collection must not auto-refill -
-  // true for both a presence-only guard (clientEquipmentMaster) and a
-  // parsed-length guard, the two different guard styles this codebase
-  // uses.
   const guardResult = await page.evaluate(function () {
     var originalIsFirebaseAvailable = window.RevOpsStore.isFirebaseAvailable;
     window.RevOpsStore.isFirebaseAvailable = function () { return true; };
@@ -5374,7 +5215,7 @@ const TESTS = [
   ['Multi-company support: Lead/Quotation/Invoice numbering & branding', testMultiCompanySupport],
   ['Lead product dropdown vertical-normalization fix & quick "+ New Product" role gate', testLeadProductDropdownAndQuickAddProduct],
   ['Quotation edit: mandatory reason field', testQuoteEditReasonMandatory],
-  ['Delete Data Before Date: preview, confirmation, selective date-scoped deletion', testDeleteDataBeforeDate],
+  ['Seed guard: clientEquipmentMaster stays empty once connected to Firebase (never re-seeded)', testSeedGuardDoesNotRefillClearedCollections],
   ['Bulk CSV parser handles quoted/comma/multi-line fields', testBulkCsvParserHandlesQuotedFields],
   ['Password policy: forced first-time/90-day change, developer exemption, self-service flow', testPasswordPolicyEnforcement],
   ['Lead pipeline stage model: advanceLeadStage, Lost/Trashed/Postponed guards, pending follow-ups', testLeadPipelineStageModel],

@@ -30,179 +30,13 @@ Object.assign(window.RevOpsStore, {
     window.location.reload();
   },
 
-  // Every collection the "Delete Data Before Date" cleanup tool is allowed
-  // to touch - deliberately scoped to transactional/demo records only.
-  // Employees (the login table),
-  // Company Master, and every reusable classification list (Lead Source,
-  // Currency, Complaint Category, SLA tiers, AMC tiers, etc.) are left out on
-  // purpose - they're either real configuration already in place, or carry
-  // their own safety net to never go empty.
-  DEMO_DATA_COLLECTIONS: [
-    'leads', 'quotations', 'orders', 'invoices',
-    'serviceTickets', 'serviceLeads',
-    'amcContracts', 'amcQuotations', 'amcOrders', 'amcInvoices',
-    'clientsMaster', 'sparePartsMaster', 'bankDetailsMaster', 'clientEquipmentMaster',
-    'attendance', 'dwmActivities', 'reviews',
-    'kraTargets', 'aopTargets', 'payments', 'expenses', 'expenseSplits', 'projectsMaster'
-  ],
-
-  // Resolves a record's actual creation time, trying the most reliable
-  // signal available in order:
-  // 1. A real app-generated id embeds a Date.now() timestamp
-  //    ("<3-4 letter prefix>_<ms>_<random>" - see saveRecord) - set once,
-  //    at creation, and never touched again, so this is the most trustworthy
-  //    signal whenever it's present.
-  // 2. createdDate / date (this app's DD/MM/YYYY string convention) -
-  //    covers both older app-generated records from before this ID scheme
-  //    and hand-seeded demo records (e.g. "exp_1", "TKT-2026-001").
-  // 3. createdAt (ISO string), as a last resort.
-  // Returns null (never a guess) when none of these are present or parse
-  // cleanly - callers must treat null as "unknown, do not delete".
-  _resolveRecordCreatedTime: function(record) {
-    if (!record) return null;
-    if (typeof record.id === 'string') {
-      var idMatch = record.id.match(/^[a-zA-Z]{2,4}_(\d{10,})_/);
-      if (idMatch) {
-        var ms = Number(idMatch[1]);
-        if (ms > 1000000000000) return new Date(ms);
-      }
-    }
-    var ddmmyyyy = record.createdDate || record.date;
-    if (typeof ddmmyyyy === 'string') {
-      var parts = ddmmyyyy.split('/');
-      if (parts.length === 3) {
-        var d = new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
-        if (!isNaN(d.getTime())) return d;
-      }
-    }
-    if (record.createdAt) {
-      var d2 = new Date(record.createdAt);
-      if (!isNaN(d2.getTime())) return d2;
-    }
-    return null;
-  },
-
-  // Parses a "YYYY-MM-DD" cutoff (the native format of <input type="date">)
-  // in local time, matching how _resolveRecordCreatedTime builds dates -
-  // mixing a UTC-parsed cutoff against locally-constructed record dates
-  // would shift the boundary by this server/browser's UTC offset.
+  // Parses a "YYYY-MM-DD" date (the native format of <input type="date">)
+  // in local time - used by the follow-up system's date comparisons.
   _parseCutoffDate: function(cutoffDateStr) {
     var parts = String(cutoffDateStr || '').split('-');
     if (parts.length !== 3) return null;
     var d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
     return isNaN(d.getTime()) ? null : d;
-  },
-
-  // Dry-run companion to deleteDataCreatedBeforeDate - same selection
-  // logic, zero side effects, so the UI can show exactly what a delete
-  // would do before anyone commits to it. cutoffDateStr is "YYYY-MM-DD".
-  // collections optionally narrows which of DEMO_DATA_COLLECTIONS to
-  // consider (defaults to all of them, the original behavior).
-  previewDataBeforeDate: function(cutoffDateStr, collections) {
-    var self = this;
-    var cutoff = this._parseCutoffDate(cutoffDateStr);
-    var perCollection = (collections || this.DEMO_DATA_COLLECTIONS).map(function(colName) {
-      var items = self.getCollection(colName) || [];
-      var toDelete = 0, unknownSkipped = 0;
-      items.forEach(function(it) {
-        var created = self._resolveRecordCreatedTime(it);
-        if (!created) { unknownSkipped++; return; }
-        if (cutoff && created < cutoff) toDelete++;
-      });
-      return { collection: colName, total: items.length, toDelete: toDelete, toKeep: items.length - toDelete, unknownSkipped: unknownSkipped };
-    });
-    var grandTotalToDelete = perCollection.reduce(function(s, c) { return s + c.toDelete; }, 0);
-    var grandTotalUnknownSkipped = perCollection.reduce(function(s, c) { return s + c.unknownSkipped; }, 0);
-    return { cutoffDateStr: cutoffDateStr, perCollection: perCollection, grandTotalToDelete: grandTotalToDelete, grandTotalUnknownSkipped: grandTotalUnknownSkipped };
-  },
-
-  // Permanently deletes every record in DEMO_DATA_COLLECTIONS created
-  // before cutoffDateStr ("YYYY-MM-DD") - from both local storage and
-  // Firestore (deleting the real documents there too, not just the local
-  // cache of them - saveCollection only ever adds/overwrites, it never
-  // deletes, so an explicit Firestore delete pass is required or the
-  // "cleared" data would reappear the next time this device's realtime
-  // listeners catch up). A record whose creation time can't be
-  // confidently resolved is always kept, never deleted on a guess.
-  // onProgress(colName, index, total) is called before each collection is
-  // processed, for a progress UI. collections optionally narrows which of
-  // DEMO_DATA_COLLECTIONS to actually touch (defaults to all of them).
-  // Returns a promise resolving to { perCollection:
-  // [{collection, deleted, kept}], grandTotalDeleted, firestoreDeleted,
-  // errors }.
-  deleteDataCreatedBeforeDate: function(cutoffDateStr, onProgress, collections) {
-    var self = this;
-    var cutoff = this._parseCutoffDate(cutoffDateStr);
-    collections = collections || this.DEMO_DATA_COLLECTIONS;
-    var results = { perCollection: [], firestoreDeleted: 0, errors: [] };
-
-    var chain = Promise.resolve();
-    collections.forEach(function(colName, idx) {
-      chain = chain.then(function() {
-        if (typeof onProgress === 'function') onProgress(colName, idx + 1, collections.length);
-
-        var items = self.getCollection(colName) || [];
-        var toDeleteIds = [];
-        var kept = [];
-        items.forEach(function(it) {
-          var created = self._resolveRecordCreatedTime(it);
-          if (cutoff && created && created < cutoff) {
-            toDeleteIds.push(it.id);
-          } else {
-            kept.push(it);
-          }
-        });
-
-        self.saveCollection(colName, kept);
-        results.perCollection.push({ collection: colName, deleted: toDeleteIds.length, kept: kept.length });
-
-        if (!self.isFirebaseAvailable() || toDeleteIds.length === 0) return;
-
-        // Firestore delete, chunked into batches of 450 (under the 500
-        // operation batch limit) in case a collection has more documents
-        // than that to remove in one go.
-        var batchChain = Promise.resolve();
-        for (var b = 0; b < toDeleteIds.length; b += 450) {
-          (function(chunkIds) {
-            batchChain = batchChain.then(function() {
-              var batch = window.db.batch();
-              chunkIds.forEach(function(id) { batch.delete(window.db.collection(colName).doc(id)); });
-              return batch.commit().then(function() {
-                results.firestoreDeleted += chunkIds.length;
-              });
-            });
-          })(toDeleteIds.slice(b, b + 450));
-        }
-        return batchChain.catch(function(err) {
-          results.errors.push(colName + ': ' + (err && err.message || err));
-        });
-      });
-    });
-
-    return chain.then(function() {
-      // Retire the demo-data auto-reseed logic for good on this device -
-      // see seed-data.js / seedMasterListsIfEmpty, which now check
-      // isFirebaseAvailable() before injecting any of these collections'
-      // demo defaults, so a connected deployment never refills them once
-      // cleared, on any device, from now on.
-      localStorage.setItem('revops_demo_data_retired', 'true');
-
-      var grandTotalDeleted = results.perCollection.reduce(function(s, c) { return s + c.deleted; }, 0);
-      results.grandTotalDeleted = grandTotalDeleted;
-
-      if (self.logAudit) {
-        self.logAudit(
-          'System',
-          'delete-data-before-date',
-          'DELETE',
-          'Permanently deleted ' + grandTotalDeleted + ' record(s) created before ' + cutoffDateStr + ' across ' + collections.length + ' collections (' + results.firestoreDeleted + ' Firestore document(s) deleted).',
-          null,
-          results
-        );
-      }
-
-      return results;
-    });
   },
 
   // Dry-run for the targeted "Delete Leads by Number" tool - looks up each
@@ -3179,8 +3013,8 @@ Object.assign(window.RevOpsStore, {
     // Only in a pure offline/no-Firebase demo install does an empty
     // registry mean "nothing has been entered yet" - once Firebase is
     // connected (as in the real deployed app), an empty registry means
-    // it was deliberately cleared (see deleteDataCreatedBeforeDate below),
-    // and should stay empty, not spring back to the demo roster.
+    // it was deliberately cleared and should stay empty, not spring back
+    // to the demo roster.
     var equipExisting = this.getCollection('clientEquipmentMaster');
     if ((!equipExisting || equipExisting.length === 0) && !this.isFirebaseAvailable()) {
       var equipRoster = [

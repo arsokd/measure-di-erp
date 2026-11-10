@@ -77,26 +77,9 @@
       <span>You can view master data here, but only a designated <strong>Master Data Admin</strong> (or the Director) can add, edit, delete, or bulk-upload records. Ask your admin to assign this on the Employees page if you need it.</span>
     </div>
 
-    <!-- Go-Live Danger Zone: Super Admin / Admin only. Permanently deletes
-         every record created before a chosen date (both locally and in
-         Firestore) across all transactional collections, after showing an
-         exact preview of what would be removed. -->
+    <!-- Go-Live Danger Zone: Super Admin / Admin only. -->
     <div id="go-live-danger-zone" class="hidden bg-rose-950/30 border border-rose-800/50 rounded-2xl p-5 space-y-3">
       <div class="flex items-start justify-between gap-4 flex-wrap">
-        <div class="space-y-1">
-          <div class="flex items-center gap-2">
-            <i class="fa-solid fa-triangle-exclamation text-rose-400"></i>
-            <h3 class="text-sm font-black text-rose-200 uppercase tracking-wider">Delete Data Before Date</h3>
-          </div>
-          <p class="text-xs text-rose-200/80 max-w-2xl">Permanently deletes every Lead, Quotation, Order, Invoice, Service Ticket/Lead, AMC record, Client, Spare Part, Bank Account, Installed Equipment, Attendance, DWM, Review, KRA/AOP, Payment and Expense record created before a date you choose - locally and in Firestore. Shows exactly what will be deleted before anything happens. Employees, Company Master, and every classification list are left untouched. This cannot be undone.</p>
-        </div>
-        <button onclick="openClearDemoDataModal()" class="px-4 py-2.5 bg-rose-700 hover:bg-rose-600 text-white rounded-xl text-xs font-black transition-all shadow-lg shadow-rose-950/40 flex items-center gap-2 cursor-pointer shrink-0">
-          <i class="fa-solid fa-eraser"></i>
-          <span>Delete Data Before Date…</span>
-        </button>
-      </div>
-
-      <div class="border-t border-rose-900/40 pt-3 flex items-start justify-between gap-4 flex-wrap">
         <div class="space-y-1">
           <div class="flex items-center gap-2">
             <i class="fa-solid fa-list-ol text-rose-400"></i>
@@ -473,86 +456,6 @@
             <i class="fa-solid fa-cloud-arrow-up"></i>
             <span>Import Records Now</span>
           </button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Modal: Delete Data Before Date confirmation -->
-  <div id="clear-demo-data-modal" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-    <div class="bg-slate-900 w-full max-w-lg rounded-2xl shadow-2xl border border-rose-800/60 overflow-hidden my-8">
-      <div class="px-6 py-4 bg-rose-950/40 border-b border-rose-900/60 flex items-center justify-between shrink-0">
-        <h3 class="text-base font-bold text-rose-200 flex items-center gap-2">
-          <i class="fa-solid fa-triangle-exclamation text-rose-400"></i>
-          <span>Delete Data Before Date</span>
-        </h3>
-        <button type="button" onclick="closeClearDemoDataModal()" class="text-slate-400 hover:text-white text-xl font-bold p-1">&times;</button>
-      </div>
-
-      <div id="clear-demo-data-confirm-view" class="p-6 space-y-4">
-        <p class="text-xs text-slate-300">Permanently deletes every record <strong>created before the date below</strong> - locally and in Firestore. A record whose creation date can't be confidently determined is always kept. <strong class="text-rose-300">This cannot be undone.</strong></p>
-
-        <div>
-          <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">Delete everything created before</label>
-          <input type="date" id="inp-clear-demo-cutoff-date" value="2026-10-01" onchange="refreshClearDemoPreview()" class="px-3 py-2 bg-slate-950 border border-slate-750 rounded-xl text-xs font-mono text-white focus:outline-none focus:border-rose-500" />
-        </div>
-
-        <div>
-          <div class="flex items-center justify-between mb-1">
-            <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider">Which records to include</label>
-            <span class="text-[10px] space-x-2">
-              <a href="#" onclick="setAllClearDemoCollections(true); return false;" class="text-indigo-300 hover:text-indigo-200">Select all</a>
-              <a href="#" onclick="setAllClearDemoCollections(false); return false;" class="text-indigo-300 hover:text-indigo-200">Select none</a>
-            </span>
-          </div>
-          <div id="clear-demo-collections-list" class="bg-slate-950 border border-slate-800 rounded-xl p-3 grid grid-cols-2 gap-x-3 gap-y-1.5 max-h-40 overflow-y-auto text-xs text-slate-300"></div>
-        </div>
-
-        <div>
-          <div class="flex items-center justify-between mb-1">
-            <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider">Preview - what would be deleted</label>
-            <span id="clear-demo-preview-loading" class="hidden text-[10px] text-slate-500"><i class="fa-solid fa-spinner fa-spin"></i> calculating…</span>
-          </div>
-          <div id="clear-demo-preview-list" class="bg-slate-950 border border-slate-800 rounded-xl p-3 text-[11px] text-slate-400 font-mono leading-relaxed max-h-36 overflow-y-auto space-y-0.5"></div>
-          <p class="text-xs font-bold mt-1"><span class="text-rose-300" id="clear-demo-preview-total">0</span> <span class="text-slate-400">record(s) would be permanently deleted.</span></p>
-          <p id="clear-demo-preview-unknown-warning" class="hidden text-xs font-bold mt-1 text-amber-300"><i class="fa-solid fa-triangle-exclamation"></i> <span id="clear-demo-preview-unknown-total">0</span> <span class="font-normal">record(s) have no reliable creation date and will be KEPT regardless of the cutoff - see breakdown above.</span></p>
-        </div>
-
-        <p class="text-[11px] text-emerald-400">✓ Left untouched: Employees, Company Master, and every classification list (Lead Source, Currency, Complaint Categories, SLA tiers, AMC tiers, Travel Policy, etc.)</p>
-
-        <div>
-          <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">Type <span class="font-mono text-rose-300">DELETE</span> to confirm</label>
-          <input type="text" id="inp-clear-demo-confirm" autocomplete="off" placeholder="DELETE" class="w-full px-3 py-2 bg-slate-950 border border-slate-750 rounded-xl text-xs font-mono text-white focus:outline-none focus:border-rose-500" />
-        </div>
-
-        <div class="flex items-center justify-end space-x-3 pt-2">
-          <button type="button" onclick="closeClearDemoDataModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl cursor-pointer">Cancel</button>
-          <button type="button" onclick="executeClearDemoData()" id="btn-execute-clear-demo" class="px-5 py-2 bg-rose-700 hover:bg-rose-600 text-white text-xs font-black rounded-xl shadow-lg shadow-rose-950/40 transition-all cursor-pointer flex items-center gap-2">
-            <i class="fa-solid fa-eraser"></i>
-            <span>Permanently Delete</span>
-          </button>
-        </div>
-      </div>
-
-      <div id="clear-demo-data-progress-view" class="hidden p-6 space-y-3">
-        <div class="flex items-center gap-2 text-xs text-slate-300">
-          <i class="fa-solid fa-spinner fa-spin text-rose-400"></i>
-          <span id="clear-demo-progress-text">Starting…</span>
-        </div>
-        <div class="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
-          <div id="clear-demo-progress-bar" class="bg-rose-600 h-2 rounded-full transition-all" style="width: 0%"></div>
-        </div>
-      </div>
-
-      <div id="clear-demo-data-done-view" class="hidden p-6 space-y-3">
-        <div class="flex items-center gap-2 text-emerald-400 text-sm font-bold">
-          <i class="fa-solid fa-circle-check"></i>
-          <span>Demo data cleared</span>
-        </div>
-        <p id="clear-demo-done-summary" class="text-xs text-slate-300"></p>
-        <div id="clear-demo-done-errors" class="hidden text-xs text-amber-300 font-mono bg-amber-950/30 border border-amber-800/50 rounded-xl p-3"></div>
-        <div class="flex items-center justify-end pt-2">
-          <button type="button" onclick="window.location.reload()" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl shadow-lg transition-all cursor-pointer">Reload App</button>
         </div>
       </div>
     </div>
