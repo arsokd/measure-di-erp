@@ -390,7 +390,13 @@ var currentLeadContacts = [];
 
         var cascade = getCurrentLeadCascadeValues();
         var availableProducts = getProductsForLeadCascade(cascade.industryVertical, cascade.projectSector, cascade.vertical);
-        var cascadeLabel = [cascade.industryVertical, cascade.projectSector].filter(Boolean).join(' / ') || cascade.vertical;
+        // Matches what getProductsForLeadCascade actually filters by below
+        // (Vertical Classification alone - see that function's own
+        // comment) - this used to show Industry Vertical + Project
+        // Sector instead, which hasn't driven the filter since products
+        // stopped carrying those tags, so the label was actively
+        // misleading about which field controlled the list.
+        var cascadeLabel = cascade.vertical;
 
         currentLeadProducts.forEach(function(prod, i) {
           var card = document.createElement('div');
