@@ -430,8 +430,8 @@ var currentLeadContacts = [];
             </div>
 
             <div>
-              <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Technical Specification / Unique Specs (from master)</label>
-              <input type="text" value="${escapeHtml(prod.spec || '')}" readonly class="w-full px-2.5 py-1.5 bg-slate-950/60 border border-slate-800 rounded-lg text-xs text-slate-400 cursor-not-allowed" />
+              <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Technical Specification / Unique Specs (pre-filled from master - editable)</label>
+              <input type="text" value="${escapeHtml(prod.spec || '')}" oninput="currentLeadProducts[${i}].spec = this.value;" class="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-indigo-500" />
             </div>
 
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">

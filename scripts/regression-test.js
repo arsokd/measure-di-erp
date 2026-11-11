@@ -742,10 +742,11 @@ async function testVerticalListConsistency(browser) {
 }
 
 // ---------------------------------------------------------------------
-// Lead product line item Unit Price: pre-filled from Products Master but
-// editable, not locked - the team quotes the same product at different
-// prices for different customers, so a hard-locked master price was a
-// real workflow blocker, not just a UI nicety.
+// Lead product line item Unit Price and Technical Specification: both
+// pre-filled from Products Master but editable, not locked - the team
+// quotes the same product at different prices for different customers,
+// and some products need a minor spec tweak per deal, so a hard-locked
+// master value was a real workflow blocker, not just a UI nicety.
 // ---------------------------------------------------------------------
 async function testLeadProductPriceEditable(browser) {
   const failures = [];
@@ -758,25 +759,43 @@ async function testLeadProductPriceEditable(browser) {
 
   const before = await page.evaluate(function () {
     var input = document.querySelector('input[oninput*="unitPrice"]');
-    return input ? { exists: true, readonly: input.hasAttribute('readonly'), prefilled: Number(input.value) } : { exists: false };
+    var specInput = document.querySelector('input[oninput*=".spec"]');
+    return {
+      exists: !!input,
+      readonly: input ? input.hasAttribute('readonly') : null,
+      prefilled: input ? Number(input.value) : null,
+      specExists: !!specInput,
+      specReadonly: specInput ? specInput.hasAttribute('readonly') : null,
+      specPrefilled: specInput ? specInput.value : null
+    };
   });
   assertTrue(before.exists, 'Lead product row: Unit Price input exists', failures);
   if (before.exists) {
     assertTrue(!before.readonly, 'Lead product row: Unit Price is NOT readonly (editable)', failures);
     assertTrue(before.prefilled > 0, 'Lead product row: Unit Price is pre-filled from master (non-zero)', failures);
   }
+  assertTrue(before.specExists, 'Lead product row: Technical Specification input exists', failures);
+  if (before.specExists) {
+    assertTrue(!before.specReadonly, 'Lead product row: Technical Specification is NOT readonly (editable)', failures);
+    assertTrue(!!before.specPrefilled, 'Lead product row: Technical Specification is pre-filled from master (non-empty)', failures);
+  }
 
   const after = await page.evaluate(function () {
     var input = document.querySelector('input[oninput*="unitPrice"]');
     input.value = '999999';
     input.dispatchEvent(new Event('input'));
+    var specInput = document.querySelector('input[oninput*=".spec"]');
+    specInput.value = 'Custom spec for this deal - 450T capacity';
+    specInput.dispatchEvent(new Event('input'));
     return {
       storedPrice: currentLeadProducts[0] ? currentLeadProducts[0].unitPrice : null,
+      storedSpec: currentLeadProducts[0] ? currentLeadProducts[0].spec : null,
       lineTotalText: document.querySelector('.lead-line-total-display') ? document.querySelector('.lead-line-total-display').innerText : null
     };
   });
   assertEqual(after.storedPrice, 999999, 'Lead product row: manually entered price is stored', failures);
   assertTrue(!!after.lineTotalText && after.lineTotalText.indexOf('9,99,999') !== -1, 'Lead product row: Line Total recalculates from the manually entered price, got "' + after.lineTotalText + '"', failures);
+  assertEqual(after.storedSpec, 'Custom spec for this deal - 450T capacity', 'Lead product row: manually edited Technical Specification is stored', failures);
 
   await page.close();
   return failures;
