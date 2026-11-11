@@ -1510,6 +1510,56 @@ async function testSeedGuardDoesNotRefillClearedCollections(browser) {
 }
 
 // ---------------------------------------------------------------------
+// Master Data bulk CSV upload (Client/Product/Equipment/Bank/Project
+// Master) must push newly-imported records to Firestore, not just this
+// device's own local cache - saveCollection alone looked successful
+// (the uploading admin's own screen updated immediately) but the next
+// time that device's own real-time listener confirmed a snapshot, it
+// reconciled local state back down to what Firestore actually had and
+// silently wiped out everything just imported. Reported as "I uploaded
+// 394 clients, the app confirmed it, but Client Master still shows 5".
+// ---------------------------------------------------------------------
+async function testBulkUploadSyncsToFirestore(browser) {
+  const failures = [];
+  const { page } = await newPage(browser);
+
+  await page.goto(BASE_URL + '/master-data.html', { waitUntil: 'networkidle', timeout: 30000 });
+  await page.waitForTimeout(600);
+
+  const result = await page.evaluate(function () {
+    window.RevOpsStore.saveCollection('clientsMaster', []);
+    activeMasterTab = 'clients';
+    parsedCsvData = [
+      { clientName: 'Bulk Sync Test Client', gstin: '', city: 'Test City', contactPerson: '', email: '', phone: '' }
+    ];
+
+    var originalIsFirebaseAvailable = window.RevOpsStore.isFirebaseAvailable;
+    var originalSync = window.RevOpsStore.syncAllToFirestore;
+    var syncCallCount = 0;
+    window.RevOpsStore.isFirebaseAvailable = function () { return true; };
+    window.RevOpsStore.syncAllToFirestore = function () { syncCallCount++; };
+
+    var originalAlert = window.alert;
+    window.alert = function () {};
+    executeBulkUpload();
+    window.alert = originalAlert;
+
+    window.RevOpsStore.isFirebaseAvailable = originalIsFirebaseAvailable;
+    window.RevOpsStore.syncAllToFirestore = originalSync;
+
+    return {
+      syncCallCount: syncCallCount,
+      localCount: (window.RevOpsStore.getCollection('clientsMaster') || []).length
+    };
+  });
+  assertEqual(result.localCount, 1, 'Bulk upload still saves the new record to the local cache', failures);
+  assertEqual(result.syncCallCount, 1, 'Bulk upload pushes the newly-imported records to Firestore (syncAllToFirestore called), not just local storage', failures);
+
+  await page.close();
+  return failures;
+}
+
+// ---------------------------------------------------------------------
 // Master Data bulk CSV upload parser: a plain line.split(',') silently
 // shifted every column out of place the moment a field contained a
 // comma of its own (an address like "Anna Nagar, Chennai"). The parser
@@ -5400,6 +5450,7 @@ const TESTS = [
   ['Delete authority (Quotations, Invoices): Super Admin/Admin only, not even the record\'s own creator', testDeleteIsSuperAdminOrAdminOnly],
   ['Seed guard: clientEquipmentMaster stays empty once connected to Firebase (never re-seeded)', testSeedGuardDoesNotRefillClearedCollections],
   ['Bulk CSV parser handles quoted/comma/multi-line fields', testBulkCsvParserHandlesQuotedFields],
+  ['Bulk CSV upload pushes new Master Data records to Firestore, not just the local cache', testBulkUploadSyncsToFirestore],
   ['Password policy: forced first-time/90-day change, developer exemption, self-service flow', testPasswordPolicyEnforcement],
   ['Lead pipeline stage model: advanceLeadStage, Lost/Trashed/Postponed guards, pending follow-ups', testLeadPipelineStageModel],
   ['Lead auto-sync: Quotation send -> Quoted, Order booked -> Order Received, Invoice raised -> Won', testLeadAutoSyncFromDocuments],

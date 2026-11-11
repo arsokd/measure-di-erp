@@ -1084,6 +1084,20 @@ var activeMasterTab = 'products';
 
       window.RevOpsStore.saveCollection(colName, existing);
 
+      // saveCollection only ever writes this device's own local cache -
+      // without this, a bulk upload looks successful (the uploading
+      // admin's own screen shows the new count immediately) but the
+      // records were never actually pushed to Firestore. The very next
+      // time this device's own real-time listener for this collection
+      // confirms a snapshot, it reconciles local state back down to
+      // what's actually in Firestore (see
+      // _pruneStaleLocalRecordsNotInRemoteSnapshot in store.js) and
+      // silently wipes out everything just imported - exactly the "I
+      // uploaded 394 clients but it still shows 5" symptom this fixes.
+      if (window.RevOpsStore.isFirebaseAvailable()) {
+        window.RevOpsStore.syncAllToFirestore();
+      }
+
       if (window.RevOpsStore.logAudit) {
         window.RevOpsStore.logAudit(
           'MasterData',
