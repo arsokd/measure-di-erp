@@ -1518,6 +1518,13 @@ async function testSeedGuardDoesNotRefillClearedCollections(browser) {
 // reconciled local state back down to what Firestore actually had and
 // silently wiped out everything just imported. Reported as "I uploaded
 // 394 clients, the app confirmed it, but Client Master still shows 5".
+// Also locks in that the writes are AWAITED (batched, then committed
+// and awaited before the success alert/re-render) rather than fired
+// and forgotten - an earlier version of this fix called the sweeping
+// syncAllToFirestore() (every collection in the whole app, unbatched,
+// un-awaited) which could plausibly overwhelm the connection on a
+// large import and still lose records; this uses a scoped, batched,
+// awaited write of only the newly-imported docs instead.
 // ---------------------------------------------------------------------
 async function testBulkUploadSyncsToFirestore(browser) {
   const failures = [];
@@ -1526,34 +1533,46 @@ async function testBulkUploadSyncsToFirestore(browser) {
   await page.goto(BASE_URL + '/master-data.html', { waitUntil: 'networkidle', timeout: 30000 });
   await page.waitForTimeout(600);
 
-  const result = await page.evaluate(function () {
+  const result = await page.evaluate(async function () {
     window.RevOpsStore.saveCollection('clientsMaster', []);
     activeMasterTab = 'clients';
     parsedCsvData = [
-      { clientName: 'Bulk Sync Test Client', gstin: '', city: 'Test City', contactPerson: '', email: '', phone: '' }
+      { clientName: 'Bulk Sync Test Client 1', gstin: '', city: 'Test City', contactPerson: '', email: '', phone: '' },
+      { clientName: 'Bulk Sync Test Client 2', gstin: '', city: 'Test City', contactPerson: '', email: '', phone: '' }
     ];
 
-    var originalIsFirebaseAvailable = window.RevOpsStore.isFirebaseAvailable;
-    var originalSync = window.RevOpsStore.syncAllToFirestore;
-    var syncCallCount = 0;
-    window.RevOpsStore.isFirebaseAvailable = function () { return true; };
-    window.RevOpsStore.syncAllToFirestore = function () { syncCallCount++; };
+    var originalDb = window.db;
+    var setCalls = [];
+    var commitCount = 0;
+    window.db = {
+      collection: function (name) {
+        return { doc: function (id) { return { _col: name, _id: id }; } };
+      },
+      batch: function () {
+        return {
+          set: function (ref, data) { setCalls.push({ col: ref._col, id: ref._id, data: data }); },
+          commit: function () { commitCount++; return Promise.resolve(); }
+        };
+      }
+    };
 
     var originalAlert = window.alert;
     window.alert = function () {};
-    executeBulkUpload();
+    await executeBulkUpload();
     window.alert = originalAlert;
-
-    window.RevOpsStore.isFirebaseAvailable = originalIsFirebaseAvailable;
-    window.RevOpsStore.syncAllToFirestore = originalSync;
+    window.db = originalDb;
 
     return {
-      syncCallCount: syncCallCount,
-      localCount: (window.RevOpsStore.getCollection('clientsMaster') || []).length
+      localCount: (window.RevOpsStore.getCollection('clientsMaster') || []).length,
+      setCallCount: setCalls.length,
+      commitCount: commitCount,
+      allTargetClientsMaster: setCalls.every(function (c) { return c.col === 'clientsMaster'; })
     };
   });
-  assertEqual(result.localCount, 1, 'Bulk upload still saves the new record to the local cache', failures);
-  assertEqual(result.syncCallCount, 1, 'Bulk upload pushes the newly-imported records to Firestore (syncAllToFirestore called), not just local storage', failures);
+  assertEqual(result.localCount, 2, 'Bulk upload still saves the new records to the local cache', failures);
+  assertEqual(result.setCallCount, 2, 'Bulk upload pushes exactly the newly-imported records to Firestore (not the whole app\'s data)', failures);
+  assertTrue(result.allTargetClientsMaster, 'Bulk upload writes land in the correct collection (clientsMaster), not somewhere else', failures);
+  assertEqual(result.commitCount, 1, 'Bulk upload commits its writes in a single batch, awaited before the success alert', failures);
 
   await page.close();
   return failures;

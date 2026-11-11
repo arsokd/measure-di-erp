@@ -1050,7 +1050,7 @@ var activeMasterTab = 'products';
       document.getElementById('bulk-preview-text').innerText = JSON.stringify(parsedCsvData.slice(0, 5), null, 2) + (parsedCsvData.length > 5 ? '\n...and ' + (parsedCsvData.length - 5) + ' more records' : '');
     }
 
-    function executeBulkUpload() {
+    async function executeBulkUpload() {
       if (!canEditMasterData()) {
         alert("Only Super Admin or Admin can bulk-upload master records.");
         return;
@@ -1073,29 +1073,50 @@ var activeMasterTab = 'products';
 
       var existing = window.RevOpsStore.getCollection(colName) || [];
       var legendFields = getMasterTabLegendFields(activeMasterTab);
+      var newDocs = [];
 
       parsedCsvData.forEach(function(row) {
         var newDoc = Object.assign({}, row, {
           id: row.id || (activeMasterTab + '_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4))
         });
         if (legendFields.length > 0) window.RevOpsStore.normalizeRecordAgainstLegend(newDoc, legendFields);
+        newDocs.push(newDoc);
         existing.push(newDoc);
       });
 
       window.RevOpsStore.saveCollection(colName, existing);
 
       // saveCollection only ever writes this device's own local cache -
-      // without this, a bulk upload looks successful (the uploading
-      // admin's own screen shows the new count immediately) but the
-      // records were never actually pushed to Firestore. The very next
-      // time this device's own real-time listener for this collection
-      // confirms a snapshot, it reconciles local state back down to
-      // what's actually in Firestore (see
-      // _pruneStaleLocalRecordsNotInRemoteSnapshot in store.js) and
-      // silently wipes out everything just imported - exactly the "I
+      // without pushing these same records to Firestore too, a bulk
+      // upload looks successful (the uploading admin's own screen shows
+      // the new count immediately) but the next time this device's own
+      // real-time listener for this collection confirms a snapshot, it
+      // reconciles local state back down to what's actually in Firestore
+      // and silently wipes out everything just imported - the "I
       // uploaded 394 clients but it still shows 5" symptom this fixes.
+      // Batched (chunks of 450, under Firestore's 500-op batch limit)
+      // and AWAITED before the success alert/re-render below - firing a
+      // few hundred unbatched, un-awaited writes and immediately
+      // blocking the main thread with alert() let many of them never
+      // actually finish sending.
+      var firestoreError = null;
       if (window.RevOpsStore.isFirebaseAvailable()) {
-        window.RevOpsStore.syncAllToFirestore();
+        try {
+          var batchChain = Promise.resolve();
+          for (var b = 0; b < newDocs.length; b += 450) {
+            (function(chunk) {
+              batchChain = batchChain.then(function() {
+                var batch = window.db.batch();
+                chunk.forEach(function(doc) { batch.set(window.db.collection(colName).doc(doc.id), doc, { merge: true }); });
+                return batch.commit();
+              });
+            })(newDocs.slice(b, b + 450));
+          }
+          await batchChain;
+        } catch (err) {
+          console.error("Bulk upload Firestore sync error for " + colName + ":", err);
+          firestoreError = err;
+        }
       }
 
       if (window.RevOpsStore.logAudit) {
@@ -1109,7 +1130,11 @@ var activeMasterTab = 'products';
         );
       }
 
-      alert("Successfully imported " + parsedCsvData.length + " records into " + colName + "!");
+      if (firestoreError) {
+        alert("Imported " + parsedCsvData.length + " records into " + colName + " on this device, but saving them to the server failed (" + (firestoreError.message || firestoreError) + "). They may not appear on other devices or survive a refresh until this is retried.");
+      } else {
+        alert("Successfully imported " + parsedCsvData.length + " records into " + colName + "!");
+      }
       closeBulkUploadModal();
       updateTabBadges();
       renderMasterTable();
