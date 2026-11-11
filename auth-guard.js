@@ -293,12 +293,13 @@ function checkFollowUpDuePopup() {
     popup.id = popupId;
     popup.className = 'fixed bottom-5 right-5 left-3 md:left-auto z-50 max-w-sm md:w-full bg-slate-900 border-2 border-rose-600/80 rounded-2xl shadow-2xl p-4 text-white';
     popup.innerHTML = `
-      <div class="flex items-center gap-2 pb-2 border-b border-slate-800">
+      <div id="followup-due-popup-handle" class="flex items-center gap-2 pb-2 border-b border-slate-800 cursor-move select-none" title="Drag to move">
         <div class="w-7 h-7 rounded-lg bg-rose-600 flex items-center justify-center text-sm shrink-0">📞</div>
-        <div>
+        <div class="min-w-0 flex-1">
           <h4 class="text-xs font-black uppercase tracking-wider text-rose-400">Follow-ups Due</h4>
           <p class="text-[11px] text-slate-300">${due.length} item(s) need a follow-up — log one to clear it from this list.</p>
         </div>
+        <i class="fa-solid fa-up-down-left-right text-slate-600 text-xs shrink-0"></i>
       </div>
       <div class="py-2 space-y-1.5 max-h-48 overflow-y-auto">
         ${due.map(function(item) {
@@ -316,11 +317,87 @@ function checkFollowUpDuePopup() {
       </div>
     `;
     document.body.appendChild(popup);
+    makeFollowUpPopupDraggable(popup, document.getElementById('followup-due-popup-handle'));
   } catch(e) {
     console.warn("Follow-up due popup check failed:", e);
   }
 }
 window.checkFollowUpDuePopup = checkFollowUpDuePopup;
+
+// Lets the user drag the persistent follow-ups-due popup anywhere on
+// screen, since its default corner can sit on top of other controls
+// (reported: hiding the Lead Owner filter / search row on leads.html).
+// Position is remembered across the popup's frequent rebuilds (it is
+// torn down and recreated on every checkFollowUpDuePopup() call) by
+// reading/writing a single localStorage key.
+function makeFollowUpPopupDraggable(popup, handle) {
+  if (!popup || !handle) return;
+  var POS_KEY = 'followupPopupPos';
+
+  function clamp(left, top) {
+    var maxLeft = window.innerWidth - popup.offsetWidth - 4;
+    var maxTop = window.innerHeight - popup.offsetHeight - 4;
+    return {
+      left: Math.max(4, Math.min(left, Math.max(4, maxLeft))),
+      top: Math.max(4, Math.min(top, Math.max(4, maxTop)))
+    };
+  }
+
+  function applyPos(left, top) {
+    var pos = clamp(left, top);
+    popup.style.left = pos.left + 'px';
+    popup.style.top = pos.top + 'px';
+    popup.style.right = 'auto';
+    popup.style.bottom = 'auto';
+  }
+
+  try {
+    var saved = JSON.parse(localStorage.getItem(POS_KEY) || 'null');
+    if (saved && typeof saved.left === 'number' && typeof saved.top === 'number') {
+      applyPos(saved.left, saved.top);
+    }
+  } catch(e) {}
+
+  var dragging = false, startX = 0, startY = 0, startLeft = 0, startTop = 0;
+
+  function onMove(e) {
+    if (!dragging) return;
+    var point = e.touches ? e.touches[0] : e;
+    applyPos(startLeft + (point.clientX - startX), startTop + (point.clientY - startY));
+    if (e.cancelable) e.preventDefault();
+  }
+
+  function onUp() {
+    if (!dragging) return;
+    dragging = false;
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('touchmove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    document.removeEventListener('touchend', onUp);
+    try {
+      var rect = popup.getBoundingClientRect();
+      localStorage.setItem(POS_KEY, JSON.stringify({ left: rect.left, top: rect.top }));
+    } catch(e) {}
+  }
+
+  function onDown(e) {
+    dragging = true;
+    var point = e.touches ? e.touches[0] : e;
+    var rect = popup.getBoundingClientRect();
+    startX = point.clientX;
+    startY = point.clientY;
+    startLeft = rect.left;
+    startTop = rect.top;
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('touchmove', onMove, { passive: false });
+    document.addEventListener('mouseup', onUp);
+    document.addEventListener('touchend', onUp);
+    e.preventDefault();
+  }
+
+  handle.addEventListener('mousedown', onDown);
+  handle.addEventListener('touchstart', onDown, { passive: false });
+}
 
 // Clears every localStorage flag a real login sets, so a signed-out device
 // is left with no stale "logged in" state of any kind to confuse the next
