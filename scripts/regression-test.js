@@ -626,29 +626,13 @@ async function testVerticalListConsistency(browser) {
   await checkPageOptions('employees.html', 'inp-vertical', function () { openEmployeeModal(); }, 'Employee Vertical');
   await checkPageOptions('orders.html', 'inp-ord-vertical', function () { openOrderModal(); }, 'Order Vertical');
   await checkPageOptions('warranty-management.html', 'inp-warr-vertical', function () { openNewWarrantyModal(); }, 'Warranty Vertical');
-  await checkPageOptions('leads.html', 'inp-lead-industry', function () { openLeadModal(); }, 'Lead Industry Vertical');
 
-  // Industry Vertical and Vertical Classification are two separate fields
-  // on the same Add Lead form that both mean "vertical" - they must show
-  // literally the same option list (same master collection), not just
-  // the same 4 names independently, or they can drift in wording again.
-  // (Page/modal already open from the checkPageOptions call above.)
-  var leadDualFieldResult = await page.evaluate(function () {
-    var industryOpts = Array.from(document.getElementById('inp-lead-industry').options).map(function (o) { return o.value; });
-    var classOpts = Array.from(document.getElementById('inp-lead-vertical').options).map(function (o) { return o.value; });
-    document.getElementById('inp-lead-industry').value = 'Onboard';
-    handleIndustryChange();
-    return {
-      classOptions: classOpts,
-      identical: JSON.stringify(industryOpts) === JSON.stringify(classOpts),
-      syncedVertical: document.getElementById('inp-lead-vertical').value
-    };
-  });
-  expectedOptions.forEach(function (opt) {
-    assertIncludes(leadDualFieldResult.classOptions, opt, 'Lead Vertical Classification: has "' + opt + '" option', failures);
-  });
-  assertTrue(leadDualFieldResult.identical, 'Lead form: Industry Vertical and Vertical Classification show the exact same option list', failures);
-  assertEqual(leadDualFieldResult.syncedVertical, 'Onboard', 'Lead form: picking Industry Vertical auto-syncs Vertical Classification', failures);
+  // Lead's own Vertical Classification field (not Industry Vertical /
+  // Project Sector, which was reworked to pull from a different master
+  // list entirely - Master Data > Project Sector / Origin - see
+  // testLeadIndustryVerticalIsProjectSector below) still shares this same
+  // list with every other page's Vertical dropdown.
+  await checkPageOptions('leads.html', 'inp-lead-vertical', function () { openLeadModal(); }, 'Lead Vertical Classification');
 
   // Leads' own vertical filter (browsing the table, not the create form)
   // reads the same master list and must offer all 4 - it was previously a
@@ -736,6 +720,88 @@ async function testVerticalListConsistency(browser) {
   assertEqual(bucketResult.projects, 'Projects', 'AOP bucket: Projects classifies as Projects', failures);
   assertEqual(bucketResult.serviceAndParts, 'Service/Parts', 'AOP bucket: Service and Parts classifies as Service/Parts', failures);
   assertEqual(bucketResult.legacySpareService, 'Service/Parts', 'AOP bucket: legacy "Spare/Service" wording still classifies as Service/Parts', failures);
+
+  await page.close();
+  return failures;
+}
+
+// ---------------------------------------------------------------------
+// Lead "Industry Vertical / Project Sector" - merged from two separate
+// fields that both ended up meaning the same thing (one wrongly reading
+// Vertical Classification, the other already correctly reading Master
+// Data > Project Sector / Origin - Steel, Cement, Infrastructure, etc.).
+// Now one field, sourced from Project Sector / Origin, with no coupling
+// to Vertical Classification (the field that actually drives the
+// Product Name filter) and no separate "Project Sector / Origin" box.
+// ---------------------------------------------------------------------
+async function testLeadIndustryVerticalIsProjectSector(browser) {
+  const failures = [];
+  const { page } = await newPage(browser);
+
+  await page.goto(BASE_URL + '/leads.html', { waitUntil: 'networkidle', timeout: 30000 });
+  await page.waitForTimeout(600);
+
+  await page.evaluate(function () {
+    window.RevOpsStore.saveCollection('projectSectorMaster', [
+      { id: 'psect_steel', name: 'Steel', isActive: true },
+      { id: 'psect_cement', name: 'Cement', isActive: true },
+      { id: 'psect_other', name: 'Other Industries', isActive: true }
+    ]);
+  });
+
+  const state = await page.evaluate(function () {
+    openLeadModal();
+    var indSelect = document.getElementById('inp-lead-industry');
+    var indOptions = Array.from(indSelect.options).map(function (o) { return o.value; });
+    var verticalBefore = document.getElementById('inp-lead-vertical').value;
+
+    indSelect.value = 'Steel';
+    handleIndustryChange();
+    var otherHiddenForSteel = document.getElementById('inp-other-sector').classList.contains('hidden');
+    var verticalAfterIndustryChange = document.getElementById('inp-lead-vertical').value;
+
+    indSelect.value = 'Other Industries';
+    handleIndustryChange();
+    var otherVisibleForOtherIndustries = !document.getElementById('inp-other-sector').classList.contains('hidden');
+
+    return {
+      indOptions: indOptions,
+      hasProjectSectorBox: !!document.getElementById('project-sector-box'),
+      hasOldProjectSectorSelect: !!document.getElementById('inp-project-sector'),
+      verticalBefore: verticalBefore,
+      verticalAfterIndustryChange: verticalAfterIndustryChange,
+      otherHiddenForSteel: otherHiddenForSteel,
+      otherVisibleForOtherIndustries: otherVisibleForOtherIndustries
+    };
+  });
+  assertIncludes(state.indOptions, 'Steel', 'Lead Industry Vertical / Project Sector: sourced from Project Sector / Origin master list ("Steel" present)', failures);
+  assertIncludes(state.indOptions, 'Cement', 'Lead Industry Vertical / Project Sector: has "Cement" option', failures);
+  assertTrue(!state.indOptions.includes('Crane') && !state.indOptions.includes('Onboard'), 'Lead Industry Vertical / Project Sector: no longer shows Vertical Classification values (Crane/Onboard)', failures);
+  assertTrue(!state.hasProjectSectorBox && !state.hasOldProjectSectorSelect, 'Lead form: the old separate "Project Sector / Origin" box is gone (merged into Industry Vertical)', failures);
+  assertEqual(state.verticalAfterIndustryChange, state.verticalBefore, 'Lead form: picking Industry Vertical no longer changes Vertical Classification (decoupled)', failures);
+  assertTrue(state.otherHiddenForSteel, 'Lead Industry Vertical: free-text box stays hidden for a real option ("Steel")', failures);
+  assertTrue(state.otherVisibleForOtherIndustries, 'Lead Industry Vertical: free-text box appears for "Other Industries"', failures);
+
+  // Save with a custom "Other Industries" value and confirm both industry
+  // and projectSector fields come back identical on reload (compatibility
+  // with the Data Center bulk Leads template's separate columns).
+  const saveResult = await page.evaluate(function () {
+    document.getElementById('inp-lead-customer').value = 'Industry Vertical Merge Test Co';
+    document.getElementById('inp-other-sector').value = 'Custom Sector Name';
+    document.getElementById('inp-lead-vertical').value = 'Projects';
+    document.getElementById('inp-lead-value').value = '100000';
+    document.getElementById('inp-lead-followup-date').value = '2030-06-01';
+    document.getElementById('inp-lead-notes').value = 'Regression test notes.';
+    currentLeadProducts = [{ name: 'Test Product', spec: 'x', hsn: '90318000', quantity: 1, unitPrice: 1000 }];
+    currentLeadContacts = [{ name: 'Test Contact', designation: '', phone: '9999999999', email: '', autoCc: true }];
+    renderContactRows();
+    document.getElementById('lead-form').requestSubmit();
+    var leads = window.RevOpsStore.getCollection('leads') || [];
+    var saved = leads.find(function (l) { return l.customerName === 'Industry Vertical Merge Test Co'; });
+    return { industry: saved ? saved.industry : null, projectSector: saved ? saved.projectSector : null, id: saved ? saved.id : null };
+  });
+  assertEqual(saveResult.industry, 'Custom Sector Name', 'Lead save: custom "Other Industries" text is stored in industry field', failures);
+  assertEqual(saveResult.projectSector, 'Custom Sector Name', 'Lead save: same value also stored in legacy projectSector field for Data Center compatibility', failures);
 
   await page.close();
   return failures;
@@ -5458,6 +5524,7 @@ const TESTS = [
   ['Service Lead "Raise Ticket" / "Generate Quotation" links', testServiceLeadActionLinks],
   ['Invoice "Amount in Words"', testInvoiceAmountInWords],
   ['Vertical list consistency app-wide + AOP bucket classification', testVerticalListConsistency],
+  ['Lead Industry Vertical / Project Sector: merged field, sourced from Project Sector / Origin, decoupled from Vertical Classification', testLeadIndustryVerticalIsProjectSector],
   ['Lead product Unit Price is pre-filled but editable', testLeadProductPriceEditable],
   ['Master Data edit access is Super Admin / Admin role only', testMasterDataAdminRoleOnly],
   ['Service/Parts pages declare explicit role gate', testServicePartsPagesDeclareRoleGate],

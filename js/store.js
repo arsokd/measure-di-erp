@@ -2233,7 +2233,7 @@ Object.assign(window.RevOpsStore, {
         headers: "leadNumber,customerName,leadSource,industry,projectSector,vertical,productName,hsnCode,currency,estimatedValue,expectedValue,targetDate,stage,contactPerson,contactPhone,contactEmail,notes,employeeId,employeeName,createdDate,createdAt",
         legendFields: [
           { column: 'leadSource', collectionName: 'leadSourceMaster' },
-          { column: 'industry', collectionName: 'verticalClassificationMaster' },
+          { column: 'industry', collectionName: 'projectSectorMaster' },
           { column: 'projectSector', collectionName: 'projectSectorMaster' },
           { column: 'vertical', collectionName: 'verticalClassificationMaster' },
           { column: 'currency', collectionName: 'currencyMaster', valueField: 'code' },

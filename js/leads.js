@@ -236,17 +236,18 @@ var currentLeadContacts = [];
         }
 
         fillSelect('inp-lead-source', 'leadSourceMaster');
-        // Industry Vertical now reads the SAME Master Data > Vertical
-        // Classification list as the Vertical Classification field just
-        // below it (used to read from a separate, older
-        // industryVerticalMaster list that had drifted to different
-        // wording - "Project"/"Spare/Service" vs "Projects"/"Service and
-        // Parts" - which is exactly the two-different-lists-on-one-form
-        // confusion this was meant to eliminate). getProductsForLeadCascade
-        // above already stopped using this field's value for anything but
-        // display/auto-suggest, so reading the same list here is safe.
-        fillSelect('inp-lead-industry', 'verticalClassificationMaster');
-        fillSelect('inp-project-sector', 'projectSectorMaster');
+        // Industry Vertical / Project Sector - merged into one field from
+        // Master Data > Project Sector / Origin (Steel, Cement,
+        // Infrastructure, Mining, Other Industries, Power Plant, etc.).
+        // This used to be two separate fields on this form ("Industry
+        // Vertical" wrongly reading the Vertical Classification list, plus
+        // a conditionally-shown "Project Sector / Origin" box reading this
+        // same list) - pure duplicate data entry once both pointed at the
+        // same concept, so they're combined into the single field here.
+        // Vertical Classification (Service and Parts/Projects/Crane/
+        // Onboard, just below) is the one field that actually drives the
+        // Product Name filter - see getProductsForLeadCascade.
+        fillSelect('inp-lead-industry', 'projectSectorMaster');
         fillSelect('inp-lead-vertical', 'verticalClassificationMaster');
 
         var curSelect = document.getElementById('inp-lead-currency');
@@ -265,16 +266,12 @@ var currentLeadContacts = [];
         }
       }
 
-      // Product Name is filtered by Vertical Classification - the only tag
-      // the Products Master page's own form actually captures on a product
-      // (see master-data.js: productName/technicalSpec/hsnCode/unitPrice/
-      // vertical, nothing else). This used to also try matching Industry
-      // Vertical + Project Sector, but since no product record has ever
-      // been able to carry those tags in the first place, that check
-      // (`!p.industryVertical || ...`) was true for every single product,
-      // silently defeating the filter entirely - every product showed up
-      // for every vertical. Filtering on vertical alone is what actually
-      // works with the data that exists.
+      // Product Name is filtered by Vertical Classification alone - by
+      // explicit decision, confirmed again when Industry Vertical /
+      // Project Sector was reworked to pull from Master Data > Project
+      // Sector / Origin (Steel, Cement, Infrastructure, etc.): that field
+      // identifies which industry the customer is in, not which product
+      // line applies, so it plays no part in this filter.
       function getProductsForLeadCascade(industryVertical, projectSector, vertical) {
         return getProductsByVertical(vertical);
       }
@@ -282,7 +279,6 @@ var currentLeadContacts = [];
       function getCurrentLeadCascadeValues() {
         return {
           industryVertical: (document.getElementById('inp-lead-industry') || {}).value || '',
-          projectSector: (document.getElementById('inp-project-sector') || {}).value || '',
           vertical: (document.getElementById('inp-lead-vertical') || {}).value || 'Projects'
         };
       }
@@ -553,8 +549,11 @@ var currentLeadContacts = [];
         // Defaults to whatever this Lead is currently classified under -
         // that's almost always exactly why a product is missing in the
         // first place, so it saves re-picking the same values twice.
-        document.getElementById('inp-newprod-industryvertical').value = cascade.industryVertical || '';
-        document.getElementById('inp-newprod-projectsector').value = cascade.projectSector || '';
+        document.getElementById('inp-newprod-industryvertical').value = '';
+        // cascade.industryVertical now holds this Lead's merged Industry
+        // Vertical / Project Sector value (Steel, Cement, etc.) - the
+        // same concept this field's own list already represents.
+        document.getElementById('inp-newprod-projectsector').value = cascade.industryVertical || '';
         document.getElementById('inp-newprod-vertical').value = cascade.vertical || 'Projects';
       }
 
@@ -631,35 +630,19 @@ var currentLeadContacts = [];
         }
       }
 
+      // Industry Vertical / Project Sector no longer drives the Product
+      // Name filter or Vertical Classification at all (see
+      // getProductsForLeadCascade) - this field just identifies which
+      // industry the customer is in. All this needs to do is show/hide
+      // the free-text fallback for the one option that needs it.
       function handleIndustryChange() {
         var ind = document.getElementById('inp-lead-industry').value;
-        var sectorBox = document.getElementById('project-sector-box');
-        if (ind === 'Projects') {
-          sectorBox.classList.remove('hidden');
-        } else {
-          sectorBox.classList.add('hidden');
-        }
-
-        // Industry Vertical and Vertical Classification read the same
-        // master list now, so they're always the same set of choices -
-        // just keep Vertical Classification in sync with whatever was
-        // picked here, instead of a hardcoded old-wording -> new-wording
-        // mapping that only worked because the two lists used to differ.
-        var vertSelect = document.getElementById('inp-lead-vertical');
-        if (ind) vertSelect.value = ind;
-        handleVerticalChange();
-      }
-
-      function handleProjectSectorChange() {
-        var sector = document.getElementById('inp-project-sector').value;
         var otherInput = document.getElementById('inp-other-sector');
-        if (sector === 'Other Industries') {
+        if (ind === 'Other Industries') {
           otherInput.classList.remove('hidden');
         } else {
           otherInput.classList.add('hidden');
         }
-        // Product Name is also filtered by Project Sector — refresh it.
-        handleVerticalChange();
       }
 
       function addContactRow(existingContact) {
@@ -910,8 +893,7 @@ var currentLeadContacts = [];
             <td class="py-3 px-4">
               <div class="font-bold text-white">${escapeHtml(l.customerName)}</div>
               <div class="text-[10px] text-slate-400 mt-0.5 flex items-center gap-1">
-                <span class="text-amber-400">${escapeHtml(normalizeVerticalClassification(l.industry) || 'Projects')}</span>
-                ${l.projectSector ? `<span class="text-slate-500">&bull;</span> <span>${escapeHtml(l.projectSector)}</span>` : ''}
+                <span class="text-amber-400">${escapeHtml(l.industry || l.projectSector || 'N/A')}</span>
               </div>
             </td>
             <td class="py-3 px-4">
@@ -974,18 +956,21 @@ var currentLeadContacts = [];
           document.getElementById('lead-doc-id').value = leadData.id;
           document.getElementById('inp-lead-customer').value = leadData.customerName || '';
           document.getElementById('inp-lead-source').value = leadData.leadSource || 'Direct Customer Approach';
-          document.getElementById('inp-lead-industry').value = normalizeVerticalClassification(leadData.industry) || 'Projects';
-
-          handleIndustryChange();
-          if (leadData.projectSector) {
-            var sectSelect = document.getElementById('inp-project-sector');
-            sectSelect.value = leadData.projectSector;
-            if (sectSelect.value !== leadData.projectSector) {
-              sectSelect.value = 'Other Industries';
-              document.getElementById('inp-other-sector').value = leadData.projectSector;
-              document.getElementById('inp-other-sector').classList.remove('hidden');
-            }
+          // Prefer the old Project Sector value when present - it's the
+          // exact same concept this merged field now represents, whereas
+          // leadData.industry on an older lead may still hold an old
+          // Vertical-Classification-style value (e.g. "Projects") from
+          // before this field was reworked. If neither matches a current
+          // option, fall back to "Other Industries" + the free-text box
+          // so the original value is never silently dropped.
+          var indSelect = document.getElementById('inp-lead-industry');
+          var legacyIndustryValue = leadData.projectSector || leadData.industry || '';
+          indSelect.value = legacyIndustryValue;
+          if (indSelect.value !== legacyIndustryValue && legacyIndustryValue) {
+            indSelect.value = 'Other Industries';
+            document.getElementById('inp-other-sector').value = legacyIndustryValue;
           }
+          handleIndustryChange();
 
           document.getElementById('inp-lead-vertical').value = normalizeVerticalClassification(leadData.vertical) || 'Projects';
           document.getElementById('inp-lead-company').value = leadData.companyId || window.RevOpsStore.getDefaultCompanyId();
@@ -1030,7 +1015,15 @@ var currentLeadContacts = [];
         } else {
           document.getElementById('lead-modal-title').innerHTML = `<i class="fa-solid fa-file-signature text-[#E283BD]"></i> <span>Add New Commercial Lead</span>`;
           document.getElementById('lead-doc-id').value = '';
-          document.getElementById('inp-lead-industry').value = 'Projects';
+          // Deliberately NOT set to '' here - inp-lead-industry is a
+          // required <select> with no empty/placeholder option, so
+          // forcing it blank leaves selectedIndex at -1 and silently
+          // blocks every new lead from ever saving (native HTML5
+          // validation on requestSubmit()/Save). Leaving it untouched
+          // keeps whatever the browser already auto-selected (its first
+          // option) when populateLeadMasterDropdowns() just populated it
+          // moments ago - the same way inp-lead-source works already.
+          document.getElementById('inp-other-sector').value = '';
           handleIndustryChange();
           document.getElementById('inp-lead-vertical').value = 'Projects';
           document.getElementById('inp-lead-company').value = window.RevOpsStore.getDefaultCompanyId();
@@ -1082,7 +1075,7 @@ var currentLeadContacts = [];
         var myEmpId = localStorage.getItem('employeeId') || 'E-001';
         var myEmpName = localStorage.getItem('userName') || 'System User';
 
-        var sector = document.getElementById('inp-project-sector').value;
+        var sector = document.getElementById('inp-lead-industry').value;
         if (sector === 'Other Industries') {
           sector = document.getElementById('inp-other-sector').value || 'Other Industries';
         }
@@ -1151,7 +1144,12 @@ var currentLeadContacts = [];
           companyId: leadCompanyId,
           customerName: document.getElementById('inp-lead-customer').value.trim(),
           leadSource: document.getElementById('inp-lead-source').value,
-          industry: document.getElementById('inp-lead-industry').value,
+          // Written to both field names - "Industry Vertical" and
+          // "Project Sector / Origin" are now one merged form field, but
+          // keeping both record fields in sync preserves compatibility
+          // with the Data Center bulk Leads template/export, which still
+          // has separate industry/projectSector columns.
+          industry: sector,
           projectSector: sector,
           vertical: document.getElementById('inp-lead-vertical').value,
           products: validProducts,
