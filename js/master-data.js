@@ -713,23 +713,14 @@ var activeMasterTab = 'products';
       if (activeMasterTab === 'products') {
         var d = recordData || {};
         container.innerHTML = `
-          <div class="grid grid-cols-2 gap-3">
-            <div>
-              <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">Industry Vertical</label>
-              <select id="inp-rec-industryvertical" class="w-full px-3 py-2 bg-slate-950 border border-slate-750 rounded-xl text-xs font-semibold text-white">
-                <option value="">-- Any --</option>
-                ${optionsHtmlForMaster('projectSectorMaster', d.industryVertical)}
-              </select>
-            </div>
-            <div>
-              <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">Project Sector / Origin</label>
-              <select id="inp-rec-projectsector" class="w-full px-3 py-2 bg-slate-950 border border-slate-750 rounded-xl text-xs font-semibold text-white">
-                <option value="">-- Any --</option>
-                ${optionsHtmlForMaster('projectSectorMaster', d.projectSector)}
-              </select>
-            </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">Project Sector / Origin</label>
+            <select id="inp-rec-projectsector" class="w-full px-3 py-2 bg-slate-950 border border-slate-750 rounded-xl text-xs font-semibold text-white">
+              <option value="">-- Any --</option>
+              ${optionsHtmlForMaster('projectSectorMaster', d.projectSector)}
+            </select>
           </div>
-          <p class="text-[10px] text-slate-400">Industry Vertical + Project Sector determine which products appear on the Add Lead form. Leave either as "Any" to make this product available regardless of that field.</p>
+          <p class="text-[10px] text-slate-400">Project Sector / Origin is descriptive only (which industry this product serves). Vertical Classification below is what actually determines which products appear on the Add Lead form.</p>
           <div>
             <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">Vertical Classification *</label>
             <select id="inp-rec-vertical" required class="w-full px-3 py-2 bg-slate-950 border border-slate-750 rounded-xl text-xs font-semibold text-white">
@@ -1079,7 +1070,6 @@ var activeMasterTab = 'products';
         recordObj = {
           id: docId || ('prod_' + Date.now()),
           vertical: document.getElementById('inp-rec-vertical').value,
-          industryVertical: document.getElementById('inp-rec-industryvertical').value || '',
           projectSector: document.getElementById('inp-rec-projectsector').value || '',
           productName: document.getElementById('inp-rec-name').value.trim(),
           name: document.getElementById('inp-rec-name').value.trim(),

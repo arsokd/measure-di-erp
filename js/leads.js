@@ -534,7 +534,6 @@ var currentLeadContacts = [];
           }).join('');
           select.innerHTML = (includeAny ? '<option value="">-- Any --</option>' : '') + optsHtml;
         }
-        fillOptions('inp-newprod-industryvertical', 'verticalClassificationMaster', true);
         fillOptions('inp-newprod-projectsector', 'projectSectorMaster', true);
         fillOptions('inp-newprod-vertical', 'verticalClassificationMaster', false);
 
@@ -548,11 +547,10 @@ var currentLeadContacts = [];
 
         // Defaults to whatever this Lead is currently classified under -
         // that's almost always exactly why a product is missing in the
-        // first place, so it saves re-picking the same values twice.
-        document.getElementById('inp-newprod-industryvertical').value = '';
-        // cascade.industryVertical now holds this Lead's merged Industry
-        // Vertical / Project Sector value (Steel, Cement, etc.) - the
-        // same concept this field's own list already represents.
+        // first place, so it saves re-picking the same value twice.
+        // cascade.industryVertical holds this Lead's Industry Vertical /
+        // Project Sector value (Steel, Cement, etc.) - the same concept
+        // this field's own list already represents.
         document.getElementById('inp-newprod-projectsector').value = cascade.industryVertical || '';
         document.getElementById('inp-newprod-vertical').value = cascade.vertical || 'Projects';
       }
@@ -567,7 +565,6 @@ var currentLeadContacts = [];
         var name = document.getElementById('inp-newprod-name').value.trim();
         var spec = document.getElementById('inp-newprod-spec').value.trim();
         var vertical = document.getElementById('inp-newprod-vertical').value;
-        var industryVertical = document.getElementById('inp-newprod-industryvertical').value || '';
         var projectSector = document.getElementById('inp-newprod-projectsector').value || '';
         var hsn = document.getElementById('inp-newprod-hsn').value.trim() || '90318000';
         var price = Number(document.getElementById('inp-newprod-price').value) || 0;
@@ -584,7 +581,6 @@ var currentLeadContacts = [];
         var newProduct = {
           id: 'prod_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
           vertical: vertical,
-          industryVertical: industryVertical,
           projectSector: projectSector,
           productName: name,
           name: name,
