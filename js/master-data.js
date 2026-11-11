@@ -45,7 +45,7 @@ var activeMasterTab = 'products';
         'verticalClassificationMaster', 'currencyMaster', 'sparePartCategoryMaster',
         'complaintCategoryMaster', 'slaResponseTierMaster', 'amcContractTierMaster',
         'pmVisitFrequencyMaster', 'amcInvoicingMilestoneMaster', 'amcContractDurationMaster',
-        'companyMaster', 'hsnCodeMaster'
+        'companyMaster', 'hsnCodeMaster', 'componentsMaster', 'productBomLines'
       ];
       liveCollections.forEach(function(colName) {
         window.RevOpsStore.subscribeRealtimeSync(colName, function() {
@@ -80,6 +80,7 @@ var activeMasterTab = 'products';
       var contractDurations = window.RevOpsStore.getCollection('amcContractDurationMaster') || [];
       var companies = window.RevOpsStore.getCollection('companyMaster') || [];
       var hsnCodes = window.RevOpsStore.getCollection('hsnCodeMaster') || [];
+      var components = window.RevOpsStore.getCollection('componentsMaster') || [];
 
       document.getElementById('count-products').innerText = prods.length;
       document.getElementById('count-equipment').innerText = equip.length;
@@ -101,6 +102,7 @@ var activeMasterTab = 'products';
       var companiesCountEl = document.getElementById('count-companies');
       if (companiesCountEl) companiesCountEl.innerText = companies.length;
       document.getElementById('count-hsncodes').innerText = hsnCodes.length;
+      document.getElementById('count-components').innerText = components.length;
     }
 
     // Simple name-only master lists (Lead Source, Industry Vertical, Project
@@ -129,6 +131,7 @@ var activeMasterTab = 'products';
       if (tabKey === 'slapolicy') return 'slaResponseTierMaster';
       if (tabKey === 'companies') return 'companyMaster';
       if (tabKey === 'hsncodes') return 'hsnCodeMaster';
+      if (tabKey === 'components') return 'componentsMaster';
       if (SIMPLE_MASTER_TABS[tabKey]) return SIMPLE_MASTER_TABS[tabKey].collection;
       return null;
     }
@@ -157,6 +160,160 @@ var activeMasterTab = 'products';
       return items.map(function(it) {
         return `<option value="${escapeHtml(it.code)}" ${it.code === selectedCode ? 'selected' : ''}>${escapeHtml(it.code)} — ${escapeHtml(it.description || '')}</option>`;
       }).join('');
+    }
+
+    // Components dropdown for the BOM editor - same shape as optionsHtmlForMaster
+    // but the value is the component's id (what productBomLines stores), not its name.
+    function componentOptionsHtml() {
+      var items = (window.RevOpsStore.getCollection('componentsMaster') || []).filter(function(it) { return it.isActive !== false; });
+      return items.map(function(it) {
+        return `<option value="${escapeHtml(it.id)}">${escapeHtml(it.name)} (${escapeHtml(it.uom || 'Nos')} @ ₹${Number(it.unitCost || 0).toLocaleString('en-IN')})</option>`;
+      }).join('');
+    }
+
+    // One product's BOM lines, joined with their component master record -
+    // a line whose component was since deleted from componentsMaster is
+    // dropped rather than crashing on a missing lookup.
+    function getProductBomLinesJoined(productId) {
+      var components = window.RevOpsStore.getCollection('componentsMaster') || [];
+      var lines = (window.RevOpsStore.getCollection('productBomLines') || []).filter(function(l) { return l.productId === productId; });
+      return lines.map(function(l) {
+        var comp = components.find(function(c) { return c.id === l.componentId; });
+        if (!comp) return null;
+        var qty = Number(l.quantity) || 0;
+        var unitCost = Number(comp.unitCost) || 0;
+        return { line: l, component: comp, qty: qty, unitCost: unitCost, lineTotal: qty * unitCost };
+      }).filter(Boolean);
+    }
+
+    // Material cost roll-up for the Products Master list/Margin column -
+    // null (not 0) when there are no BOM lines yet, so "no BOM entered" is
+    // never confused with "this product genuinely costs nothing to build".
+    function computeProductMaterialCost(productId) {
+      var joined = getProductBomLinesJoined(productId);
+      if (joined.length === 0) return null;
+      return joined.reduce(function(sum, j) { return sum + j.lineTotal; }, 0);
+    }
+
+    // ============ Product Bill of Materials editor ============
+    // A product's BOM lives in its own collection (productBomLines: one
+    // row per {productId, componentId, quantity}) rather than nested
+    // inside the product record - keeps each line independently
+    // addable/removable/syncable, same reasoning as every other
+    // one-to-many link in this app (e.g. follow-up history, audit log).
+    function openProductBomModal(productId) {
+      var records = window.RevOpsStore.getCollection('productsMaster') || [];
+      var product = records.find(function(p) { return p.id === productId; });
+      if (!product) return;
+
+      document.getElementById('bom-modal-product-id').value = productId;
+      document.getElementById('bom-modal-product-label').innerText = (product.productName || product.name || 'Product') + ' — ' + (product.technicalSpec || product.spec || '');
+
+      var canEdit = canEditMasterData();
+      document.getElementById('bom-readonly-notice').classList.toggle('hidden', canEdit);
+      document.getElementById('bom-add-line-row').classList.toggle('hidden', !canEdit);
+
+      document.getElementById('inp-bom-component').innerHTML = componentOptionsHtml();
+      document.getElementById('inp-bom-qty').value = 1;
+
+      renderProductBomModalBody();
+      document.getElementById('product-bom-modal').classList.remove('hidden');
+    }
+
+    function closeProductBomModal() {
+      document.getElementById('product-bom-modal').classList.add('hidden');
+    }
+
+    function renderProductBomModalBody() {
+      var productId = document.getElementById('bom-modal-product-id').value;
+      var canEdit = canEditMasterData();
+      var joined = getProductBomLinesJoined(productId);
+      var body = document.getElementById('bom-lines-table-body');
+      var emptyState = document.getElementById('bom-empty-state');
+
+      body.innerHTML = '';
+      emptyState.classList.toggle('hidden', joined.length > 0);
+
+      joined.forEach(function(j) {
+        var tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td class="py-2.5 px-3 font-semibold text-white">${escapeHtml(j.component.name)}</td>
+          <td class="py-2.5 px-3 text-slate-400">${escapeHtml(j.component.uom || 'Nos')}</td>
+          <td class="py-2.5 px-3 text-right text-slate-300">₹${j.unitCost.toLocaleString('en-IN')}</td>
+          <td class="py-2.5 px-3 text-center">
+            ${canEdit
+              ? `<input type="number" min="0.001" step="0.001" value="${j.qty}" onchange="updateProductBomLineQty('${j.line.id}', this.value)" class="w-20 px-2 py-1 bg-slate-950 border border-slate-750 rounded-lg text-xs text-white text-center" />`
+              : `<span>${j.qty}</span>`}
+          </td>
+          <td class="py-2.5 px-3 text-right font-bold text-emerald-400">₹${j.lineTotal.toLocaleString('en-IN')}</td>
+          <td class="py-2.5 px-3 text-center">
+            ${canEdit ? `<button onclick="removeProductBomLine('${j.line.id}')" class="p-1.5 bg-slate-800 hover:bg-rose-900/60 text-rose-400 rounded-lg"><i class="fa-solid fa-trash-can"></i></button>` : ''}
+          </td>
+        `;
+        body.appendChild(tr);
+      });
+
+      var total = joined.reduce(function(sum, j) { return sum + j.lineTotal; }, 0);
+      document.getElementById('bom-total-cost').innerText = '₹' + total.toLocaleString('en-IN');
+    }
+
+    function addProductBomLine() {
+      if (!canEditMasterData()) {
+        alert("Only Super Admin or Admin can edit a product's Bill of Materials.");
+        return;
+      }
+      var productId = document.getElementById('bom-modal-product-id').value;
+      var componentId = document.getElementById('inp-bom-component').value;
+      var qty = Number(document.getElementById('inp-bom-qty').value);
+      if (!componentId) {
+        alert("Please select a component first (or add one under the Components / Raw Materials tab if the list is empty).");
+        return;
+      }
+      if (!qty || qty <= 0) {
+        alert("Please enter a quantity greater than 0.");
+        return;
+      }
+
+      var existingLines = (window.RevOpsStore.getCollection('productBomLines') || []).filter(function(l) { return l.productId === productId; });
+      var already = existingLines.find(function(l) { return l.componentId === componentId; });
+      if (already) {
+        alert("This component is already on the BOM — adjust its quantity in the table instead of adding it twice.");
+        return;
+      }
+
+      var line = { id: 'bomline_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4), productId: productId, componentId: componentId, quantity: qty };
+      window.RevOpsStore.saveRecord('productBomLines', line);
+
+      document.getElementById('inp-bom-qty').value = 1;
+      renderProductBomModalBody();
+      renderMasterTable();
+    }
+
+    function updateProductBomLineQty(lineId, newQtyStr) {
+      if (!canEditMasterData()) return;
+      var qty = Number(newQtyStr);
+      if (!qty || qty <= 0) {
+        alert("Quantity must be greater than 0.");
+        renderProductBomModalBody();
+        return;
+      }
+      var lines = window.RevOpsStore.getCollection('productBomLines') || [];
+      var line = lines.find(function(l) { return l.id === lineId; });
+      if (!line) return;
+      line.quantity = qty;
+      window.RevOpsStore.saveRecord('productBomLines', line);
+      renderProductBomModalBody();
+      renderMasterTable();
+    }
+
+    function removeProductBomLine(lineId) {
+      if (!canEditMasterData()) {
+        alert("Only Super Admin or Admin can edit a product's Bill of Materials.");
+        return;
+      }
+      window.RevOpsStore.deleteItem('productBomLines', lineId);
+      renderProductBomModalBody();
+      renderMasterTable();
     }
 
     function deleteMasterRecord(id) {
@@ -227,6 +384,7 @@ var activeMasterTab = 'products';
       emptyState.classList.add('hidden');
 
       if (activeMasterTab === 'products') {
+        var showMargin = canEditMasterData();
         header.innerHTML = `
           <tr>
             <th class="py-3 px-4">Vertical</th>
@@ -234,20 +392,33 @@ var activeMasterTab = 'products';
             <th class="py-3 px-4">Unique Technical Specification</th>
             <th class="py-3 px-4 text-center">HSN Code</th>
             <th class="py-3 px-4 text-right">Standard Price (₹)</th>
+            <th class="py-3 px-4 text-right">Material Cost (₹)</th>
+            ${showMargin ? '<th class="py-3 px-4 text-right">Margin (₹)</th>' : ''}
             <th class="py-3 px-4 text-center">Actions</th>
           </tr>
         `;
         filtered.forEach(function(p) {
           var tr = document.createElement('tr');
           tr.className = "hover:bg-slate-800/40 transition-colors";
+          var materialCost = computeProductMaterialCost(p.id);
+          var salePrice = Number(p.unitPrice || p.price || 0);
+          var marginCellHtml = '';
+          if (showMargin) {
+            var margin = materialCost === null ? null : (salePrice - materialCost);
+            var marginColorClass = margin === null ? 'text-slate-600' : (margin < 0 ? 'text-rose-400' : 'text-emerald-400');
+            marginCellHtml = `<td class="py-3 px-4 text-right font-black ${marginColorClass}">${margin === null ? '—' : '₹' + margin.toLocaleString('en-IN')}</td>`;
+          }
           tr.innerHTML = `
             <td class="py-3 px-4"><span class="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-indigo-950 text-indigo-300 border border-indigo-800/60">${escapeHtml(p.vertical || 'Projects')}</span></td>
             <td class="py-3 px-4 font-bold text-white">${escapeHtml(p.productName || p.name)}</td>
             <td class="py-3 px-4 text-slate-300">${escapeHtml(p.technicalSpec || p.spec || '')}</td>
             <td class="py-3 px-4 text-center font-mono text-amber-400">${escapeHtml(p.hsnCode || p.hsn || '90318000')}</td>
-            <td class="py-3 px-4 text-right font-black text-emerald-400">₹${Number(p.unitPrice || p.price || 0).toLocaleString('en-IN')}</td>
+            <td class="py-3 px-4 text-right font-black text-emerald-400">₹${salePrice.toLocaleString('en-IN')}</td>
+            <td class="py-3 px-4 text-right font-semibold text-slate-300">${materialCost === null ? '—' : '₹' + materialCost.toLocaleString('en-IN')}</td>
+            ${marginCellHtml}
             <td class="py-3 px-4 text-center">
-              <button onclick="editMasterRecord('${p.id}')" class="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg"><i class="fa-solid fa-pen-to-square"></i></button>
+              <button onclick="openProductBomModal('${p.id}')" class="p-1.5 bg-slate-800 hover:bg-fuchsia-900/60 text-fuchsia-400 rounded-lg" title="View/Edit Bill of Materials"><i class="fa-solid fa-gears"></i></button>
+              <button onclick="editMasterRecord('${p.id}')" class="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg ml-1"><i class="fa-solid fa-pen-to-square"></i></button>
               <button onclick="deleteMasterRecord('${p.id}')" class="p-1.5 bg-slate-800 hover:bg-rose-900/60 text-rose-400 rounded-lg ml-1"><i class="fa-solid fa-trash-can"></i></button>
             </td>
           `;
@@ -426,6 +597,35 @@ var activeMasterTab = 'products';
           `;
           body.appendChild(tr);
         });
+      } else if (activeMasterTab === 'components') {
+        header.innerHTML = `
+          <tr>
+            <th class="py-3 px-4">Component / Raw Material</th>
+            <th class="py-3 px-4">Spec</th>
+            <th class="py-3 px-4 text-center">UOM</th>
+            <th class="py-3 px-4 text-right">Unit Cost (₹)</th>
+            <th class="py-3 px-4 text-center">Status</th>
+            <th class="py-3 px-4 text-center">Actions</th>
+          </tr>
+        `;
+        filtered.forEach(function(c) {
+          var tr = document.createElement('tr');
+          tr.className = "hover:bg-slate-800/40 transition-colors";
+          tr.innerHTML = `
+            <td class="py-3 px-4 font-bold text-white">${escapeHtml(c.name || '')}</td>
+            <td class="py-3 px-4 text-slate-300">${escapeHtml(c.spec || '')}</td>
+            <td class="py-3 px-4 text-center text-slate-300">${escapeHtml(c.uom || 'Nos')}</td>
+            <td class="py-3 px-4 text-right font-black text-emerald-400">₹${Number(c.unitCost || 0).toLocaleString('en-IN')}</td>
+            <td class="py-3 px-4 text-center">
+              <span class="px-2 py-0.5 rounded text-[10px] font-bold ${c.isActive === false ? 'bg-slate-800 text-slate-400' : 'bg-emerald-950 text-emerald-300 border border-emerald-800/60'}">${c.isActive === false ? 'Inactive' : 'Active'}</span>
+            </td>
+            <td class="py-3 px-4 text-center">
+              <button onclick="editMasterRecord('${c.id}')" class="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg"><i class="fa-solid fa-pen-to-square"></i></button>
+              <button onclick="deleteMasterRecord('${c.id}')" class="p-1.5 bg-slate-800 hover:bg-rose-900/60 text-rose-400 rounded-lg ml-1"><i class="fa-solid fa-trash-can"></i></button>
+            </td>
+          `;
+          body.appendChild(tr);
+        });
       } else if (activeMasterTab === 'slapolicy') {
         header.innerHTML = `
           <tr>
@@ -502,7 +702,8 @@ var activeMasterTab = 'products';
         'currencies': 'Currency',
         'slapolicy': 'SLA Response Policy',
         'companies': 'Company (Legal Entity)',
-        'hsncodes': 'HSN Code'
+        'hsncodes': 'HSN Code',
+        'components': 'Component / Raw Material'
       };
       Object.keys(SIMPLE_MASTER_TABS).forEach(function(k) { titles[k] = SIMPLE_MASTER_TABS[k].label; });
 
@@ -772,6 +973,37 @@ var activeMasterTab = 'products';
             </div>
           </div>
         `;
+      } else if (activeMasterTab === 'components') {
+        var d = recordData || {};
+        container.innerHTML = `
+          <div class="p-2.5 bg-fuchsia-950/30 border border-fuchsia-800/50 rounded-xl text-[11px] text-fuchsia-200">
+            Feeds the Component picker in every Product's Bill of Materials — Unit Cost here is what drives each product's Material Cost roll-up, so keep it current.
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">Component / Raw Material Name *</label>
+            <input type="text" id="inp-rec-compname" required value="${escapeHtml(d.name || '')}" placeholder="e.g. 50-Ton Shear Beam Load Cell" class="w-full px-3 py-2 bg-slate-950 border border-slate-750 rounded-xl text-xs text-white" />
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">Spec</label>
+            <input type="text" id="inp-rec-compspec" value="${escapeHtml(d.spec || '')}" placeholder="e.g. Stainless Steel IP68 3mV/V Class C3" class="w-full px-3 py-2 bg-slate-950 border border-slate-750 rounded-xl text-xs text-white" />
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">Unit of Measure *</label>
+              <input type="text" id="inp-rec-compuom" required value="${escapeHtml(d.uom || 'Nos')}" placeholder="Nos / Kg / Mtr / Set" class="w-full px-3 py-2 bg-slate-950 border border-slate-750 rounded-xl text-xs text-white" />
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">Unit Cost (₹) *</label>
+              <input type="number" id="inp-rec-compcost" required min="0" step="0.01" value="${d.unitCost || 0}" placeholder="4500" class="w-full px-3 py-2 bg-slate-950 border border-slate-750 rounded-xl text-xs font-bold text-white" />
+            </div>
+          </div>
+          <div>
+            <label class="flex items-center space-x-2 cursor-pointer">
+              <input type="checkbox" id="inp-rec-compactive" ${d.isActive === false ? '' : 'checked'} class="w-4 h-4" />
+              <span class="text-xs font-semibold text-slate-300">Active (uncheck to hide from BOM picker without deleting it)</span>
+            </label>
+          </div>
+        `;
       } else if (activeMasterTab === 'slapolicy') {
         var d = recordData || {};
         container.innerHTML = `
@@ -940,6 +1172,16 @@ var activeMasterTab = 'products';
           description: document.getElementById('inp-rec-hsndesc').value.trim(),
           isActive: true
         };
+      } else if (activeMasterTab === 'components') {
+        colName = 'componentsMaster';
+        recordObj = {
+          id: docId || ('comp_' + Date.now()),
+          name: document.getElementById('inp-rec-compname').value.trim(),
+          spec: document.getElementById('inp-rec-compspec').value.trim(),
+          uom: document.getElementById('inp-rec-compuom').value.trim() || 'Nos',
+          unitCost: Number(document.getElementById('inp-rec-compcost').value) || 0,
+          isActive: document.getElementById('inp-rec-compactive').checked
+        };
       } else if (activeMasterTab === 'slapolicy') {
         colName = 'slaResponseTierMaster';
         var slaDaysVal = Number(document.getElementById('inp-rec-sladays').value) || 0;
@@ -1060,7 +1302,7 @@ var activeMasterTab = 'products';
         return;
       }
 
-      if (SIMPLE_MASTER_TABS[activeMasterTab] || activeMasterTab === 'currencies' || activeMasterTab === 'slapolicy' || activeMasterTab === 'companies' || activeMasterTab === 'hsncodes') {
+      if (SIMPLE_MASTER_TABS[activeMasterTab] || activeMasterTab === 'currencies' || activeMasterTab === 'slapolicy' || activeMasterTab === 'companies' || activeMasterTab === 'hsncodes' || activeMasterTab === 'components') {
         alert("Bulk CSV upload isn't available for this category yet — these are small lists, please add records one at a time using \"+ Add Master Record\".");
         return;
       }
@@ -1152,7 +1394,7 @@ var activeMasterTab = 'products';
     }
 
     function downloadActiveTemplate() {
-      if (SIMPLE_MASTER_TABS[activeMasterTab] || activeMasterTab === 'slapolicy' || activeMasterTab === 'companies') {
+      if (SIMPLE_MASTER_TABS[activeMasterTab] || activeMasterTab === 'slapolicy' || activeMasterTab === 'companies' || activeMasterTab === 'components') {
         alert("These are small lists maintained directly in the app — there's no CSV template for this category. Use \"+ Add Master Record\" instead.");
         return;
       }

@@ -241,6 +241,18 @@
         <div class="text-[10px] text-slate-400 mt-0.5">GST Goods Classification</div>
       </button>
 
+      <!-- Tab: Components / Raw Materials Master (feeds Product BOM cost roll-up) -->
+      <button onclick="switchMasterTab('components')" id="tab-btn-components" class="master-tab-btn p-3.5 rounded-xl border text-left transition-all relative overflow-hidden bg-slate-900/40 border-slate-800 hover:border-slate-700 cursor-pointer">
+        <div class="flex items-center justify-between mb-1.5">
+          <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Components / RM</span>
+          <span class="w-7 h-7 rounded-lg bg-fuchsia-500/20 text-fuchsia-400 flex items-center justify-center text-xs">
+            <i class="fa-solid fa-gears"></i>
+          </span>
+        </div>
+        <div class="text-xl font-black text-white" id="count-components">0</div>
+        <div class="text-[10px] text-slate-400 mt-0.5">Raw Materials for BOM</div>
+      </button>
+
       <!-- Tab 11: Spare Part Category Master -->
       <button onclick="switchMasterTab('sparepartcategories')" id="tab-btn-sparepartcategories" class="master-tab-btn p-3.5 rounded-xl border text-left transition-all relative overflow-hidden bg-slate-900/40 border-slate-800 hover:border-slate-700 cursor-pointer">
         <div class="flex items-center justify-between mb-1.5">
@@ -407,6 +419,70 @@
           </button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- MODAL: Product Bill of Materials (components + quantities -> material cost roll-up) -->
+  <div id="product-bom-modal" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+    <div class="bg-slate-900 w-full max-w-2xl rounded-2xl shadow-2xl border border-slate-700 overflow-hidden my-8 max-h-[90vh] flex flex-col">
+      <div class="px-6 py-4 bg-slate-850 border-b border-slate-800 flex items-center justify-between shrink-0">
+        <div>
+          <h3 class="text-base font-bold text-white flex items-center gap-2">
+            <i class="fa-solid fa-gears text-fuchsia-400"></i>
+            <span>Bill of Materials</span>
+          </h3>
+          <p class="text-xs text-slate-400" id="bom-modal-product-label">Product</p>
+        </div>
+        <button onclick="closeProductBomModal()" class="text-slate-400 hover:text-white text-xl font-bold p-1">&times;</button>
+      </div>
+
+      <div class="p-6 space-y-4 overflow-y-auto flex-1">
+        <input type="hidden" id="bom-modal-product-id" />
+
+        <div id="bom-readonly-notice" class="hidden p-2.5 bg-amber-950/30 border border-amber-800/50 rounded-xl text-[11px] text-amber-200">
+          View only — only Super Admin or Admin can add, edit or remove Bill of Materials lines.
+        </div>
+
+        <div id="bom-add-line-row" class="grid grid-cols-5 gap-2 items-end">
+          <div class="col-span-3">
+            <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">Component / Raw Material</label>
+            <select id="inp-bom-component" class="w-full px-3 py-2 bg-slate-950 border border-slate-750 rounded-xl text-xs text-white">
+              <!-- Populated by JS -->
+            </select>
+          </div>
+          <div class="col-span-1">
+            <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">Qty</label>
+            <input type="number" id="inp-bom-qty" min="0.001" step="0.001" value="1" class="w-full px-3 py-2 bg-slate-950 border border-slate-750 rounded-xl text-xs text-white" />
+          </div>
+          <div class="col-span-1">
+            <button type="button" onclick="addProductBomLine()" class="w-full px-3 py-2 bg-fuchsia-700 hover:bg-fuchsia-600 text-white rounded-xl text-xs font-bold cursor-pointer">+ Add</button>
+          </div>
+        </div>
+
+        <div class="overflow-x-auto border border-slate-800 rounded-xl">
+          <table class="w-full text-left text-xs text-slate-300 border-collapse">
+            <thead class="bg-slate-950/60 text-slate-400 uppercase tracking-wider text-[10px] font-bold border-b border-slate-800">
+              <tr>
+                <th class="py-2.5 px-3">Component</th>
+                <th class="py-2.5 px-3">UOM</th>
+                <th class="py-2.5 px-3 text-right">Unit Cost (₹)</th>
+                <th class="py-2.5 px-3 text-center">Qty</th>
+                <th class="py-2.5 px-3 text-right">Line Total (₹)</th>
+                <th class="py-2.5 px-3 text-center">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="bom-lines-table-body" class="divide-y divide-slate-800/60">
+              <!-- Rendered by JS -->
+            </tbody>
+          </table>
+        </div>
+        <div id="bom-empty-state" class="hidden py-6 text-center text-xs text-slate-500">No components added yet — this product's Material Cost shows as "—" until at least one is added.</div>
+
+        <div class="pt-3 border-t border-slate-800 flex items-center justify-end gap-3">
+          <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Material Cost:</span>
+          <span class="text-base font-black text-emerald-400" id="bom-total-cost">₹0</span>
+        </div>
+      </div>
     </div>
   </div>
 

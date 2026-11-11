@@ -180,6 +180,8 @@ service cloud.firestore {
     match /amcContractDurationMaster/{docId} { allow read: if signedIn(); allow write: if isMasterDataAdmin(); }
     match /companyMaster/{docId}             { allow read: if signedIn(); allow write: if isMasterDataAdmin(); }
     match /hsnCodeMaster/{docId}             { allow read: if signedIn(); allow write: if isMasterDataAdmin(); }
+    match /componentsMaster/{docId}          { allow read: if signedIn(); allow write: if isMasterDataAdmin(); }
+    match /productBomLines/{docId}           { allow read: if signedIn(); allow write: if isMasterDataAdmin(); }
 
     // ---- Safety net for any collection not explicitly listed above ----
     // Requires sign-in at minimum; this app has more modules than this file
