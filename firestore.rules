@@ -56,6 +56,10 @@ service cloud.firestore {
     }
 
     // True if the caller owns this record (matches on employeeId) or is admin/leadership.
+    // Governs UPDATE only below - by explicit decision, DELETE on every one
+    // of these collections is Super Admin / Admin only, full stop, even for
+    // a record's own creator. See the dedicated `allow delete` line next to
+    // each match block below.
     function isOwnerOrAdmin() {
       return isLeadershipOrAdmin() ||
         (signedIn() && 'employeeId' in resource.data && resource.data.employeeId == myEmployeeId());
@@ -113,25 +117,25 @@ service cloud.firestore {
     }
 
     // ---- Owner-or-admin collections: everyday operational records ----
-    match /leads/{docId}            { allow read: if signedIn(); allow create: if canCreateOwnRecord(); allow update, delete: if isOwnerOrAdmin(); }
-    match /orders/{docId}           { allow read: if signedIn(); allow create: if canCreateOwnRecord(); allow update, delete: if isOwnerOrAdmin(); }
-    match /quotations/{docId}       { allow read: if signedIn(); allow create: if canCreateOwnRecord(); allow update, delete: if isOwnerOrAdmin(); }
-    match /invoices/{docId}         { allow read: if signedIn(); allow create: if canCreateOwnRecord(); allow update, delete: if isOwnerOrAdmin(); }
-    match /amcContracts/{docId}     { allow read: if signedIn(); allow create: if canCreateOwnRecord(); allow update, delete: if isOwnerOrAdmin(); }
-    match /amcQuotations/{docId}    { allow read: if signedIn(); allow create: if canCreateOwnRecord(); allow update, delete: if isOwnerOrAdmin(); }
-    match /amcOrders/{docId}        { allow read: if signedIn(); allow create: if canCreateOwnRecord(); allow update, delete: if isOwnerOrAdmin(); }
-    match /amcInvoices/{docId}      { allow read: if signedIn(); allow create: if canCreateOwnRecord(); allow update, delete: if isOwnerOrAdmin(); }
-    match /serviceTickets/{docId}   { allow read: if signedIn(); allow create: if canCreateOwnRecord(); allow update, delete: if isOwnerOrAdmin(); }
-    match /serviceLeads/{docId}     { allow read: if signedIn(); allow create: if canCreateOwnRecord(); allow update, delete: if isOwnerOrAdmin(); }
-    match /attendance/{docId}       { allow read: if signedIn(); allow create: if canCreateOwnRecord(); allow update, delete: if isOwnerOrAdmin(); }
-    match /dwmActivities/{docId}    { allow read: if signedIn(); allow create: if canCreateOwnRecord(); allow update, delete: if isOwnerOrAdmin(); }
-    match /expenses/{docId}         { allow read: if signedIn(); allow create: if canCreateOwnRecord(); allow update, delete: if isOwnerOrAdmin(); }
-    match /expenseSplits/{docId}    { allow read: if signedIn(); allow create: if canCreateOwnRecord(); allow update, delete: if isOwnerOrAdmin(); }
-    match /arAdjustments/{docId}    { allow read: if signedIn(); allow create: if canCreateOwnRecord(); allow update, delete: if isOwnerOrAdmin(); }
-    match /pgbgReceivables/{docId}  { allow read: if signedIn(); allow create: if canCreateOwnRecord(); allow update, delete: if isOwnerOrAdmin(); }
+    match /leads/{docId}            { allow read: if signedIn(); allow create: if canCreateOwnRecord(); allow update: if isOwnerOrAdmin(); allow delete: if isLeadershipOrAdmin(); }
+    match /orders/{docId}           { allow read: if signedIn(); allow create: if canCreateOwnRecord(); allow update: if isOwnerOrAdmin(); allow delete: if isLeadershipOrAdmin(); }
+    match /quotations/{docId}       { allow read: if signedIn(); allow create: if canCreateOwnRecord(); allow update: if isOwnerOrAdmin(); allow delete: if isLeadershipOrAdmin(); }
+    match /invoices/{docId}         { allow read: if signedIn(); allow create: if canCreateOwnRecord(); allow update: if isOwnerOrAdmin(); allow delete: if isLeadershipOrAdmin(); }
+    match /amcContracts/{docId}     { allow read: if signedIn(); allow create: if canCreateOwnRecord(); allow update: if isOwnerOrAdmin(); allow delete: if isLeadershipOrAdmin(); }
+    match /amcQuotations/{docId}    { allow read: if signedIn(); allow create: if canCreateOwnRecord(); allow update: if isOwnerOrAdmin(); allow delete: if isLeadershipOrAdmin(); }
+    match /amcOrders/{docId}        { allow read: if signedIn(); allow create: if canCreateOwnRecord(); allow update: if isOwnerOrAdmin(); allow delete: if isLeadershipOrAdmin(); }
+    match /amcInvoices/{docId}      { allow read: if signedIn(); allow create: if canCreateOwnRecord(); allow update: if isOwnerOrAdmin(); allow delete: if isLeadershipOrAdmin(); }
+    match /serviceTickets/{docId}   { allow read: if signedIn(); allow create: if canCreateOwnRecord(); allow update: if isOwnerOrAdmin(); allow delete: if isLeadershipOrAdmin(); }
+    match /serviceLeads/{docId}     { allow read: if signedIn(); allow create: if canCreateOwnRecord(); allow update: if isOwnerOrAdmin(); allow delete: if isLeadershipOrAdmin(); }
+    match /attendance/{docId}       { allow read: if signedIn(); allow create: if canCreateOwnRecord(); allow update: if isOwnerOrAdmin(); allow delete: if isLeadershipOrAdmin(); }
+    match /dwmActivities/{docId}    { allow read: if signedIn(); allow create: if canCreateOwnRecord(); allow update: if isOwnerOrAdmin(); allow delete: if isLeadershipOrAdmin(); }
+    match /expenses/{docId}         { allow read: if signedIn(); allow create: if canCreateOwnRecord(); allow update: if isOwnerOrAdmin(); allow delete: if isLeadershipOrAdmin(); }
+    match /expenseSplits/{docId}    { allow read: if signedIn(); allow create: if canCreateOwnRecord(); allow update: if isOwnerOrAdmin(); allow delete: if isLeadershipOrAdmin(); }
+    match /arAdjustments/{docId}    { allow read: if signedIn(); allow create: if canCreateOwnRecord(); allow update: if isOwnerOrAdmin(); allow delete: if isLeadershipOrAdmin(); }
+    match /pgbgReceivables/{docId}  { allow read: if signedIn(); allow create: if canCreateOwnRecord(); allow update: if isOwnerOrAdmin(); allow delete: if isLeadershipOrAdmin(); }
     match /communicationLogs/{docId}{ allow read: if signedIn(); allow create: if signedIn(); allow update, delete: if isLeadershipOrAdmin(); }
-    match /reviews/{docId}          { allow read: if signedIn(); allow create: if canCreateOwnRecord(); allow update, delete: if isOwnerOrAdmin(); }
-    match /payments/{docId}         { allow read: if signedIn(); allow create: if canCreateOwnRecord(); allow update, delete: if isOwnerOrAdmin(); }
+    match /reviews/{docId}          { allow read: if signedIn(); allow create: if canCreateOwnRecord(); allow update: if isOwnerOrAdmin(); allow delete: if isLeadershipOrAdmin(); }
+    match /payments/{docId}         { allow read: if signedIn(); allow create: if canCreateOwnRecord(); allow update: if isOwnerOrAdmin(); allow delete: if isLeadershipOrAdmin(); }
 
     // ---- Diagnostics collections: any signed-in user may create an entry
     // (their own error/report), only admins may read or manage the list,
@@ -152,7 +156,7 @@ service cloud.firestore {
     match /aopTargets/{docId}          { allow read: if signedIn(); allow write: if isLeadershipOrAdmin(); }
     match /budgets/{docId}             { allow read: if signedIn(); allow write: if isLeadershipOrAdmin(); }
     match /travelPolicyMaster/{docId}  { allow read: if signedIn(); allow write: if isLeadershipOrAdmin(); }
-    match /travelApprovals/{docId}     { allow read: if signedIn(); allow create: if canCreateOwnRecord(); allow update, delete: if isOwnerOrAdmin(); }
+    match /travelApprovals/{docId}     { allow read: if signedIn(); allow create: if canCreateOwnRecord(); allow update: if isOwnerOrAdmin(); allow delete: if isLeadershipOrAdmin(); }
     // Everyone reads (leads/orders/quotations/tickets/etc all need these
     // for their dropdowns); only a Master Data Admin (or Director) may
     // create, edit, or delete a master record itself.
@@ -175,6 +179,7 @@ service cloud.firestore {
     match /amcInvoicingMilestoneMaster/{docId} { allow read: if signedIn(); allow write: if isMasterDataAdmin(); }
     match /amcContractDurationMaster/{docId} { allow read: if signedIn(); allow write: if isMasterDataAdmin(); }
     match /companyMaster/{docId}             { allow read: if signedIn(); allow write: if isMasterDataAdmin(); }
+    match /hsnCodeMaster/{docId}             { allow read: if signedIn(); allow write: if isMasterDataAdmin(); }
 
     // ---- Safety net for any collection not explicitly listed above ----
     // Requires sign-in at minimum; this app has more modules than this file

@@ -623,7 +623,7 @@ var currentPaymentView = 'transactions';
             </td>
             <td class="py-3 px-4 text-center space-x-1.5 whitespace-nowrap">
               <button onclick="viewPrintableAdjVoucher('${escapeHtml(adj.id)}')" class="p-1 bg-purple-50 hover:bg-purple-100 text-purple-800 border border-purple-200 rounded text-[11px] font-bold cursor-pointer" title="View Authorization Certificate">⚖️ Voucher</button>
-              ${adj.status !== 'Approved' ? `<button onclick="deleteArAdjustment('${escapeHtml(adj.id)}')" class="text-rose-600 hover:text-rose-800 font-bold hover:underline">Delete</button>` : ''}
+              ${(adj.status !== 'Approved' && window.isLeadershipOrAdmin && window.isLeadershipOrAdmin()) ? `<button onclick="deleteArAdjustment('${escapeHtml(adj.id)}')" class="text-rose-600 hover:text-rose-800 font-bold hover:underline">Delete</button>` : ''}
             </td>
           `;
           tbody.appendChild(tr);
@@ -863,6 +863,10 @@ var currentPaymentView = 'transactions';
       }
 
       function deleteArAdjustment(adjId) {
+        if (!window.isLeadershipOrAdmin || !window.isLeadershipOrAdmin()) {
+          alert("Only Super Admin or Admin can delete an adjustment request.");
+          return;
+        }
         if (confirm("Are you sure you want to delete this adjustment request?")) {
           var adjustments = window.RevOpsStore.getCollection('arAdjustments') || [];
           var adj = adjustments.find(function(a) { return a.id === adjId; });

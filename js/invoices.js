@@ -468,7 +468,7 @@ var currentTab = 'All';
                 <button onclick="requestInvoiceAdjustmentRedirect('${escapeHtml(inv.id)}')" class="p-1.5 bg-purple-50 hover:bg-purple-100 text-purple-700 rounded-lg text-xs font-bold cursor-pointer" title="Request Goodwill Discount or Bad Debt Write-Off">⚖️ Adjust</button>
               ` : ''}
               <button onclick="editInvoice('${escapeHtml(inv.id)}')" class="text-indigo-600 hover:text-indigo-800 font-bold hover:underline">Edit</button>
-              <button onclick="deleteInvoice('${escapeHtml(inv.id)}')" class="text-rose-600 hover:text-rose-800 font-bold hover:underline">Delete</button>
+              ${window.isLeadershipOrAdmin && window.isLeadershipOrAdmin() ? `<button onclick="deleteInvoice('${escapeHtml(inv.id)}')" class="text-rose-600 hover:text-rose-800 font-bold hover:underline">Delete</button>` : ''}
             </td>
           `;
           tbody.appendChild(tr);
@@ -1056,6 +1056,10 @@ var currentTab = 'All';
       }
 
       function deleteInvoice(docId) {
+        if (!window.isLeadershipOrAdmin || !window.isLeadershipOrAdmin()) {
+          alert("Only Super Admin or Admin can delete an invoice.");
+          return;
+        }
         if (confirm("Are you sure you want to delete this invoice? Linked payments may be affected.")) {
           window.RevOpsStore.deleteItem('invoices', docId);
           renderInvoicesTable();

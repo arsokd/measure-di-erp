@@ -89,6 +89,19 @@ function getCurrentFinancialYear() {
   }
 }
 
+// Shared client-side mirror of firestore.rules' isLeadershipOrAdmin() -
+// deleting any record (leads, quotations, orders, invoices, payments,
+// DWM activities, travel claims, AR adjustments, service tickets, etc.)
+// is Super Admin / Admin only, by explicit decision, even for a record's
+// own creator (a Manager/Sub-admin or Staff member can still create and
+// edit their own entries - just never delete them). This only governs
+// what buttons each page shows; Firestore itself is the real enforcement.
+function isLeadershipOrAdmin() {
+  var role = (typeof localStorage !== 'undefined') ? localStorage.getItem('userRole') : null;
+  return role === 'super_admin' || role === 'admin';
+}
+window.isLeadershipOrAdmin = isLeadershipOrAdmin;
+
 function escapeHtml(str) {
   if (str === null || str === undefined) return '';
   return String(str)

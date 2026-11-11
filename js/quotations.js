@@ -584,9 +584,10 @@ var currentEditingQuoteId = null;
                 <button onclick="editQuote('${q.id}')" class="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors" title="Edit Quote">
                   ✏️
                 </button>
+                ${window.isLeadershipOrAdmin && window.isLeadershipOrAdmin() ? `
                 <button onclick="deleteQuote('${q.id}')" class="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors" title="Delete Quote">
                   🗑️
-                </button>
+                </button>` : ''}
               </div>
             </td>
           `;
@@ -1709,6 +1710,10 @@ var currentEditingQuoteId = null;
       }
 
       function deleteQuote(quoteId) {
+        if (!window.isLeadershipOrAdmin || !window.isLeadershipOrAdmin()) {
+          alert("Only Super Admin or Admin can delete a quotation.");
+          return;
+        }
         if (!confirm("Are you sure you want to delete this quotation record?")) return;
         var quotes = getQuotationsList();
         quotes = quotes.filter(function(it) { return it.id !== quoteId; });

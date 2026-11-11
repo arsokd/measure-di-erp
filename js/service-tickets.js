@@ -1429,6 +1429,11 @@ var currentViewMode = 'table';
         activeEditTicket = target;
         signedReportPhotos = target.signedReportImages ? [...target.signedReportImages] : [];
 
+        var deleteTicketBtn = document.getElementById('btn-delete-ticket');
+        if (deleteTicketBtn) {
+          deleteTicketBtn.classList.toggle('hidden', !(window.isLeadershipOrAdmin && window.isLeadershipOrAdmin()));
+        }
+
         document.getElementById('edit-ticket-id').value = target.id;
         document.getElementById('modal-summary-cust').textContent = target.customerName;
         document.getElementById('modal-summary-equip').textContent = `${target.equipmentModel} (${target.equipmentSerial})`;
@@ -1618,6 +1623,10 @@ var currentViewMode = 'table';
       }
 
       function deleteActiveTicket() {
+        if (!window.isLeadershipOrAdmin || !window.isLeadershipOrAdmin()) {
+          alert("Only Super Admin or Admin can delete a service ticket.");
+          return;
+        }
         var id = document.getElementById('edit-ticket-id').value;
         if (confirm("Are you sure you want to delete this service ticket record?")) {
           if (window.RevOpsStore) {

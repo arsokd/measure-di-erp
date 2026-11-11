@@ -1336,6 +1336,148 @@ async function testQuoteEditReasonMandatory(browser) {
 }
 
 // ---------------------------------------------------------------------
+// Delete authority: Super Admin/Admin only, by explicit decision - a
+// Manager ("Sub-admin") or Staff member can still create and edit their
+// own records, but can no longer delete anything, not even an entry
+// they themselves created. Checked here on Quotations and Invoices as
+// representative examples; the identical isLeadershipOrAdmin() gate was
+// applied the same way to Payments, DWM Activities, Travel
+// Pre-Approvals, Travel Claims, AR Adjustments, Service Tickets and KRA
+// Targets (see auth-guard.js's isLeadershipOrAdmin, mirrored from
+// firestore.rules of the same name).
+// ---------------------------------------------------------------------
+async function testDeleteIsSuperAdminOrAdminOnly(browser) {
+  const failures = [];
+
+  // --- Quotations ---
+  {
+    const { page } = await newPage(browser);
+    // A fully isolated test identity, not just a role/employeeId override -
+    // newPage()'s default userEmail ('murugan@measuredi.com') still matches
+    // the real seeded Murugan employee record, and checkAuth() re-derives
+    // userRole from whichever employee record matches by EITHER employeeId
+    // OR email - so leaving that email in place lets checkAuth silently
+    // force the role back to Murugan's real one (super_admin, via its
+    // hardcoded E-001 rule) regardless of what's set here.
+    await page.addInitScript(function () {
+      localStorage.setItem('userRole', 'staff');
+      localStorage.setItem('userEmail', 'delperm-test@measuredi.com');
+      localStorage.setItem('userName', 'Delete Perm Test Staff');
+      localStorage.setItem('employeeId', 'E-DELPERM-01');
+    });
+    await page.goto(BASE_URL + '/quotations.html', { waitUntil: 'networkidle', timeout: 30000 });
+    await page.waitForTimeout(600);
+    await page.evaluate(function () {
+      window.RevOpsStore.saveCollection('quotations', [
+        { id: 'QUO-DELPERM-01', quoteNumber: 'QUO-DELPERM-01', customerName: 'Delete Perm Test Co', employeeId: 'E-DELPERM-01', revision: 1, status: 'Draft', items: [], grandTotal: 0, netSubtotal: 0, taxAmount: 0, approvalHistory: [] }
+      ]);
+      renderQuotations();
+    });
+
+    const staffView = await page.evaluate(function () {
+      return { buttonExists: !!document.querySelector("button[onclick*=\"deleteQuote('QUO-DELPERM-01'\"]") };
+    });
+    assertTrue(!staffView.buttonExists, 'Quotations: Delete button is hidden from a staff user, even for their own quotation', failures);
+
+    const staffCallResult = await page.evaluate(function () {
+      var originalAlert = window.alert;
+      var alertMsg = '';
+      window.alert = function (msg) { alertMsg = msg; };
+      deleteQuote('QUO-DELPERM-01');
+      window.alert = originalAlert;
+      var stillExists = !!(window.RevOpsStore.getCollection('quotations') || []).find(function (q) { return q.id === 'QUO-DELPERM-01'; });
+      return { alertMsg: alertMsg, stillExists: stillExists };
+    });
+    assertTrue(staffCallResult.alertMsg.indexOf('Only Super Admin or Admin') !== -1, 'Quotations: calling deleteQuote directly as staff is blocked with a clear message', failures);
+    assertTrue(staffCallResult.stillExists, 'Quotations: a staff user cannot delete their own quotation, even by calling the function directly', failures);
+
+    await page.evaluate(function () {
+      localStorage.setItem('userRole', 'admin');
+      renderQuotations();
+    });
+    const adminView = await page.evaluate(function () {
+      return { buttonExists: !!document.querySelector("button[onclick*=\"deleteQuote('QUO-DELPERM-01'\"]") };
+    });
+    assertTrue(adminView.buttonExists, 'Quotations: Delete button is shown to an admin user', failures);
+
+    await page.evaluate(function () {
+      var originalConfirm = window.confirm;
+      window.confirm = function () { return true; };
+      deleteQuote('QUO-DELPERM-01');
+      window.confirm = originalConfirm;
+    });
+    const adminDeleted = await page.evaluate(function () {
+      return !(window.RevOpsStore.getCollection('quotations') || []).find(function (q) { return q.id === 'QUO-DELPERM-01'; });
+    });
+    assertTrue(adminDeleted, 'Quotations: an admin user can delete a quotation', failures);
+
+    await page.close();
+  }
+
+  // --- Invoices ---
+  {
+    const { page } = await newPage(browser);
+    // Same isolated identity as the Quotations block above, for the same reason.
+    await page.addInitScript(function () {
+      localStorage.setItem('userRole', 'staff');
+      localStorage.setItem('userEmail', 'delperm-test@measuredi.com');
+      localStorage.setItem('userName', 'Delete Perm Test Staff');
+      localStorage.setItem('employeeId', 'E-DELPERM-01');
+    });
+    await page.goto(BASE_URL + '/invoices.html', { waitUntil: 'networkidle', timeout: 30000 });
+    await page.waitForTimeout(600);
+    await page.evaluate(function () {
+      document.getElementById('invoice-fy-filter').value = 'All';
+      window.RevOpsStore.saveCollection('invoices', [
+        { id: 'INV-DELPERM-01', invoiceNumber: 'INV-DELPERM-01', customerName: 'Delete Perm Test Co', employeeId: 'E-DELPERM-01', status: 'Draft', invoiceType: 'Tax Invoice', items: [], grandTotal: 0, balanceDue: 0, netSubtotal: 0, taxAmount: 0 }
+      ]);
+      renderInvoicesTable();
+    });
+
+    const staffView = await page.evaluate(function () {
+      return { buttonExists: !!document.querySelector("button[onclick*=\"deleteInvoice('INV-DELPERM-01'\"]") };
+    });
+    assertTrue(!staffView.buttonExists, 'Invoices: Delete button is hidden from a staff user, even for their own invoice', failures);
+
+    const staffCallResult = await page.evaluate(function () {
+      var originalAlert = window.alert;
+      var alertMsg = '';
+      window.alert = function (msg) { alertMsg = msg; };
+      deleteInvoice('INV-DELPERM-01');
+      window.alert = originalAlert;
+      var stillExists = !!(window.RevOpsStore.getCollection('invoices') || []).find(function (i) { return i.id === 'INV-DELPERM-01'; });
+      return { alertMsg: alertMsg, stillExists: stillExists };
+    });
+    assertTrue(staffCallResult.alertMsg.indexOf('Only Super Admin or Admin') !== -1, 'Invoices: calling deleteInvoice directly as staff is blocked with a clear message', failures);
+    assertTrue(staffCallResult.stillExists, 'Invoices: a staff user cannot delete their own invoice, even by calling the function directly', failures);
+
+    await page.evaluate(function () {
+      localStorage.setItem('userRole', 'admin');
+      renderInvoicesTable();
+    });
+    const adminView = await page.evaluate(function () {
+      return { buttonExists: !!document.querySelector("button[onclick*=\"deleteInvoice('INV-DELPERM-01'\"]") };
+    });
+    assertTrue(adminView.buttonExists, 'Invoices: Delete button is shown to an admin user', failures);
+
+    await page.evaluate(function () {
+      var originalConfirm = window.confirm;
+      window.confirm = function () { return true; };
+      deleteInvoice('INV-DELPERM-01');
+      window.confirm = originalConfirm;
+    });
+    const adminDeleted = await page.evaluate(function () {
+      return !(window.RevOpsStore.getCollection('invoices') || []).find(function (i) { return i.id === 'INV-DELPERM-01'; });
+    });
+    assertTrue(adminDeleted, 'Invoices: an admin user can delete an invoice', failures);
+
+    await page.close();
+  }
+
+  return failures;
+}
+
+// ---------------------------------------------------------------------
 // Seed guard: once Firebase is connected, a cleared collection must
 // never auto-refill from its demo defaults - true for both a
 // presence-only guard (clientEquipmentMaster) and a parsed-length
@@ -3586,7 +3728,26 @@ async function testDwmTickTimePercentAndPlanChanged(browser) {
   assertEqual(afterPunchInLock.count, 3, 'Punch In locks all 3 ticked activities (2 Regular + 1 extra)', failures);
   assertTrue(afterPunchInLock.allLocked, 'Every ticked activity is flagged lockedPlan once Punched In', failures);
 
+  // Deleting a DWM activity is now Super Admin/Admin only (even the
+  // activity's own owner can no longer delete it themselves) - these
+  // checks are about the separate locked-vs-pending rule, so they run
+  // as an admin, restoring the staff role immediately after.
   const deleteBlockedResult = await page.evaluate(function (empId) {
+    var act = (window.RevOpsStore.getCollection('dwmActivities') || []).find(function (a) { return a.employeeId === empId && !a.isAutoGenerated; });
+    var originalAlert = window.alert;
+    var alertMsg = '';
+    window.alert = function (msg) { alertMsg = msg; };
+    localStorage.setItem('userRole', 'admin');
+    deleteDwmActivity(act.id);
+    localStorage.setItem('userRole', 'staff');
+    window.alert = originalAlert;
+    var stillExists = !!(window.RevOpsStore.getCollection('dwmActivities') || []).find(function (a) { return a.id === act.id; });
+    return { alertMsg: alertMsg, stillExists: stillExists };
+  }, empId);
+  assertTrue(deleteBlockedResult.alertMsg.indexOf('confirmed plan') !== -1, 'Deleting a locked (morning-confirmed) activity is blocked with an explanation', failures);
+  assertTrue(deleteBlockedResult.stillExists, 'A locked activity is never actually deleted', failures);
+
+  const staffDeleteBlockedResult = await page.evaluate(function (empId) {
     var act = (window.RevOpsStore.getCollection('dwmActivities') || []).find(function (a) { return a.employeeId === empId && !a.isAutoGenerated; });
     var originalAlert = window.alert;
     var alertMsg = '';
@@ -3596,8 +3757,8 @@ async function testDwmTickTimePercentAndPlanChanged(browser) {
     var stillExists = !!(window.RevOpsStore.getCollection('dwmActivities') || []).find(function (a) { return a.id === act.id; });
     return { alertMsg: alertMsg, stillExists: stillExists };
   }, empId);
-  assertTrue(deleteBlockedResult.alertMsg.indexOf('confirmed plan') !== -1, 'Deleting a locked (morning-confirmed) activity is blocked with an explanation', failures);
-  assertTrue(deleteBlockedResult.stillExists, 'A locked activity is never actually deleted', failures);
+  assertTrue(staffDeleteBlockedResult.alertMsg.indexOf('Only Super Admin or Admin') !== -1, 'A staff member deleting their own DWM activity is blocked - delete is Super Admin/Admin only', failures);
+  assertTrue(staffDeleteBlockedResult.stillExists, 'A staff member cannot delete their own DWM activity, locked or not', failures);
 
   // 6. A mid-day addition (after Punch In) is NOT locked, and stays
   // deletable while still Pending.
@@ -3611,13 +3772,15 @@ async function testDwmTickTimePercentAndPlanChanged(browser) {
     var lockedAtCreation = act.lockedPlan;
     var originalConfirm = window.confirm;
     window.confirm = function () { return true; };
+    localStorage.setItem('userRole', 'admin');
     deleteDwmActivity(act.id);
+    localStorage.setItem('userRole', 'staff');
     window.confirm = originalConfirm;
     var stillExists = !!(window.RevOpsStore.getCollection('dwmActivities') || []).find(function (a) { return a.id === act.id; });
     return { lockedAtCreation: lockedAtCreation, stillExists: stillExists };
   }, empId);
   assertTrue(!midDayResult.lockedAtCreation, 'An activity added mid-day (after Punch In) is not locked', failures);
-  assertTrue(!midDayResult.stillExists, 'A mid-day addition can still be deleted while Pending (unlike the locked morning plan)', failures);
+  assertTrue(!midDayResult.stillExists, 'A mid-day addition can still be deleted (as Admin) while Pending (unlike the locked morning plan)', failures);
 
   // 7. Section B: a Partial status with no % entered is rejected (status
   // not saved); entering a valid % saves it and feeds the real score.
@@ -5234,6 +5397,7 @@ const TESTS = [
   ['Multi-company support: Lead/Quotation/Invoice numbering & branding', testMultiCompanySupport],
   ['Lead product dropdown vertical-normalization fix & quick "+ New Product" role gate', testLeadProductDropdownAndQuickAddProduct],
   ['Quotation edit: mandatory reason field', testQuoteEditReasonMandatory],
+  ['Delete authority (Quotations, Invoices): Super Admin/Admin only, not even the record\'s own creator', testDeleteIsSuperAdminOrAdminOnly],
   ['Seed guard: clientEquipmentMaster stays empty once connected to Firebase (never re-seeded)', testSeedGuardDoesNotRefillClearedCollections],
   ['Bulk CSV parser handles quoted/comma/multi-line fields', testBulkCsvParserHandlesQuotedFields],
   ['Password policy: forced first-time/90-day change, developer exemption, self-service flow', testPasswordPolicyEnforcement],

@@ -558,11 +558,14 @@ var currentTab = 'travel-app';
           // Only the person who submitted this request can correct or
           // withdraw it, and only while it's still waiting on someone
           // else's approval - once either stage has signed off, it's a
-          // decided record.
-          var editDeletePreAppBtns = canEditOrDeletePreApproval(app)
-            ? `<button onclick="editPreApproval('${app.id}')" class="px-2 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-[11px] rounded-lg border border-indigo-200 transition-colors cursor-pointer">Edit</button>
-               <button onclick="deletePreApproval('${app.id}')" class="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-[11px] rounded-lg border border-rose-200 transition-colors cursor-pointer">Delete</button>`
-            : '';
+          // decided record. Delete is separately restricted to Super
+          // Admin/Admin only, by explicit decision - even the request's
+          // own submitter can no longer delete it themselves.
+          var editDeletePreAppBtns = (canEditOrDeletePreApproval(app)
+            ? `<button onclick="editPreApproval('${app.id}')" class="px-2 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-[11px] rounded-lg border border-indigo-200 transition-colors cursor-pointer">Edit</button>`
+            : '') + (canDeletePreApproval(app)
+            ? `<button onclick="deletePreApproval('${app.id}')" class="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-[11px] rounded-lg border border-rose-200 transition-colors cursor-pointer">Delete</button>`
+            : '');
 
           var tr = document.createElement('tr');
           tr.id = 'travel-row-' + app.id;
@@ -981,15 +984,24 @@ var currentTab = 'travel-app';
       }
 
       // Only the person who submitted a Travel Pre-Approval request can
-      // edit or delete it, and only while it's still waiting on someone
-      // else's approval - once either stage has signed off, it's a
-      // decided record, not something to quietly change out from under
-      // that approval.
+      // edit it, and only while it's still waiting on someone else's
+      // approval - once either stage has signed off, it's a decided
+      // record, not something to quietly change out from under that
+      // approval.
       function canEditOrDeletePreApproval(app) {
         if (!app) return false;
         if (app.status !== 'Pending Manager Approval' && app.status !== 'Pending Director Approval') return false;
         var myEmpId = localStorage.getItem('employeeId');
         return !!(myEmpId && app.empId === myEmpId);
+      }
+
+      // Delete is separately Super Admin/Admin only, by explicit decision
+      // - even the request's own submitter can no longer delete it
+      // themselves - but still only while it's undecided, same as edit.
+      function canDeletePreApproval(app) {
+        if (!app) return false;
+        if (app.status !== 'Pending Manager Approval' && app.status !== 'Pending Director Approval') return false;
+        return !!(window.isLeadershipOrAdmin && window.isLeadershipOrAdmin());
       }
 
       function editPreApproval(appId) {
@@ -1044,8 +1056,8 @@ var currentTab = 'travel-app';
         var preApps = window.RevOpsStore.getCollection('travelApprovals') || [];
         var app = preApps.find(function(a) { return a.id === appId; });
         if (!app) return;
-        if (!canEditOrDeletePreApproval(app)) {
-          alert("Only the person who submitted this request can delete it, and only while it's still awaiting approval.");
+        if (!canDeletePreApproval(app)) {
+          alert("Only Super Admin or Admin can delete this request, and only while it's still awaiting approval.");
           return;
         }
         if (!confirm("Delete travel request " + app.id + " (" + app.places + ", " + formatINR(app.estimatedBudget) + ")? This cannot be undone.")) return;
@@ -1391,6 +1403,10 @@ var currentTab = 'travel-app';
         if (!exp) return;
         if (exp.status !== 'Pending Manager Approval') {
           alert("Only a travel claim that hasn't been approved yet can be deleted.");
+          return;
+        }
+        if (!window.isLeadershipOrAdmin || !window.isLeadershipOrAdmin()) {
+          alert("Only Super Admin or Admin can delete a travel claim.");
           return;
         }
         if (!confirm("Delete travel claim " + (exp.voucherNo || expId) + " (" + formatINR(exp.amount) + ")? This cannot be undone.")) return;
@@ -1928,10 +1944,12 @@ var currentTab = 'travel-app';
           // in place instead of forcing a duplicate resubmission - or
           // withdrawn entirely. Once approved, neither is offered; that's
           // an accounting record at that point.
-          var editDeleteBtns = (exp.category === 'Travelling' && exp.status === 'Pending Manager Approval')
-            ? `<button onclick="editTravelClaim('${exp.id}')" class="px-2 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-[10px] rounded transition-colors cursor-pointer border border-indigo-200">Edit</button>
-               <button onclick="deleteTravelClaim('${exp.id}')" class="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-[10px] rounded transition-colors cursor-pointer border border-rose-200">Delete</button>`
-            : '';
+          var travelClaimPendingUndecided = (exp.category === 'Travelling' && exp.status === 'Pending Manager Approval');
+          var editDeleteBtns = (travelClaimPendingUndecided
+            ? `<button onclick="editTravelClaim('${exp.id}')" class="px-2 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-[10px] rounded transition-colors cursor-pointer border border-indigo-200">Edit</button>`
+            : '') + (travelClaimPendingUndecided && window.isLeadershipOrAdmin && window.isLeadershipOrAdmin()
+            ? `<button onclick="deleteTravelClaim('${exp.id}')" class="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-[10px] rounded transition-colors cursor-pointer border border-rose-200">Delete</button>`
+            : '');
 
           var tr = document.createElement('tr');
           tr.id = 'expense-row-' + exp.id;

@@ -353,7 +353,7 @@
             </td>
             <td class="py-3 px-4 text-center space-x-2">
               <button onclick="editKra('${escapeHtml(k.id)}')" class="text-indigo-600 hover:text-indigo-800 font-bold hover:underline">Edit</button>
-              <button onclick="deleteKra('${escapeHtml(k.id)}')" class="text-rose-600 hover:text-rose-800 font-bold hover:underline">Delete</button>
+              ${window.isLeadershipOrAdmin && window.isLeadershipOrAdmin() ? `<button onclick="deleteKra('${escapeHtml(k.id)}')" class="text-rose-600 hover:text-rose-800 font-bold hover:underline">Delete</button>` : ''}
             </td>
           `;
           tbody.appendChild(tr);
@@ -519,6 +519,10 @@
       }
 
       function deleteKra(docId) {
+        if (!window.isLeadershipOrAdmin || !window.isLeadershipOrAdmin()) {
+          alert("Only Super Admin or Admin can delete a KRA target.");
+          return;
+        }
         if (confirm("Are you sure you want to delete this KRA target?")) {
           window.RevOpsStore.deleteItem('kraTargets', docId);
           renderKraTable();

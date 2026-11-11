@@ -88,7 +88,7 @@
             <td class="py-3 px-4 text-center space-x-1.5 whitespace-nowrap">
               <button onclick="viewPrintableReceipt('${escapeHtml(p.id)}')" class="p-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-[11px] font-bold cursor-pointer" title="View Official Receipt Voucher">🧾 View</button>
               <button onclick="editPayment('${escapeHtml(p.id)}')" class="text-indigo-600 hover:text-indigo-800 font-bold hover:underline">Edit</button>
-              <button onclick="deletePayment('${escapeHtml(p.id)}')" class="text-rose-600 hover:text-rose-800 font-bold hover:underline">Delete</button>
+              ${window.isLeadershipOrAdmin && window.isLeadershipOrAdmin() ? `<button onclick="deletePayment('${escapeHtml(p.id)}')" class="text-rose-600 hover:text-rose-800 font-bold hover:underline">Delete</button>` : ''}
             </td>
           `;
           tbody.appendChild(tr);
@@ -462,6 +462,10 @@
       }
 
       function deletePayment(docId) {
+        if (!window.isLeadershipOrAdmin || !window.isLeadershipOrAdmin()) {
+          alert("Only Super Admin or Admin can delete a payment record.");
+          return;
+        }
         if (confirm("Are you sure you want to delete this payment collection?")) {
           var payments = window.RevOpsStore.getCollection('payments') || [];
           var p = payments.find(function(item) { return item.id === docId; });
