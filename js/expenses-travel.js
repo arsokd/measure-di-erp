@@ -870,9 +870,6 @@ var currentTab = 'travel-app';
         var preapp = document.getElementById('pol-preapp-required').value === 'true';
         var travelClass = document.getElementById('pol-travel-class').value;
 
-        var policies = window.RevOpsStore.getCollection('travelPolicyMaster') || [];
-        var idx = policies.findIndex(function(p) { return p.gradeCode === gradeCode || p.id === id; });
-
         var updatedPolicy = {
           id: id || ('pol_' + gradeCode),
           gradeCode: gradeCode,
@@ -890,16 +887,14 @@ var currentTab = 'travel-app';
           updatedAt: new Date().toISOString().split('T')[0]
         };
 
-        if (idx >= 0) {
-          policies[idx] = updatedPolicy;
-        } else {
-          policies.push(updatedPolicy);
-        }
-
-        window.RevOpsStore.saveCollection('travelPolicyMaster', policies);
-        if (window.db && typeof window.db.collection === 'function') {
-          window.db.collection('travelPolicyMaster').doc(updatedPolicy.id).set(updatedPolicy, { merge: true }).catch(function(e){});
-        }
+        // saveRecord (not a raw saveCollection + manual, silently-caught
+        // window.db write - it already saves the full local list itself)
+        // so a failed sync here gets the same treatment as everywhere
+        // else: a visible warning banner, and a _syncFailed flag that
+        // protects it from being mistaken for a remotely-deleted record
+        // and wiped on the next page load - the exact silent-data-loss
+        // bug this pattern caused for quotations.
+        window.RevOpsStore.saveRecord('travelPolicyMaster', updatedPolicy);
 
         closePolicyEditModal();
         renderPolicyMaster();
@@ -1779,23 +1774,20 @@ var currentTab = 'travel-app';
           var existing = (window.RevOpsStore.getCollection('expenses') || []).find(function(e) { return e.id === editingTravelClaimExpenseId; });
           claimFields.voucherNo = existing ? existing.voucherNo : ('TRV-' + editingTravelClaimExpenseId);
           voucherNoForMessage = claimFields.voucherNo;
+          // updateItem already calls saveRecord internally, which syncs
+          // to Firestore with the proper warning-banner/_syncFailed
+          // handling - a second, manual window.db write here (as this
+          // used to do, with only a silent console.warn on failure)
+          // was pure redundant dead weight, duplicating the same write
+          // less safely.
           window.RevOpsStore.updateItem('expenses', editingTravelClaimExpenseId, claimFields);
-          if (window.db && typeof window.db.collection === 'function') {
-            window.db.collection('expenses').doc(editingTravelClaimExpenseId).set(claimFields, { merge: true }).catch(function(err) {
-              console.warn("Firestore save error updating travel claim:", err);
-            });
-          }
         } else {
           var vCount = (window.RevOpsStore.getCollection('expenses') || []).length + 1001;
           claimFields.voucherNo = 'TRV-' + vCount;
           voucherNoForMessage = claimFields.voucherNo;
-          var savedItem = window.RevOpsStore.addItem('expenses', claimFields);
-          if (window.db && typeof window.db.collection === 'function') {
-            var docId = (savedItem && savedItem.id) ? savedItem.id : ('exp_' + Date.now());
-            window.db.collection('expenses').doc(docId).set(claimFields, { merge: true }).catch(function(err) {
-              console.warn("Firestore save error for travel claim:", err);
-            });
-          }
+          // addItem already calls saveRecord internally - see comment
+          // in the editing branch above.
+          window.RevOpsStore.addItem('expenses', claimFields);
         }
 
         closeTravelClaimModal();

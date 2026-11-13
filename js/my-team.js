@@ -468,7 +468,8 @@ document.addEventListener('DOMContentLoaded', function() {
             employeeId: empRec.employeeId || '',
             role: empRec.role || 'staff'
           }, approvalFlags), { merge: true }).catch(function(err) {
-            console.warn("Error creating users/ role doc:", err);
+            console.error("Error creating users/ role doc:", err);
+            window.RevOpsStore.showSyncWarningBanner("Login created, but the role/approver sync may not have reached the server - please check this employee's permissions again shortly.");
           });
         }
 

@@ -5157,6 +5157,60 @@ async function testSyncFailureIsFlaggedAndSurfacedNotSilent(browser) {
   return failures;
 }
 
+// ---------------------------------------------------------------------
+// Same proactive sweep as the quotation fix above, applied to the one
+// other place found with the identical vulnerable shape: Travel Policy
+// Master used to do a raw saveCollection() plus a manual, totally silent
+// (empty-catch) window.db write - a failed sync there was invisible AND
+// travelPolicyMaster is one of the collections the realtime-sync
+// self-heal reconciles, so it was just as exposed to being wiped on the
+// next page load as quotations were. Fixed by routing it through the
+// same saveRecord() path everything else already uses safely.
+// ---------------------------------------------------------------------
+async function testTravelPolicyMasterSyncFailureIsFlaggedAndSurfacedNotSilent(browser) {
+  const failures = [];
+  const { page } = await newPage(browser);
+  await page.goto(BASE_URL + '/expenses.html', { waitUntil: 'networkidle', timeout: 30000 });
+  await page.waitForTimeout(600);
+
+  const result = await page.evaluate(async function () {
+    window.RevOpsStore.saveCollection('travelPolicyMaster', []);
+
+    // The edit-modal's inputs already exist statically on this page
+    // (openPolicyEditModal just sets their .value, it doesn't create
+    // them). pol-grade-code is a <select> of fixed grade options, so
+    // open the modal for a grade with no existing match - that
+    // populates every field, including grade code, with the real
+    // "new policy" defaults (gradeCode 'M3') rather than inventing an
+    // option value a <select> would just silently reject.
+    openPolicyEditModal('NoMatch_NewGrade');
+
+    window.db = {
+      collection: function () {
+        return { doc: function () { return { set: function () { return Promise.reject(new Error('Simulated Firestore write failure')); } }; } };
+      }
+    };
+
+    handleSaveMasterPolicy({ preventDefault: function () {} });
+    await new Promise(function (resolve) { setTimeout(resolve, 300); });
+
+    var rec = window.RevOpsStore.getCollection('travelPolicyMaster').find(function (p) { return p.gradeCode === 'M3'; });
+    var banner = document.getElementById('sync-warning-banner');
+    return {
+      savedLocally: !!rec,
+      syncFailedFlag: rec ? rec._syncFailed : null,
+      bannerVisible: !!banner && !banner.classList.contains('hidden')
+    };
+  });
+
+  assertTrue(result.savedLocally, 'A new Travel Policy Master grade still saves locally even if its Firestore write fails', failures);
+  assertEqual(result.syncFailedFlag, true, 'A Travel Policy Master record whose Firestore write fails is flagged _syncFailed (via saveRecord), not left with no trace at all', failures);
+  assertTrue(result.bannerVisible, 'A failed Travel Policy Master sync shows the visible warning banner, not just a silently-swallowed error', failures);
+
+  await page.close();
+  return failures;
+}
+
 // Single-active-session enforcement: logging in from a second device/
 // browser must sign the first one out automatically (client explicitly
 // confirmed staff only ever use one device at a time). Tested via the pure
@@ -6113,6 +6167,7 @@ const TESTS = [
   ['Realtime sync self-heals stale local-only employee duplicates once Firestore is authoritative', testPruneStaleLocalEmployees],
   ['Realtime sync self-heals stale local records for every collection (not just employees) on a listener\'s first confirmed snapshot - fixes deleted leads reappearing in a returning browser', testPruneStaleLocalRecordsGeneralized],
   ['A quotation whose Firestore write fails is flagged _syncFailed and shown a visible warning banner, instead of silently vanishing on the next page load', testSyncFailureIsFlaggedAndSurfacedNotSilent],
+  ['Travel Policy Master save now goes through the same safe saveRecord path as everything else, instead of a raw saveCollection + totally silent manual Firestore write', testTravelPolicyMasterSyncFailureIsFlaggedAndSurfacedNotSilent],
   ['Single-active-session enforcement: a different device\'s session token forces the older session logged out; same-device/cache/missing-doc cases never do; clearLocalAuthSessionFlags wipes every auth key', testSingleActiveSessionEnforcement],
   ['iPhone GPS fix: detects iOS in-app browsers (WhatsApp/Instagram/etc) that block geolocation outright, and auto-retries once with lower accuracy on a timeout before giving up', testIosGpsRetryAndInAppBrowserDetection],
   ['Lead/Quotation Follow-up System: mandatory date, due-date gating, logFollowUp, list columns, and a popup that keeps re-showing until a follow-up is actually logged (never permanently dismissed)', testFollowUpSystem],

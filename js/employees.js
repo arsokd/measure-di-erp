@@ -515,7 +515,8 @@ document.addEventListener('DOMContentLoaded', function() {
               isFinalApprover: empData.isFinalApprover,
               isFinanceHead: empData.isFinanceHead
             }, { merge: true }).catch(function(err) {
-              console.warn("Could not sync users/ role doc for", savedEmp.uid, err);
+              console.error("Could not sync users/ role doc for", savedEmp.uid, err);
+              window.RevOpsStore.showSyncWarningBanner("Saved locally, but the role/approver change may not have reached the server - please check this employee's permissions again shortly.");
             });
           }
         }
@@ -658,21 +659,15 @@ document.addEventListener('DOMContentLoaded', function() {
         // didn't choose themselves - auth-guard.js's checkAuth() forces
         // them to set their own the moment they next log in with it (see
         // change-password.html), clearing this flag once they do.
+        // updateItem already calls saveRecord internally, which syncs to
+        // Firestore with the proper warning-banner/_syncFailed handling -
+        // a second, manual window.db write here used to duplicate the
+        // same write less safely (only a silent console.warn on
+        // failure).
         window.RevOpsStore.updateItem('employees', docId, {
           passwordLastUpdated: new Date().toISOString(),
           mustChangePassword: true
         });
-
-        // Sync directly to Firestore if available
-        if (window.db && typeof window.db.collection === 'function') {
-          var targetId = emp.id || docId;
-          window.db.collection('employees').doc(targetId).set({
-            passwordLastUpdated: new Date().toISOString(),
-            mustChangePassword: true
-          }, { merge: true }).catch(function(err) {
-            console.warn("Error updating password in Firestore employees collection:", err);
-          });
-        }
 
         // 2. Actually reset (or create) the real Firebase Auth login via the
         // server-side Netlify function — this is the only path that can
