@@ -5679,23 +5679,32 @@ async function testQuotationMultiPagePdfContent(browser) {
 
 // ---------------------------------------------------------------------
 // Regression lock for a real production bug: a Quotation's attachment
-// picker advertised a 100 MB cap, but attachments are stored as base64
+// picker advertised a 100 MB cap, but attachments were stored as base64
 // directly on the quotation's own Firestore document - which hard-caps
 // at 1 MiB total. A quotation whose attachments pushed it anywhere past
 // ~700 KB silently failed to sync to Firestore (console-only error,
 // nothing shown in the app), permanently blocking every future save on
-// that exact record, including the "Send to Client" flow. Fixed by
-// lowering the enforced cap to 600 KB (matching the same fix already
-// in place on Service Tickets) - this locks that enforcement in for
-// Leads, Quotations and Orders, which shared the exact same bug.
+// that exact record, including the "Send to Client" flow.
+//
+// Real fix (not just a lower number): attachments on Leads, Quotations,
+// Orders and Invoices now upload to Firebase Storage - the record only
+// ever carries a download URL, never the file itself - so the
+// advertised 100 MB cap is now actually real, not a lie. Mocks
+// window.storage (the same way other tests here mock window.db,
+// since real Firebase isn't reachable from this environment) to verify:
+// a multi-MB file is accepted (proving the old 600 KB/1 MiB ceiling is
+// gone), it shows an "uploading" placeholder immediately and resolves
+// to {name, size, type, url} once the mocked upload completes, and
+// saving the record is blocked while any attachment is still uploading.
 // ---------------------------------------------------------------------
-async function testAttachmentSizeCapMatchesFirestoreLimit(browser) {
+async function testAttachmentStorageMigration(browser) {
   const failures = [];
 
   const cases = [
-    { page: 'leads.html', inputId: 'inp-lead-attachments', handlerFn: 'handleLeadFilesSelected', listVar: 'activeLeadAttachments', label: 'Lead' },
-    { page: 'quotations.html', inputId: 'inp-quote-attachments', handlerFn: 'handleQuoteFilesSelected', listVar: 'activeQuoteAttachments', label: 'Quotation' },
-    { page: 'orders.html', inputId: 'inp-order-attachments', handlerFn: 'handleOrderFilesSelected', listVar: 'activeOrderAttachments', label: 'Order' }
+    { page: 'leads.html', handlerFn: 'handleLeadFilesSelected', listVar: 'activeLeadAttachments', submitFn: 'handleSaveLead', formId: 'lead-form', label: 'Lead' },
+    { page: 'quotations.html', handlerFn: 'handleQuoteFilesSelected', listVar: 'activeQuoteAttachments', submitFn: 'handleQuoteSubmit', formId: 'quoteForm', label: 'Quotation' },
+    { page: 'orders.html', handlerFn: 'handleOrderFilesSelected', listVar: 'activeOrderAttachments', submitFn: 'handleSaveOrder', formId: 'order-form', label: 'Order' },
+    { page: 'invoices.html', handlerFn: 'handleInvoiceFileUpload', listVar: 'currentInvoiceAttachments', submitFn: 'handleSaveInvoice', formId: 'invoice-form', label: 'Invoice' }
   ];
 
   for (const c of cases) {
@@ -5705,21 +5714,50 @@ async function testAttachmentSizeCapMatchesFirestoreLimit(browser) {
     await closeAssignedTicketsPopupIfAny(page);
 
     const result = await page.evaluate(function (args) {
-      var oversized = { name: 'big-file.pdf', size: 700 * 1024, type: 'application/pdf' };
+      // Mirrors the real Firebase Storage compat SDK's promise shape.
+      window.storage = {
+        ref: function () {
+          return {
+            child: function (path) {
+              return {
+                put: function () {
+                  return Promise.resolve({ ref: { getDownloadURL: function () { return Promise.resolve('https://fake-storage.example.com/' + encodeURIComponent(path)); } } });
+                }
+              };
+            }
+          };
+        }
+      };
 
-      var alertMsg = '';
+      var bigFile = { name: 'big-spec-sheet.pdf', size: 2 * 1024 * 1024, type: 'application/pdf' }; // 2 MB - over the old 600 KB/1 MiB ceiling
+      window[args.handlerFn]({ target: { files: [bigFile], value: '' } });
+      var immediatelyUploading = window[args.listVar].some(function (f) { return f.uploading && f.size === bigFile.size; });
+
       var originalAlert = window.alert;
+      var alertMsg = '';
       window.alert = function (msg) { alertMsg = msg; };
-
-      window[args.handlerFn]({ target: { files: [oversized], value: '' } });
-      var countAfterOversized = window[args.listVar].length;
-
+      var form = document.getElementById(args.formId);
+      if (form && window[args.submitFn]) {
+        window[args.submitFn]({ preventDefault: function () {}, target: form });
+      }
       window.alert = originalAlert;
-      return { alertMsg: alertMsg, countAfterOversized: countAfterOversized };
-    }, { handlerFn: c.handlerFn, listVar: c.listVar });
 
-    assertTrue(result.alertMsg.indexOf('600 KB') !== -1, c.label + ' attachment picker rejects a 700 KB file with a message citing the real 600 KB cap, got: "' + result.alertMsg + '"', failures);
-    assertEqual(result.countAfterOversized, 0, c.label + ' an oversized file is never added to the attachment list', failures);
+      return { immediatelyUploading: immediatelyUploading, blockedWhileUploadingMsg: alertMsg };
+    }, { handlerFn: c.handlerFn, listVar: c.listVar, submitFn: c.submitFn, formId: c.formId });
+
+    assertTrue(result.immediatelyUploading, c.label + ': a 2 MB file (over the old 600 KB/1 MiB ceiling) is accepted and shows an uploading placeholder, not rejected', failures);
+    assertTrue(result.blockedWhileUploadingMsg.toLowerCase().indexOf('uploading') !== -1, c.label + ': saving is blocked with a clear message while an attachment upload is still in flight, got: "' + result.blockedWhileUploadingMsg + '"', failures);
+
+    await page.waitForTimeout(300); // let the mocked upload's resolved promise settle
+    const finalState = await page.evaluate(function (listVar) {
+      var uploaded = window[listVar].find(function (f) { return f.size === 2 * 1024 * 1024; });
+      return uploaded ? { hasUrl: !!uploaded.url, stillUploading: !!uploaded.uploading } : null;
+    }, c.listVar);
+    assertTrue(!!finalState, c.label + ': the uploaded file is still present in the attachment list after the mocked upload resolves', failures);
+    if (finalState) {
+      assertTrue(finalState.hasUrl, c.label + ': once the mocked upload resolves, the attachment carries a real url (not embedded base64)', failures);
+      assertTrue(!finalState.stillUploading, c.label + ': the uploading flag clears once the mocked upload resolves', failures);
+    }
 
     await page.close();
   }
@@ -5862,7 +5900,7 @@ const TESTS = [
   ['HSN Code Master: new Master Data tab, mandatory dropdown on Product Master, pickable dropdown on Lead product lines', testHsnCodeMaster],
   ['Quotation PDF now includes Bank Remittance Instructions and a full Standard Terms & Conditions section, not just the line-items page', testQuotationMultiPagePdfContent],
   ['Delete Leads by Number: preview, confirmation, case-insensitive matching, not-found inputs skipped', testDeleteLeadsByNumber],
-  ['Attachment size cap (Lead/Quotation/Order) matches Firestore\'s real 1 MiB document limit, not the old undeliverable 100 MB', testAttachmentSizeCapMatchesFirestoreLimit]
+  ['Attachments (Lead/Quotation/Order/Invoice) upload to Firebase Storage for a genuine 100 MB cap, with an upload-in-progress save guard', testAttachmentStorageMigration]
 ];
 
 (async () => {

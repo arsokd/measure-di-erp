@@ -1,0 +1,15 @@
+rules_version = '2';
+
+// Mirrors firestore.rules' broad "any signed-in employee" trust model -
+// every Lead/Quotation/Order/Invoice record is already readable by any
+// authenticated user there (allow read: if signedIn()), so an attachment
+// uploaded against one of those records follows the same posture here.
+// Scoped to the one path prefix this app actually uses for attachments
+// (js/store.js uploadAttachmentToStorage), not the whole bucket.
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /attachments/{collectionName}/{allPaths=**} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}

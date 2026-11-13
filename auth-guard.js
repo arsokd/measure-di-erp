@@ -133,7 +133,7 @@ function renderDealAttachmentsListHtml(attachments) {
   return attachments.map(function(a) {
     var badgeClass = stageColors[a._stage] || 'bg-slate-100 text-slate-700 border-slate-200';
     var sizeKb = a.size ? (Math.round(a.size / 1024)) + ' KB' : '';
-    var href = a.dataUrl || '#';
+    var href = a.url || a.dataUrl || a.data || '#';
     return '<a href="' + href + '" download="' + escapeHtml(a.name || 'file') + '" class="flex items-center justify-between bg-white p-2 rounded-lg border border-slate-200 hover:border-indigo-300 text-xs gap-2">' +
       '<span class="truncate font-semibold text-slate-700 flex-1 min-w-0" title="' + escapeHtml(a.name || '') + '">' + escapeHtml(a.name || 'Unnamed file') + '</span>' +
       (sizeKb ? '<span class="shrink-0 text-[10px] text-slate-400">' + sizeKb + '</span>' : '') +

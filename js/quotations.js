@@ -10,6 +10,13 @@ var currentEditingQuoteId = null;
         return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
       }
 
+      // Max attachment size: a real 100 MB, backed by Firebase Storage
+      // rather than embedded as base64 inside this quotation's own
+      // Firestore document (which hard-caps at 1,048,576 bytes - the
+      // "I can't send this one quotation" bug this replaces). Only the
+      // {name, size, type, url} reference is stored on the record itself.
+      var QUOTE_ATTACHMENT_MAX_BYTES = 100 * 1024 * 1024;
+
       function handleQuoteFilesSelected(e) {
         var files = Array.from(e.target.files || []);
         if (files.length === 0) return;
@@ -17,44 +24,44 @@ var currentEditingQuoteId = null;
         var currentCount = activeQuoteAttachments.length;
         if (currentCount + files.length > 10) {
           alert("Attachment limit exceeded: Maximum 10 files allowed. You can only add " + (10 - currentCount) + " more file(s).");
+          e.target.value = '';
+          return;
+        }
+
+        if (!window.RevOpsStore.isFirebaseStorageAvailable()) {
+          alert("File storage isn't available right now (you may be offline, or signed out). Please refresh the page and try again before attaching files.");
+          e.target.value = '';
           return;
         }
 
         var totalCurrentBytes = activeQuoteAttachments.reduce(function(acc, f) { return acc + (f.size || 0); }, 0);
-        // Firestore hard-caps a single document at 1,048,576 bytes - an
-        // attachment is stored as base64 (~33% larger than the raw file)
-        // directly on this quotation's own document, alongside its line
-        // items and history, so 100 MB was never actually deliverable;
-        // it just failed silently in Firestore's sync log instead of
-        // telling anyone here. 600 KB raw leaves solid headroom under
-        // that real limit for every other field this record carries.
-        var maxBytes = 600 * 1024; // 600 KB raw (~820 KB base64) — stays safely under Firestore's 1 MiB document limit
 
-        var readCount = 0;
         files.forEach(function(file) {
-          if (totalCurrentBytes + file.size > maxBytes) {
-            alert("File '" + file.name + "' would push this quotation's attachments over the 600 KB total limit (Firestore's own per-record storage cap, not an arbitrary choice). Skipping this file - for a larger document, share it as a separate email attachment instead.");
+          if (totalCurrentBytes + file.size > QUOTE_ATTACHMENT_MAX_BYTES) {
+            alert("File '" + file.name + "' would push this quotation's attachments over the 100 MB total limit. Skipping this file.");
             return;
           }
           if (activeQuoteAttachments.length >= 10) return;
-
           totalCurrentBytes += file.size;
 
-          var reader = new FileReader();
-          reader.onload = function(evt) {
-            activeQuoteAttachments.push({
-              name: file.name,
-              size: file.size,
-              type: file.type || 'application/octet-stream',
-              lastModified: file.lastModified,
-              dataUrl: evt.target.result
-            });
-            readCount++;
-            if (readCount === files.length || activeQuoteAttachments.length >= 10) {
-              renderQuoteAttachedFilesList();
-            }
-          };
-          reader.readAsDataURL(file);
+          // Shown immediately as an "uploading" placeholder so the file
+          // list doesn't look like nothing happened while the real upload
+          // (which, unlike the old instant FileReader-only approach, can
+          // take real time for a large file) is still in flight.
+          var placeholder = { name: file.name, size: file.size, type: file.type || 'application/octet-stream', uploading: true };
+          activeQuoteAttachments.push(placeholder);
+          renderQuoteAttachedFilesList();
+
+          window.RevOpsStore.uploadAttachmentToStorage(file, 'quotations').then(function(uploaded) {
+            Object.assign(placeholder, uploaded);
+            delete placeholder.uploading;
+            renderQuoteAttachedFilesList();
+          }).catch(function(err) {
+            var idx = activeQuoteAttachments.indexOf(placeholder);
+            if (idx !== -1) activeQuoteAttachments.splice(idx, 1);
+            alert("Could not upload '" + file.name + "': " + (err && err.message || err));
+            renderQuoteAttachedFilesList();
+          });
         });
 
         e.target.value = '';
@@ -74,7 +81,7 @@ var currentEditingQuoteId = null;
         var totalBytes = activeQuoteAttachments.reduce(function(acc, f) { return acc + (f.size || 0); }, 0);
 
         if (countBadge) {
-          countBadge.innerText = activeQuoteAttachments.length + " / 10 files (" + formatFileSize(totalBytes) + " / 600 KB)";
+          countBadge.innerText = activeQuoteAttachments.length + " / 10 files (" + formatFileSize(totalBytes) + " / 100 MB)";
           if (activeQuoteAttachments.length > 0) {
             countBadge.className = "text-[11px] font-bold text-indigo-700";
           } else {
@@ -85,7 +92,7 @@ var currentEditingQuoteId = null;
         activeQuoteAttachments.forEach(function(file, idx) {
           var item = document.createElement('div');
           item.className = "bg-white p-2.5 rounded-xl border border-slate-200 shadow-xs flex items-center justify-between";
-          
+
           var ext = (file.name.split('.').pop() || '').toLowerCase();
           var iconColor = "bg-indigo-100 text-indigo-700";
           var iconText = "FILE";
@@ -102,13 +109,14 @@ var currentEditingQuoteId = null;
               </div>
               <div class="min-w-0">
                 <p class="text-xs font-bold text-slate-800 truncate" title="${escapeHtml(file.name)}">${escapeHtml(file.name)}</p>
-                <p class="text-[10px] text-slate-400 font-medium">${formatFileSize(file.size)}</p>
+                <p class="text-[10px] ${file.uploading ? 'text-amber-600' : 'text-slate-400'} font-medium">${file.uploading ? '⏳ Uploading…' : formatFileSize(file.size)}</p>
               </div>
             </div>
             <div class="flex items-center space-x-1 shrink-0">
+              ${file.uploading ? '' : `
               <button type="button" onclick="downloadAttachmentDirect(${idx})" class="p-1 text-slate-400 hover:text-indigo-600 rounded text-xs font-bold" title="Preview / Download">
                 ⬇️
-              </button>
+              </button>`}
               <button type="button" onclick="removeQuoteAttachment(${idx})" class="p-1 text-slate-400 hover:text-rose-600 rounded text-base font-bold leading-none cursor-pointer" title="Remove File">
                 &times;
               </button>
@@ -167,10 +175,13 @@ var currentEditingQuoteId = null;
 
       function downloadAttachmentDirect(idx) {
         var file = activeQuoteAttachments[idx];
-        if (!file || !file.dataUrl) return;
+        var href = file && (file.url || file.dataUrl);
+        if (!href) return;
         var a = document.createElement('a');
-        a.href = file.dataUrl;
+        a.href = href;
         a.download = file.name;
+        a.target = '_blank';
+        a.rel = 'noopener';
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
@@ -1327,6 +1338,11 @@ var currentEditingQuoteId = null;
       function handleQuoteSubmit(e) {
         e.preventDefault();
 
+        if (activeQuoteAttachments.some(function(f) { return f.uploading; })) {
+          alert('One or more attachments are still uploading - please wait a moment for them to finish before saving.');
+          return;
+        }
+
         if (window.FormValidation && window.FormValidation.validateRequiredFields(e.target).length > 0) {
           alert('Please fill in the required fields highlighted in red before saving.');
           return;
@@ -1838,7 +1854,7 @@ var currentEditingQuoteId = null;
                   <p class="text-[9px] text-slate-400 font-medium">${formatFileSize(file.size)}</p>
                 </div>
               </div>
-              <button type="button" onclick="downloadFileFromData('${file.dataUrl}', '${escapeHtml(file.name)}')" class="px-2 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-[10px] rounded border border-indigo-200 cursor-pointer shrink-0">
+              <button type="button" onclick="downloadFileFromData('${escapeHtml(file.url || file.dataUrl || '')}', '${escapeHtml(file.name)}')" class="px-2 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-[10px] rounded border border-indigo-200 cursor-pointer shrink-0">
                 ⬇️ Download
               </button>
             `;
@@ -2067,9 +2083,15 @@ var currentEditingQuoteId = null;
           var pdfFilename = 'Quotation_' + q.quoteNumber + '_Ver' + (q.revision || 1) + '.pdf';
           var pdfAttachment = await window.PdfGenerator.generatePdfFromHtml(pdfHtml, pdfFilename, { width: 780 });
 
-          var technicalAttachments = (q.attachments || []).map(function(file) {
-            return { name: file.name, type: file.type || 'application/octet-stream', data: file.dataUrl };
-          });
+          if (submitBtn) submitBtn.innerHTML = '<span>⏳ Preparing attachments...</span>';
+          // Storage-backed attachments only carry a URL on the record, not
+          // raw bytes - the email APIs need actual content, so fetch each
+          // one back into a data: URI right before sending. Older records
+          // whose files are still embedded inline (.dataUrl) skip the
+          // fetch entirely, per resolveAttachmentForEmail.
+          var technicalAttachments = await Promise.all((q.attachments || []).map(function(file) {
+            return window.RevOpsStore.resolveAttachmentForEmail(file);
+          }));
 
           if (submitBtn) submitBtn.innerHTML = '<span>⏳ Sending...</span>';
 

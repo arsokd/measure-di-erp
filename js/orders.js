@@ -10,6 +10,12 @@ var currentSplits = [];
         return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
       }
 
+      // Max attachment size: a real 100 MB, backed by Firebase Storage
+      // rather than embedded as base64 inside this order's own Firestore
+      // document (which hard-caps at 1,048,576 bytes). Only the
+      // {name, size, type, url} reference is stored on the record itself.
+      var ORDER_ATTACHMENT_MAX_BYTES = 100 * 1024 * 1024;
+
       function handleOrderFilesSelected(e) {
         var files = Array.from(e.target.files || []);
         if (files.length === 0) return;
@@ -17,44 +23,40 @@ var currentSplits = [];
         var currentCount = activeOrderAttachments.length;
         if (currentCount + files.length > 10) {
           alert("Attachment limit exceeded: Maximum 10 files allowed. You can only add " + (10 - currentCount) + " more file(s).");
+          e.target.value = '';
+          return;
+        }
+
+        if (!window.RevOpsStore.isFirebaseStorageAvailable()) {
+          alert("File storage isn't available right now (you may be offline, or signed out). Please refresh the page and try again before attaching files.");
+          e.target.value = '';
           return;
         }
 
         var totalCurrentBytes = activeOrderAttachments.reduce(function(acc, f) { return acc + (f.size || 0); }, 0);
-        // Firestore hard-caps a single document at 1,048,576 bytes - an
-        // attachment is stored as base64 (~33% larger than the raw file)
-        // directly on this order's own document, alongside its line items
-        // and history, so 100 MB was never actually deliverable; it just
-        // failed silently in Firestore's sync log instead of telling
-        // anyone here. 600 KB raw leaves solid headroom under that real
-        // limit for every other field this record carries.
-        var maxBytes = 600 * 1024; // 600 KB raw (~820 KB base64) — stays safely under Firestore's 1 MiB document limit
 
-        var readCount = 0;
         files.forEach(function(file) {
-          if (totalCurrentBytes + file.size > maxBytes) {
-            alert("File '" + file.name + "' would push this order's attachments over the 600 KB total limit (Firestore's own per-record storage cap, not an arbitrary choice). Skipping this file - for a larger document, share it as a separate email attachment instead.");
+          if (totalCurrentBytes + file.size > ORDER_ATTACHMENT_MAX_BYTES) {
+            alert("File '" + file.name + "' would push this order's attachments over the 100 MB total limit. Skipping this file.");
             return;
           }
           if (activeOrderAttachments.length >= 10) return;
-
           totalCurrentBytes += file.size;
 
-          var reader = new FileReader();
-          reader.onload = function(evt) {
-            activeOrderAttachments.push({
-              name: file.name,
-              size: file.size,
-              type: file.type || 'application/octet-stream',
-              lastModified: file.lastModified,
-              dataUrl: evt.target.result
-            });
-            readCount++;
-            if (readCount === files.length || activeOrderAttachments.length >= 10) {
-              renderOrderAttachedFilesList();
-            }
-          };
-          reader.readAsDataURL(file);
+          var placeholder = { name: file.name, size: file.size, type: file.type || 'application/octet-stream', uploading: true };
+          activeOrderAttachments.push(placeholder);
+          renderOrderAttachedFilesList();
+
+          window.RevOpsStore.uploadAttachmentToStorage(file, 'orders').then(function(uploaded) {
+            Object.assign(placeholder, uploaded);
+            delete placeholder.uploading;
+            renderOrderAttachedFilesList();
+          }).catch(function(err) {
+            var idx = activeOrderAttachments.indexOf(placeholder);
+            if (idx !== -1) activeOrderAttachments.splice(idx, 1);
+            alert("Could not upload '" + file.name + "': " + (err && err.message || err));
+            renderOrderAttachedFilesList();
+          });
         });
 
         e.target.value = '';
@@ -74,7 +76,7 @@ var currentSplits = [];
         var totalBytes = activeOrderAttachments.reduce(function(acc, f) { return acc + (f.size || 0); }, 0);
 
         if (countBadge) {
-          countBadge.innerText = activeOrderAttachments.length + " / 10 files (" + formatOrderFileSize(totalBytes) + " / 600 KB)";
+          countBadge.innerText = activeOrderAttachments.length + " / 10 files (" + formatOrderFileSize(totalBytes) + " / 100 MB)";
         }
 
         activeOrderAttachments.forEach(function(file, idx) {
@@ -83,7 +85,7 @@ var currentSplits = [];
           item.innerHTML = `
             <div class="min-w-0">
               <p class="text-xs font-bold text-white truncate" title="${escapeHtml(file.name)}">${escapeHtml(file.name)}</p>
-              <p class="text-[10px] text-slate-500 font-medium">${formatOrderFileSize(file.size)}</p>
+              <p class="text-[10px] ${file.uploading ? 'text-amber-500' : 'text-slate-500'} font-medium">${file.uploading ? '⏳ Uploading…' : formatOrderFileSize(file.size)}</p>
             </div>
             <button type="button" onclick="removeOrderAttachment(${idx})" class="p-1 text-slate-500 hover:text-rose-500 rounded text-base font-bold leading-none cursor-pointer" title="Remove File">&times;</button>
           `;
@@ -916,6 +918,11 @@ var currentSplits = [];
 
       function handleSaveOrder(e) {
         e.preventDefault();
+
+        if (activeOrderAttachments.some(function(f) { return f.uploading; })) {
+          alert('One or more attachments are still uploading - please wait a moment for them to finish before saving.');
+          return;
+        }
 
         // Validate splits total strictly equals 100%
         var totalSplit = 0;

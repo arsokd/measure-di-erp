@@ -24,6 +24,7 @@ if (typeof firebase !== 'undefined') {
 
 var db = null;
 var auth = null;
+var storage = null;
 if (typeof firebase !== 'undefined') {
   try {
     if (mainApp && typeof mainApp.firestore === 'function') {
@@ -36,11 +37,22 @@ if (typeof firebase !== 'undefined') {
     } else if (typeof firebase.auth === 'function') {
       auth = firebase.auth();
     }
+    // Real file storage for attachments (Leads/Quotations/Orders/Invoices) -
+    // a Firestore document hard-caps at 1 MiB, which an embedded base64
+    // attachment blows past almost immediately, so attachments live here
+    // instead and the record just keeps a download URL. Only available on
+    // pages that load the firebase-storage-compat.js script tag.
+    if (mainApp && typeof mainApp.storage === 'function') {
+      storage = mainApp.storage();
+    } else if (typeof firebase.storage === 'function') {
+      storage = firebase.storage();
+    }
   } catch (e) {
-    console.warn("Firebase firestore/auth init fallback:", e);
+    console.warn("Firebase firestore/auth/storage init fallback:", e);
   }
 }
 
 window.db = db;
 window.auth = auth;
+window.storage = storage;
 window.firebaseConfig = firebaseConfig;

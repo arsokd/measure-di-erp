@@ -164,44 +164,51 @@ var currentTab = 'All';
         else box.classList.add('hidden');
       }
 
+      // Max attachment size: a real 100 MB, backed by Firebase Storage
+      // rather than embedded as base64 inside this invoice's own
+      // Firestore document (which hard-caps at 1,048,576 bytes). Only the
+      // {name, size, type, url} reference is stored on the record itself.
+      var INVOICE_ATTACHMENT_MAX_BYTES = 100 * 1024 * 1024;
+
       function handleInvoiceFileUpload(e) {
         var files = Array.from(e.target.files || []);
         if (!files.length) return;
 
         if (currentInvoiceAttachments.length + files.length > 10) {
           alert("Maximum 10 supporting files allowed per commercial invoice.");
+          e.target.value = '';
           return;
         }
 
-        // Calculate aggregate size. Firestore hard-caps a single document
-        // at 1,048,576 bytes - an attachment is stored as base64 (~33%
-        // larger than the raw file) directly on this invoice's own
-        // document, alongside its line items and history, so 100 MB was
-        // never actually deliverable; it just failed silently in
-        // Firestore's sync log instead of telling anyone here. 600 KB raw
-        // leaves solid headroom under that real limit.
+        if (!window.RevOpsStore.isFirebaseStorageAvailable()) {
+          alert("File storage isn't available right now (you may be offline, or signed out). Please refresh the page and try again before attaching files.");
+          e.target.value = '';
+          return;
+        }
+
         var existingBytes = currentInvoiceAttachments.reduce(function(acc, f) { return acc + (f.size || 0); }, 0);
-        var newBytes = files.reduce(function(acc, f) { return acc + f.size; }, 0);
-        var totalKB = (existingBytes + newBytes) / 1024;
-
-        if (totalKB > 600) {
-          alert("Total attachments would be " + totalKB.toFixed(0) + " KB, over the 600 KB total limit (Firestore's own per-record storage cap, not an arbitrary choice). Please select smaller files - for a larger document, share it as a separate email attachment instead.");
-          return;
-        }
 
         files.forEach(function(file) {
-          var reader = new FileReader();
-          reader.onload = function(evt) {
-            currentInvoiceAttachments.push({
-              name: file.name,
-              size: file.size,
-              type: file.type,
-              data: evt.target.result,
-              uploadedAt: new Date().toISOString()
-            });
+          if (existingBytes + file.size > INVOICE_ATTACHMENT_MAX_BYTES) {
+            alert("File '" + file.name + "' would push this invoice's attachments over the 100 MB total limit. Skipping this file.");
+            return;
+          }
+          existingBytes += file.size;
+
+          var placeholder = { name: file.name, size: file.size, type: file.type, uploading: true };
+          currentInvoiceAttachments.push(placeholder);
+          renderInvoiceAttachments();
+
+          window.RevOpsStore.uploadAttachmentToStorage(file, 'invoices').then(function(uploaded) {
+            Object.assign(placeholder, uploaded);
+            delete placeholder.uploading;
             renderInvoiceAttachments();
-          };
-          reader.readAsDataURL(file);
+          }).catch(function(err) {
+            var idx = currentInvoiceAttachments.indexOf(placeholder);
+            if (idx !== -1) currentInvoiceAttachments.splice(idx, 1);
+            alert("Could not upload '" + file.name + "': " + (err && err.message || err));
+            renderInvoiceAttachments();
+          });
         });
 
         // Reset input
@@ -236,7 +243,7 @@ var currentTab = 'All';
               <div class="flex items-center space-x-2 truncate">
                 <span class="px-1.5 py-0.5 rounded text-[10px] font-black ${att.isClientPo ? 'bg-indigo-100 text-indigo-800' : 'bg-slate-100 text-slate-700'}">${isPo}</span>
                 <span class="font-semibold text-slate-800 truncate" title="${escapeHtml(att.name)}">${escapeHtml(att.name)}</span>
-                <span class="text-[10px] text-slate-400 font-mono">(${sizeKb} KB)</span>
+                <span class="text-[10px] ${att.uploading ? 'text-amber-600' : 'text-slate-400'} font-mono">${att.uploading ? '⏳ Uploading…' : '(' + sizeKb + ' KB)'}</span>
               </div>
               <button type="button" onclick="removeInvoiceAttachment(${idx})" class="text-rose-500 hover:text-rose-700 font-bold px-1.5 py-0.5">&times;</button>
             </div>
@@ -862,6 +869,11 @@ var currentTab = 'All';
       function handleSaveInvoice(e) {
         e.preventDefault();
 
+        if (currentInvoiceAttachments.some(function(f) { return f.uploading; })) {
+          alert('One or more attachments are still uploading - please wait a moment for them to finish before saving.');
+          return;
+        }
+
         if (window.FormValidation && window.FormValidation.validateRequiredFields(e.target).length > 0) {
           alert('Please fill in the required fields highlighted in red before saving.');
           return;
@@ -1304,9 +1316,14 @@ Mobile: +91 98406 29928 | Web: www.measuredi.com`;
           var pdfFilename = (inv.invoiceNumber.replace(/\//g, '_')) + '.pdf';
           var pdfAttachment = await window.PdfGenerator.generatePdfFromHtml(pdfHtml, pdfFilename, { width: 900 });
 
-          var technicalAttachments = (inv.attachments || []).map(function(file) {
-            return { name: file.name, type: file.type || 'application/octet-stream', data: file.data };
-          });
+          // Storage-backed attachments only carry a URL on the record, not
+          // raw bytes - the email APIs need actual content, so fetch each
+          // one back into a data: URI right before sending. Older records
+          // whose files are still embedded inline (.data) skip the fetch
+          // entirely, per resolveAttachmentForEmail.
+          var technicalAttachments = await Promise.all((inv.attachments || []).map(function(file) {
+            return window.RevOpsStore.resolveAttachmentForEmail(file);
+          }));
 
           if (btn) btn.innerHTML = '<span>⏳ Dispatching Invoice...</span>';
 

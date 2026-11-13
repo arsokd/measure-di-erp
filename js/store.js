@@ -7,6 +7,65 @@ Object.assign(window.RevOpsStore, {
     return typeof window.db !== 'undefined' && window.db !== null && typeof window.db.collection === 'function';
   },
 
+  isFirebaseStorageAvailable: function() {
+    return typeof window.storage !== 'undefined' && window.storage !== null && typeof window.storage.ref === 'function';
+  },
+
+  // Uploads a real File to Firebase Storage and resolves with the shape
+  // every attachment list/renderer in this app expects - {name, size,
+  // type, url, uploadedAt}. Used instead of embedding the file as base64
+  // straight onto a Lead/Quotation/Order/Invoice's own Firestore document,
+  // which hard-caps at 1 MiB and silently fails to save past roughly
+  // 700 KB of attachments (the exact bug this replaces). colName is the
+  // collection this attachment belongs to (e.g. 'quotations'), purely to
+  // keep the Storage bucket organized by record type - the resulting URL
+  // works regardless of which record ends up referencing it.
+  uploadAttachmentToStorage: function(file, colName) {
+    if (!this.isFirebaseStorageAvailable()) {
+      return Promise.reject(new Error('File storage is not available right now - please refresh the page and try again.'));
+    }
+    var path = 'attachments/' + colName + '/' + Date.now() + '_' + Math.random().toString(36).substr(2, 8) + '_' + file.name;
+    var ref = window.storage.ref().child(path);
+    return ref.put(file).then(function(snapshot) {
+      return snapshot.ref.getDownloadURL();
+    }).then(function(url) {
+      return { name: file.name, size: file.size, type: file.type || 'application/octet-stream', url: url, uploadedAt: new Date().toISOString() };
+    });
+  },
+
+  // Converts an attachment's Storage URL back into a data: URI, for the
+  // one place that still genuinely needs raw bytes rather than a link:
+  // handing the file to the Brevo/Gmail send APIs as an email attachment.
+  fetchAttachmentAsDataUri: function(url) {
+    return fetch(url).then(function(res) {
+      if (!res.ok) throw new Error('Could not fetch attachment for emailing (HTTP ' + res.status + ').');
+      return res.blob();
+    }).then(function(blob) {
+      return new Promise(function(resolve, reject) {
+        var reader = new FileReader();
+        reader.onload = function() { resolve(reader.result); };
+        reader.onerror = function() { reject(reader.error); };
+        reader.readAsDataURL(blob);
+      });
+    });
+  },
+
+  // Normalizes any attachment shape this app has ever produced into a
+  // single data: URI, ready to email - a Storage-backed attachment
+  // (.url), or an older record still holding its file inline as base64
+  // under .dataUrl (Leads/Quotations/Orders) or .data (Invoices).
+  resolveAttachmentForEmail: function(att) {
+    var self = this;
+    var inline = att.dataUrl || att.data;
+    if (inline) return Promise.resolve({ name: att.name, type: att.type || 'application/octet-stream', data: inline });
+    if (att.url) {
+      return self.fetchAttachmentAsDataUri(att.url).then(function(dataUri) {
+        return { name: att.name, type: att.type || 'application/octet-stream', data: dataUri };
+      });
+    }
+    return Promise.resolve({ name: att.name, type: att.type || 'application/octet-stream', data: '' });
+  },
+
   reseedAllData: function() {
     console.log("Force re-seeding complete RevOps dataset...");
     var collections = ['employees', 'kraTargets', 'aopTargets', 'orders', 'dwmActivities', 'attendance', 'leads', 'payments', 'reviews', 'expenses', 'projectsMaster', 'clientsMaster', 'sparePartsMaster', 'productsMaster', 'bankDetailsMaster', 'clientEquipmentMaster', 'auditLogs', 'expenseSplits', 'travelPolicyMaster', 'travelApprovals', 'budgets', 'serviceTickets', 'quotations', 'invoices'];

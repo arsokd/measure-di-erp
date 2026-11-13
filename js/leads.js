@@ -35,6 +35,13 @@ var currentLeadContacts = [];
         return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
       }
 
+      // Max attachment size: a real 100 MB, backed by Firebase Storage
+      // rather than embedded as base64 inside this lead's own Firestore
+      // document (which hard-caps at 1,048,576 bytes). Only the
+      // {name, size, type, url} reference is stored on the record itself
+      // (and copied onto any Quotation/Order/Invoice created from this deal).
+      var LEAD_ATTACHMENT_MAX_BYTES = 100 * 1024 * 1024;
+
       function handleLeadFilesSelected(e) {
         var files = Array.from(e.target.files || []);
         if (files.length === 0) return;
@@ -42,45 +49,40 @@ var currentLeadContacts = [];
         var currentCount = activeLeadAttachments.length;
         if (currentCount + files.length > 10) {
           alert("Attachment limit exceeded: Maximum 10 files allowed. You can only add " + (10 - currentCount) + " more file(s).");
+          e.target.value = '';
+          return;
+        }
+
+        if (!window.RevOpsStore.isFirebaseStorageAvailable()) {
+          alert("File storage isn't available right now (you may be offline, or signed out). Please refresh the page and try again before attaching files.");
+          e.target.value = '';
           return;
         }
 
         var totalCurrentBytes = activeLeadAttachments.reduce(function(acc, f) { return acc + (f.size || 0); }, 0);
-        // Firestore hard-caps a single document at 1,048,576 bytes - an
-        // attachment is stored as base64 (~33% larger than the raw file)
-        // directly on this lead's own document, alongside everything
-        // else it carries (and these attachments get copied onto any
-        // Quotation/Order/Invoice created from this deal too), so 100 MB
-        // was never actually deliverable; it just failed silently in
-        // Firestore's sync log instead of telling anyone here. 600 KB raw
-        // leaves solid headroom under that real limit.
-        var maxBytes = 600 * 1024; // 600 KB raw (~820 KB base64) — stays safely under Firestore's 1 MiB document limit
 
-        var readCount = 0;
         files.forEach(function(file) {
-          if (totalCurrentBytes + file.size > maxBytes) {
-            alert("File '" + file.name + "' would push this lead's attachments over the 600 KB total limit (Firestore's own per-record storage cap, not an arbitrary choice). Skipping this file - for a larger document, share it as a separate email attachment instead.");
+          if (totalCurrentBytes + file.size > LEAD_ATTACHMENT_MAX_BYTES) {
+            alert("File '" + file.name + "' would push this lead's attachments over the 100 MB total limit. Skipping this file.");
             return;
           }
           if (activeLeadAttachments.length >= 10) return;
-
           totalCurrentBytes += file.size;
 
-          var reader = new FileReader();
-          reader.onload = function(evt) {
-            activeLeadAttachments.push({
-              name: file.name,
-              size: file.size,
-              type: file.type || 'application/octet-stream',
-              lastModified: file.lastModified,
-              dataUrl: evt.target.result
-            });
-            readCount++;
-            if (readCount === files.length || activeLeadAttachments.length >= 10) {
-              renderLeadAttachedFilesList();
-            }
-          };
-          reader.readAsDataURL(file);
+          var placeholder = { name: file.name, size: file.size, type: file.type || 'application/octet-stream', uploading: true };
+          activeLeadAttachments.push(placeholder);
+          renderLeadAttachedFilesList();
+
+          window.RevOpsStore.uploadAttachmentToStorage(file, 'leads').then(function(uploaded) {
+            Object.assign(placeholder, uploaded);
+            delete placeholder.uploading;
+            renderLeadAttachedFilesList();
+          }).catch(function(err) {
+            var idx = activeLeadAttachments.indexOf(placeholder);
+            if (idx !== -1) activeLeadAttachments.splice(idx, 1);
+            alert("Could not upload '" + file.name + "': " + (err && err.message || err));
+            renderLeadAttachedFilesList();
+          });
         });
 
         e.target.value = '';
@@ -100,7 +102,7 @@ var currentLeadContacts = [];
         var totalBytes = activeLeadAttachments.reduce(function(acc, f) { return acc + (f.size || 0); }, 0);
 
         if (countBadge) {
-          countBadge.innerText = activeLeadAttachments.length + " / 10 files (" + formatLeadFileSize(totalBytes) + " / 600 KB)";
+          countBadge.innerText = activeLeadAttachments.length + " / 10 files (" + formatLeadFileSize(totalBytes) + " / 100 MB)";
         }
 
         activeLeadAttachments.forEach(function(file, idx) {
@@ -109,7 +111,7 @@ var currentLeadContacts = [];
           item.innerHTML = `
             <div class="min-w-0">
               <p class="text-xs font-bold text-white truncate" title="${escapeHtml(file.name)}">${escapeHtml(file.name)}</p>
-              <p class="text-[10px] text-slate-500 font-medium">${formatLeadFileSize(file.size)}</p>
+              <p class="text-[10px] ${file.uploading ? 'text-amber-500' : 'text-slate-500'} font-medium">${file.uploading ? '⏳ Uploading…' : formatLeadFileSize(file.size)}</p>
             </div>
             <button type="button" onclick="removeLeadAttachment(${idx})" class="p-1 text-slate-500 hover:text-rose-500 rounded text-base font-bold leading-none cursor-pointer" title="Remove File">&times;</button>
           `;
@@ -1143,6 +1145,12 @@ var currentLeadContacts = [];
 
       function handleSaveLead(e) {
         e.preventDefault();
+
+        if (activeLeadAttachments.some(function(f) { return f.uploading; })) {
+          alert('One or more attachments are still uploading - please wait a moment for them to finish before saving.');
+          return;
+        }
+
         var docId = document.getElementById('lead-doc-id').value;
         var existingLead = docId ? (window.RevOpsStore.getCollection('leads') || []).find(function(l) { return l.id === docId; }) : null;
 
