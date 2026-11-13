@@ -5677,6 +5677,56 @@ async function testQuotationMultiPagePdfContent(browser) {
   return failures;
 }
 
+// ---------------------------------------------------------------------
+// Regression lock for a real production bug: a Quotation's attachment
+// picker advertised a 100 MB cap, but attachments are stored as base64
+// directly on the quotation's own Firestore document - which hard-caps
+// at 1 MiB total. A quotation whose attachments pushed it anywhere past
+// ~700 KB silently failed to sync to Firestore (console-only error,
+// nothing shown in the app), permanently blocking every future save on
+// that exact record, including the "Send to Client" flow. Fixed by
+// lowering the enforced cap to 600 KB (matching the same fix already
+// in place on Service Tickets) - this locks that enforcement in for
+// Leads, Quotations and Orders, which shared the exact same bug.
+// ---------------------------------------------------------------------
+async function testAttachmentSizeCapMatchesFirestoreLimit(browser) {
+  const failures = [];
+
+  const cases = [
+    { page: 'leads.html', inputId: 'inp-lead-attachments', handlerFn: 'handleLeadFilesSelected', listVar: 'activeLeadAttachments', label: 'Lead' },
+    { page: 'quotations.html', inputId: 'inp-quote-attachments', handlerFn: 'handleQuoteFilesSelected', listVar: 'activeQuoteAttachments', label: 'Quotation' },
+    { page: 'orders.html', inputId: 'inp-order-attachments', handlerFn: 'handleOrderFilesSelected', listVar: 'activeOrderAttachments', label: 'Order' }
+  ];
+
+  for (const c of cases) {
+    const { page } = await newPage(browser);
+    await page.goto(BASE_URL + '/' + c.page, { waitUntil: 'networkidle', timeout: 30000 });
+    await page.waitForTimeout(600);
+    await closeAssignedTicketsPopupIfAny(page);
+
+    const result = await page.evaluate(function (args) {
+      var oversized = { name: 'big-file.pdf', size: 700 * 1024, type: 'application/pdf' };
+
+      var alertMsg = '';
+      var originalAlert = window.alert;
+      window.alert = function (msg) { alertMsg = msg; };
+
+      window[args.handlerFn]({ target: { files: [oversized], value: '' } });
+      var countAfterOversized = window[args.listVar].length;
+
+      window.alert = originalAlert;
+      return { alertMsg: alertMsg, countAfterOversized: countAfterOversized };
+    }, { handlerFn: c.handlerFn, listVar: c.listVar });
+
+    assertTrue(result.alertMsg.indexOf('600 KB') !== -1, c.label + ' attachment picker rejects a 700 KB file with a message citing the real 600 KB cap, got: "' + result.alertMsg + '"', failures);
+    assertEqual(result.countAfterOversized, 0, c.label + ' an oversized file is never added to the attachment list', failures);
+
+    await page.close();
+  }
+
+  return failures;
+}
+
 async function testDeleteLeadsByNumber(browser) {
   const failures = [];
   const { page } = await newPage(browser);
@@ -5811,7 +5861,8 @@ const TESTS = [
   ['Mandatory Remarks box present on Lead, Quotation and Order Booking (new on Orders)', testMandatoryRemarksBoxes],
   ['HSN Code Master: new Master Data tab, mandatory dropdown on Product Master, pickable dropdown on Lead product lines', testHsnCodeMaster],
   ['Quotation PDF now includes Bank Remittance Instructions and a full Standard Terms & Conditions section, not just the line-items page', testQuotationMultiPagePdfContent],
-  ['Delete Leads by Number: preview, confirmation, case-insensitive matching, not-found inputs skipped', testDeleteLeadsByNumber]
+  ['Delete Leads by Number: preview, confirmation, case-insensitive matching, not-found inputs skipped', testDeleteLeadsByNumber],
+  ['Attachment size cap (Lead/Quotation/Order) matches Firestore\'s real 1 MiB document limit, not the old undeliverable 100 MB', testAttachmentSizeCapMatchesFirestoreLimit]
 ];
 
 (async () => {

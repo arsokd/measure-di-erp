@@ -46,12 +46,20 @@ var currentLeadContacts = [];
         }
 
         var totalCurrentBytes = activeLeadAttachments.reduce(function(acc, f) { return acc + (f.size || 0); }, 0);
-        var maxBytes = 100 * 1024 * 1024;
+        // Firestore hard-caps a single document at 1,048,576 bytes - an
+        // attachment is stored as base64 (~33% larger than the raw file)
+        // directly on this lead's own document, alongside everything
+        // else it carries (and these attachments get copied onto any
+        // Quotation/Order/Invoice created from this deal too), so 100 MB
+        // was never actually deliverable; it just failed silently in
+        // Firestore's sync log instead of telling anyone here. 600 KB raw
+        // leaves solid headroom under that real limit.
+        var maxBytes = 600 * 1024; // 600 KB raw (~820 KB base64) — stays safely under Firestore's 1 MiB document limit
 
         var readCount = 0;
         files.forEach(function(file) {
           if (totalCurrentBytes + file.size > maxBytes) {
-            alert("File '" + file.name + "' exceeds total 100 MB attachment capacity. Skipping this file.");
+            alert("File '" + file.name + "' would push this lead's attachments over the 600 KB total limit (Firestore's own per-record storage cap, not an arbitrary choice). Skipping this file - for a larger document, share it as a separate email attachment instead.");
             return;
           }
           if (activeLeadAttachments.length >= 10) return;
@@ -92,7 +100,7 @@ var currentLeadContacts = [];
         var totalBytes = activeLeadAttachments.reduce(function(acc, f) { return acc + (f.size || 0); }, 0);
 
         if (countBadge) {
-          countBadge.innerText = activeLeadAttachments.length + " / 10 files (" + formatLeadFileSize(totalBytes) + " / 100 MB)";
+          countBadge.innerText = activeLeadAttachments.length + " / 10 files (" + formatLeadFileSize(totalBytes) + " / 600 KB)";
         }
 
         activeLeadAttachments.forEach(function(file, idx) {

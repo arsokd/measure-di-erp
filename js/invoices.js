@@ -173,13 +173,19 @@ var currentTab = 'All';
           return;
         }
 
-        // Calculate aggregate size
+        // Calculate aggregate size. Firestore hard-caps a single document
+        // at 1,048,576 bytes - an attachment is stored as base64 (~33%
+        // larger than the raw file) directly on this invoice's own
+        // document, alongside its line items and history, so 100 MB was
+        // never actually deliverable; it just failed silently in
+        // Firestore's sync log instead of telling anyone here. 600 KB raw
+        // leaves solid headroom under that real limit.
         var existingBytes = currentInvoiceAttachments.reduce(function(acc, f) { return acc + (f.size || 0); }, 0);
         var newBytes = files.reduce(function(acc, f) { return acc + f.size; }, 0);
-        var totalMB = (existingBytes + newBytes) / (1024 * 1024);
+        var totalKB = (existingBytes + newBytes) / 1024;
 
-        if (totalMB > 100) {
-          alert("Total attachments exceed 100 MB aggregate size limit (" + totalMB.toFixed(1) + " MB). Please select smaller files.");
+        if (totalKB > 600) {
+          alert("Total attachments would be " + totalKB.toFixed(0) + " KB, over the 600 KB total limit (Firestore's own per-record storage cap, not an arbitrary choice). Please select smaller files - for a larger document, share it as a separate email attachment instead.");
           return;
         }
 
