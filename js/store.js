@@ -41,6 +41,16 @@ Object.assign(window.RevOpsStore, {
   // netlify/functions/send-gmail.js and send-email.js as a backstop.
   EMAIL_ATTACHMENT_LIMIT_BYTES: 25 * 1024 * 1024,
 
+  // A softer, earlier threshold than the hard 25 MB ceiling above - past
+  // this, the send still goes through, but the sender gets a clear
+  // "you're getting close to the limit" warning (with a chance to cancel
+  // and trim a file) instead of finding out only if/when they eventually
+  // cross 25 MB. Also matches the Brevo fallback path's lower 20 MB cap
+  // (see netlify/functions/send-email.js), so it's the point past which
+  // a Gmail outage would actually risk the send failing on the backup
+  // path too.
+  EMAIL_ATTACHMENT_WARN_BYTES: 20 * 1024 * 1024,
+
   // Normalizes any attachment shape this app has ever produced into a
   // lightweight reference ready to hand to the email-sending functions -
   // a Storage-backed attachment keeps just its URL (.url), an older

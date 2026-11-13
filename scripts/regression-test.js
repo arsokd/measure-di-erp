@@ -5835,20 +5835,72 @@ async function testEmailAttachmentSizeLimitAndServerSideRefs(browser) {
   // POST stays small regardless of the attachment's real size.
   const normalResult = await page.evaluate(async function () {
     openSendQuoteModal('quo_normal_1');
+    var confirmCallCount = 0;
+    var originalConfirm = window.confirm;
+    window.confirm = function () { confirmCallCount++; return true; };
     var form = document.getElementById('send-quote-form');
     await handleSendQuoteSubmit({ preventDefault: function () {}, target: form });
+    window.confirm = originalConfirm;
     var call = window.__sendCalls[window.__sendCalls.length - 1];
     var techAtt = call && call.attachments ? call.attachments.find(function (a) { return a.name === 'spec.pdf'; }) : null;
     return {
       sendCallCount: window.__sendCalls.length,
+      confirmCallCount: confirmCallCount,
       techAttHasUrl: !!(techAtt && techAtt.url === 'https://fake-storage.example.com/spec.pdf'),
       techAttCarriesNoInlineData: !(techAtt && techAtt.data)
     };
   });
 
   assertEqual(normalResult.sendCallCount, 1, 'A 5 MB attachment (under the 25 MB limit) reaches BrevoMailer.sendQuotationEmail normally', failures);
+  assertEqual(normalResult.confirmCallCount, 0, 'A 5 MB attachment (well under the 20 MB warning threshold) sends silently, no warning popup at all', failures);
   assertTrue(normalResult.techAttHasUrl, 'The attachment ref handed to the mailer carries the Storage URL', failures);
   assertTrue(normalResult.techAttCarriesNoInlineData, 'The attachment ref carries no inline base64 payload - only the URL, kept small regardless of the real file size', failures);
+
+  // Case 3: a single 22 MB attachment - under the 25 MB hard ceiling but
+  // over the 20 MB warning threshold - must show an early "getting
+  // close to the limit" warning (distinct from the hard-block message),
+  // and must actually respect the sender's choice: Cancel aborts the
+  // send, "Send anyway" (confirm's OK) proceeds.
+  await page.evaluate(function () {
+    window.RevOpsStore.saveCollection('quotations', window.RevOpsStore.getCollection('quotations').concat([{
+      id: 'quo_warn_1', quoteNumber: 'QUO-WARN-01', customerName: 'Warn Zone Attachment Co',
+      email: 'client-warn@test.com', grandTotal: 500000, revision: 1, status: 'Approved', items: [],
+      attachments: [{ name: 'bigish.pdf', size: 22 * 1024 * 1024, type: 'application/pdf', url: 'https://fake-storage.example.com/bigish.pdf' }]
+    }]));
+  });
+
+  const warnCancelledResult = await page.evaluate(async function () {
+    openSendQuoteModal('quo_warn_1');
+    var confirmMsg = '';
+    var confirmCallCount = 0;
+    var originalConfirm = window.confirm;
+    window.confirm = function (msg) { confirmCallCount++; confirmMsg = msg; return false; };
+    var sendCallCountBefore = window.__sendCalls.length;
+    var form = document.getElementById('send-quote-form');
+    await handleSendQuoteSubmit({ preventDefault: function () {}, target: form });
+    window.confirm = originalConfirm;
+    return { confirmMsg: confirmMsg, confirmCallCount: confirmCallCount, sentDuringThisCall: window.__sendCalls.length > sendCallCountBefore };
+  });
+
+  assertEqual(warnCancelledResult.confirmCallCount, 1, 'A 22 MB attachment shows exactly one warning popup (not the hard-block/mailto-fallback path)', failures);
+  assertTrue(warnCancelledResult.confirmMsg.indexOf('22.0 MB') !== -1, 'The warning names the actual combined size (22.0 MB), got: "' + warnCancelledResult.confirmMsg + '"', failures);
+  assertTrue(warnCancelledResult.confirmMsg.toLowerCase().indexOf('getting close') !== -1, 'The warning reads as a heads-up ("getting close to the limit"), not a hard block, got: "' + warnCancelledResult.confirmMsg + '"', failures);
+  assertTrue(!warnCancelledResult.sentDuringThisCall, 'Cancelling the warning aborts the send - BrevoMailer.sendQuotationEmail is never called', failures);
+
+  const warnProceedResult = await page.evaluate(async function () {
+    openSendQuoteModal('quo_warn_1');
+    var confirmCallCount = 0;
+    var originalConfirm = window.confirm;
+    window.confirm = function () { confirmCallCount++; return true; };
+    var sendCallCountBefore = window.__sendCalls.length;
+    var form = document.getElementById('send-quote-form');
+    await handleSendQuoteSubmit({ preventDefault: function () {}, target: form });
+    window.confirm = originalConfirm;
+    return { confirmCallCount: confirmCallCount, sentDuringThisCall: window.__sendCalls.length > sendCallCountBefore };
+  });
+
+  assertEqual(warnProceedResult.confirmCallCount, 1, 'Accepting the warning (one popup) proceeds to the actual send', failures);
+  assertTrue(warnProceedResult.sentDuringThisCall, 'Choosing "Send anyway" on the warning actually reaches BrevoMailer.sendQuotationEmail', failures);
 
   await page.close();
   return failures;

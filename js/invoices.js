@@ -1329,6 +1329,12 @@ Mobile: +91 98406 29928 | Web: www.measuredi.com`;
           if (totalAttachmentBytes > window.RevOpsStore.EMAIL_ATTACHMENT_LIMIT_BYTES) {
             throw new Error('These attachments total ' + (totalAttachmentBytes / (1024 * 1024)).toFixed(1) + ' MB, over the 25 MB-per-email limit Gmail allows. Please remove or shrink an attachment before sending.');
           }
+          if (totalAttachmentBytes > window.RevOpsStore.EMAIL_ATTACHMENT_WARN_BYTES) {
+            var proceedDespiteSize = confirm('Heads up: these attachments total ' + (totalAttachmentBytes / (1024 * 1024)).toFixed(1) + ' MB - getting close to Gmail\'s 25 MB per-email limit. It should still go through, but remove or shrink a file first if you want to be safe.\n\nSend anyway?');
+            if (!proceedDespiteSize) {
+              return;
+            }
+          }
 
           if (btn) btn.innerHTML = '<span>⏳ Dispatching Invoice...</span>';
 
