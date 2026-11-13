@@ -2084,14 +2084,19 @@ var currentEditingQuoteId = null;
           var pdfAttachment = await window.PdfGenerator.generatePdfFromHtml(pdfHtml, pdfFilename, { width: 780 });
 
           if (submitBtn) submitBtn.innerHTML = '<span>⏳ Preparing attachments...</span>';
-          // Storage-backed attachments only carry a URL on the record, not
-          // raw bytes - the email APIs need actual content, so fetch each
-          // one back into a data: URI right before sending. Older records
-          // whose files are still embedded inline (.dataUrl) skip the
-          // fetch entirely, per resolveAttachmentForEmail.
-          var technicalAttachments = await Promise.all((q.attachments || []).map(function(file) {
-            return window.RevOpsStore.resolveAttachmentForEmail(file);
-          }));
+          // Storage-backed attachments only carry a URL on the record - the
+          // actual byte-fetching/base64 encoding now happens server-side
+          // (netlify/functions/send-gmail.js), not here in the browser, so
+          // the POST to that function stays small regardless of file size.
+          // See buildAttachmentRefForEmail.
+          var technicalAttachments = (q.attachments || []).map(function(file) {
+            return window.RevOpsStore.buildAttachmentRefForEmail(file);
+          });
+
+          var totalAttachmentBytes = window.RevOpsStore.totalAttachmentBytes(technicalAttachments) + (pdfAttachment ? window.RevOpsStore.totalAttachmentBytes([pdfAttachment]) : 0);
+          if (totalAttachmentBytes > window.RevOpsStore.EMAIL_ATTACHMENT_LIMIT_BYTES) {
+            throw new Error('These attachments total ' + (totalAttachmentBytes / (1024 * 1024)).toFixed(1) + ' MB, over the 25 MB-per-email limit Gmail allows. Please remove or shrink an attachment before sending.');
+          }
 
           if (submitBtn) submitBtn.innerHTML = '<span>⏳ Sending...</span>';
 

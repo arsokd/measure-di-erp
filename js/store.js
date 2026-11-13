@@ -33,37 +33,49 @@ Object.assign(window.RevOpsStore, {
     });
   },
 
-  // Converts an attachment's Storage URL back into a data: URI, for the
-  // one place that still genuinely needs raw bytes rather than a link:
-  // handing the file to the Brevo/Gmail send APIs as an email attachment.
-  fetchAttachmentAsDataUri: function(url) {
-    return fetch(url).then(function(res) {
-      if (!res.ok) throw new Error('Could not fetch attachment for emailing (HTTP ' + res.status + ').');
-      return res.blob();
-    }).then(function(blob) {
-      return new Promise(function(resolve, reject) {
-        var reader = new FileReader();
-        reader.onload = function() { resolve(reader.result); };
-        reader.onerror = function() { reject(reader.error); };
-        reader.readAsDataURL(blob);
-      });
-    });
-  },
+  // The real ceiling for a single outgoing email's combined attachments -
+  // matches Gmail's own well-documented per-message sending limit, so a
+  // quote/invoice that fits under this reliably sends rather than
+  // bouncing partway through. Enforced client-side (an early, clear
+  // alert instead of a cryptic failure) and again server-side in
+  // netlify/functions/send-gmail.js and send-email.js as a backstop.
+  EMAIL_ATTACHMENT_LIMIT_BYTES: 25 * 1024 * 1024,
 
   // Normalizes any attachment shape this app has ever produced into a
-  // single data: URI, ready to email - a Storage-backed attachment
-  // (.url), or an older record still holding its file inline as base64
-  // under .dataUrl (Leads/Quotations/Orders) or .data (Invoices).
-  resolveAttachmentForEmail: function(att) {
-    var self = this;
+  // lightweight reference ready to hand to the email-sending functions -
+  // a Storage-backed attachment keeps just its URL (.url), an older
+  // record still holding its file inline as base64 keeps that inline
+  // value (.dataUrl on Leads/Quotations/Orders, .data on Invoices).
+  // Deliberately does NOT fetch Storage-backed files into base64 here:
+  // that used to happen in the browser, but it meant the full attachment
+  // bytes had to travel through the POST body to the Netlify Function
+  // that sends the email - and Netlify Functions cap inbound request
+  // bodies at ~6 MB regardless of this app's own 100 MB Storage cap, so
+  // anything much bigger than a few MB would silently fail to send even
+  // though it uploaded fine. The function itself now fetches the file
+  // server-side instead, where that limit doesn't apply.
+  buildAttachmentRefForEmail: function(att) {
     var inline = att.dataUrl || att.data;
-    if (inline) return Promise.resolve({ name: att.name, type: att.type || 'application/octet-stream', data: inline });
-    if (att.url) {
-      return self.fetchAttachmentAsDataUri(att.url).then(function(dataUri) {
-        return { name: att.name, type: att.type || 'application/octet-stream', data: dataUri };
-      });
-    }
-    return Promise.resolve({ name: att.name, type: att.type || 'application/octet-stream', data: '' });
+    if (inline) return { name: att.name, type: att.type || 'application/octet-stream', data: inline };
+    if (att.url) return { name: att.name, type: att.type || 'application/octet-stream', url: att.url, size: att.size || 0 };
+    return { name: att.name, type: att.type || 'application/octet-stream', data: '' };
+  },
+
+  // Combined byte size of a set of email attachment refs (as produced by
+  // buildAttachmentRefForEmail), used to warn before attempting to send
+  // rather than failing partway through a Gmail/Brevo call. Storage-backed
+  // refs carry a real .size; legacy inline ones predate that, so their
+  // size is estimated from the base64 payload length (len * 3/4).
+  totalAttachmentBytes: function(attachments) {
+    return (attachments || []).reduce(function(sum, att) {
+      if (typeof att.size === 'number' && att.size > 0) return sum + att.size;
+      var inline = att.dataUrl || att.data;
+      if (inline) {
+        var b64 = inline.split(',')[1] || inline;
+        return sum + Math.floor(b64.length * 0.75);
+      }
+      return sum;
+    }, 0);
   },
 
   reseedAllData: function() {

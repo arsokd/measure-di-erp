@@ -5765,6 +5765,95 @@ async function testAttachmentStorageMigration(browser) {
   return failures;
 }
 
+// ---------------------------------------------------------------------
+// Emailing an attachment is a separate bottleneck from uploading one:
+// the Storage migration fixed the upload side (genuine 100 MB cap), but
+// the browser used to still fetch+base64-encode the whole file itself
+// before POSTing it to netlify/functions/send-gmail.js - and Netlify
+// Functions cap inbound request bodies at ~6 MB regardless of Storage's
+// cap, so anything much bigger than a few MB would silently fail to
+// email even though it uploaded fine. Fixed by having the browser send
+// only a lightweight {url} reference and having the function fetch the
+// file itself server-side (an outbound call, not subject to that inbound
+// limit), with a 25 MB combined-attachment ceiling - matching Gmail's
+// own well-documented per-message sending limit - enforced both client-
+// side (before the call) and server-side (as a backstop).
+// ---------------------------------------------------------------------
+async function testEmailAttachmentSizeLimitAndServerSideRefs(browser) {
+  const failures = [];
+  const { page } = await newPage(browser);
+  await page.goto(BASE_URL + '/quotations.html', { waitUntil: 'networkidle', timeout: 30000 });
+  await page.waitForTimeout(600);
+  await closeAssignedTicketsPopupIfAny(page);
+
+  await page.evaluate(function () {
+    window.RevOpsStore.saveCollection('quotations', [
+      {
+        id: 'quo_oversized_1', quoteNumber: 'QUO-OVERSIZED-01', customerName: 'Oversized Attachment Co',
+        email: 'client-oversized@test.com', grandTotal: 500000, revision: 1, status: 'Approved', items: [],
+        attachments: [
+          { name: 'big1.pdf', size: 15 * 1024 * 1024, type: 'application/pdf', url: 'https://fake-storage.example.com/big1.pdf' },
+          { name: 'big2.pdf', size: 15 * 1024 * 1024, type: 'application/pdf', url: 'https://fake-storage.example.com/big2.pdf' }
+        ]
+      },
+      {
+        id: 'quo_normal_1', quoteNumber: 'QUO-NORMAL-01', customerName: 'Normal Attachment Co',
+        email: 'client-normal@test.com', grandTotal: 500000, revision: 1, status: 'Approved', items: [],
+        attachments: [
+          { name: 'spec.pdf', size: 5 * 1024 * 1024, type: 'application/pdf', url: 'https://fake-storage.example.com/spec.pdf' }
+        ]
+      }
+    ]);
+    window.PdfGenerator.generatePdfFromHtml = async function () { return { name: 'test.pdf', type: 'application/pdf', data: 'data:application/pdf;base64,AAAA' }; };
+    window.__sendCalls = [];
+    window.BrevoMailer.sendQuotationEmail = async function (quote, details) {
+      window.__sendCalls.push(details);
+      return { channel: 'gmail', sentAs: 'test@measuredi.com', messageId: 'test-msg-1' };
+    };
+  });
+
+  // Case 1: two 15 MB attachments (30 MB combined) - over the 25 MB
+  // limit - must be blocked before ever calling the mailer.
+  const oversizedResult = await page.evaluate(async function () {
+    openSendQuoteModal('quo_oversized_1');
+    var confirmMsg = '';
+    var originalConfirm = window.confirm;
+    window.confirm = function (msg) { confirmMsg = msg; return false; };
+    var form = document.getElementById('send-quote-form');
+    await handleSendQuoteSubmit({ preventDefault: function () {}, target: form });
+    window.confirm = originalConfirm;
+    return { confirmMsg: confirmMsg, sendCallCountSoFar: window.__sendCalls.length };
+  });
+
+  assertTrue(oversizedResult.confirmMsg.indexOf('25 MB') !== -1, 'Sending 30 MB of attachments is blocked with a message naming the 25 MB Gmail limit, got: "' + oversizedResult.confirmMsg + '"', failures);
+  assertTrue(oversizedResult.confirmMsg.indexOf('30.0 MB') !== -1, 'The block message states the actual combined size (30.0 MB), got: "' + oversizedResult.confirmMsg + '"', failures);
+  assertEqual(oversizedResult.sendCallCountSoFar, 0, 'The oversized send never reaches BrevoMailer.sendQuotationEmail at all', failures);
+
+  // Case 2: a single 5 MB attachment - comfortably under the limit -
+  // must go through, and the ref handed to the mailer must carry only a
+  // URL (not the full base64 payload) so the browser's own outbound
+  // POST stays small regardless of the attachment's real size.
+  const normalResult = await page.evaluate(async function () {
+    openSendQuoteModal('quo_normal_1');
+    var form = document.getElementById('send-quote-form');
+    await handleSendQuoteSubmit({ preventDefault: function () {}, target: form });
+    var call = window.__sendCalls[window.__sendCalls.length - 1];
+    var techAtt = call && call.attachments ? call.attachments.find(function (a) { return a.name === 'spec.pdf'; }) : null;
+    return {
+      sendCallCount: window.__sendCalls.length,
+      techAttHasUrl: !!(techAtt && techAtt.url === 'https://fake-storage.example.com/spec.pdf'),
+      techAttCarriesNoInlineData: !(techAtt && techAtt.data)
+    };
+  });
+
+  assertEqual(normalResult.sendCallCount, 1, 'A 5 MB attachment (under the 25 MB limit) reaches BrevoMailer.sendQuotationEmail normally', failures);
+  assertTrue(normalResult.techAttHasUrl, 'The attachment ref handed to the mailer carries the Storage URL', failures);
+  assertTrue(normalResult.techAttCarriesNoInlineData, 'The attachment ref carries no inline base64 payload - only the URL, kept small regardless of the real file size', failures);
+
+  await page.close();
+  return failures;
+}
+
 async function testDeleteLeadsByNumber(browser) {
   const failures = [];
   const { page } = await newPage(browser);
@@ -5900,7 +5989,8 @@ const TESTS = [
   ['HSN Code Master: new Master Data tab, mandatory dropdown on Product Master, pickable dropdown on Lead product lines', testHsnCodeMaster],
   ['Quotation PDF now includes Bank Remittance Instructions and a full Standard Terms & Conditions section, not just the line-items page', testQuotationMultiPagePdfContent],
   ['Delete Leads by Number: preview, confirmation, case-insensitive matching, not-found inputs skipped', testDeleteLeadsByNumber],
-  ['Attachments (Lead/Quotation/Order/Invoice) upload to Firebase Storage for a genuine 100 MB cap, with an upload-in-progress save guard', testAttachmentStorageMigration]
+  ['Attachments (Lead/Quotation/Order/Invoice) upload to Firebase Storage for a genuine 100 MB cap, with an upload-in-progress save guard', testAttachmentStorageMigration],
+  ['Emailing an attachment (not just uploading it) is capped at a real, deliverable 25 MB per message, resolved server-side instead of through the browser\'s own POST body', testEmailAttachmentSizeLimitAndServerSideRefs]
 ];
 
 (async () => {

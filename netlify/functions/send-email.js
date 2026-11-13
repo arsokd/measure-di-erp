@@ -221,22 +221,67 @@ export async function handler(event) {
     brevoPayload.bcc = bccList;
   }
 
-  // Client-side callers (js/email-service.js) hand us attachments shaped
-  // { name, type, data } with `data` as a full `data:<mime>;base64,<...>`
-  // URI (the FileReader.readAsDataURL()/jsPDF-blob format) - Brevo's API
-  // instead wants { content, name } with `content` as bare base64 and no
-  // prefix, so strip it here rather than expecting every caller to know
-  // Brevo's specific shape.
+  // Client-side callers (js/email-service.js) hand us attachments in one
+  // of two shapes - { name, type, data } with `data` as a full
+  // `data:<mime>;base64,<...>` URI (older, still-small records that keep
+  // their file inline), or { name, type, url } for a Firebase
+  // Storage-backed attachment. Brevo's API instead wants
+  // { content, name } with `content` as bare base64 and no prefix, so
+  // normalize here rather than expecting every caller to know Brevo's
+  // specific shape. For a `url` ref, fetch it ourselves - this function's
+  // own outbound fetch isn't subject to Netlify's ~6 MB inbound-body
+  // limit the way the browser's POST to this very function is, which is
+  // exactly why the browser sends only the URL rather than the bytes.
+  //
+  // Brevo's documented total message size (body + attachments combined)
+  // is noticeably tighter than Gmail's - keep this fallback path capped
+  // lower so a send that's genuinely too big fails with a clear message
+  // instead of a confusing rejection from Brevo itself. The primary path
+  // (sendViaGmailWithFallback tries Gmail first) already allows up to
+  // 25 MB; this only matters if Gmail is unavailable for some reason.
+  const BREVO_ATTACHMENT_LIMIT_BYTES = 20 * 1024 * 1024;
+
   if (Array.isArray(attachment) && attachment.length > 0) {
-    const brevoAttachments = attachment
-      .map(att => {
-        const raw = (att && (att.data || att.dataUrl || att.content)) || '';
-        const match = /^data:[^;]+;base64,(.*)$/s.exec(raw);
-        const content = match ? match[1] : raw;
-        if (!content) return null;
-        return { content, name: (att && att.name) || 'attachment' };
-      })
-      .filter(Boolean);
+    let brevoAttachments;
+    try {
+      brevoAttachments = (await Promise.all(attachment.map(async att => {
+        const inline = att && (att.data || att.dataUrl || att.content);
+        if (inline) {
+          const match = /^data:[^;]+;base64,(.*)$/s.exec(inline);
+          const content = match ? match[1] : inline;
+          if (!content) return null;
+          return { content, name: (att && att.name) || 'attachment' };
+        }
+        if (att && att.url) {
+          const res = await fetch(att.url);
+          if (!res.ok) {
+            throw new Error('Could not fetch attachment "' + (att.name || 'file') + '" for sending (HTTP ' + res.status + ').');
+          }
+          const buf = Buffer.from(await res.arrayBuffer());
+          return { content: buf.toString('base64'), name: (att && att.name) || 'attachment' };
+        }
+        return null;
+      }))).filter(Boolean);
+    } catch (err) {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ success: false, error: err.message || 'Could not prepare an attachment for sending.' })
+      };
+    }
+
+    const totalBytes = brevoAttachments.reduce((sum, a) => sum + Math.floor((a.content || '').length * 0.75), 0);
+    if (totalBytes > BREVO_ATTACHMENT_LIMIT_BYTES) {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({
+          success: false,
+          error: 'These attachments total ' + (totalBytes / (1024 * 1024)).toFixed(1) + ' MB, over the ' + (BREVO_ATTACHMENT_LIMIT_BYTES / (1024 * 1024)) + ' MB limit for this fallback email path.'
+        })
+      };
+    }
+
     if (brevoAttachments.length > 0) {
       brevoPayload.attachment = brevoAttachments;
     }

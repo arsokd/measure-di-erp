@@ -34,13 +34,109 @@ function wrapBase64(b64) {
   return b64.replace(/(.{76})/g, '$1\r\n');
 }
 
-// Attachments arrive as { name, type, data } where data is a full
-// data: URI (what FileReader.readAsDataURL produces) - split off the
-// base64 payload from the "data:<mime>;base64," prefix.
+// Attachments arrive from the browser in one of two shapes:
+//  - { name, type, data } - a full data: URI (older, still-small records
+//    that keep their file inline as base64, e.g. legacy Service Ticket
+//    attachments). Split off the base64 payload directly.
+//  - { name, type, url } - a Firebase Storage-backed attachment (the
+//    normal case since the 100 MB attachment migration). The browser
+//    deliberately does NOT fetch/base64-encode this itself before
+//    posting here - Netlify Functions cap inbound request bodies at
+//    ~6 MB regardless of Storage's 100 MB cap, so a multi-MB attachment
+//    would never survive that leg. Fetching it here instead, as an
+//    outbound call this function makes on its own, isn't subject to
+//    that inbound limit.
 function splitDataUri(dataUri) {
   const match = /^data:([^;]+);base64,(.*)$/s.exec(dataUri || '');
   if (!match) return { mime: 'application/octet-stream', base64: '' };
   return { mime: match[1], base64: match[2] };
+}
+
+async function resolveAttachmentBase64(att) {
+  if (att && att.data) {
+    const { mime, base64 } = splitDataUri(att.data);
+    return { mime: att.type || mime, base64 };
+  }
+  if (att && att.url) {
+    const res = await fetch(att.url);
+    if (!res.ok) {
+      throw new Error('Could not fetch attachment "' + (att.name || 'file') + '" for sending (HTTP ' + res.status + ').');
+    }
+    const buf = Buffer.from(await res.arrayBuffer());
+    return { mime: att.type || res.headers.get('content-type') || 'application/octet-stream', base64: buf.toString('base64') };
+  }
+  return { mime: att.type || 'application/octet-stream', base64: '' };
+}
+
+// Combined byte size of the already-resolved (base64) attachments -
+// matches Gmail's own well-documented per-message sending limit. Checked
+// here as a backstop; the browser already warns the user before this
+// call (js/store.js EMAIL_ATTACHMENT_LIMIT_BYTES), but a server-side
+// guard still matters for any other future caller of this function.
+const EMAIL_ATTACHMENT_LIMIT_BYTES = 25 * 1024 * 1024;
+
+function totalBase64Bytes(resolvedAttachments) {
+  return resolvedAttachments.reduce(function(sum, att) {
+    return sum + Math.floor((att.base64 || '').length * 0.75);
+  }, 0);
+}
+
+// Above this raw-MIME-message size, switch from the plain JSON {raw:
+// base64url(...)} send call to Gmail's multipart media-upload endpoint
+// instead (see sendMimeMessage below). The JSON path re-encodes the
+// already-base64 attachment data in base64url again, inflating it by a
+// further ~33% on top of MIME's own base64 overhead - fine for the
+// small attachments this app has always sent, but wasteful and prone to
+// hitting request-size limits for anything multi-MB. The threshold is
+// set well under that so only genuinely large attachments take the new,
+// less-exercised code path; every send this app has made in production
+// so far stays on the original, proven path.
+const SIMPLE_JSON_SEND_THRESHOLD_BYTES = 4 * 1024 * 1024;
+
+// Builds the multipart/related body for Gmail's "multipart" upload type:
+// a JSON metadata part (for fields like threadId, which the plain
+// media-upload body has no room for) followed by the raw RFC822 message
+// as its own part.
+function buildMultipartUploadBody(boundary, metadata, rawMessageBuffer) {
+  const head = Buffer.from(
+    '--' + boundary + '\r\n' +
+    'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
+    JSON.stringify(metadata) + '\r\n' +
+    '--' + boundary + '\r\n' +
+    'Content-Type: message/rfc822\r\n\r\n',
+    'utf-8'
+  );
+  const tail = Buffer.from('\r\n--' + boundary + '--', 'utf-8');
+  return Buffer.concat([head, rawMessageBuffer, tail]);
+}
+
+async function sendMimeMessage(accessToken, rawMessage, threadId) {
+  const rawMessageBuffer = Buffer.from(rawMessage, 'utf-8');
+
+  if (rawMessageBuffer.length <= SIMPLE_JSON_SEND_THRESHOLD_BYTES) {
+    const gmailPayload = { raw: base64UrlEncode(rawMessage) };
+    if (threadId) gmailPayload.threadId = threadId;
+    return fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + accessToken,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(gmailPayload)
+    });
+  }
+
+  const boundary = 'measuredi_upload_' + Date.now().toString(36);
+  const metadata = {};
+  if (threadId) metadata.threadId = threadId;
+  return fetch('https://gmail.googleapis.com/upload/gmail/v1/users/me/messages/send?uploadType=multipart', {
+    method: 'POST',
+    headers: {
+      'Authorization': 'Bearer ' + accessToken,
+      'Content-Type': 'multipart/related; boundary=' + boundary
+    },
+    body: buildMultipartUploadBody(boundary, metadata, rawMessageBuffer)
+  });
 }
 
 function buildRawMimeMessage({ fromEmail, fromName, to, cc, subject, htmlContent, inReplyTo, references, attachments }) {
@@ -72,14 +168,13 @@ function buildRawMimeMessage({ fromEmail, fromName, to, cc, subject, htmlContent
   );
 
   attachments.forEach(att => {
-    const { mime, base64 } = splitDataUri(att.data);
     const filename = encodeHeaderValue(att.name || 'attachment');
     parts.push(
       '--' + boundary + '\r\n' +
-      'Content-Type: ' + (att.type || mime) + '; name="' + filename + '"\r\n' +
+      'Content-Type: ' + (att.mime || 'application/octet-stream') + '; name="' + filename + '"\r\n' +
       'Content-Disposition: attachment; filename="' + filename + '"\r\n' +
       'Content-Transfer-Encoding: base64\r\n\r\n' +
-      wrapBase64(base64)
+      wrapBase64(att.base64 || '')
     );
   });
 
@@ -161,6 +256,28 @@ export async function handler(event) {
     };
   }
 
+  let resolvedAttachments;
+  try {
+    resolvedAttachments = await Promise.all((attachments || []).map(async function(att) {
+      const { mime, base64 } = await resolveAttachmentBase64(att);
+      return { name: att.name, mime, base64 };
+    }));
+  } catch (err) {
+    return { statusCode: 400, headers, body: JSON.stringify({ success: false, error: err.message || 'Could not prepare an attachment for sending.' }) };
+  }
+
+  const totalBytes = totalBase64Bytes(resolvedAttachments);
+  if (totalBytes > EMAIL_ATTACHMENT_LIMIT_BYTES) {
+    return {
+      statusCode: 400,
+      headers,
+      body: JSON.stringify({
+        success: false,
+        error: 'These attachments total ' + (totalBytes / (1024 * 1024)).toFixed(1) + ' MB, over the 25 MB-per-email limit Gmail allows.'
+      })
+    };
+  }
+
   const rawMessage = buildRawMimeMessage({
     fromEmail: senderEmail,
     fromName: senderName || senderEmail,
@@ -170,22 +287,11 @@ export async function handler(event) {
     htmlContent,
     inReplyTo,
     references,
-    attachments
+    attachments: resolvedAttachments
   });
 
-  const gmailPayload = { raw: base64UrlEncode(rawMessage) };
-  if (threadId) gmailPayload.threadId = threadId;
-
   try {
-    const gmailRes = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
-      method: 'POST',
-      headers: {
-        'Authorization': 'Bearer ' + accessToken,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(gmailPayload)
-    });
-
+    const gmailRes = await sendMimeMessage(accessToken, rawMessage, threadId);
     const gmailData = await gmailRes.json();
 
     if (!gmailRes.ok) {
