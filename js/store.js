@@ -181,16 +181,53 @@ Object.assign(window.RevOpsStore, {
     });
   },
 
+  // Marks whether a record's most recent attempt to write to Firestore
+  // failed. Read by _pruneStaleLocalRecordsNotInRemoteSnapshot so a
+  // record that's only local because its write genuinely failed is
+  // never confused with one that's only local because it was deleted
+  // from Firestore while this browser was offline - those used to look
+  // identical to the self-heal reconciliation (both "absent from the
+  // first confirmed snapshot"), so a write failure quietly got "fixed"
+  // by deleting the very record that failed to save, with no trace left
+  // anywhere. No-ops if the record's been removed locally since the
+  // write started (e.g. deleted while the write was in flight).
+  _setSyncFailedFlag: function(colName, docId, failed) {
+    var items = this.getCollection(colName) || [];
+    var idx = items.findIndex(function(it) { return it.id === docId || it.docId === docId; });
+    if (idx < 0) return;
+    if (!!items[idx]._syncFailed === !!failed) return;
+    items[idx]._syncFailed = failed;
+    this.saveCollection(colName, items);
+  },
+
+  // Sweeping, unscoped push of every local record in every listed
+  // collection to Firestore - quotations.js's main save/send/approve
+  // flows call this after every change rather than writing just the one
+  // record that changed (the master-data CSV importer used to do the
+  // same and had the identical silent-data-loss bug - see
+  // testBulkUploadSyncsToFirestore). Unlike that importer, this one
+  // still isn't scoped/batched/awaited - fixing that would mean
+  // restructuring seven separate call sites in quotations.js - but a
+  // failed write here is no longer invisible: it's flagged via
+  // _setSyncFailedFlag (so the self-heal reconciliation below leaves it
+  // alone instead of deleting it on the next page load) and surfaced
+  // with the same warning banner saveRecord() already shows elsewhere
+  // in the app, instead of only a console.warn nobody will ever see.
   syncAllToFirestore: function() {
     if (!window.db) return;
     console.log("Syncing data to Firebase Firestore...");
+    var self = this;
     var collections = ['employees', 'kraTargets', 'aopTargets', 'orders', 'dwmActivities', 'attendance', 'leads', 'payments', 'reviews', 'expenses', 'projectsMaster', 'clientsMaster', 'sparePartsMaster', 'productsMaster', 'bankDetailsMaster', 'clientEquipmentMaster', 'auditLogs', 'expenseSplits', 'travelPolicyMaster', 'travelApprovals', 'budgets', 'serviceTickets', 'quotations', 'invoices'];
     collections.forEach(function(colName) {
       var items = window.RevOpsStore.getCollection(colName) || [];
       items.forEach(function(item) {
         var docId = item.id || (colName + '_' + Math.random().toString(36).substr(2, 9));
-        window.db.collection(colName).doc(docId).set(item, { merge: true }).catch(function(err) {
-          console.warn("Firestore sync error for " + colName + ":", err);
+        window.db.collection(colName).doc(docId).set(item, { merge: true }).then(function() {
+          self._setSyncFailedFlag(colName, docId, false);
+        }).catch(function(err) {
+          console.error("Firestore sync error for " + colName + "/" + docId + ":", err);
+          self._setSyncFailedFlag(colName, docId, true);
+          self.showSyncWarningBanner();
         });
       });
     });
@@ -784,19 +821,23 @@ Object.assign(window.RevOpsStore, {
         var self = this;
         return window.db.collection(colName).doc(sanitized.id).set(sanitized, { merge: true })
           .then(function() {
+            self._setSyncFailedFlag(colName, sanitized.id, false);
             return { record: sanitized, synced: true };
           })
           .catch(function(err) {
             console.error("Firestore saveRecord error for " + colName + "/" + sanitized.id + ":", err);
+            self._setSyncFailedFlag(colName, sanitized.id, true);
             self.showSyncWarningBanner();
             return { record: sanitized, synced: false };
           });
       } catch (e) {
         console.error("Exception in saveRecord for " + colName + ":", e);
+        this._setSyncFailedFlag(colName, sanitized.id, true);
         this.showSyncWarningBanner();
         return Promise.resolve({ record: sanitized, synced: false });
       }
     }
+    this._setSyncFailedFlag(colName, sanitized.id, true);
     this.showSyncWarningBanner();
     return Promise.resolve({ record: sanitized, synced: false });
   },
@@ -1918,7 +1959,17 @@ Object.assign(window.RevOpsStore, {
   // the ongoing docChanges patch logic above does the same.
   _pruneStaleLocalRecordsNotInRemoteSnapshot: function(localItems, remoteIds) {
     return (localItems || []).filter(function(it) {
-      return remoteIds.indexOf(it.id) !== -1 || remoteIds.indexOf(it.docId) !== -1;
+      // A record flagged _syncFailed is local-only because its own
+      // write to Firestore failed (see _setSyncFailedFlag) - not
+      // provably because it was deleted remotely while this browser was
+      // offline. Those two cases looked identical here before (both:
+      // "absent from the first confirmed snapshot"), so a write that
+      // simply failed got silently deleted on the next page load as if
+      // it had never existed - see the quotation-disappearing bug this
+      // flag exists to fix. Keep it until a write for it actually
+      // succeeds (which clears the flag) or someone explicitly deletes
+      // it through the app.
+      return remoteIds.indexOf(it.id) !== -1 || remoteIds.indexOf(it.docId) !== -1 || it._syncFailed === true;
     });
   },
 

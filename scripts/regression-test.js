@@ -5072,6 +5072,87 @@ async function testPruneStaleLocalRecordsGeneralized(browser) {
   });
   assertEqual(emptyRemoteResult.length, 0, 'An empty remote snapshot prunes every local record for any collection, not just employees', failures);
 
+  // A record flagged _syncFailed (its own write to Firestore failed, so
+  // its absence from a confirmed snapshot proves nothing) must survive
+  // even against a completely empty remote snapshot - the exact
+  // scenario that used to silently delete a quotation whose save never
+  // actually reached Firestore.
+  const syncFailedSurvivesResult = await page.evaluate(function () {
+    var local = [
+      { id: 'quo_failed_1', customerName: 'Write Failed Co', _syncFailed: true },
+      { id: 'quo_deleted_1', customerName: 'Genuinely Deleted Co' }
+    ];
+    return window.RevOpsStore._pruneStaleLocalRecordsNotInRemoteSnapshot(local, []);
+  });
+  assertEqual(syncFailedSurvivesResult.length, 1, 'Against an empty remote snapshot, only the _syncFailed record survives - the genuinely-absent one is still pruned', failures);
+  assertTrue(syncFailedSurvivesResult.some(function (r) { return r.id === 'quo_failed_1'; }), 'The record whose own write failed is specifically the one that survives pruning', failures);
+
+  await page.close();
+  return failures;
+}
+
+// ---------------------------------------------------------------------
+// Root cause of a quotation "disappearing from the list" with zero
+// warning: quotations.js's save/send/approve flows push to Firestore
+// via the sweeping syncAllToFirestore(), whose per-item write failures
+// used to be a silent console.warn only - nothing told the user, and
+// nothing stopped the next page load's realtime-sync self-heal from
+// treating that never-actually-saved record as "deleted remotely while
+// offline" and wiping it from local storage too, with no trace left
+// anywhere. Fixed by flagging a failed write (_setSyncFailedFlag) so
+// the self-heal reconciliation leaves it alone (see
+// testPruneStaleLocalRecordsGeneralized above) and surfacing the same
+// warning banner saveRecord() already shows elsewhere in the app.
+// ---------------------------------------------------------------------
+async function testSyncFailureIsFlaggedAndSurfacedNotSilent(browser) {
+  const failures = [];
+  const { page } = await newPage(browser);
+  await page.goto(BASE_URL + '/quotations.html', { waitUntil: 'networkidle', timeout: 30000 });
+  await page.waitForTimeout(600);
+  await closeAssignedTicketsPopupIfAny(page);
+
+  const failResult = await page.evaluate(async function () {
+    window.RevOpsStore.saveCollection('quotations', [
+      { id: 'quo_sync_fail_1', quoteNumber: 'QUO-SYNCFAIL-01', customerName: 'Write Failed Co', items: [] }
+    ]);
+    window.db = {
+      collection: function (name) {
+        return { doc: function (id) { return { set: function () { return Promise.reject(new Error('Simulated Firestore write failure')); } }; } };
+      }
+    };
+    window.RevOpsStore.syncAllToFirestore();
+    // The write's rejection handler runs as a microtask/short async
+    // continuation, not synchronously - give it a moment to land.
+    await new Promise(function (resolve) { setTimeout(resolve, 300); });
+    var rec = window.RevOpsStore.getCollection('quotations').find(function (q) { return q.id === 'quo_sync_fail_1'; });
+    var banner = document.getElementById('sync-warning-banner');
+    var bannerText = document.getElementById('sync-warning-banner-text');
+    return {
+      syncFailedFlag: rec ? rec._syncFailed : null,
+      bannerVisible: !!banner && !banner.classList.contains('hidden'),
+      bannerText: bannerText ? bannerText.innerText : ''
+    };
+  });
+
+  assertEqual(failResult.syncFailedFlag, true, 'A quotation whose Firestore write fails gets flagged _syncFailed, instead of failing with no trace at all', failures);
+  assertTrue(failResult.bannerVisible, 'A failed sync shows the visible warning banner (not just a console.warn nobody will see)', failures);
+  assertTrue(failResult.bannerText.toLowerCase().indexOf("couldn't reach the server") !== -1, 'The banner text explains the save didn\'t reach the server, got: "' + failResult.bannerText + '"', failures);
+
+  // Once a later write for that same record actually succeeds, the flag
+  // must clear - this isn't a one-way "permanently stuck" marker.
+  const recoverResult = await page.evaluate(async function () {
+    window.db = {
+      collection: function (name) {
+        return { doc: function (id) { return { set: function () { return Promise.resolve(); } }; } };
+      }
+    };
+    window.RevOpsStore.syncAllToFirestore();
+    await new Promise(function (resolve) { setTimeout(resolve, 300); });
+    var rec = window.RevOpsStore.getCollection('quotations').find(function (q) { return q.id === 'quo_sync_fail_1'; });
+    return { syncFailedFlag: rec ? rec._syncFailed : null };
+  });
+  assertEqual(recoverResult.syncFailedFlag, false, 'Once a retry actually succeeds, the _syncFailed flag clears - it is not a permanent black mark', failures);
+
   await page.close();
   return failures;
 }
@@ -6031,6 +6112,7 @@ const TESTS = [
   ['Mobile layout: Dashboard/DWM/Attendance never force horizontal page scroll at 390px width', testMobileNoHorizontalOverflow],
   ['Realtime sync self-heals stale local-only employee duplicates once Firestore is authoritative', testPruneStaleLocalEmployees],
   ['Realtime sync self-heals stale local records for every collection (not just employees) on a listener\'s first confirmed snapshot - fixes deleted leads reappearing in a returning browser', testPruneStaleLocalRecordsGeneralized],
+  ['A quotation whose Firestore write fails is flagged _syncFailed and shown a visible warning banner, instead of silently vanishing on the next page load', testSyncFailureIsFlaggedAndSurfacedNotSilent],
   ['Single-active-session enforcement: a different device\'s session token forces the older session logged out; same-device/cache/missing-doc cases never do; clearLocalAuthSessionFlags wipes every auth key', testSingleActiveSessionEnforcement],
   ['iPhone GPS fix: detects iOS in-app browsers (WhatsApp/Instagram/etc) that block geolocation outright, and auto-retries once with lower accuracy on a timeout before giving up', testIosGpsRetryAndInAppBrowserDetection],
   ['Lead/Quotation Follow-up System: mandatory date, due-date gating, logFollowUp, list columns, and a popup that keeps re-showing until a follow-up is actually logged (never permanently dismissed)', testFollowUpSystem],
