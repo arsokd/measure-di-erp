@@ -2389,6 +2389,73 @@ async function testLeadAutoSyncFromDocuments(browser) {
 }
 
 // ---------------------------------------------------------------------
+// Regression lock for a real production bug: openSendQuoteModal() set
+// #send-attachment-filename's text, then immediately replaced that same
+// element's parent via innerHTML with markup missing that id. The first
+// "Send Client" click on a page worked (original static HTML still had
+// the id), but every click after that - same quote or a different one -
+// threw "Cannot set properties of null (setting 'innerText')" and the
+// modal silently never opened again for the rest of that page's life.
+// Opens the modal for two different quotes in a row, then re-opens the
+// first one a third time, asserting zero uncaught errors and a correct
+// filename each time.
+// ---------------------------------------------------------------------
+async function testSendQuoteModalReopensWithoutError(browser) {
+  const failures = [];
+  const { page, pageErrors } = await newPage(browser);
+  await page.goto(BASE_URL + '/quotations.html', { waitUntil: 'networkidle', timeout: 30000 });
+  await page.waitForTimeout(600);
+  await closeAssignedTicketsPopupIfAny(page);
+
+  await page.evaluate(function () {
+    window.RevOpsStore.saveCollection('quotations', [
+      {
+        id: 'quo_reopen_1', quoteNumber: 'QT-REOPEN-01', revision: 1, customerName: 'Reopen Test Co 1',
+        employeeId: 'E-001', employeeName: 'Mr. Murugan V', vertical: 'Projects', email: 'client1@test.com',
+        status: 'Approved', directorRatificationStatus: 'Ratified', grossSubtotal: 100000, grandTotal: 118000,
+        overallDiscountPercent: 0, items: []
+      },
+      {
+        id: 'quo_reopen_2', quoteNumber: 'QT-REOPEN-02', revision: 1, customerName: 'Reopen Test Co 2',
+        employeeId: 'E-001', employeeName: 'Mr. Murugan V', vertical: 'Projects', email: 'client2@test.com',
+        status: 'Approved', directorRatificationStatus: 'Ratified', grossSubtotal: 50000, grandTotal: 59000,
+        overallDiscountPercent: 0, items: []
+      }
+    ]);
+    if (typeof renderQuotations === 'function') renderQuotations();
+  });
+  await page.waitForTimeout(300);
+
+  async function openAndReadFilename(quoteId) {
+    await page.evaluate(function (id) { openSendQuoteModal(id); }, quoteId);
+    await page.waitForTimeout(150);
+    const state = await page.evaluate(function () {
+      var el = document.getElementById('send-attachment-filename');
+      var modal = document.getElementById('sendQuoteModal');
+      return { filename: el ? el.innerText : null, modalOpen: !!modal && !modal.classList.contains('hidden') };
+    });
+    await page.evaluate(function () { closeSendQuoteModal(); });
+    await page.waitForTimeout(100);
+    return state;
+  }
+
+  const first = await openAndReadFilename('quo_reopen_1');
+  const second = await openAndReadFilename('quo_reopen_2');
+  const third = await openAndReadFilename('quo_reopen_1');
+
+  assertTrue(first.modalOpen, 'First Send Client open (quote 1) shows the modal', failures);
+  assertEqual(first.filename, 'Quotation_QT-REOPEN-01_Ver1.pdf', 'First open sets the correct attachment filename', failures);
+  assertTrue(second.modalOpen, 'Second Send Client open (quote 2, different quote) still shows the modal', failures);
+  assertEqual(second.filename, 'Quotation_QT-REOPEN-02_Ver1.pdf', 'Second open sets the correct attachment filename for quote 2', failures);
+  assertTrue(third.modalOpen, 'Third Send Client open (quote 1 again) still shows the modal', failures);
+  assertEqual(third.filename, 'Quotation_QT-REOPEN-01_Ver1.pdf', 'Third open sets the correct attachment filename again', failures);
+  assertEqual(pageErrors, [], 'No uncaught JS errors across three consecutive Send Client opens', failures);
+
+  await page.close();
+  return failures;
+}
+
+// ---------------------------------------------------------------------
 // Pre-launch DWM/Attendance audit fixes: (1) calculateDailyProductivity's
 // credit percentages must match the DWM accomplishment dropdown's own
 // labels exactly (Done 100% / Partial 70% / Not Done 0%) - they used to
@@ -5540,6 +5607,7 @@ const TESTS = [
   ['Password policy: forced first-time/90-day change, developer exemption, self-service flow', testPasswordPolicyEnforcement],
   ['Lead pipeline stage model: advanceLeadStage, Lost/Trashed/Postponed guards, pending follow-ups', testLeadPipelineStageModel],
   ['Lead auto-sync: Quotation send -> Quoted, Order booked -> Order Received, Invoice raised -> Won', testLeadAutoSyncFromDocuments],
+  ['Send Client modal reopens cleanly across repeat/different quotes (no stale-id innerHTML wipeout)', testSendQuoteModalReopensWithoutError],
   ['Bulk-upload template: live dropdown-values legend, comment-line skipping, never on real exports', testCsvTemplateDropdownLegend],
   ['Data Center: 12 real per-collection templates, dropdown legends, shared RFC 4180 parser', testDataCenterTemplatesAndParser],
   ['DWM productivity % matches dropdown labels; Scorecard DWM compliance never fakes 100%', testDwmProductivityAndComplianceFixes],
