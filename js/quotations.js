@@ -1906,7 +1906,7 @@ var currentEditingQuoteId = null;
             <div class="flex items-center space-x-2">
               <div class="w-6 h-6 rounded bg-rose-100 text-rose-700 flex items-center justify-center font-black text-[10px]">PDF</div>
               <div>
-                <p class="text-xs font-bold text-slate-800">Quotation_${escapeHtml(q.quoteNumber)}_Ver${q.revision || 1}.pdf</p>
+                <p class="text-xs font-bold text-slate-800" id="send-attachment-filename">Quotation_${escapeHtml(q.quoteNumber)}_Ver${q.revision || 1}.pdf</p>
                 <p class="text-[9px] text-slate-400">Official Commercial Offer with HSN codes & authorized signatory</p>
               </div>
             </div>
