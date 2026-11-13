@@ -3506,7 +3506,7 @@ Object.assign(window.RevOpsStore, {
     var self = this;
     todayISO = todayISO || getLocalTodayISO();
     var leads = (this.getCollection('leads') || []).filter(function(l) {
-      return l.employeeId === employeeId && self.isLeadFollowUpDue(l, todayISO);
+      return (l.employeeId === employeeId || l.assignedToEmployeeId === employeeId) && self.isLeadFollowUpDue(l, todayISO);
     }).map(function(l) {
       return {
         colName: 'leads', id: l.id, ref: l.leadNumber || l.id, customerName: l.customerName || 'Unknown Customer',

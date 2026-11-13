@@ -70,6 +70,18 @@ service cloud.firestore {
         (signedIn() && 'employeeId' in request.resource.data && request.resource.data.employeeId == myEmployeeId());
     }
 
+    // Leads-only: same as isOwnerOrAdmin(), plus whoever the lead's owner
+    // (or an admin) has explicitly assigned to handle its follow-up and
+    // processing (assignedToEmployeeId) - e.g. the lead originator hands
+    // day-to-day work to a colleague without sharing login credentials.
+    // Scoped to leads specifically rather than folded into isOwnerOrAdmin()
+    // itself, so the other 18 collections sharing that function are
+    // unaffected.
+    function isLeadOwnerAssigneeOrAdmin() {
+      return isOwnerOrAdmin() ||
+        (signedIn() && 'assignedToEmployeeId' in resource.data && resource.data.assignedToEmployeeId == myEmployeeId());
+    }
+
     // ---- Identity ----
     match /employees/{docId} {
       allow read: if signedIn();
@@ -117,7 +129,7 @@ service cloud.firestore {
     }
 
     // ---- Owner-or-admin collections: everyday operational records ----
-    match /leads/{docId}            { allow read: if signedIn(); allow create: if canCreateOwnRecord(); allow update: if isOwnerOrAdmin(); allow delete: if isLeadershipOrAdmin(); }
+    match /leads/{docId}            { allow read: if signedIn(); allow create: if canCreateOwnRecord(); allow update: if isLeadOwnerAssigneeOrAdmin(); allow delete: if isLeadershipOrAdmin(); }
     match /orders/{docId}           { allow read: if signedIn(); allow create: if canCreateOwnRecord(); allow update: if isOwnerOrAdmin(); allow delete: if isLeadershipOrAdmin(); }
     match /quotations/{docId}       { allow read: if signedIn(); allow create: if canCreateOwnRecord(); allow update: if isOwnerOrAdmin(); allow delete: if isLeadershipOrAdmin(); }
     match /invoices/{docId}         { allow read: if signedIn(); allow create: if canCreateOwnRecord(); allow update: if isOwnerOrAdmin(); allow delete: if isLeadershipOrAdmin(); }

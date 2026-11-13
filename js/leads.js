@@ -2,6 +2,31 @@ var currentLeadContacts = [];
       var currentLeadProducts = [];
       var activeLeadAttachments = [];
 
+      // A lead can be worked by its original owner (whoever created it -
+      // never changes, keeps origination credit) AND, once explicitly
+      // assigned, by one other person handling day-to-day follow-up and
+      // processing - so a lead owner can hand a deal to a colleague
+      // without sharing login credentials. Admin/Super Admin can always
+      // act on anything. Mirrors firestore.rules' isLeadOwnerAssigneeOrAdmin()
+      // - this is the client-side UI gate; the Firestore rule is what
+      // actually enforces it.
+      function canEditLead(lead) {
+        if (!lead) return true; // creating a brand-new lead - the creator always can
+        if (window.isLeadershipOrAdmin && window.isLeadershipOrAdmin()) return true;
+        var myEmpId = localStorage.getItem('employeeId');
+        return lead.employeeId === myEmpId || lead.assignedToEmployeeId === myEmpId;
+      }
+
+      // Only the lead's original owner or an Admin/Super Admin may change
+      // WHO it's assigned to - the assignee themselves can work the lead
+      // but can't hand it off to someone else.
+      function canReassignLead(lead) {
+        if (!lead) return true;
+        if (window.isLeadershipOrAdmin && window.isLeadershipOrAdmin()) return true;
+        var myEmpId = localStorage.getItem('employeeId');
+        return lead.employeeId === myEmpId;
+      }
+
       function formatLeadFileSize(bytes) {
         if (!bytes || bytes === 0) return '0 B';
         var k = 1024;
@@ -757,6 +782,34 @@ var currentLeadContacts = [];
           ' logged so far &bull; last: "' + escapeHtml(last.note || '') + '" (' + escapeHtml(last.loggedBy || '') + ')';
       }
 
+      // Employees dropdown for the lead "Assigned To" field - value is the
+      // employeeId (what assignedToEmployeeId stores), label shows the
+      // full name so the picker is readable. "-- Unassigned --" always
+      // comes first so clearing an assignment back to owner-only is one click.
+      function populateAssignedToDropdown(select, currentEmployeeId) {
+        if (!select) return;
+        var employees = window.RevOpsStore.getCollection('employees') || [];
+        var optsHtml = employees.map(function(e) {
+          return '<option value="' + escapeHtml(e.employeeId) + '">' + escapeHtml(e.fullName) + ' (' + escapeHtml(e.employeeId) + ')</option>';
+        }).join('');
+        select.innerHTML = '<option value="">-- Unassigned (Owner handles it) --</option>' + optsHtml;
+        select.value = currentEmployeeId || '';
+      }
+
+      function renderLeadAssignmentHistorySummary(history) {
+        var el = document.getElementById('lead-assignment-history-summary');
+        if (!el) return;
+        if (!history || !history.length) {
+          el.classList.add('hidden');
+          el.innerHTML = '';
+          return;
+        }
+        var last = history[history.length - 1];
+        el.classList.remove('hidden');
+        el.innerHTML = '<i class="fa-solid fa-clock-rotate-left"></i> Reassigned ' + history.length + ' time' + (history.length === 1 ? '' : 's') +
+          ' &bull; last: ' + (last.toName ? escapeHtml(last.toName) : 'Unassigned') + ' (by ' + escapeHtml(last.byName || '') + ', ' + escapeHtml(last.timestamp || '') + ')';
+      }
+
       function renderFunnelBar() {
         var leads = window.RevOpsStore.getCollection('leads') || [];
         var funnelContainer = document.getElementById('funnel-stages-bar');
@@ -803,7 +856,7 @@ var currentLeadContacts = [];
             var leadFy = typeof getFinancialYear === 'function' ? getFinancialYear(l.createdDate || l.createdAt) : '2026-27';
             if (leadFy !== selectedFy) return false;
           }
-          if (userRole === 'staff' && l.employeeId !== myEmpId) return false;
+          if (userRole === 'staff' && l.employeeId !== myEmpId && l.assignedToEmployeeId !== myEmpId) return false;
           if (selectedFilterEmp !== 'All' && l.employeeId !== selectedFilterEmp) return false;
           if (vertFilter !== 'All' && l.vertical !== vertFilter) return false;
           if (stageFilter !== 'All' && (l.stage || l.status) !== stageFilter) return false;
@@ -913,20 +966,22 @@ var currentLeadContacts = [];
             </td>
             <td class="py-3 px-4">
               <div class="font-semibold text-slate-200">${escapeHtml(l.employeeName || 'Staff')}</div>
-              <div class="text-[10px] text-slate-400">${escapeHtml(l.employeeId || '')}</div>
+              <div class="text-[10px] text-slate-400">${escapeHtml(l.employeeId || '')} <span class="text-slate-600">(Originated)</span></div>
+              ${l.assignedToEmployeeId ? `<div class="text-[10px] text-cyan-400 mt-0.5"><i class="fa-solid fa-arrow-right-to-bracket text-[9px]"></i> ${escapeHtml(l.assignedToName || l.assignedToEmployeeId)} <span class="text-slate-600">(Processing)</span></div>` : ''}
             </td>
             <td class="py-3 px-4 text-center">
               ${renderFollowUpStatusCellHtml(l, todayISO, 'lead')}
             </td>
             <td class="py-3 px-4 text-center">
               <div class="flex items-center justify-center space-x-1.5">
+                ${canEditLead(l) ? `
                 <button onclick="editLead('${l.id}')" class="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white rounded-lg transition-colors cursor-pointer" title="Edit Lead Details">
                   <i class="fa-solid fa-pen-to-square text-xs"></i>
-                </button>
+                </button>` : ''}
                 <button onclick="createQuoteFromLead('${l.id}')" class="p-1.5 bg-[#982B68]/30 hover:bg-[#982B68] text-[#E283BD] hover:text-white rounded-lg transition-colors border border-[#982B68]/50 cursor-pointer" title="Generate Quotation with Bi-directional Sync">
                   <i class="fa-solid fa-file-invoice text-xs"></i>
                 </button>
-                ${window.RevOpsStore.leadNeedsFollowUp(l) ? `<button onclick="window.openLogFollowUpModal('leads', '${l.id}', '${escapeHtml(l.leadNumber || l.id)}', '${escapeHtml(l.customerName || '')}')" class="p-1.5 bg-amber-900/30 hover:bg-amber-700 text-amber-300 hover:text-white rounded-lg transition-colors border border-amber-700/50 cursor-pointer" title="Log Follow-up"><i class="fa-solid fa-phone-volume text-xs"></i></button>` : ''}
+                ${canEditLead(l) && window.RevOpsStore.leadNeedsFollowUp(l) ? `<button onclick="window.openLogFollowUpModal('leads', '${l.id}', '${escapeHtml(l.leadNumber || l.id)}', '${escapeHtml(l.customerName || '')}')" class="p-1.5 bg-amber-900/30 hover:bg-amber-700 text-amber-300 hover:text-white rounded-lg transition-colors border border-amber-700/50 cursor-pointer" title="Log Follow-up"><i class="fa-solid fa-phone-volume text-xs"></i></button>` : ''}
               </div>
             </td>
           `;
@@ -946,6 +1001,18 @@ var currentLeadContacts = [];
         // Lead Owner is always automatic — the current logged-in user's
         // name on a new lead, or whoever already owns it on an edit.
         document.getElementById('disp-lead-owner').value = leadData ? (leadData.employeeName || localStorage.getItem('userName') || '') : (localStorage.getItem('userName') || '');
+
+        // Assigned To (who actually handles follow-up/processing) - only
+        // the lead's owner or an Admin/Super Admin may change this; an
+        // assignee working the lead sees it locked, same read-only
+        // treatment as every other field they can't touch in this app.
+        var assignSelect = document.getElementById('inp-lead-assignedto');
+        populateAssignedToDropdown(assignSelect, leadData ? leadData.assignedToEmployeeId : '');
+        assignSelect.disabled = !canReassignLead(leadData);
+        document.getElementById('lead-assignedto-hint').innerText = assignSelect.disabled
+          ? 'Only the Lead Owner or Admin/Super Admin can change this.'
+          : 'Whoever you pick here can log in with their own account and work this lead.';
+        renderLeadAssignmentHistorySummary(leadData ? leadData.assignmentHistory : null);
 
         if (leadData) {
           document.getElementById('lead-modal-title').innerHTML = `<i class="fa-solid fa-pen-to-square text-[#E283BD]"></i> <span>Edit Commercial Lead (${leadData.leadNumber || leadData.id})</span>`;
@@ -1048,9 +1115,12 @@ var currentLeadContacts = [];
       function editLead(id) {
         var leads = window.RevOpsStore.getCollection('leads') || [];
         var lead = leads.find(function(l) { return l.id === id; });
-        if (lead) {
-          openLeadModal(lead);
+        if (!lead) return;
+        if (!canEditLead(lead)) {
+          alert("You don't have edit access to this lead — only the Lead Owner, whoever it's Assigned To, or Super Admin/Admin can edit it.");
+          return;
         }
+        openLeadModal(lead);
       }
 
       function createQuoteFromLead(leadId) {
@@ -1068,8 +1138,36 @@ var currentLeadContacts = [];
         var docId = document.getElementById('lead-doc-id').value;
         var existingLead = docId ? (window.RevOpsStore.getCollection('leads') || []).find(function(l) { return l.id === docId; }) : null;
 
+        if (!canEditLead(existingLead)) {
+          alert("You don't have edit access to this lead — only the Lead Owner, whoever it's Assigned To, or Super Admin/Admin can save changes to it.");
+          return;
+        }
+
         var myEmpId = localStorage.getItem('employeeId') || 'E-001';
         var myEmpName = localStorage.getItem('userName') || 'System User';
+
+        // Assigned To - only honored if the submitter is actually allowed
+        // to reassign (the <select> is also disabled client-side for
+        // anyone else, but this is the real guard: defense in depth
+        // against a direct function call bypassing the disabled input).
+        // employeeId '' means "cleared back to unassigned."
+        var employees = window.RevOpsStore.getCollection('employees') || [];
+        var assignSelectVal = document.getElementById('inp-lead-assignedto').value;
+        var priorAssignedToId = existingLead ? (existingLead.assignedToEmployeeId || '') : '';
+        var newAssignedToId = canReassignLead(existingLead) ? assignSelectVal : priorAssignedToId;
+        var newAssignedToEmp = newAssignedToId ? employees.find(function(e) { return e.employeeId === newAssignedToId; }) : null;
+        var newAssignedToName = newAssignedToEmp ? newAssignedToEmp.fullName : '';
+
+        var assignmentHistory = existingLead ? (existingLead.assignmentHistory || []) : [];
+        if (newAssignedToId !== priorAssignedToId) {
+          var priorAssignedToEmp = priorAssignedToId ? employees.find(function(e) { return e.employeeId === priorAssignedToId; }) : null;
+          assignmentHistory = assignmentHistory.concat([{
+            timestamp: getFormattedToday() + ' ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            fromEmployeeId: priorAssignedToId, fromName: priorAssignedToEmp ? priorAssignedToEmp.fullName : '',
+            toEmployeeId: newAssignedToId, toName: newAssignedToName,
+            byEmployeeId: myEmpId, byName: myEmpName
+          }]);
+        }
 
         var sector = document.getElementById('inp-lead-industry').value;
         if (sector === 'Other Industries') {
@@ -1175,6 +1273,9 @@ var currentLeadContacts = [];
           attachments: activeLeadAttachments,
           employeeId: existingLead ? existingLead.employeeId : myEmpId,
           employeeName: existingLead ? existingLead.employeeName : myEmpName,
+          assignedToEmployeeId: newAssignedToId,
+          assignedToName: newAssignedToName,
+          assignmentHistory: assignmentHistory,
           createdDate: existingLead ? existingLead.createdDate : getFormattedToday(),
           createdAt: existingLead ? existingLead.createdAt : new Date().toISOString(),
           updatedAt: new Date().toISOString()

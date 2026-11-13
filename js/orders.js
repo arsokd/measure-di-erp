@@ -697,7 +697,26 @@ var currentSplits = [];
           populateCustomerQuotes(prefillQuote ? prefillQuote.customerName : null, bookFromQuoteId || null);
 
           var myEmpId = localStorage.getItem('employeeId') || 'E-002';
-          currentSplits = [{ employeeId: myEmpId, percent: 100 }];
+          // If this order is booked from a Lead whose follow-up/processing
+          // was handed off to someone other than its original owner (see
+          // leads.js "Assigned To"), suggest crediting both of them on the
+          // Sales Contribution Split by default - still just a starting
+          // point the booker can freely edit before saving, same as every
+          // other split. Falls back to the normal 100%-to-whoever's-booking
+          // default when there's no lead, or no actual reassignment on it.
+          var sourceLead = null;
+          if (prefillQuote && prefillQuote.leadId) {
+            var leadsForSplit = window.RevOpsStore.getCollection('leads') || [];
+            sourceLead = leadsForSplit.find(function(l) { return l.id === prefillQuote.leadId; });
+          }
+          if (sourceLead && sourceLead.assignedToEmployeeId && sourceLead.assignedToEmployeeId !== sourceLead.employeeId) {
+            currentSplits = [
+              { employeeId: sourceLead.employeeId, percent: 50 },
+              { employeeId: sourceLead.assignedToEmployeeId, percent: 50 }
+            ];
+          } else {
+            currentSplits = [{ employeeId: myEmpId, percent: 100 }];
+          }
           toggleBgFields();
           toggleRetentionFields();
         }

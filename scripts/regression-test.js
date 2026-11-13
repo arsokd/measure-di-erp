@@ -1544,6 +1544,176 @@ async function testDeleteIsSuperAdminOrAdminOnly(browser) {
 }
 
 // ---------------------------------------------------------------------
+// Lead "Assigned To": the owner (or Admin/Super Admin) can hand a lead's
+// follow-up/processing to a colleague, who can then work it under their
+// own login instead of needing the owner's credentials. Checks: the
+// assignee (a 'staff'-role user, previously hard-blocked from even
+// seeing leads they don't own) can see the lead, edit/save it, and gets
+// it in their Follow-ups Due list; a third unrelated staff user still
+// can't see it at all; only the owner (not the assignee) can change the
+// assignment; and booking an Order from the assigned lead's quotation
+// pre-suggests a 50/50 contribution split between owner and assignee.
+// ---------------------------------------------------------------------
+async function testLeadAssignment(browser) {
+  const failures = [];
+
+  // Owner creates and assigns the lead.
+  const { page: ownerPage } = await newPage(browser);
+  await ownerPage.goto(BASE_URL + '/leads.html', { waitUntil: 'networkidle', timeout: 30000 });
+  await ownerPage.waitForTimeout(600);
+  await closeAssignedTicketsPopupIfAny(ownerPage);
+
+  await ownerPage.evaluate(function (lead) {
+    var employees = window.RevOpsStore.getCollection('employees') || [];
+    if (!employees.some(function (e) { return e.employeeId === 'E-ASSIGNEE-01'; })) {
+      employees.push({ employeeId: 'E-ASSIGNEE-01', fullName: 'Assignee Test Staff', role: 'staff' });
+    }
+    if (!employees.some(function (e) { return e.employeeId === 'E-UNRELATED-01'; })) {
+      employees.push({ employeeId: 'E-UNRELATED-01', fullName: 'Unrelated Test Staff', role: 'staff' });
+    }
+    window.RevOpsStore.saveCollection('employees', employees);
+    window.RevOpsStore.saveCollection('leads', [lead]);
+  }, sampleTestLead({ id: 'lead_assign_regr', customerName: 'Assignment Test Co', followUpDate: '2099-01-01' }));
+
+  await ownerPage.evaluate(function () { editLead('lead_assign_regr'); });
+  await ownerPage.waitForTimeout(300);
+  await ownerPage.selectOption('#inp-lead-assignedto', 'E-ASSIGNEE-01');
+  await closeAssignedTicketsPopupIfAny(ownerPage);
+  await ownerPage.click('#lead-form button[type="submit"]');
+  await ownerPage.waitForTimeout(300);
+
+  const leadAfterAssign = await ownerPage.evaluate(function () {
+    return (window.RevOpsStore.getCollection('leads') || []).find(function (l) { return l.id === 'lead_assign_regr'; });
+  });
+  assertEqual(leadAfterAssign && leadAfterAssign.assignedToEmployeeId, 'E-ASSIGNEE-01', 'Owner assigning a lead sets assignedToEmployeeId', failures);
+  assertEqual(leadAfterAssign && leadAfterAssign.assignedToName, 'Assignee Test Staff', 'Owner assigning a lead sets assignedToName', failures);
+  assertEqual(leadAfterAssign && (leadAfterAssign.assignmentHistory || []).length, 1, 'Assigning a lead logs one assignment-history entry', failures);
+  await ownerPage.close();
+
+  // Assignee (staff role, isolated identity) can see, edit, and gets it in Follow-ups Due - but can't reassign it.
+  {
+    const browserCtx = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    const pageErrors = [];
+    browserCtx.on('pageerror', function (err) { pageErrors.push(err.message); });
+    browserCtx.on('dialog', async function (d) { await d.dismiss().catch(function () {}); });
+    await browserCtx.addInitScript(function () {
+      localStorage.setItem('userRole', 'staff');
+      localStorage.setItem('userEmail', 'assignee-test@measuredi.com');
+      localStorage.setItem('userName', 'Assignee Test Staff');
+      localStorage.setItem('employeeId', 'E-ASSIGNEE-01');
+    });
+    await browserCtx.goto(BASE_URL + '/leads.html', { waitUntil: 'networkidle', timeout: 30000 });
+    await browserCtx.waitForTimeout(600);
+    await closeAssignedTicketsPopupIfAny(browserCtx);
+
+    // Fresh page/context = fresh localStorage partition, so re-seed the same fixture here.
+    await browserCtx.evaluate(function (lead) {
+      var employees = window.RevOpsStore.getCollection('employees') || [];
+      if (!employees.some(function (e) { return e.employeeId === 'E-ASSIGNEE-01'; })) {
+        employees.push({ employeeId: 'E-ASSIGNEE-01', fullName: 'Assignee Test Staff', role: 'staff' });
+      }
+      window.RevOpsStore.saveCollection('employees', employees);
+      window.RevOpsStore.saveCollection('leads', [lead]);
+      renderLeadsTable();
+    }, Object.assign({}, leadAfterAssign));
+
+    const assigneeView = await browserCtx.evaluate(function () {
+      var rows = Array.from(document.querySelectorAll('#leads-tbody tr'));
+      var row = rows.find(function (r) { return r.innerText.indexOf('Assignment Test Co') !== -1; });
+      return { seesLead: !!row, seesEditButton: !!document.querySelector("button[onclick=\"editLead('lead_assign_regr')\"]") };
+    });
+    assertTrue(assigneeView.seesLead, 'Assignee (staff role) sees a lead assigned to them in their table', failures);
+    assertTrue(assigneeView.seesEditButton, 'Assignee sees the Edit button for a lead assigned to them', failures);
+
+    await browserCtx.evaluate(function () { editLead('lead_assign_regr'); });
+    await browserCtx.waitForTimeout(200);
+    const assigneeModal = await browserCtx.evaluate(function () {
+      return {
+        modalOpen: !document.getElementById('lead-modal').classList.contains('hidden'),
+        assignFieldDisabled: document.getElementById('inp-lead-assignedto').disabled
+      };
+    });
+    assertTrue(assigneeModal.modalOpen, 'Assignee can open the lead for editing', failures);
+    assertTrue(assigneeModal.assignFieldDisabled, 'Assignee cannot change who the lead is assigned to (only owner/admin can)', failures);
+
+    await browserCtx.fill('#inp-lead-notes', 'Follow-up handled by assignee.');
+    await closeAssignedTicketsPopupIfAny(browserCtx);
+    await browserCtx.click('#lead-form button[type="submit"]');
+    await browserCtx.waitForTimeout(300);
+    const leadAfterAssigneeEdit = await browserCtx.evaluate(function () {
+      return (window.RevOpsStore.getCollection('leads') || []).find(function (l) { return l.id === 'lead_assign_regr'; });
+    });
+    assertEqual(leadAfterAssigneeEdit && leadAfterAssigneeEdit.notes, 'Follow-up handled by assignee.', 'Assignee can save edits to a lead assigned to them', failures);
+    assertEqual(leadAfterAssigneeEdit && leadAfterAssigneeEdit.assignedToEmployeeId, 'E-ASSIGNEE-01', 'Assignment itself is untouched by the assignee editing other fields', failures);
+
+    const dueForAssignee = await browserCtx.evaluate(function () {
+      return window.RevOpsStore.getDueFollowUps('E-ASSIGNEE-01', '2099-06-01').some(function (d) { return d.id === 'lead_assign_regr'; });
+    });
+    assertTrue(dueForAssignee, 'Follow-ups Due includes a lead assigned to this employee, not just ones they own', failures);
+    assertEqual(pageErrors, [], 'No uncaught JS errors for the assignee working an assigned lead', failures);
+
+    await browserCtx.close();
+  }
+
+  // Unrelated staff (not owner, not assignee) still can't see the lead at all.
+  {
+    const browserCtx2 = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    browserCtx2.on('dialog', async function (d) { await d.dismiss().catch(function () {}); });
+    await browserCtx2.addInitScript(function () {
+      localStorage.setItem('userRole', 'staff');
+      localStorage.setItem('userEmail', 'unrelated-test@measuredi.com');
+      localStorage.setItem('userName', 'Unrelated Test Staff');
+      localStorage.setItem('employeeId', 'E-UNRELATED-01');
+    });
+    await browserCtx2.goto(BASE_URL + '/leads.html', { waitUntil: 'networkidle', timeout: 30000 });
+    await browserCtx2.waitForTimeout(600);
+    await closeAssignedTicketsPopupIfAny(browserCtx2);
+
+    await browserCtx2.evaluate(function (lead) {
+      window.RevOpsStore.saveCollection('leads', [lead]);
+      renderLeadsTable();
+    }, Object.assign({}, leadAfterAssign));
+
+    const unrelatedSeesLead = await browserCtx2.evaluate(function () {
+      var rows = Array.from(document.querySelectorAll('#leads-tbody tr'));
+      return rows.some(function (r) { return r.innerText.indexOf('Assignment Test Co') !== -1; });
+    });
+    assertTrue(!unrelatedSeesLead, 'An unrelated staff user (neither owner nor assignee) still cannot see the lead', failures);
+    await browserCtx2.close();
+  }
+
+  // Booking an Order from the assigned lead's quotation pre-suggests a 50/50 split.
+  {
+    const { page } = await newPage(browser);
+    await page.goto(BASE_URL + '/orders.html', { waitUntil: 'networkidle', timeout: 30000 });
+    await page.waitForTimeout(600);
+    await closeAssignedTicketsPopupIfAny(page);
+
+    await page.evaluate(function (lead) {
+      window.RevOpsStore.saveCollection('leads', [lead]);
+      window.RevOpsStore.saveCollection('quotations', [{
+        id: 'quo_assign_regr', quoteNumber: 'QT-ASSIGNREGR-01', revision: 1, customerName: lead.customerName,
+        employeeId: lead.assignedToEmployeeId, employeeName: lead.assignedToName, leadId: lead.id, vertical: 'Projects',
+        status: 'Approved', grandTotal: 400000, grossSubtotal: 400000, items: []
+      }]);
+    }, Object.assign({}, leadAfterAssign));
+
+    await page.evaluate(function () { openOrderModal(null, 'quo_assign_regr'); });
+    await page.waitForTimeout(300);
+    const splits = await page.evaluate(function () { return currentSplits; });
+    const ownerSplit = splits.find(function (s) { return s.employeeId === 'E-001'; });
+    const assigneeSplit = splits.find(function (s) { return s.employeeId === 'E-ASSIGNEE-01'; });
+    assertEqual(splits.length, 2, 'Booking from an assigned lead\'s quote pre-suggests exactly 2 split rows', failures);
+    assertEqual(ownerSplit && ownerSplit.percent, 50, 'Split pre-suggests 50% to the lead\'s original owner', failures);
+    assertEqual(assigneeSplit && assigneeSplit.percent, 50, 'Split pre-suggests 50% to the lead\'s assignee', failures);
+
+    await page.close();
+  }
+
+  return failures;
+}
+
+// ---------------------------------------------------------------------
 // Seed guard: once Firebase is connected, a cleared collection must
 // never auto-refill from its demo defaults - true for both a
 // presence-only guard (clientEquipmentMaster) and a parsed-length
@@ -5601,6 +5771,7 @@ const TESTS = [
   ['Lead product dropdown vertical-normalization fix & quick "+ New Product" role gate', testLeadProductDropdownAndQuickAddProduct],
   ['Quotation edit: mandatory reason field', testQuoteEditReasonMandatory],
   ['Delete authority (Quotations, Invoices): Super Admin/Admin only, not even the record\'s own creator', testDeleteIsSuperAdminOrAdminOnly],
+  ['Lead "Assigned To": assignee can view/edit/follow-up without owner credentials, unrelated staff still can\'t see it, only owner/admin can reassign, Order split pre-suggests 50/50', testLeadAssignment],
   ['Seed guard: clientEquipmentMaster stays empty once connected to Firebase (never re-seeded)', testSeedGuardDoesNotRefillClearedCollections],
   ['Bulk CSV parser handles quoted/comma/multi-line fields', testBulkCsvParserHandlesQuotedFields],
   ['Bulk CSV upload pushes new Master Data records to Firestore, not just the local cache', testBulkUploadSyncsToFirestore],

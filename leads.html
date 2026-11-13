@@ -230,6 +230,17 @@
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
+                <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">Assigned To (Follow-up &amp; Processing)</label>
+                <select id="inp-lead-assignedto" class="w-full px-3 py-2 bg-slate-950 border border-slate-750 rounded-xl text-xs font-semibold text-white focus:outline-none focus:border-indigo-500 disabled:bg-slate-900 disabled:text-slate-500 disabled:cursor-not-allowed">
+                  <option value="">-- Unassigned (Owner handles it) --</option>
+                </select>
+                <p class="text-[10px] text-slate-500 mt-1" id="lead-assignedto-hint">Only the Lead Owner or Admin/Super Admin can change this.</p>
+                <div id="lead-assignment-history-summary" class="hidden text-[11px] text-slate-400 mt-1"></div>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
                 <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">Lead Source *</label>
                 <select id="inp-lead-source" required class="w-full px-3 py-2 bg-slate-950 border border-slate-750 rounded-xl text-xs font-semibold text-white focus:outline-none focus:border-indigo-500">
                 </select>
