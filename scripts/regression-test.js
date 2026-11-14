@@ -2647,7 +2647,10 @@ async function testSendQuoteModalAttachmentViewButtons(browser) {
       employeeId: 'E-001', employeeName: 'Mr. Murugan V', vertical: 'Projects', email: 'client@test.com',
       status: 'Approved', directorRatificationStatus: 'Ratified', grossSubtotal: 100000, grandTotal: 118000,
       overallDiscountPercent: 0, items: [],
-      attachments: [{ name: 'spec-sheet.pdf', size: 230 * 1024, type: 'application/pdf', url: 'https://fake-storage.example.com/spec-sheet.pdf' }]
+      attachments: [
+        { name: 'spec-sheet.pdf', size: 230 * 1024, type: 'application/pdf', url: 'https://fake-storage.example.com/spec-sheet.pdf' },
+        { name: 'offer-letter.doc', size: 90 * 1024, type: 'application/msword', url: 'https://fake-storage.example.com/offer-letter.doc' }
+      ]
     }]);
     openSendQuoteModal('quo_view_btn_1');
   });
@@ -2658,8 +2661,8 @@ async function testSendQuoteModalAttachmentViewButtons(browser) {
   });
   assertTrue(checklistHtml.indexOf('spec-sheet.pdf') !== -1, 'The technical attachment row is present', failures);
   const viewButtonCount = (checklistHtml.match(/>View</g) || []).length;
-  assertEqual(viewButtonCount, 2, 'Both the main quotation PDF row and the technical attachment row show a View button (not just one)', failures);
-  assertTrue(checklistHtml.indexOf('fake-storage.example.com/spec-sheet.pdf') !== -1, 'The technical attachment\'s View button points at its real Storage URL', failures);
+  assertEqual(viewButtonCount, 3, 'The main quotation PDF row and both technical attachment rows each show a View button', failures);
+  assertTrue(checklistHtml.indexOf("previewAttachmentOnScreen('https://fake-storage.example.com/spec-sheet.pdf'") !== -1, 'The PDF attachment\'s View button opens the on-screen preview with its real Storage URL', failures);
   assertTrue(checklistHtml.indexOf("viewPrintQuote('quo_view_btn_1')") !== -1, 'The main PDF\'s View button opens the live print-preview for this exact quote, not a generic/static one', failures);
 
   // Clicking the main PDF's View button must actually open the print
@@ -2671,6 +2674,35 @@ async function testSendQuoteModalAttachmentViewButtons(browser) {
     return !!modal && !modal.classList.contains('hidden');
   });
   assertTrue(printModalOpened, 'Clicking the main PDF\'s View button actually opens the print-preview modal', failures);
+  await page.evaluate(function () { closePrintQuoteModal(); });
+
+  // Clicking a PDF attachment's View button must open the on-screen
+  // preview modal with an iframe pointing straight at its real URL - a
+  // browser can render a PDF natively, so no external viewer is needed.
+  const pdfPreviewResult = await page.evaluate(function () {
+    var btn = Array.from(document.querySelectorAll('#send-attachments-checklist button')).find(function (b) { return b.textContent.trim() === 'View' && b.getAttribute('onclick').indexOf('spec-sheet.pdf') !== -1; });
+    if (btn) btn.click();
+    var modal = document.getElementById('attachment-preview-modal');
+    var iframe = modal ? modal.querySelector('iframe') : null;
+    return { modalOpen: !!modal && !modal.classList.contains('hidden'), iframeSrc: iframe ? iframe.src : null, title: modal ? modal.textContent.indexOf('spec-sheet.pdf') !== -1 : false };
+  });
+  assertTrue(pdfPreviewResult.modalOpen, 'Clicking a PDF attachment\'s View button opens the on-screen preview modal, not a separate browser tab', failures);
+  assertEqual(pdfPreviewResult.iframeSrc, 'https://fake-storage.example.com/spec-sheet.pdf', 'The preview modal\'s iframe loads the PDF\'s real URL directly (browsers render PDFs natively)', failures);
+  assertTrue(pdfPreviewResult.title, 'The preview modal shows which file is being viewed', failures);
+
+  // A .doc attachment has no browser-native viewer, so it must route
+  // through an external document-viewer embed instead of trying (and
+  // failing) to render the raw file directly in an iframe.
+  const docPreviewResult = await page.evaluate(function () {
+    document.getElementById('attachment-preview-modal').remove();
+    var btn = Array.from(document.querySelectorAll('#send-attachments-checklist button')).find(function (b) { return b.textContent.trim() === 'View' && b.getAttribute('onclick').indexOf('offer-letter.doc') !== -1; });
+    if (btn) btn.click();
+    var modal = document.getElementById('attachment-preview-modal');
+    var iframe = modal ? modal.querySelector('iframe') : null;
+    return { iframeSrc: iframe ? iframe.src : null };
+  });
+  assertTrue(!!docPreviewResult.iframeSrc && docPreviewResult.iframeSrc.indexOf('docs.google.com/gview') !== -1, 'A .doc attachment (no native browser viewer) routes through an external document-viewer embed instead of the raw file URL', failures);
+  assertTrue(docPreviewResult.iframeSrc.indexOf(encodeURIComponent('https://fake-storage.example.com/offer-letter.doc')) !== -1, 'The external viewer is given the attachment\'s real URL to fetch and render', failures);
 
   await page.close();
   return failures;

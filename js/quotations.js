@@ -196,6 +196,68 @@ var currentEditingQuoteId = null;
         document.body.removeChild(a);
       }
 
+      // Shows an attachment right on screen in a modal, instead of a new
+      // browser tab - a new tab can open in the background, get blocked,
+      // or just feel disconnected from the Send Client modal it was
+      // clicked from, which is exactly what was reported as "not
+      // opening." PDFs and images render directly; anything else (.doc,
+      // .docx, .xls, etc. - formats no browser can render natively) is
+      // routed through Google's public document viewer, which CAN render
+      // them inline, as long as the file lives at a real, fetchable URL
+      // (true for every Storage-backed attachment; an older record whose
+      // file is still embedded inline as a data: URI has no real URL for
+      // that viewer to fetch, so it falls back to opening/downloading
+      // directly instead - the same thing "View" did before this fix).
+      function previewAttachmentOnScreen(url, name, mimeType) {
+        var lowerName = (name || '').toLowerCase();
+        var isImage = /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(lowerName) || (mimeType || '').indexOf('image/') === 0;
+        var isPdf = /\.pdf$/i.test(lowerName) || mimeType === 'application/pdf';
+        var isDataUri = (url || '').indexOf('data:') === 0;
+
+        if (isDataUri && !isImage && !isPdf) {
+          // No real URL for an external viewer to fetch, and the browser
+          // itself can't render this format - open/download is the only
+          // option left for this one case.
+          window.open(url, '_blank', 'noopener');
+          return;
+        }
+
+        var bodyHtml;
+        if (isImage) {
+          bodyHtml = '<img src="' + escapeHtml(url) + '" class="max-w-full max-h-full object-contain" alt="' + escapeHtml(name) + '" />';
+        } else if (isPdf) {
+          bodyHtml = '<iframe src="' + escapeHtml(url) + '" class="w-full h-full border-0 bg-white rounded-lg" title="' + escapeHtml(name) + '"></iframe>';
+        } else {
+          var viewerSrc = 'https://docs.google.com/gview?url=' + encodeURIComponent(url) + '&embedded=true';
+          bodyHtml = '<iframe src="' + escapeHtml(viewerSrc) + '" class="w-full h-full border-0 bg-white rounded-lg" title="' + escapeHtml(name) + '"></iframe>';
+        }
+
+        var modal = document.getElementById('attachment-preview-modal');
+        if (!modal) {
+          modal = document.createElement('div');
+          modal.id = 'attachment-preview-modal';
+          modal.className = 'fixed inset-0 z-[60] bg-black/70 flex items-center justify-center p-4';
+          document.body.appendChild(modal);
+        }
+        modal.innerHTML =
+          '<div class="bg-white rounded-2xl shadow-2xl w-full h-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">' +
+            '<div class="flex items-center justify-between px-4 py-2.5 border-b border-slate-200 bg-slate-50 shrink-0">' +
+              '<p class="text-xs font-bold text-slate-800 truncate pr-2">' + escapeHtml(name) + '</p>' +
+              '<div class="flex items-center space-x-3 shrink-0">' +
+                '<a href="' + escapeHtml(url) + '" target="_blank" rel="noopener" class="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 cursor-pointer">Open in New Tab</a>' +
+                '<button type="button" onclick="closeAttachmentPreviewModal()" class="text-slate-400 hover:text-slate-700 text-lg font-bold leading-none cursor-pointer">&times;</button>' +
+              '</div>' +
+            '</div>' +
+            '<div class="flex-1 min-h-0 p-2 bg-slate-100 flex items-center justify-center overflow-auto">' + bodyHtml + '</div>' +
+          '</div>';
+        modal.classList.remove('hidden');
+      }
+
+      function closeAttachmentPreviewModal() {
+        var modal = document.getElementById('attachment-preview-modal');
+        if (modal) modal.remove();
+      }
+
       function onDiscPercentChanged() {
         var grossSubtotal = 0;
         activeQuoteItems.forEach(function(it) { grossSubtotal += (it.qty || 1) * (it.unitPrice || 0); });
@@ -1955,7 +2017,7 @@ var currentEditingQuoteId = null;
                 </div>
               </div>
               <div class="flex items-center space-x-1.5 shrink-0">
-                ${viewHref ? `<button type="button" onclick="window.open('${escapeHtml(viewHref)}', '_blank', 'noopener')" class="px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-[9px] font-bold border border-slate-300 cursor-pointer">View</button>` : ''}
+                ${viewHref ? `<button type="button" onclick="previewAttachmentOnScreen('${escapeHtml(viewHref)}', '${escapeHtml(att.name)}', '${escapeHtml(att.type || '')}')" class="px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-[9px] font-bold border border-slate-300 cursor-pointer">View</button>` : ''}
                 <span class="px-2 py-0.5 bg-sky-100 text-sky-800 rounded text-[9px] font-bold border border-sky-200">Attached</span>
               </div>
             `;
