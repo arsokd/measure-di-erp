@@ -3643,7 +3643,11 @@ Object.assign(window.RevOpsStore, {
       return {
         colName: 'leads', id: l.id, ref: l.leadNumber || l.id, customerName: l.customerName || 'Unknown Customer',
         status: l.status || l.stage, followUpDate: l.followUpDate || l.postponedUntil || '',
-        followUpCount: (l.followUpHistory || []).length
+        followUpCount: (l.followUpHistory || []).length,
+        // The same customer often has several leads/quotes open for
+        // different products at once - without this, the due-follow-ups
+        // popup can't tell them apart by anything but customer name.
+        productSummary: l.productName || ''
       };
     });
     var quotes = (this.getCollection('quotations') || []).filter(function(q) {
@@ -3652,7 +3656,8 @@ Object.assign(window.RevOpsStore, {
       return {
         colName: 'quotations', id: q.id, ref: q.quoteNumber || q.id, customerName: q.customerName || 'Unknown Customer',
         status: q.status, followUpDate: q.followUpDate || '',
-        followUpCount: (q.followUpHistory || []).length
+        followUpCount: (q.followUpHistory || []).length,
+        productSummary: (q.items || []).map(function(it) { return it.description; }).filter(Boolean).join(', ')
       };
     });
     return leads.concat(quotes).sort(function(a, b) {

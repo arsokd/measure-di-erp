@@ -308,6 +308,7 @@ function checkFollowUpDuePopup() {
             <div class="flex items-center justify-between bg-slate-800/90 px-2.5 py-1.5 rounded-lg border border-slate-700 text-xs gap-2">
               <div class="min-w-0">
                 <div class="font-semibold text-slate-100 truncate">${escapeHtml(item.customerName)}</div>
+                ${item.productSummary ? `<div class="text-[10px] text-amber-300/90 truncate" title="${escapeHtml(item.productSummary)}">${escapeHtml(item.productSummary)}</div>` : ''}
                 <div class="text-[10px] text-slate-400">${typeLabel} ${escapeHtml(item.ref)} &bull; ${item.followUpCount} logged so far</div>
               </div>
               <button onclick="openLogFollowUpModal('${item.colName}', '${item.id}', '${escapeHtml(item.ref)}', '${escapeHtml(item.customerName)}')" class="shrink-0 px-2.5 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-[10px] font-bold cursor-pointer">Log Follow-up</button>

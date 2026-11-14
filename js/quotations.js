@@ -1926,31 +1926,38 @@ var currentEditingQuoteId = null;
         var filesSummary = document.getElementById('send-files-summary');
         attachChecklist.innerHTML = `
           <div class="bg-white p-2 rounded-lg border border-slate-200 flex items-center justify-between">
-            <div class="flex items-center space-x-2">
-              <div class="w-6 h-6 rounded bg-rose-100 text-rose-700 flex items-center justify-center font-black text-[10px]">PDF</div>
-              <div>
+            <div class="flex items-center space-x-2 min-w-0 pr-2">
+              <div class="w-6 h-6 rounded bg-rose-100 text-rose-700 flex items-center justify-center font-black text-[10px] shrink-0">PDF</div>
+              <div class="min-w-0">
                 <p class="text-xs font-bold text-slate-800" id="send-attachment-filename">Quotation_${escapeHtml(q.quoteNumber)}_Ver${q.revision || 1}.pdf</p>
                 <p class="text-[9px] text-slate-400">Official Commercial Offer with HSN codes & authorized signatory</p>
               </div>
             </div>
-            <span class="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded text-[9px] font-bold border border-emerald-200">Enclosed</span>
+            <div class="flex items-center space-x-1.5 shrink-0">
+              <button type="button" onclick="viewPrintQuote('${escapeHtml(q.id)}')" class="px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-[9px] font-bold border border-slate-300 cursor-pointer">View</button>
+              <span class="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded text-[9px] font-bold border border-emerald-200">Enclosed</span>
+            </div>
           </div>
         `;
 
         if (q.attachments && Array.isArray(q.attachments) && q.attachments.length > 0) {
           filesSummary.innerText = "Official PDF + " + q.attachments.length + " Technical File(s)";
           q.attachments.forEach(function(att) {
+            var viewHref = att.url || att.dataUrl || att.data || '';
             var row = document.createElement('div');
             row.className = "bg-white p-2 rounded-lg border border-slate-200 flex items-center justify-between";
             row.innerHTML = `
               <div class="flex items-center space-x-2 min-w-0 pr-2">
-                <div class="w-6 h-6 rounded bg-indigo-100 text-indigo-700 flex items-center justify-center font-black text-[9px]">DOC</div>
+                <div class="w-6 h-6 rounded bg-indigo-100 text-indigo-700 flex items-center justify-center font-black text-[9px] shrink-0">DOC</div>
                 <div class="min-w-0">
                   <p class="text-xs font-bold text-slate-800 truncate" title="${escapeHtml(att.name)}">${escapeHtml(att.name)}</p>
                   <p class="text-[9px] text-slate-400 font-medium">${formatFileSize(att.size)}</p>
                 </div>
               </div>
-              <span class="px-2 py-0.5 bg-sky-100 text-sky-800 rounded text-[9px] font-bold border border-sky-200">Attached</span>
+              <div class="flex items-center space-x-1.5 shrink-0">
+                ${viewHref ? `<button type="button" onclick="window.open('${escapeHtml(viewHref)}', '_blank', 'noopener')" class="px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-[9px] font-bold border border-slate-300 cursor-pointer">View</button>` : ''}
+                <span class="px-2 py-0.5 bg-sky-100 text-sky-800 rounded text-[9px] font-bold border border-sky-200">Attached</span>
+              </div>
             `;
             attachChecklist.appendChild(row);
           });

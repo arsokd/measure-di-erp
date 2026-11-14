@@ -2626,6 +2626,57 @@ async function testSendQuoteModalReopensWithoutError(browser) {
 }
 
 // ---------------------------------------------------------------------
+// Client-reported: before sending a quotation email, there was no way to
+// actually check the attached files are the right ones - so a wrong or
+// stale file could go out to the client unnoticed. The Send Client modal
+// now has a "View" button next to the main PDF (opens the same live
+// print-preview used to build it) and next to every technical attachment
+// (opens its real Storage URL/inline data directly), so the sender can
+// confirm before dispatching.
+// ---------------------------------------------------------------------
+async function testSendQuoteModalAttachmentViewButtons(browser) {
+  const failures = [];
+  const { page } = await newPage(browser);
+  await page.goto(BASE_URL + '/quotations.html', { waitUntil: 'networkidle', timeout: 30000 });
+  await page.waitForTimeout(600);
+  await closeAssignedTicketsPopupIfAny(page);
+
+  await page.evaluate(function () {
+    window.RevOpsStore.saveCollection('quotations', [{
+      id: 'quo_view_btn_1', quoteNumber: 'QT-VIEWBTN-01', revision: 1, customerName: 'View Button Test Co',
+      employeeId: 'E-001', employeeName: 'Mr. Murugan V', vertical: 'Projects', email: 'client@test.com',
+      status: 'Approved', directorRatificationStatus: 'Ratified', grossSubtotal: 100000, grandTotal: 118000,
+      overallDiscountPercent: 0, items: [],
+      attachments: [{ name: 'spec-sheet.pdf', size: 230 * 1024, type: 'application/pdf', url: 'https://fake-storage.example.com/spec-sheet.pdf' }]
+    }]);
+    openSendQuoteModal('quo_view_btn_1');
+  });
+  await page.waitForTimeout(200);
+
+  const checklistHtml = await page.evaluate(function () {
+    return document.getElementById('send-attachments-checklist').innerHTML;
+  });
+  assertTrue(checklistHtml.indexOf('spec-sheet.pdf') !== -1, 'The technical attachment row is present', failures);
+  const viewButtonCount = (checklistHtml.match(/>View</g) || []).length;
+  assertEqual(viewButtonCount, 2, 'Both the main quotation PDF row and the technical attachment row show a View button (not just one)', failures);
+  assertTrue(checklistHtml.indexOf('fake-storage.example.com/spec-sheet.pdf') !== -1, 'The technical attachment\'s View button points at its real Storage URL', failures);
+  assertTrue(checklistHtml.indexOf("viewPrintQuote('quo_view_btn_1')") !== -1, 'The main PDF\'s View button opens the live print-preview for this exact quote, not a generic/static one', failures);
+
+  // Clicking the main PDF's View button must actually open the print
+  // preview modal (not just reference the right function in markup).
+  const printModalOpened = await page.evaluate(function () {
+    var btn = Array.from(document.querySelectorAll('#send-attachments-checklist button')).find(function (b) { return b.textContent.trim() === 'View' && b.getAttribute('onclick').indexOf('viewPrintQuote') !== -1; });
+    if (btn) btn.click();
+    var modal = document.getElementById('printQuoteModal');
+    return !!modal && !modal.classList.contains('hidden');
+  });
+  assertTrue(printModalOpened, 'Clicking the main PDF\'s View button actually opens the print-preview modal', failures);
+
+  await page.close();
+  return failures;
+}
+
+// ---------------------------------------------------------------------
 // Pre-launch DWM/Attendance audit fixes: (1) calculateDailyProductivity's
 // credit percentages must match the DWM accomplishment dropdown's own
 // labels exactly (Done 100% / Partial 70% / Not Done 0%) - they used to
@@ -3193,7 +3244,13 @@ async function testFollowUpSystem(browser) {
   await page.evaluate(function () {
     localStorage.setItem('employeeId', 'E-001');
     window.RevOpsStore.saveCollection('leads', [
-      { id: 'lead_popup_due', leadNumber: 'LD-POPUP-1', customerName: 'Popup Due Test Co', status: 'Contacted', employeeId: 'E-001', employeeName: 'Mr. Murugan V', followUpDate: '2020-01-01' }
+      { id: 'lead_popup_due', leadNumber: 'LD-POPUP-1', customerName: 'Popup Due Test Co', status: 'Contacted', employeeId: 'E-001', employeeName: 'Mr. Murugan V', followUpDate: '2020-01-01', productName: 'Hydraulic Weighbridge' }
+    ]);
+    // Same customer, a second open deal for a DIFFERENT product - the
+    // whole reason the popup needs to show product, not just customer
+    // name, is so these two don't look identical in the list.
+    window.RevOpsStore.saveCollection('quotations', [
+      { id: 'quo_popup_due', quoteNumber: 'QT-POPUP-1', customerName: 'Popup Due Test Co', status: 'Pending Approval', employeeId: 'E-001', employeeName: 'Mr. Murugan V', followUpDate: '2020-01-01', items: [{ description: 'Platform Scale 40T' }, { description: 'Load Cell Kit' }] }
     ]);
     checkFollowUpDuePopup();
   });
@@ -3202,6 +3259,15 @@ async function testFollowUpSystem(browser) {
   assertTrue(popupPresent, 'The follow-up popup appears when a lead is overdue', failures);
   const popupHtml = await page.evaluate(function () { return document.getElementById('followup-due-global-popup').innerHTML; });
   assertTrue(popupHtml.indexOf('Popup Due Test Co') !== -1, 'The popup lists the overdue lead by customer name', failures);
+  assertTrue(popupHtml.indexOf('Hydraulic Weighbridge') !== -1, 'The popup shows the lead\'s product, so the same customer\'s different open deals are distinguishable', failures);
+  assertTrue(popupHtml.indexOf('Platform Scale 40T') !== -1 && popupHtml.indexOf('Load Cell Kit') !== -1, 'The popup shows a quotation\'s product(s), built from its line items', failures);
+
+  // Done with the product-display check - clear the quotation fixture so
+  // the rest of this test (which resolves only the lead and expects the
+  // popup to fully clear) isn't left with a second, still-due item.
+  await page.evaluate(function () {
+    window.RevOpsStore.saveCollection('quotations', (window.RevOpsStore.getCollection('quotations') || []).filter(function (q) { return q.id !== 'quo_popup_due'; }));
+  });
 
   // Re-running the check with nothing resolved must show it again - no
   // "already notified" suppression for this popup, unlike approvals.
@@ -6143,6 +6209,7 @@ const TESTS = [
   ['Lead pipeline stage model: advanceLeadStage, Lost/Trashed/Postponed guards, pending follow-ups', testLeadPipelineStageModel],
   ['Lead auto-sync: Quotation send -> Quoted, Order booked -> Order Received, Invoice raised -> Won', testLeadAutoSyncFromDocuments],
   ['Send Client modal reopens cleanly across repeat/different quotes (no stale-id innerHTML wipeout)', testSendQuoteModalReopensWithoutError],
+  ['Send Client modal shows a View button for the main PDF and every technical attachment, so the sender can check the right files are attached before dispatching', testSendQuoteModalAttachmentViewButtons],
   ['Bulk-upload template: live dropdown-values legend, comment-line skipping, never on real exports', testCsvTemplateDropdownLegend],
   ['Data Center: 12 real per-collection templates, dropdown legends, shared RFC 4180 parser', testDataCenterTemplatesAndParser],
   ['DWM productivity % matches dropdown labels; Scorecard DWM compliance never fakes 100%', testDwmProductivityAndComplianceFixes],
