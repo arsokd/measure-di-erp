@@ -502,6 +502,19 @@ function checkAuth(allowedRoles) {
     console.warn("Seed init warning in checkAuth:", errSeed);
   }
 
+  // Surfaces, on the first page load after login, a session-token write
+  // that failed silently in login.html (console.warn only there, since
+  // that page navigates away before any banner could be seen). Shown
+  // once, then cleared, rather than on every single page load.
+  try {
+    if (sessionStorage.getItem('_sessionTokenWriteFailed') === '1') {
+      sessionStorage.removeItem('_sessionTokenWriteFailed');
+      if (window.RevOpsStore && typeof window.RevOpsStore.showSyncWarningBanner === 'function') {
+        window.RevOpsStore.showSyncWarningBanner("Signed in, but this device's session token couldn't be saved - if you sign in elsewhere, this one may not detect it and sign out automatically.");
+      }
+    }
+  } catch (eSessionFlag) {}
+
   var userRole = localStorage.getItem('userRole');
   var userEmail = localStorage.getItem('userEmail');
   var userName = localStorage.getItem('userName') || 'User';

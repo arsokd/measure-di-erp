@@ -4010,6 +4010,52 @@ async function testCheckAuthNormalizesInvalidRoleWithNoEmployeeRecordYet(browser
 }
 
 // ---------------------------------------------------------------------
+// Single-active-session token write (login.html) used to fail with only
+// a console.warn - invisible to the user, and a banner shown there
+// wouldn't even be seen anyway since the page navigates away
+// immediately after. login.html now leaves a one-shot sessionStorage
+// flag for the very next page's checkAuth() to pick up and show as a
+// real, visible warning banner - once, not on every subsequent page.
+// ---------------------------------------------------------------------
+async function testSessionTokenWriteFailureIsSurfacedOnNextPage(browser) {
+  const failures = [];
+  const { page } = await newPage(browser);
+  // Load once first so sessionStorage has an origin to attach to, then set
+  // the flag via a one-time evaluate (not addInitScript, which would
+  // re-run and re-set the flag on every subsequent navigation of this
+  // same page - exactly the scenario being tested against).
+  await page.goto(BASE_URL + '/dashboard.html', { waitUntil: 'networkidle', timeout: 30000 });
+  await page.waitForTimeout(300);
+  await page.evaluate(function () { sessionStorage.setItem('_sessionTokenWriteFailed', '1'); });
+  await page.reload({ waitUntil: 'networkidle', timeout: 30000 });
+  await page.waitForTimeout(500);
+
+  const result = await page.evaluate(function () {
+    var banner = document.getElementById('sync-warning-banner');
+    return {
+      bannerVisible: !!banner && !banner.classList.contains('hidden'),
+      flagCleared: sessionStorage.getItem('_sessionTokenWriteFailed') === null
+    };
+  });
+  assertTrue(result.bannerVisible, 'A session-token write failure flagged by login.html shows a visible warning banner on the very next page', failures);
+  assertTrue(result.flagCleared, 'The one-shot flag is cleared after being shown, so it does not repeat on every subsequent page load', failures);
+
+  // A second page load (nothing new flagged) must NOT show the banner
+  // again - proves this is genuinely one-shot, not just leaving the
+  // banner element permanently in the DOM from the first load.
+  await page.goto(BASE_URL + '/dashboard.html', { waitUntil: 'networkidle', timeout: 30000 });
+  await page.waitForTimeout(500);
+  const secondLoadBannerVisible = await page.evaluate(function () {
+    var banner = document.getElementById('sync-warning-banner');
+    return !!banner && !banner.classList.contains('hidden');
+  });
+  assertTrue(!secondLoadBannerVisible, 'A later, unrelated page load does not re-show the banner once the one-shot flag has already been consumed', failures);
+
+  await page.close();
+  return failures;
+}
+
+// ---------------------------------------------------------------------
 // DWM Section A/B rework: every planned activity (auto KRA point, extra
 // KRA activity, or Special Assignment) now carries a tick ("Include")
 // checkbox and its own editable Start/End Time, pre-filled by an even
@@ -6222,6 +6268,7 @@ const TESTS = [
   ['DWM tick/time/% rework: Include checkboxes, editable time pre-fill, Punch-In lock, real % Done, plan-changed flag', testDwmTickTimePercentAndPlanChanged],
   ['checkAuth self-heals an invalid employee role ("Engineer") to "staff" instead of looping on Unauthorized access', testCheckAuthNormalizesInvalidRole],
   ['checkAuth normalizes an invalid role even before the employees record is cached locally (the field "Unauthorized access" race condition)', testCheckAuthNormalizesInvalidRoleWithNoEmployeeRecordYet],
+  ['A login-time session-token write failure is surfaced as a visible, one-shot warning banner on the next page instead of only a console.warn nobody sees', testSessionTokenWriteFailureIsSurfacedOnNextPage],
   ['DWM "Reset Plan" button: clears ticks + deletes extras before Punch In, disappears once nothing to reset', testDwmResetPlanButton],
   ['Executive Dashboard Workforce & DWM Compliance Snapshot: Today\'s Attendance, Monthly %, DWM Compliance, Today\'s Accomplishment', testDashboardHrSnapshot],
   ['Attendance correction request + manager approval workflow: past-day-only, pending queue, approve computes hours, reject requires remarks', testAttendanceCorrectionWorkflow],

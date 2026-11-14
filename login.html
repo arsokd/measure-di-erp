@@ -252,6 +252,11 @@
               });
             } catch (eSession) {
               console.warn("Could not record active session token (single-session enforcement may not apply this login):", eSession);
+              // The page navigates away immediately after this block, so a
+              // banner shown here would never actually be seen - leave a
+              // flag for the very next page's checkAuth() to pick up and
+              // show it where the user will actually see it.
+              try { sessionStorage.setItem('_sessionTokenWriteFailed', '1'); } catch (eStorage) {}
             }
           }
 

@@ -195,13 +195,20 @@ service cloud.firestore {
     match /componentsMaster/{docId}          { allow read: if signedIn(); allow write: if isMasterDataAdmin(); }
     match /productBomLines/{docId}           { allow read: if signedIn(); allow write: if isMasterDataAdmin(); }
 
-    // ---- Safety net for any collection not explicitly listed above ----
-    // Requires sign-in at minimum; this app has more modules than this file
-    // enumerates individually (e.g. warranty/SOP/master-data pages) — tighten
-    // these to the isOwnerOrAdmin/isLeadershipOrAdmin patterns above as each
-    // module gets its own dedicated review.
+    // ---- Deny by default for any collection not explicitly listed above ----
+    // Every collection this app's code actually reads or writes (checked
+    // directly against every getCollection/saveRecord/addItem/updateItem/
+    // window.db.collection call site in the repo) already has its own
+    // explicit, properly-scoped rule above - this fallback is not a
+    // working-but-loose safety net for real traffic, it's dead code in
+    // current practice. Failing closed here (rather than "any signed-in
+    // user may do anything") means a genuinely new, not-yet-reviewed
+    // collection is simply blocked until it gets its own rule added
+    // above, instead of silently inheriting broad access nobody decided
+    // on. Add that collection's own `match` block above this one (not
+    // here) once its access model is actually decided.
     match /{document=**} {
-      allow read, write: if signedIn();
+      allow read, write: if false;
     }
   }
 }
