@@ -2674,6 +2674,20 @@ async function testSendQuoteModalAttachmentViewButtons(browser) {
     return !!modal && !modal.classList.contains('hidden');
   });
   assertTrue(printModalOpened, 'Clicking the main PDF\'s View button actually opens the print-preview modal', failures);
+
+  // The print-preview modal opens WHILE the Send Client modal underneath
+  // it is still open (not closed first) - both being merely "visible"
+  // isn't enough to prove it, since a same-z-index/later-in-DOM sibling
+  // can stay visually on top and obscure it entirely (reported as "the
+  // file to be seen is behind"). Checking what's actually rendered at
+  // the modal's own center point is the only way to catch that.
+  const printModalOnTop = await page.evaluate(function () {
+    var modal = document.getElementById('printQuoteModal');
+    var rect = modal.getBoundingClientRect();
+    var topEl = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+    return modal.contains(topEl);
+  });
+  assertTrue(printModalOnTop, 'The print-preview modal actually renders on top of the still-open Send Client modal underneath it, not hidden behind it', failures);
   await page.evaluate(function () { closePrintQuoteModal(); });
 
   // Clicking a PDF attachment's View button must open the on-screen
