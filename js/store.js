@@ -3246,6 +3246,22 @@ Object.assign(window.RevOpsStore, {
     return 'company_measuredi';
   },
 
+  // Standard 15-character GSTIN format: 2-digit state code, 10-char PAN,
+  // 1-digit entity number, 'Z' by default, 1 checksum character.
+  isValidGstin: function(gstin) {
+    if (!gstin) return false;
+    return /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(String(gstin).trim().toUpperCase());
+  },
+
+  // The first 2 digits of a GSTIN are the GST state code (e.g. "33" =
+  // Tamil Nadu) - used to tell intra-state (CGST+SGST) apart from
+  // inter-state (IGST) supply without asking a human to remember which
+  // one applies. Returns null for a blank/malformed GSTIN rather than
+  // guessing, so callers can fall back to leaving things as they are.
+  gstStateCode: function(gstin) {
+    return this.isValidGstin(gstin) ? String(gstin).trim().toUpperCase().slice(0, 2) : null;
+  },
+
   // Invoice/Proforma numbering is kept as one continuous GST-compliant
   // sequence per legal entity, not shared across companies - each company's
   // own tax filings need their own unbroken number range. Measure DI keeps

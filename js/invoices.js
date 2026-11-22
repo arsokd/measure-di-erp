@@ -568,6 +568,28 @@ var currentTab = 'All';
 
       function handleInvoiceCompanyChange() {
         regenerateInvoiceNumberIfNew();
+        autoDetectInterstateFromGstin();
+      }
+
+      // Sets the Inter-State tick-box from the customer's own GSTIN
+      // (state code = its first 2 digits) vs. the billing company's
+      // GSTIN, instead of relying on whoever is raising the invoice to
+      // remember it correctly every time - a forgotten tick here means a
+      // wrong CGST+SGST/IGST split with no warning. Only acts when BOTH
+      // GSTINs are present and look valid; otherwise it leaves the
+      // tick-box exactly as it is, so a customer with no GSTIN yet (or
+      // one still being typed) never gets silently/incorrectly toggled.
+      // Still just sets the same tick-box a person can override by hand
+      // afterwards - this is a default, not a lock.
+      function autoDetectInterstateFromGstin() {
+        var customerGstin = document.getElementById('inp-inv-gstin').value;
+        var companyId = document.getElementById('inp-inv-company').value;
+        var company = window.RevOpsStore.getCompanyById(companyId);
+        var customerStateCode = window.RevOpsStore.gstStateCode(customerGstin);
+        var companyStateCode = company ? window.RevOpsStore.gstStateCode(company.gstin) : null;
+        if (!customerStateCode || !companyStateCode) return;
+        document.getElementById('inp-inv-interstate').checked = (customerStateCode !== companyStateCode);
+        calculateInvoiceTotals();
       }
 
       function openInvoiceModal() {
@@ -704,6 +726,7 @@ var currentTab = 'All';
         document.getElementById('inp-inv-vertical').value = normalizeVerticalClassification(q.vertical) || 'Projects';
         document.getElementById('inp-inv-company').value = q.companyId || window.RevOpsStore.getDefaultCompanyId();
         regenerateInvoiceNumberIfNew();
+        autoDetectInterstateFromGstin();
 
         var tbody = document.getElementById('invoice-items-tbody');
         tbody.innerHTML = "";
@@ -779,6 +802,7 @@ var currentTab = 'All';
         document.getElementById('inp-inv-vertical').value = normalizeVerticalClassification(ord.vertical) || 'Projects';
         document.getElementById('inp-inv-company').value = ord.companyId || window.RevOpsStore.getDefaultCompanyId();
         regenerateInvoiceNumberIfNew();
+        autoDetectInterstateFromGstin();
 
         var poRefStr = (ord.poNumber || ord.orderId || '') + (ord.poDate ? ' dt. ' + ord.poDate : '');
         document.getElementById('inp-inv-poref').value = poRefStr;
@@ -876,6 +900,12 @@ var currentTab = 'All';
 
         if (window.FormValidation && window.FormValidation.validateRequiredFields(e.target).length > 0) {
           alert('Please fill in the required fields highlighted in red before saving.');
+          return;
+        }
+
+        var enteredGstin = document.getElementById('inp-inv-gstin').value.trim();
+        if (enteredGstin && !window.RevOpsStore.isValidGstin(enteredGstin)) {
+          alert("That Customer GSTIN doesn't look right - it should be exactly 15 characters in the standard format (e.g. 33AAAAA0000A1Z5). Please check it and try again, or leave it blank for an unregistered customer.\n\nEntered: " + enteredGstin);
           return;
         }
 

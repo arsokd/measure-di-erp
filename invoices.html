@@ -271,7 +271,7 @@
 
             <div>
               <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Customer GSTIN</label>
-              <input type="text" id="inp-inv-gstin" placeholder="e.g. 19AAACJ1011A1Z2" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono uppercase focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+              <input type="text" id="inp-inv-gstin" placeholder="e.g. 19AAACJ1011A1Z2" onblur="autoDetectInterstateFromGstin()" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono uppercase focus:outline-none focus:ring-2 focus:ring-indigo-500" />
             </div>
           </div>
 
@@ -399,7 +399,7 @@
             <div class="flex items-center space-x-4">
               <label class="flex items-center space-x-2 text-xs font-bold text-slate-700 cursor-pointer">
                 <input type="checkbox" id="inp-inv-interstate" onchange="calculateInvoiceTotals()" class="rounded text-indigo-600 focus:ring-indigo-500">
-                <span>Inter-State Supply (IGST instead of CGST+SGST)</span>
+                <span>Inter-State Supply (IGST instead of CGST+SGST) <span class="text-slate-400 font-normal normal-case">— auto-set from the Customer GSTIN above, override here if needed</span></span>
               </label>
             </div>
 

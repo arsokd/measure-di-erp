@@ -1192,6 +1192,11 @@ var activeMasterTab = 'products';
         };
       }
 
+      if ((colName === 'companyMaster' || colName === 'clientsMaster') && recordObj.gstin && !window.RevOpsStore.isValidGstin(recordObj.gstin)) {
+        alert("That GSTIN doesn't look right - it should be exactly 15 characters in the standard format (e.g. 33AAAAA0000A1Z5). Please check it and try again.\n\nEntered: " + recordObj.gstin);
+        return;
+      }
+
       window.RevOpsStore.saveRecord(colName, recordObj);
 
       if (window.RevOpsStore.logAudit) {
