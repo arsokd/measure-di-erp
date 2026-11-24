@@ -270,6 +270,7 @@ var currentSplits = [];
 
         var split = existing || {
           employeeId: defaultEmp,
+          role: '',
           percent: remaining > 0 ? remaining : 0
         };
 
@@ -280,7 +281,7 @@ var currentSplits = [];
       function autoBalanceSplits() {
         if (currentSplits.length === 0) {
           var myEmpId = localStorage.getItem('employeeId') || 'E-002';
-          currentSplits = [{ employeeId: myEmpId, percent: 100 }];
+          currentSplits = [{ employeeId: myEmpId, role: 'Closing', percent: 100 }];
           renderSplitRows();
           return;
         }
@@ -315,22 +316,32 @@ var currentSplits = [];
         var container = document.getElementById('splits-container');
         container.innerHTML = '';
         var employees = window.RevOpsStore.getCollection('employees') || [];
+        var roles = window.RevOpsStore.ORDER_CONTRIBUTION_ROLES || [];
 
         currentSplits.forEach(function(s, i) {
           var row = document.createElement('div');
           row.className = "bg-slate-900 p-2.5 rounded-xl border border-slate-750 grid grid-cols-12 gap-2 items-center text-xs";
-          
+
           var empOptions = employees.map(function(e) {
             return `<option value="${e.employeeId}" ${e.employeeId === s.employeeId ? 'selected' : ''}>${escapeHtml(e.fullName)} (${e.employeeId})</option>`;
           }).join('');
 
+          var roleOptions = '<option value="">-- Role --</option>' + roles.map(function(r) {
+            return `<option value="${escapeHtml(r)}" ${r === s.role ? 'selected' : ''}>${escapeHtml(r)}</option>`;
+          }).join('');
+
           row.innerHTML = `
-            <div class="col-span-7 sm:col-span-8">
+            <div class="col-span-11 sm:col-span-6">
               <select onchange="currentSplits[${i}].employeeId = this.value" class="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-white font-semibold">
                 ${empOptions}
               </select>
             </div>
-            <div class="col-span-4 sm:col-span-3">
+            <div class="col-span-7 sm:col-span-3">
+              <select onchange="currentSplits[${i}].role = this.value" class="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-white">
+                ${roleOptions}
+              </select>
+            </div>
+            <div class="col-span-4 sm:col-span-2">
               <div class="flex items-center space-x-1">
                 <input type="number" min="0" max="100" step="0.5" value="${s.percent}" oninput="currentSplits[${i}].percent = parseFloat(this.value) || 0; updateSplitTotal();" class="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-white font-bold text-center" />
                 <span class="text-slate-400 font-bold">%</span>
@@ -688,7 +699,7 @@ var currentSplits = [];
           if (orderData.splits && Array.isArray(orderData.splits)) {
             currentSplits = JSON.parse(JSON.stringify(orderData.splits));
           } else {
-            currentSplits = [{ employeeId: orderData.employeeId || 'E-002', percent: 100 }];
+            currentSplits = [{ employeeId: orderData.employeeId || 'E-002', role: '', percent: 100 }];
           }
         } else {
           document.getElementById('order-modal-title').innerHTML = `<i class="fa-solid fa-file-contract text-purple-400"></i> <span>Book Commercial Order / PO</span>`;
@@ -720,11 +731,11 @@ var currentSplits = [];
           }
           if (sourceLead && sourceLead.assignedToEmployeeId && sourceLead.assignedToEmployeeId !== sourceLead.employeeId) {
             currentSplits = [
-              { employeeId: sourceLead.employeeId, percent: 50 },
-              { employeeId: sourceLead.assignedToEmployeeId, percent: 50 }
+              { employeeId: sourceLead.employeeId, role: 'Lead Generation', percent: 50 },
+              { employeeId: sourceLead.assignedToEmployeeId, role: 'Closing', percent: 50 }
             ];
           } else {
-            currentSplits = [{ employeeId: myEmpId, percent: 100 }];
+            currentSplits = [{ employeeId: myEmpId, role: 'Closing', percent: 100 }];
           }
           toggleBgFields();
           toggleRetentionFields();
@@ -829,7 +840,7 @@ var currentSplits = [];
           var splitsHtml = splits.map(function(s) {
             var empObj = employees.find(function(e) { return e.employeeId === s.employeeId; });
             var name = empObj ? empObj.fullName : s.employeeId;
-            return `<div class="text-[10px]"><span class="font-bold text-white">${escapeHtml(name)}:</span> <span class="text-emerald-400 font-extrabold">${s.percent}%</span></div>`;
+            return `<div class="text-[10px]"><span class="font-bold text-white">${escapeHtml(name)}:</span> <span class="text-emerald-400 font-extrabold">${s.percent}%</span>${s.role ? ` <span class="text-slate-400">(${escapeHtml(s.role)})</span>` : ''}</div>`;
           }).join('');
 
           var poFileHtml = o.poFileData ? `
@@ -942,6 +953,13 @@ var currentSplits = [];
           alert("Cannot Save Order:\n\nSales contribution total is " + totalSplit + "% (higher than 100%).\n\nYou must reduce the split by " + excess + "% so it equals exactly 100% before saving.");
           var container = document.getElementById('splits-container');
           if (container) container.scrollIntoView({ behavior: 'smooth' });
+          return;
+        }
+
+        if (currentSplits.some(function(s) { return !s.role; })) {
+          alert("Cannot Save Order:\n\nEvery sales contributor must have a Role selected (Lead Generation, Follow-up, Objection Handling, Negotiation, Closing, or Other) so the split is clear, not just a bare percentage.");
+          var splitContainer = document.getElementById('splits-container');
+          if (splitContainer) splitContainer.scrollIntoView({ behavior: 'smooth' });
           return;
         }
 

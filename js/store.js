@@ -2690,6 +2690,12 @@ Object.assign(window.RevOpsStore, {
     return !!order && (order.status === 'Booked' || order.status === 'Won');
   },
 
+  // What each split contributor actually did on the deal — shown next to
+  // their percentage (on the Order form and the Orders list) so the split
+  // is defensible, not just a bare number. Deliberately NOT unique per
+  // row: two people can both be tagged Follow-up, for instance.
+  ORDER_CONTRIBUTION_ROLES: ['Lead Generation', 'Follow-up', 'Objection Handling', 'Negotiation', 'Closing', 'Other'],
+
   getOrderContributions: function(order) {
     if (!order) return [];
     var val = Number(order.orderValue || order.value || order.invoiceValue) || 0;
@@ -2699,7 +2705,7 @@ Object.assign(window.RevOpsStore, {
 
     return raw.map(function(c) {
       var pct = Number(c.percent !== undefined ? c.percent : c.contributionPct) || 0;
-      return { employeeId: c.employeeId, percent: pct, amount: (val * pct) / 100 };
+      return { employeeId: c.employeeId, percent: pct, role: c.role || '', amount: (val * pct) / 100 };
     });
   },
 
