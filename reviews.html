@@ -416,24 +416,28 @@
 
       function recomputeReviewSnapshots() {
         var empId = document.getElementById('modal-review-emp').value;
+        var employees = window.RevOpsStore.getCollection('employees') || [];
         var orders = window.RevOpsStore.getCollection('orders') || [];
         var kras = window.RevOpsStore.getCollection('kraTargets') || [];
         var dwmActivities = window.RevOpsStore.getCollection('dwmActivities') || [];
         var attendance = window.RevOpsStore.getCollection('attendance') || [];
 
-        // Calculate KPI %
+        // Calculate KPI % - shares the exact same "is this order won" /
+        // "who gets what share of its revenue" logic as the Dashboard, AOP
+        // and Scorecard (RevOpsStore.isOrderWon / getOrderContributions),
+        // instead of an older, separate copy of it - so this review's own
+        // number can never silently disagree with what those other pages
+        // show for the same person and period.
         var empKras = kras.filter(function(k) { return k.employeeId === empId; });
         var empAchievedRev = 0;
         orders.forEach(function(ord) {
-          if (ord.status === "Won") {
-            var val = Number(ord.orderValue) || 0;
-            var contribs = ord.contributors || [{ employeeId: ord.employeeId, contributionPct: 100 }];
-            contribs.forEach(function(c) {
-              if (c.employeeId === empId) {
-                empAchievedRev += (val * Number(c.contributionPct)) / 100;
-              }
-            });
-          }
+          if (!window.RevOpsStore.isOrderWon(ord)) return;
+          var contribs = window.RevOpsStore.getOrderContributions(ord);
+          contribs.forEach(function(c) {
+            if (c.employeeId === empId) {
+              empAchievedRev += c.amount;
+            }
+          });
         });
 
         var targetEmp = employees.find(function(e) { return e.employeeId === empId; });

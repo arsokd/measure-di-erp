@@ -65,6 +65,68 @@ var viewingEmpId = null;
         return ids;
       }
 
+      // Real "Outstanding Payment Days" achievement: the average age (in
+      // days, from invoice date to today) of this person/team's currently
+      // unpaid invoices. Was a hardcoded "38 days" for everyone before -
+      // now a real collections number. No unpaid invoices at all is the
+      // best possible outcome, so that returns 0 (nothing outstanding),
+      // not a fake "not applicable" value.
+      function computeAvgOutstandingDays(subEmpIds, invoiceList) {
+        var mine = (invoiceList || []).filter(function(inv) {
+          return subEmpIds.indexOf(inv.employeeId) !== -1 && (Number(inv.balanceDue) || 0) > 1;
+        });
+        if (mine.length === 0) return 0;
+        var today = new Date();
+        var totalDays = 0;
+        mine.forEach(function(inv) {
+          var invDate = parseDateDDMMYYYY(inv.invoiceDate || inv.dueDate);
+          var days = isNaN(invDate.getTime()) ? 0 : Math.max(0, Math.round((today - invDate) / (1000 * 60 * 60 * 24)));
+          totalDays += days;
+        });
+        return Math.round(totalDays / mine.length);
+      }
+
+      // One financial year back, in this app's "YYYY-YY" label (e.g.
+      // "2026-27" -> "2025-26") - used to measure real customer retention.
+      function getPriorFinancialYearLabel(fy) {
+        var m = /^(\d{4})-(\d{2})$/.exec(String(fy || ''));
+        if (!m) return null;
+        var startYear = parseInt(m[1], 10);
+        var priorStart = startYear - 1;
+        return priorStart + '-' + String(startYear).slice(-2);
+      }
+
+      // Real "Retention" achievement: of the distinct customers this
+      // person/team actually won business from in the prior financial
+      // year, what % also won business again in the current one. Was a
+      // hardcoded "92%" for everyone before. Returns null when there's no
+      // prior-year customer base to measure against yet (e.g. FY 2024-25,
+      // or someone newly assigned this KRA) - the caller falls back to
+      // "target met" rather than scoring someone on data that can't exist
+      // yet, matching how this file already treats other no-data cases.
+      function computeRetentionPct(subEmpIds, orderList, selectedFy) {
+        var currentFy = selectedFy === 'All' ? '2026-27' : selectedFy;
+        var priorFy = getPriorFinancialYearLabel(currentFy);
+        if (!priorFy) return null;
+
+        var priorCustomers = {};
+        var currentCustomers = {};
+        (orderList || []).forEach(function(ord) {
+          if (!window.RevOpsStore.isOrderWon(ord) || !ord.customerName) return;
+          var contribs = window.RevOpsStore.getOrderContributions(ord);
+          var isMine = subEmpIds.indexOf(ord.employeeId) !== -1 || contribs.some(function(c) { return subEmpIds.indexOf(c.employeeId) !== -1; });
+          if (!isMine) return;
+          var fy = typeof getFinancialYear === 'function' ? getFinancialYear(window.RevOpsStore.getOrderDate(ord)) : null;
+          if (fy === priorFy) priorCustomers[ord.customerName] = true;
+          else if (fy === currentFy) currentCustomers[ord.customerName] = true;
+        });
+
+        var priorNames = Object.keys(priorCustomers);
+        if (priorNames.length === 0) return null;
+        var retained = priorNames.filter(function(n) { return currentCustomers[n]; }).length;
+        return Math.round((retained / priorNames.length) * 100);
+      }
+
       function renderScorecardForEmployee(empId) {
         var employees = window.RevOpsStore.getCollection('employees') || [];
         var kras = window.RevOpsStore.getCollection('kraTargets') || [];
@@ -72,6 +134,7 @@ var viewingEmpId = null;
         var dwmActivities = window.RevOpsStore.getCollection('dwmActivities') || [];
         var attendance = window.RevOpsStore.getCollection('attendance') || [];
         var leads = window.RevOpsStore.getCollection('leads') || [];
+        var invoices = window.RevOpsStore.getCollection('invoices') || [];
 
         var targetEmp = employees.find(function(e) { return e.employeeId === empId; });
         if (!targetEmp) return;
@@ -132,6 +195,8 @@ var viewingEmpId = null;
         // Calculate team lead count
         var teamLeadsCount = leads.filter(function(l) { return subEmpIds.indexOf(l.employeeId) !== -1; }).length;
         var winRatePct = totalOrdersCount > 0 ? Math.round((wonOrdersCount / totalOrdersCount) * 100) : 78;
+        var avgOutstandingDays = computeAvgOutstandingDays(subEmpIds, invoices);
+        var retentionPct = computeRetentionPct(subEmpIds, orders, selectedFy);
 
         // 2. Filter KRAs belonging to this employee for the selected FY
         var myKras = kras.filter(function(k) { 
@@ -201,9 +266,13 @@ var viewingEmpId = null;
             } else if (kraNameLower.indexOf("lead") !== -1) {
               achievedVal = teamLeadsCount > 0 ? teamLeadsCount : targetVal;
             } else if (kraNameLower.indexOf("outstanding") !== -1 || kraNameLower.indexOf("payment") !== -1 || kra.kpiType === "Days") {
-              achievedVal = 38; // 38 days achieved vs 45 target
+              achievedVal = avgOutstandingDays; // real average age (days) of this person/team's unpaid invoices
             } else if (kraNameLower.indexOf("retention") !== -1) {
-              achievedVal = 92; // 92% retention achieved vs 90% target
+              // No prior-year customer base yet to measure retention against
+              // (new to this KRA, or an FY with no prior year in the app) -
+              // treat as target met rather than scoring on data that can't
+              // exist, same convention this file already uses for lead count.
+              achievedVal = retentionPct !== null ? retentionPct : targetVal;
             } else {
               achievedVal = Number(kra.actualValue) || targetVal;
             }
