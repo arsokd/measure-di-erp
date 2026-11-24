@@ -537,6 +537,11 @@ var currentSplits = [];
             document.getElementById('inp-ord-customer-select').value = q.customerName.trim();
           }
           if (q.vertical) document.getElementById('inp-ord-vertical').value = normalizeVerticalClassification(q.vertical);
+          var industrySelect = document.getElementById('inp-ord-industry');
+          if (industrySelect) {
+            populateOrderIndustryDropdown();
+            industrySelect.value = q.industry || '';
+          }
           document.getElementById('ord-lead-id').value = q.leadId || '';
           document.getElementById('ord-company-id').value = q.companyId || window.RevOpsStore.getDefaultCompanyId();
 
@@ -644,6 +649,24 @@ var currentSplits = [];
         }
       }
 
+      // Industry tag — same Master Data "Project Sector / Origin" list
+      // Leads/Quotations already use, so reports can group pipeline/
+      // revenue by it consistently all the way through Lead -> Quotation
+      // -> Order. Carried from the linked Quotation (handleQuoteSelectForOrder),
+      // but always editable/pickable here too.
+      function populateOrderIndustryDropdown() {
+        var select = document.getElementById('inp-ord-industry');
+        if (!select) return;
+        var items = (window.RevOpsStore.getCollection('projectSectorMaster') || []).filter(function(it) { return it.isActive !== false; });
+        var currentVal = select.value;
+        select.innerHTML = '<option value="">-- None --</option>' + items.map(function(it) {
+          return '<option value="' + escapeHtml(it.name) + '">' + escapeHtml(it.name) + '</option>';
+        }).join('');
+        if (currentVal && items.some(function(it) { return it.name === currentVal; })) {
+          select.value = currentVal;
+        }
+      }
+
       function openOrderModal(orderData, bookFromQuoteId) {
         currentSplits = [];
         activeSelectedQuote = null;
@@ -652,6 +675,7 @@ var currentSplits = [];
         var form = document.getElementById('order-form');
         form.reset();
         populateOrderVerticalDropdown();
+        populateOrderIndustryDropdown();
         removePOImageAttachment();
         document.getElementById('linkage-info-box').classList.add('hidden');
         applyQuoteLockToOrderForm(null);
@@ -668,6 +692,7 @@ var currentSplits = [];
           document.getElementById('inp-ord-ponum').value = orderData.poNumber || '';
           document.getElementById('inp-ord-podate').value = orderData.poDate || '';
           document.getElementById('inp-ord-vertical').value = normalizeVerticalClassification(orderData.vertical) || 'Projects';
+          document.getElementById('inp-ord-industry').value = orderData.industry || '';
           document.getElementById('ord-lead-id').value = orderData.leadId || '';
           document.getElementById('ord-company-id').value = orderData.companyId || window.RevOpsStore.getDefaultCompanyId();
           document.getElementById('inp-ord-remarks').value = orderData.remarks || '';
@@ -979,6 +1004,7 @@ var currentSplits = [];
         var poDate = document.getElementById('inp-ord-podate').value;
         var customerName = (document.getElementById('inp-ord-customer-select').value || document.getElementById('inp-ord-customer').value).trim();
         var vertical = document.getElementById('inp-ord-vertical').value;
+        var industry = document.getElementById('inp-ord-industry').value;
 
         var val = Math.round(activeSelectedQuote.netSubtotal || activeSelectedQuote.netTaxableAmount || 0);
         var taxAmt = Number(activeSelectedQuote.taxAmount) || 0;
@@ -1005,6 +1031,7 @@ var currentSplits = [];
           poDate: poDate,
           customerName: customerName,
           vertical: vertical,
+          industry: industry,
           orderValue: val,
           value: val,
           gstPercent: gstPct,

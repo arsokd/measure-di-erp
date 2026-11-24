@@ -144,6 +144,31 @@
         </div>
       </div>
 
+      <!-- Revenue & Pipeline by Industry (Project Sector / Origin) -->
+      <div class="bg-white rounded-2xl shadow-xs border border-slate-200 overflow-hidden space-y-4">
+        <div class="p-6 border-b border-slate-200">
+          <h2 class="text-lg font-bold text-slate-900">Revenue &amp; Pipeline by Industry</h2>
+          <p class="text-xs text-slate-500">Won order revenue and open quotation pipeline, grouped by the Lead/Quotation/Order Industry tag (Master Data &gt; Project Sector / Origin)</p>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="bg-slate-50 border-b border-slate-200 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                <th class="py-3 px-4">Industry</th>
+                <th class="py-3 px-4 text-center">Won Orders</th>
+                <th class="py-3 px-4 text-right">Won Revenue (Rs.)</th>
+                <th class="py-3 px-4 text-center">Open Quotations</th>
+                <th class="py-3 px-4 text-right">Open Quotation Value (Rs.)</th>
+              </tr>
+            </thead>
+            <tbody id="reports-industry-tbody" class="divide-y divide-slate-100 text-xs">
+              <!-- Rendered dynamically -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
     </main>
 
     <script>
@@ -170,9 +195,10 @@
         var multiCount = 0;
 
         orders.forEach(function(o) {
-          if (o.status === "Won") {
+          if (window.RevOpsStore.isOrderWon(o)) {
             totalRev += Number(o.orderValue) || 0;
-            if (o.isMultiContributor || (o.contributors && o.contributors.length > 1)) {
+            var contribsForMultiCheck = window.RevOpsStore.getOrderContributions(o);
+            if (contribsForMultiCheck.length > 1) {
               multiCount++;
             }
           }
@@ -231,11 +257,11 @@
           var dealsCount = 0;
 
           orders.forEach(function(ord) {
-            if (ord.status === "Won") {
-              var contribs = ord.contributors || [{ employeeId: ord.employeeId, contributionPct: 100 }];
+            if (window.RevOpsStore.isOrderWon(ord)) {
+              var contribs = window.RevOpsStore.getOrderContributions(ord);
               contribs.forEach(function(c) {
                 if (c.employeeId === emp.employeeId) {
-                  achievedRev += ((Number(ord.orderValue) || 0) * Number(c.contributionPct)) / 100;
+                  achievedRev += c.amount;
                   dealsCount++;
                 }
               });
@@ -256,6 +282,56 @@
           `;
           tbody.appendChild(tr);
         });
+
+        // 5. Revenue & Pipeline by Industry (Master Data > Project Sector /
+        // Origin) — per the 24-Nov K-30 review's ask to see revenue grouped
+        // by industry, now that Lead/Quotation/Order all carry the same tag.
+        var OPEN_QUOTE_STATUSES = ['Pending Approval', 'Approved', 'Sent to Customer'];
+        var allQuotes = window.RevOpsStore.getCollection('quotations') || [];
+        var industryMap = {};
+        function getIndustryBucket(name) {
+          var key = name || 'Unspecified';
+          if (!industryMap[key]) {
+            industryMap[key] = { industry: key, wonOrders: 0, wonRevenue: 0, openQuotes: 0, openQuoteValue: 0 };
+          }
+          return industryMap[key];
+        }
+        orders.forEach(function(o) {
+          if (window.RevOpsStore.isOrderWon(o)) {
+            var bucket = getIndustryBucket(o.industry);
+            bucket.wonOrders++;
+            bucket.wonRevenue += Number(o.orderValue) || 0;
+          }
+        });
+        allQuotes.forEach(function(q) {
+          if (OPEN_QUOTE_STATUSES.indexOf(q.status) === -1) return;
+          var fy = typeof getFinancialYear === 'function' ? getFinancialYear(q.createdDate) : '2026-27';
+          if (selectedFy !== 'All' && fy !== selectedFy) return;
+          var bucket = getIndustryBucket(q.industry);
+          bucket.openQuotes++;
+          bucket.openQuoteValue += Number(q.netSubtotal || q.netTaxableAmount) || 0;
+        });
+
+        var industryTbody = document.getElementById('reports-industry-tbody');
+        industryTbody.innerHTML = "";
+        var industryRows = Object.keys(industryMap).map(function(k) { return industryMap[k]; })
+          .sort(function(a, b) { return b.wonRevenue - a.wonRevenue; });
+        if (industryRows.length === 0) {
+          industryTbody.innerHTML = '<tr><td colspan="5" class="py-4 px-4 text-center text-slate-400">No orders or quotations recorded yet.</td></tr>';
+        } else {
+          industryRows.forEach(function(row) {
+            var tr2 = document.createElement('tr');
+            tr2.className = "hover:bg-slate-50 transition-colors";
+            tr2.innerHTML = `
+              <td class="py-3 px-4 font-bold text-slate-900">${escapeHtml(row.industry)}</td>
+              <td class="py-3 px-4 text-center font-bold text-slate-700">${row.wonOrders}</td>
+              <td class="py-3 px-4 text-right font-black text-emerald-600">${formatINR(row.wonRevenue)}</td>
+              <td class="py-3 px-4 text-center font-bold text-slate-700">${row.openQuotes}</td>
+              <td class="py-3 px-4 text-right font-black text-indigo-600">${formatINR(row.openQuoteValue)}</td>
+            `;
+            industryTbody.appendChild(tr2);
+          });
+        }
       }
 
       function exportToCSV(type) {
@@ -402,7 +478,7 @@
 
         // Sales Vouchers
         filteredOrders.forEach(function(o, idx) {
-          if (o.status === "Won") {
+          if (window.RevOpsStore.isOrderWon(o)) {
             var dateFormatted = formatTallyDate(o.orderDate || '2026-04-01');
             var val = Number(o.orderValue) || 0;
             var invNo = o.orderId || ('INV-2026-' + (1000 + idx));

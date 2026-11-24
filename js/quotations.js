@@ -813,6 +813,25 @@ var currentEditingQuoteId = null;
         }
       }
 
+      // Industry tag (Steel/Cement/Copper/Aluminium/Zinc/Stainless Steel/
+      // etc, per the 24-Nov K-30 review's revenue-by-industry ask) - same
+      // Master Data list ("Project Sector / Origin") Leads already use,
+      // so reports can group pipeline/revenue by it across Lead,
+      // Quotation and Order consistently. Pre-filled from the linked
+      // Lead (onLeadSelected), but always editable/pickable here too.
+      function populateQuoteIndustryDropdown() {
+        var select = document.getElementById('inp-quote-industry');
+        if (!select) return;
+        var items = (window.RevOpsStore.getCollection('projectSectorMaster') || []).filter(function(it) { return it.isActive !== false; });
+        var currentVal = select.value;
+        select.innerHTML = '<option value="">-- None --</option>' + items.map(function(it) {
+          return '<option value="' + escapeHtml(it.name) + '">' + escapeHtml(it.name) + '</option>';
+        }).join('');
+        if (currentVal && items.some(function(it) { return it.name === currentVal; })) {
+          select.value = currentVal;
+        }
+      }
+
       // Company (legal entity) — Measure DI or Aditya. Set once at Lead
       // creation and carried through via onLeadSelected above; only
       // manually pickable for a standalone quote with no linked Lead.
@@ -836,6 +855,7 @@ var currentEditingQuoteId = null;
         var modal = document.getElementById('quoteModal');
         modal.classList.remove('hidden');
         populateQuoteVerticalDropdown();
+        populateQuoteIndustryDropdown();
         populateQuoteCompanyDropdown();
         populateQuoteBankDropdown();
 
@@ -885,6 +905,7 @@ var currentEditingQuoteId = null;
             document.getElementById('inp-quote-mobile').value = q.mobile || '';
             document.getElementById('inp-quote-cc').value = q.ccEmails || '';
             document.getElementById('inp-quote-vertical').value = normalizeVerticalClassification(q.vertical) || 'Projects';
+            document.getElementById('inp-quote-industry').value = q.industry || '';
             document.getElementById('inp-quote-company').value = q.companyId || window.RevOpsStore.getDefaultCompanyId();
             document.getElementById('inp-quote-owner').value = q.employeeId || myEmpId;
             document.getElementById('inp-quote-address').value = q.address || '';
@@ -1162,6 +1183,14 @@ var currentEditingQuoteId = null;
         var vertSelect = document.getElementById('inp-quote-vertical');
         if (vertSelect) {
           vertSelect.value = targetVertical;
+        }
+
+        // 3a. Industry tag - carried from the Lead's own (Project Sector /
+        // Origin), still freely editable here afterwards.
+        var industrySelect = document.getElementById('inp-quote-industry');
+        if (industrySelect) {
+          populateQuoteIndustryDropdown();
+          industrySelect.value = lead.industry || lead.projectSector || '';
         }
 
         // 3b. Company (legal entity) — set once at Lead creation, carried
@@ -1444,6 +1473,7 @@ var currentEditingQuoteId = null;
         var mobile = document.getElementById('inp-quote-mobile').value.trim();
         var ccEmails = document.getElementById('inp-quote-cc').value.trim();
         var vertical = document.getElementById('inp-quote-vertical').value;
+        var industry = document.getElementById('inp-quote-industry').value;
         var companyId = document.getElementById('inp-quote-company').value || window.RevOpsStore.getDefaultCompanyId();
         var ownerEmpId = document.getElementById('inp-quote-owner').value;
 
@@ -1521,6 +1551,7 @@ var currentEditingQuoteId = null;
             ccEmails: ccEmails,
             address: address,
             vertical: vertical,
+            industry: industry,
             employeeId: ownerEmpId,
             employeeName: ownerName,
             createdDate: formatDateFromInput(dateVal),
@@ -1576,6 +1607,7 @@ var currentEditingQuoteId = null;
             quotes[idx].mobile = mobile;
             quotes[idx].ccEmails = ccEmails;
             quotes[idx].vertical = vertical;
+            quotes[idx].industry = industry;
             quotes[idx].companyId = companyId;
             quotes[idx].employeeId = ownerEmpId;
             quotes[idx].employeeName = ownerName;

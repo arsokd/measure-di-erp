@@ -6552,6 +6552,158 @@ async function testReviewPackPlanCommitmentsUsage(browser) {
   return failures;
 }
 
+// ---------------------------------------------------------------------
+// A-6: Industry tag (Master Data > Project Sector / Origin) carried
+// through Lead -> Quotation -> Order, so Reports can group revenue and
+// open pipeline by industry (Steel/Cement/etc, per the 24-Nov K-30
+// review). Also covers a pre-existing bug found while building this:
+// reports.html's revenue totals, personnel attribution and Tally XML
+// export all checked the legacy literal status "Won" instead of the
+// shared isOrderWon()/getOrderContributions() helpers, so every
+// currently-live order (status "Booked") was silently excluded.
+// ---------------------------------------------------------------------
+async function testIndustryTagThroughQuotationOrderReports(browser) {
+  const failures = [];
+
+  // Part A: Quotation - Industry dropdown sourced from Project Sector /
+  // Origin, carried forward from a linked Lead, and independently
+  // pickable/savable on a standalone quote.
+  {
+    const { page } = await newPage(browser);
+    await page.goto(BASE_URL + '/quotations.html', { waitUntil: 'networkidle', timeout: 30000 });
+    await page.waitForTimeout(600);
+
+    await page.evaluate(function () {
+      window.RevOpsStore.saveCollection('projectSectorMaster', [
+        { id: 'psect_steel_a6', name: 'Steel', isActive: true },
+        { id: 'psect_cement_a6', name: 'Cement', isActive: true }
+      ]);
+    });
+
+    const dropdownAndCarry = await page.evaluate(function () {
+      openQuoteModal();
+      var options = Array.from(document.getElementById('inp-quote-industry').options).map(function (o) { return o.value; });
+
+      openQuoteModal(null, { id: 'lead_ind_a6', customerName: 'Industry Carry Lead Co', vertical: 'Projects', industry: 'Steel' });
+      var carried = document.getElementById('inp-quote-industry').value;
+
+      return { options: options, carried: carried };
+    });
+    assertIncludes(dropdownAndCarry.options, 'Steel', 'Quotation Industry dropdown: sourced from Project Sector / Origin master list ("Steel" present)', failures);
+    assertIncludes(dropdownAndCarry.options, 'Cement', 'Quotation Industry dropdown: has "Cement" option', failures);
+    assertEqual(dropdownAndCarry.carried, 'Steel', 'Quotation Industry: carried forward from the linked Lead\'s own industry tag', failures);
+
+    await page.evaluate(function () { openQuoteModal(); });
+    await page.waitForTimeout(200);
+    await page.selectOption('#inp-quote-industry', 'Cement');
+    await page.fill('#inp-quote-customer', 'Industry Manual Pick Quote Co');
+    await page.fill('#inp-quote-contact', 'Test Contact');
+    await page.fill('#inp-quote-remarks', 'Regression test remarks.');
+    await page.fill('#inp-quote-followup-date', '2030-06-20');
+    const savedQuote = await page.evaluate(function () {
+      document.getElementById('quoteForm').requestSubmit();
+      return (window.RevOpsStore.getCollection('quotations') || []).find(function (q) { return q.customerName === 'Industry Manual Pick Quote Co'; });
+    });
+    assertTrue(!!savedQuote, 'Quotation saves successfully with a manually-picked Industry', failures);
+    if (savedQuote) assertEqual(savedQuote.industry, 'Cement', 'Quotation save: manually-picked Industry persists to the record', failures);
+
+    await page.close();
+  }
+
+  // Part B: Order - Industry carried forward from the linked Quotation
+  // when booking, and prefilled back on edit of an existing order.
+  {
+    const { page } = await newPage(browser);
+    await page.goto(BASE_URL + '/orders.html', { waitUntil: 'networkidle', timeout: 30000 });
+    await page.waitForTimeout(600);
+    await closeAssignedTicketsPopupIfAny(page);
+
+    await page.evaluate(function () {
+      window.RevOpsStore.saveCollection('projectSectorMaster', [
+        { id: 'psect_steel_a6', name: 'Steel', isActive: true },
+        { id: 'psect_cement_a6', name: 'Cement', isActive: true }
+      ]);
+      window.RevOpsStore.saveCollection('quotations', [{
+        id: 'quo_ind_a6', quoteNumber: 'QT-INDA6-01', revision: 1, customerName: 'Industry Order Test Co',
+        employeeId: 'E-002', employeeName: 'Test Employee', vertical: 'Projects', industry: 'Cement',
+        status: 'Approved', netSubtotal: 400000, grandTotal: 472000, advancePercent: 50, items: []
+      }]);
+    });
+
+    const carriedToOrder = await page.evaluate(function () {
+      openOrderModal(null, 'quo_ind_a6');
+      return document.getElementById('inp-ord-industry').value;
+    });
+    assertEqual(carriedToOrder, 'Cement', 'Order Industry: carried forward from the linked Quotation when booking', failures);
+
+    await page.evaluate(function () {
+      currentSplits = [{ employeeId: 'E-002', percent: 100, role: 'Closing' }];
+    });
+    await page.fill('#inp-ord-ponum', 'PO-INDA6-01');
+    await page.fill('#inp-ord-podate', '2026-06-01');
+    await page.fill('#inp-ord-remarks', 'Regression test remarks.');
+    const savedOrder = await page.evaluate(function () {
+      document.getElementById('order-form').requestSubmit();
+      return (window.RevOpsStore.getCollection('orders') || []).find(function (o) { return o.poNumber === 'PO-INDA6-01'; });
+    });
+    assertTrue(!!savedOrder, 'Order booked from a linked Quotation saves successfully', failures);
+    if (savedOrder) assertEqual(savedOrder.industry, 'Cement', 'Order save: Industry carried from the linked Quotation persists to the record', failures);
+
+    const editPrefill = await page.evaluate(function () {
+      window.RevOpsStore.saveCollection('orders', (window.RevOpsStore.getCollection('orders') || []).concat([
+        { id: 'order_ind_edit_a6', poNumber: 'PO-INDA6-EDIT', customerName: 'Industry Edit Test Co', industry: 'Steel', splits: [{ employeeId: 'E-002', percent: 100, role: 'Closing' }] }
+      ]));
+      editOrder('order_ind_edit_a6');
+      return document.getElementById('inp-ord-industry').value;
+    });
+    assertEqual(editPrefill, 'Steel', 'Order Industry: an existing order\'s saved Industry pre-fills back into the field on edit', failures);
+
+    await page.evaluate(function () { window.RevOpsStore.saveCollection('orders', []); closeOrderModal(); });
+    await page.close();
+  }
+
+  // Part C: Reports - Revenue & Pipeline by Industry table, and the
+  // isOrderWon()/getOrderContributions() fix (previously the page only
+  // matched the legacy literal status "Won", so every live "Booked"
+  // order - the only status real bookings ever get - was invisible to
+  // the revenue totals, personnel breakdown and Tally XML export).
+  {
+    const { page } = await newPage(browser);
+    await page.goto(BASE_URL + '/reports.html', { waitUntil: 'networkidle', timeout: 30000 });
+    await page.waitForTimeout(600);
+
+    await page.evaluate(function () {
+      window.RevOpsStore.saveCollection('orders', [
+        { id: 'ord_ind_booked_a6', poNumber: 'PO-INDA6-C1', status: 'Booked', industry: 'Steel', orderValue: 500000, orderDate: '2026-06-15', employeeId: 'E-002', splits: [{ employeeId: 'E-002', percent: 100, role: 'Closing' }] },
+        { id: 'ord_ind_legacywon_a6', poNumber: 'PO-INDA6-C2', status: 'Won', industry: 'Cement', orderValue: 300000, orderDate: '2025-06-15', employeeId: 'E-002', contributors: [{ employeeId: 'E-002', contributionPct: 100 }] }
+      ]);
+      window.RevOpsStore.saveCollection('quotations', [
+        { id: 'quo_ind_open_a6', quoteNumber: 'QT-INDA6-C1', status: 'Approved', industry: 'Steel', netSubtotal: 200000, createdDate: '10/01/2026' }
+      ]);
+      document.getElementById('rpt-fy-select').value = 'All';
+      renderReportsData();
+    });
+    await page.waitForTimeout(200);
+
+    const reportState = await page.evaluate(function () {
+      return {
+        totalRev: document.getElementById('rpt-total-rev').innerText,
+        industryTableText: document.getElementById('reports-industry-tbody').innerText
+      };
+    });
+    assertEqual(reportState.totalRev, '₹8.00 L', 'Reports: Overall Revenue counts a "Booked" order AND a legacy "Won" order (isOrderWon fix) - was previously ₹0 for any live order', failures);
+    assertTrue(reportState.industryTableText.indexOf('Steel') !== -1, 'Reports > Revenue & Pipeline by Industry: shows a "Steel" row', failures);
+    assertTrue(reportState.industryTableText.indexOf('Cement') !== -1, 'Reports > Revenue & Pipeline by Industry: shows a "Cement" row', failures);
+    assertTrue(reportState.industryTableText.indexOf('₹5.00 L') !== -1, 'Reports > Revenue & Pipeline by Industry: Steel Won Revenue is ₹5.00 L', failures);
+    assertTrue(reportState.industryTableText.indexOf('₹3.00 L') !== -1, 'Reports > Revenue & Pipeline by Industry: Cement Won Revenue is ₹3.00 L', failures);
+    assertTrue(reportState.industryTableText.indexOf('₹2.00 L') !== -1, 'Reports > Revenue & Pipeline by Industry: Steel Open Quotation Value is ₹2.00 L', failures);
+
+    await page.close();
+  }
+
+  return failures;
+}
+
 const TESTS = [
   ['SLA day-based seeding, migration, severity dropdown & date math', testSlaDayBasedSeedingAndMigration],
   ['Ticket email subject line', testQuotationVerticalAndTicketSubject],
@@ -6622,7 +6774,8 @@ const TESTS = [
   ['Emailing an attachment (not just uploading it) is capped at a real, deliverable 25 MB per message, resolved server-side instead of through the browser\'s own POST body', testEmailAttachmentSizeLimitAndServerSideRefs],
   ['Commitment Register: overdue detection, the daily Commitments Due popup with one-click Done, Super Admin/Admin-only delete', testCommitmentRegister],
   ['Monthly Plan vs Actual: real auto-computed actuals, KRA-sourced default target, and next month\'s carry-forward of the unachieved balance', testMonthlyPlanVsActual],
-  ['Individual Review Pack: Commitments kept/missed, Plan vs Actual (Value) and a real throttled App Usage stamp from checkAuth', testReviewPackPlanCommitmentsUsage]
+  ['Individual Review Pack: Commitments kept/missed, Plan vs Actual (Value) and a real throttled App Usage stamp from checkAuth', testReviewPackPlanCommitmentsUsage],
+  ['A-6: Industry tag carried through Quotation/Order, Reports "Revenue & Pipeline by Industry" table, and the isOrderWon() fix for live "Booked" orders', testIndustryTagThroughQuotationOrderReports]
 ];
 
 (async () => {
