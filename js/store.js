@@ -90,7 +90,7 @@ Object.assign(window.RevOpsStore, {
 
   reseedAllData: function() {
     console.log("Force re-seeding complete RevOps dataset...");
-    var collections = ['employees', 'kraTargets', 'aopTargets', 'orders', 'dwmActivities', 'attendance', 'leads', 'payments', 'reviews', 'expenses', 'projectsMaster', 'clientsMaster', 'sparePartsMaster', 'productsMaster', 'bankDetailsMaster', 'clientEquipmentMaster', 'auditLogs', 'expenseSplits', 'travelPolicyMaster', 'travelApprovals', 'budgets', 'serviceTickets', 'quotations', 'invoices', 'commitments'];
+    var collections = ['employees', 'kraTargets', 'aopTargets', 'orders', 'dwmActivities', 'attendance', 'leads', 'payments', 'reviews', 'expenses', 'projectsMaster', 'clientsMaster', 'sparePartsMaster', 'productsMaster', 'bankDetailsMaster', 'clientEquipmentMaster', 'auditLogs', 'expenseSplits', 'travelPolicyMaster', 'travelApprovals', 'budgets', 'serviceTickets', 'quotations', 'invoices', 'commitments', 'monthlyPlans'];
     collections.forEach(function(c) { localStorage.removeItem(c); });
     localStorage.removeItem('revops_seeded_v17');
     localStorage.removeItem('revops_seeded_v18');
@@ -217,7 +217,7 @@ Object.assign(window.RevOpsStore, {
     if (!window.db) return;
     console.log("Syncing data to Firebase Firestore...");
     var self = this;
-    var collections = ['employees', 'kraTargets', 'aopTargets', 'orders', 'dwmActivities', 'attendance', 'leads', 'payments', 'reviews', 'expenses', 'projectsMaster', 'clientsMaster', 'sparePartsMaster', 'productsMaster', 'bankDetailsMaster', 'clientEquipmentMaster', 'auditLogs', 'expenseSplits', 'travelPolicyMaster', 'travelApprovals', 'budgets', 'serviceTickets', 'quotations', 'invoices', 'commitments'];
+    var collections = ['employees', 'kraTargets', 'aopTargets', 'orders', 'dwmActivities', 'attendance', 'leads', 'payments', 'reviews', 'expenses', 'projectsMaster', 'clientsMaster', 'sparePartsMaster', 'productsMaster', 'bankDetailsMaster', 'clientEquipmentMaster', 'auditLogs', 'expenseSplits', 'travelPolicyMaster', 'travelApprovals', 'budgets', 'serviceTickets', 'quotations', 'invoices', 'commitments', 'monthlyPlans'];
     collections.forEach(function(colName) {
       var items = window.RevOpsStore.getCollection(colName) || [];
       items.forEach(function(item) {
@@ -2069,7 +2069,7 @@ Object.assign(window.RevOpsStore, {
     // that change back down, so two devices on the same account silently
     // diverge forever (e.g. one shows 3 HSN codes, another shows 5) - each
     // only ever sees whatever it personally added.
-    var collections = ['employees', 'kraTargets', 'aopTargets', 'orders', 'dwmActivities', 'attendance', 'leads', 'payments', 'reviews', 'expenses', 'projectsMaster', 'clientsMaster', 'sparePartsMaster', 'expenseSplits', 'travelPolicyMaster', 'travelApprovals', 'budgets', 'serviceTickets', 'quotations', 'invoices', 'productsMaster', 'clientEquipmentMaster', 'bankDetailsMaster', 'companyMaster', 'leadSourceMaster', 'industryVerticalMaster', 'projectSectorMaster', 'verticalClassificationMaster', 'currencyMaster', 'hsnCodeMaster', 'sparePartCategoryMaster', 'complaintCategoryMaster', 'slaResponseTierMaster', 'amcContractTierMaster', 'pmVisitFrequencyMaster', 'amcInvoicingMilestoneMaster', 'amcContractDurationMaster', 'componentsMaster', 'productBomLines', 'commitments'];
+    var collections = ['employees', 'kraTargets', 'aopTargets', 'orders', 'dwmActivities', 'attendance', 'leads', 'payments', 'reviews', 'expenses', 'projectsMaster', 'clientsMaster', 'sparePartsMaster', 'expenseSplits', 'travelPolicyMaster', 'travelApprovals', 'budgets', 'serviceTickets', 'quotations', 'invoices', 'productsMaster', 'clientEquipmentMaster', 'bankDetailsMaster', 'companyMaster', 'leadSourceMaster', 'industryVerticalMaster', 'projectSectorMaster', 'verticalClassificationMaster', 'currencyMaster', 'hsnCodeMaster', 'sparePartCategoryMaster', 'complaintCategoryMaster', 'slaResponseTierMaster', 'amcContractTierMaster', 'pmVisitFrequencyMaster', 'amcInvoicingMilestoneMaster', 'amcContractDurationMaster', 'componentsMaster', 'productBomLines', 'commitments', 'monthlyPlans'];
     var self = this;
     collections.forEach(function(colName) {
       try {
@@ -3860,6 +3860,124 @@ Object.assign(window.RevOpsStore, {
       this.logAudit('Commitments', rec.id, 'UPDATE', 'Commitment status set to "' + newStatus + '"', oldState, rec);
     }
     return { success: true, record: rec };
+  },
+
+  // ============ MONTHLY PLAN VS ACTUAL (A-2) ============
+  // Each field person's monthly plan (visits, enquiries, quotations,
+  // orders, value target) vs. what they actually achieved - per the
+  // 24-Nov K-30 review's own ask. Actuals are NEVER stored: they're
+  // always computed fresh from Leads/Quotations/Orders, the same "real
+  // data, not a typed-in guess" principle the revenue-achievement KRA
+  // already uses - so this can never go stale the way a manually-logged
+  // actual could.
+  MONTHLY_PLAN_METRICS: ['visits', 'enquiries', 'quotations', 'orders', 'value'],
+
+  // Matches a date in any of this app's two date formats (DD/MM/YYYY,
+  // used by Leads/Quotations' createdDate, or ISO YYYY-MM-DD, used by
+  // Orders' poDate) against a 'YYYY-MM' month label.
+  _dateInYearMonth: function(dateStr, yearMonth) {
+    if (!dateStr) return false;
+    var d = String(dateStr).indexOf('/') !== -1 ? parseDateDDMMYYYY(dateStr) : new Date(dateStr);
+    if (isNaN(d.getTime())) return false;
+    var ym = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+    return ym === yearMonth;
+  },
+
+  // Live actuals for one person, one month - enquiries/quotations/orders
+  // are simple counts; value is this person's own contribution-split
+  // share of won orders' revenue (RevOpsStore.getOrderContributions),
+  // exactly like the Scorecard's revenue KRA.
+  getMonthlyPlanActuals: function(employeeId, yearMonth) {
+    var self = this;
+    var leads = this.getCollection('leads') || [];
+    var quotations = this.getCollection('quotations') || [];
+    var orders = this.getCollection('orders') || [];
+
+    var enquiries = leads.filter(function(l) {
+      return l.employeeId === employeeId && self._dateInYearMonth(l.createdDate, yearMonth);
+    }).length;
+
+    var quotationsCount = quotations.filter(function(q) {
+      return q.employeeId === employeeId && self._dateInYearMonth(q.createdDate, yearMonth);
+    }).length;
+
+    var ordersCount = 0;
+    var value = 0;
+    orders.forEach(function(ord) {
+      if (!self.isOrderWon(ord)) return;
+      if (!self._dateInYearMonth(ord.poDate || ord.orderDate, yearMonth)) return;
+      var mine = self.getOrderContributions(ord).find(function(c) { return c.employeeId === employeeId; });
+      if (mine) { ordersCount++; value += mine.amount; }
+    });
+
+    return { enquiries: enquiries, quotations: quotationsCount, orders: ordersCount, value: Math.round(value) };
+  },
+
+  // Finds this employee's matching KRA's monthlyTarget - the same "base"
+  // monthly figure Admin/Director already set in KRA Targets - by the
+  // same fuzzy kraName matching the Scorecard already uses, rather than
+  // a second, narrower one. nameMatcher gets the lowercased kraName.
+  _findKraMonthlyTarget: function(employeeId, financialYear, nameMatcher) {
+    var kras = this.getCollection('kraTargets') || [];
+    var match = kras.find(function(k) {
+      return k.employeeId === employeeId && (!k.financialYear || k.financialYear === financialYear) && nameMatcher((k.kraName || '').toLowerCase());
+    });
+    return match ? (Number(match.monthlyTarget) || 0) : 0;
+  },
+
+  _priorYearMonth: function(yearMonth) {
+    var m = /^(\d{4})-(\d{2})$/.exec(String(yearMonth || ''));
+    if (!m) return null;
+    var year = parseInt(m[1], 10), month = parseInt(m[2], 10) - 1;
+    if (month < 1) { month = 12; year -= 1; }
+    return year + '-' + String(month).padStart(2, '0');
+  },
+
+  // Returns the stored plan for this person/month if one exists, else a
+  // fresh, not-yet-saved default: the Value target starts from this
+  // month's own KRA-set base PLUS whatever shortfall is still owed from
+  // last month (D-10's carry-forward) - the two kept as separate numbers
+  // (originalPlanValue / carriedFromPrevMonth) so neither gets silently
+  // absorbed into the other; planValue is their sum, and is what actually
+  // gets saved/edited.
+  getOrCreateMonthlyPlan: function(employeeId, yearMonth) {
+    var plans = this.getCollection('monthlyPlans') || [];
+    var existing = plans.find(function(p) { return p.employeeId === employeeId && p.month === yearMonth; });
+    if (existing) return Object.assign({ isNew: false }, existing);
+
+    var financialYear = getFinancialYear(yearMonth + '-01');
+    var baseValueTarget = this._findKraMonthlyTarget(employeeId, financialYear, function(n) {
+      return n.indexOf('over all orders') !== -1 || n.indexOf('onboard order') !== -1 || n.indexOf('order') !== -1 || n.indexOf('revenue') !== -1 || n.indexOf('spares') !== -1;
+    });
+    var baseEnquiriesTarget = this._findKraMonthlyTarget(employeeId, financialYear, function(n) {
+      return n.indexOf('lead') !== -1;
+    });
+
+    var prevYearMonth = this._priorYearMonth(yearMonth);
+    var prevPlan = prevYearMonth ? plans.find(function(p) { return p.employeeId === employeeId && p.month === prevYearMonth; }) : null;
+    var carriedValue = 0;
+    if (prevPlan) {
+      var prevActuals = this.getMonthlyPlanActuals(employeeId, prevYearMonth);
+      carriedValue = Math.max(0, (Number(prevPlan.planValue) || 0) - (prevActuals.value || 0));
+    }
+
+    return {
+      id: null, employeeId: employeeId, month: yearMonth, financialYear: financialYear,
+      planVisits: 0, planEnquiries: baseEnquiriesTarget, planQuotations: 0, planOrders: 0,
+      originalPlanValue: baseValueTarget, carriedFromPrevMonth: carriedValue, planValue: baseValueTarget + carriedValue,
+      actualVisits: 0, isNew: true
+    };
+  },
+
+  saveMonthlyPlan: function(record) {
+    var items = this.getCollection('monthlyPlans') || [];
+    var idx = items.findIndex(function(it) { return it.employeeId === record.employeeId && it.month === record.month; });
+    var toSave = Object.assign({}, record);
+    delete toSave.isNew;
+    toSave.id = idx >= 0 ? items[idx].id : (toSave.id || ('plan_' + record.employeeId + '_' + record.month));
+    toSave.updatedAt = new Date().toISOString();
+    this.saveRecord('monthlyPlans', toSave);
+    return toSave;
   }
 });
 

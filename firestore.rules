@@ -149,6 +149,7 @@ service cloud.firestore {
     match /reviews/{docId}          { allow read: if signedIn(); allow create: if canCreateOwnRecord(); allow update: if isOwnerOrAdmin(); allow delete: if isLeadershipOrAdmin(); }
     match /payments/{docId}         { allow read: if signedIn(); allow create: if canCreateOwnRecord(); allow update: if isOwnerOrAdmin(); allow delete: if isLeadershipOrAdmin(); }
     match /commitments/{docId}      { allow read: if signedIn(); allow create: if canCreateOwnRecord(); allow update: if isOwnerOrAdmin(); allow delete: if isLeadershipOrAdmin(); }
+    match /monthlyPlans/{docId}     { allow read: if signedIn(); allow create: if canCreateOwnRecord(); allow update: if isOwnerOrAdmin(); allow delete: if isLeadershipOrAdmin(); }
 
     // ---- Diagnostics collections: any signed-in user may create an entry
     // (their own error/report), only admins may read or manage the list,

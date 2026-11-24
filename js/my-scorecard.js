@@ -412,4 +412,136 @@ var viewingEmpId = null;
           });
         }
         document.getElementById('daily-controls-list').innerHTML = dcListHtml;
+
+        populateMonthlyPlanMonthSelect();
+        renderMonthlyPlanSection();
       }
+
+      // ============ MONTHLY PLAN VS ACTUAL (A-2) ============
+
+      function _currentYearMonth() {
+        var d = new Date();
+        return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+      }
+
+      function _yearMonthLabel(yearMonth) {
+        var m = /^(\d{4})-(\d{2})$/.exec(yearMonth || '');
+        if (!m) return yearMonth;
+        var names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        return names[parseInt(m[2], 10) - 1] + ' ' + m[1];
+      }
+
+      // Last 6 months (this one first, most recent to oldest) - keeps the
+      // dropdown short and relevant rather than offering the dawn of time.
+      function populateMonthlyPlanMonthSelect() {
+        var select = document.getElementById('plan-month-select');
+        if (!select) return;
+        var currentVal = select.value;
+        var now = new Date();
+        var options = [];
+        for (var i = 0; i < 6; i++) {
+          var d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+          var ym = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+          options.push('<option value="' + ym + '">' + _yearMonthLabel(ym) + '</option>');
+        }
+        select.innerHTML = options.join('');
+        select.value = currentVal && options.some(function(o) { return o.indexOf('value="' + currentVal + '"') !== -1; }) ? currentVal : _currentYearMonth();
+      }
+
+      function renderMonthlyPlanSection() {
+        var select = document.getElementById('plan-month-select');
+        var yearMonth = (select && select.value) || _currentYearMonth();
+        var empId = viewingEmpId;
+        if (!empId) return;
+
+        var plan = window.RevOpsStore.getOrCreateMonthlyPlan(empId, yearMonth);
+        var actuals = window.RevOpsStore.getMonthlyPlanActuals(empId, yearMonth);
+
+        var rows = [
+          { label: 'Visits', target: Number(plan.planVisits) || 0, actual: Number(plan.actualVisits) || 0 },
+          { label: 'Enquiries', target: Number(plan.planEnquiries) || 0, actual: actuals.enquiries },
+          { label: 'Quotations', target: Number(plan.planQuotations) || 0, actual: actuals.quotations },
+          { label: 'Orders', target: Number(plan.planOrders) || 0, actual: actuals.orders },
+          { label: 'Value (₹)', target: Number(plan.planValue) || 0, actual: actuals.value, isCurrency: true }
+        ];
+
+        var tbody = document.getElementById('monthly-plan-tbody');
+        tbody.innerHTML = rows.map(function(r) {
+          var pct = r.target > 0 ? Math.round((r.actual / r.target) * 100) : (r.actual > 0 ? 100 : 0);
+          var gap = r.target - r.actual;
+          var pctClass = pct >= 90 ? 'text-emerald-600' : (pct >= 60 ? 'text-amber-600' : 'text-rose-600');
+          var fmt = function(n) { return r.isCurrency ? ('₹' + Number(n).toLocaleString('en-IN')) : Number(n).toLocaleString('en-IN'); };
+          return '<tr class="border-t border-slate-100">' +
+            '<td class="py-2 pr-4 font-semibold text-slate-700">' + escapeHtml(r.label) + '</td>' +
+            '<td class="py-2 pr-4 text-slate-600">' + fmt(r.target) + '</td>' +
+            '<td class="py-2 pr-4 text-slate-900 font-bold">' + fmt(r.actual) + '</td>' +
+            '<td class="py-2 pr-4 font-bold ' + pctClass + '">' + pct + '%</td>' +
+            '<td class="py-2 pr-4 ' + (gap > 0 ? 'text-rose-600' : 'text-emerald-600') + '">' + (gap > 0 ? fmt(gap) + ' short' : 'Met') + '</td>' +
+            '</tr>';
+        }).join('');
+      }
+      window.renderMonthlyPlanSection = renderMonthlyPlanSection;
+
+      function openMonthlyPlanModal() {
+        var select = document.getElementById('plan-month-select');
+        var yearMonth = (select && select.value) || _currentYearMonth();
+        var empId = viewingEmpId;
+        if (!empId) return;
+
+        var plan = window.RevOpsStore.getOrCreateMonthlyPlan(empId, yearMonth);
+        document.getElementById('monthly-plan-modal-title').innerText = _yearMonthLabel(yearMonth) + "'s Plan";
+        document.getElementById('inp-plan-visits').value = plan.planVisits || 0;
+        document.getElementById('inp-plan-enquiries').value = plan.planEnquiries || 0;
+        document.getElementById('inp-plan-quotations').value = plan.planQuotations || 0;
+        document.getElementById('inp-plan-orders').value = plan.planOrders || 0;
+        document.getElementById('inp-plan-value').value = plan.planValue || 0;
+        document.getElementById('inp-plan-actual-visits').value = plan.actualVisits || 0;
+
+        var breakdown = document.getElementById('plan-value-breakdown');
+        if (plan.isNew && (plan.carriedFromPrevMonth > 0 || plan.originalPlanValue > 0)) {
+          breakdown.innerText = 'Base target: ₹' + Number(plan.originalPlanValue || 0).toLocaleString('en-IN') +
+            (plan.carriedFromPrevMonth > 0 ? ' + Carried from last month (unachieved): ₹' + Number(plan.carriedFromPrevMonth).toLocaleString('en-IN') : '');
+        } else {
+          breakdown.innerText = '';
+        }
+
+        document.getElementById('monthly-plan-modal').classList.remove('hidden');
+      }
+      window.openMonthlyPlanModal = openMonthlyPlanModal;
+
+      function closeMonthlyPlanModal() {
+        document.getElementById('monthly-plan-modal').classList.add('hidden');
+      }
+      window.closeMonthlyPlanModal = closeMonthlyPlanModal;
+
+      function handleSaveMonthlyPlan(e) {
+        e.preventDefault();
+        var select = document.getElementById('plan-month-select');
+        var yearMonth = (select && select.value) || _currentYearMonth();
+        var empId = viewingEmpId;
+        if (!empId) return;
+
+        var existingPlan = window.RevOpsStore.getOrCreateMonthlyPlan(empId, yearMonth);
+        var record = {
+          employeeId: empId,
+          month: yearMonth,
+          financialYear: existingPlan.financialYear,
+          planVisits: Number(document.getElementById('inp-plan-visits').value) || 0,
+          planEnquiries: Number(document.getElementById('inp-plan-enquiries').value) || 0,
+          planQuotations: Number(document.getElementById('inp-plan-quotations').value) || 0,
+          planOrders: Number(document.getElementById('inp-plan-orders').value) || 0,
+          planValue: Number(document.getElementById('inp-plan-value').value) || 0,
+          originalPlanValue: existingPlan.originalPlanValue || 0,
+          carriedFromPrevMonth: existingPlan.carriedFromPrevMonth || 0,
+          actualVisits: Number(document.getElementById('inp-plan-actual-visits').value) || 0
+        };
+        window.RevOpsStore.saveMonthlyPlan(record);
+
+        if (window.RevOpsStore.logAudit) {
+          window.RevOpsStore.logAudit('MonthlyPlans', empId + '_' + yearMonth, existingPlan.isNew ? 'CREATE' : 'UPDATE', 'Monthly plan saved for ' + _yearMonthLabel(yearMonth), existingPlan.isNew ? null : existingPlan, record);
+        }
+
+        closeMonthlyPlanModal();
+        renderMonthlyPlanSection();
+      }
+      window.handleSaveMonthlyPlan = handleSaveMonthlyPlan;

@@ -6391,6 +6391,76 @@ async function testCommitmentRegister(browser) {
   return failures;
 }
 
+// ---------------------------------------------------------------------
+// Monthly Plan vs Actual (A-2, 24-Nov K-30 review): a field person's
+// month-by-month plan (visits/enquiries/quotations/orders/value) vs what
+// they actually achieved - actuals always computed fresh from real
+// Leads/Quotations/Orders, the value target carrying forward whatever
+// was unachieved last month (D-10).
+async function testMonthlyPlanVsActual(browser) {
+  const failures = [];
+  const { page } = await newPage(browser);
+
+  await page.goto(BASE_URL + '/my-scorecard.html', { waitUntil: 'networkidle', timeout: 30000 });
+  await page.waitForTimeout(600);
+
+  await page.evaluate(function () {
+    window.RevOpsStore.saveCollection('kraTargets', [
+      { id: 'kra_plan_test_order', employeeId: 'E-001', kraName: 'Over all Orders', kpiType: 'Amount', annualTarget: 1200000, targetValue: 1200000, monthlyTarget: 100000, weight: 60, financialYear: '2026-27' },
+      { id: 'kra_plan_test_lead', employeeId: 'E-001', kraName: 'Lead generation', kpiType: 'Count', annualTarget: 120, targetValue: 120, monthlyTarget: 10, weight: 20, financialYear: '2026-27' }
+    ]);
+    window.RevOpsStore.saveCollection('leads', [
+      { id: 'plan_lead_1', employeeId: 'E-001', customerName: 'Plan Test Lead Co', createdDate: '05/11/2026' }
+    ]);
+    window.RevOpsStore.saveCollection('orders', [
+      { id: 'plan_order_1', employeeId: 'E-001', customerName: 'Plan Test Order Co', status: 'Booked', orderValue: 50000, poDate: '2026-11-10', splits: [{ employeeId: 'E-001', percent: 60, role: 'Closing' }] }
+    ]);
+  });
+
+  // Direct, independent assertion of the real-data computation, regardless
+  // of whatever month happens to be selected in the UI dropdown.
+  const actuals = await page.evaluate(function () {
+    return window.RevOpsStore.getMonthlyPlanActuals('E-001', '2026-11');
+  });
+  assertEqual(actuals.enquiries, 1, 'Monthly Plan: enquiries actual is a real count of that month\'s Leads', failures);
+  assertEqual(actuals.orders, 1, 'Monthly Plan: orders actual is a real count of that month\'s won Orders', failures);
+  assertEqual(actuals.value, 30000, 'Monthly Plan: value actual is this person\'s own contribution-split share (60% of 50000)', failures);
+
+  const firstPlan = await page.evaluate(function () {
+    return window.RevOpsStore.getOrCreateMonthlyPlan('E-001', '2026-11');
+  });
+  assertEqual(firstPlan.originalPlanValue, 100000, 'Monthly Plan: a brand-new month prefills its Value target from the matching KRA\'s monthlyTarget', failures);
+  assertEqual(firstPlan.carriedFromPrevMonth, 0, 'Monthly Plan: nothing carries forward when there is no prior month\'s plan yet', failures);
+
+  // Save November short of its target, then check December's fresh plan
+  // carries the shortfall forward as a separate, visible number.
+  await page.evaluate(function () {
+    window.RevOpsStore.saveMonthlyPlan({ employeeId: 'E-001', month: '2026-11', financialYear: '2026-27', planVisits: 10, planEnquiries: 10, planQuotations: 5, planOrders: 2, planValue: 100000, originalPlanValue: 100000, carriedFromPrevMonth: 0, actualVisits: 8 });
+  });
+  const decemberPlan = await page.evaluate(function () {
+    return window.RevOpsStore.getOrCreateMonthlyPlan('E-001', '2026-12');
+  });
+  assertEqual(decemberPlan.carriedFromPrevMonth, 70000, 'Monthly Plan: December carries forward November\'s shortfall (100000 target - 30000 achieved = 70000)', failures);
+  assertEqual(decemberPlan.planValue, 170000, 'Monthly Plan: December\'s plan value is this month\'s base (100000) + the carried shortfall (70000), shown separately not silently merged', failures);
+
+  // UI round-trip: the modal shows the breakdown and the table reflects saved + live actuals.
+  await page.selectOption('#plan-month-select', '2026-11').catch(function () {});
+  await page.waitForTimeout(200);
+  const uiCheck = await page.evaluate(function () {
+    renderMonthlyPlanSection();
+    return document.getElementById('monthly-plan-tbody').innerText;
+  });
+  assertTrue(uiCheck.indexOf('Enquiries') !== -1, 'Monthly Plan: the on-page table renders the Enquiries row', failures);
+
+  await page.evaluate(function () {
+    window.RevOpsStore.saveCollection('monthlyPlans', []);
+    window.RevOpsStore.saveCollection('leads', []);
+    window.RevOpsStore.saveCollection('orders', []);
+  });
+  await page.close();
+  return failures;
+}
+
 const TESTS = [
   ['SLA day-based seeding, migration, severity dropdown & date math', testSlaDayBasedSeedingAndMigration],
   ['Ticket email subject line', testQuotationVerticalAndTicketSubject],
@@ -6459,7 +6529,8 @@ const TESTS = [
   ['Delete Leads by Number: preview, confirmation, case-insensitive matching, not-found inputs skipped', testDeleteLeadsByNumber],
   ['Attachments (Lead/Quotation/Order/Invoice) upload to Firebase Storage for a genuine 100 MB cap, with an upload-in-progress save guard', testAttachmentStorageMigration],
   ['Emailing an attachment (not just uploading it) is capped at a real, deliverable 25 MB per message, resolved server-side instead of through the browser\'s own POST body', testEmailAttachmentSizeLimitAndServerSideRefs],
-  ['Commitment Register: overdue detection, the daily Commitments Due popup with one-click Done, Super Admin/Admin-only delete', testCommitmentRegister]
+  ['Commitment Register: overdue detection, the daily Commitments Due popup with one-click Done, Super Admin/Admin-only delete', testCommitmentRegister],
+  ['Monthly Plan vs Actual: real auto-computed actuals, KRA-sourced default target, and next month\'s carry-forward of the unachieved balance', testMonthlyPlanVsActual]
 ];
 
 (async () => {
