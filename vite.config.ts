@@ -90,6 +90,7 @@ export default defineConfig(({ mode }) => {
           login: path.resolve(__dirname, 'login.html'),
           dashboard: path.resolve(__dirname, 'dashboard.html'),
           myScorecard: path.resolve(__dirname, 'my-scorecard.html'),
+          commitments: path.resolve(__dirname, 'commitments.html'),
           employees: path.resolve(__dirname, 'employees.html'),
           kraTargets: path.resolve(__dirname, 'kra-targets.html'),
           aopTargets: path.resolve(__dirname, 'aop-targets.html'),

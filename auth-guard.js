@@ -426,15 +426,88 @@ function checkFollowUpDuePopup() {
 }
 window.checkFollowUpDuePopup = checkFollowUpDuePopup;
 
+// Persistent "Commitments Due" popup - same never-permanently-dismissible
+// design as the Follow-ups Due popup above (re-checks on every page load
+// for as long as anything is overdue/due today), per the Director's own
+// ask: "every commitment is recorded and reviewed" with a daily reminder
+// to its owner. Positioned at the opposite corner from Follow-ups Due so
+// the two can both be on screen without overlapping.
+function checkCommitmentsDuePopup() {
+  try {
+    var empId = localStorage.getItem('employeeId');
+    var popupId = 'commitments-due-global-popup';
+    var existing = document.getElementById(popupId);
+    if (!empId || !window.RevOpsStore || typeof window.RevOpsStore.getDueCommitments !== 'function') {
+      if (existing) existing.remove();
+      return;
+    }
+
+    var due = window.RevOpsStore.getDueCommitments(empId);
+    if (due.length === 0) {
+      if (existing) existing.remove();
+      return;
+    }
+
+    if (existing) existing.remove();
+
+    var popup = document.createElement('div');
+    popup.id = popupId;
+    popup.className = 'fixed top-20 right-5 left-3 md:left-auto z-50 max-w-sm md:w-full bg-slate-900 border-2 border-indigo-600/80 rounded-2xl shadow-2xl p-4 text-white';
+    popup.innerHTML = `
+      <div id="commitments-due-popup-handle" class="flex items-center gap-2 pb-2 border-b border-slate-800 cursor-move select-none" title="Drag to move">
+        <div class="w-7 h-7 rounded-lg bg-indigo-600 flex items-center justify-center text-sm shrink-0">📌</div>
+        <div class="min-w-0 flex-1">
+          <h4 class="text-xs font-black uppercase tracking-wider text-indigo-400">Commitments Due</h4>
+          <p class="text-[11px] text-slate-300">${due.length} commitment(s) overdue or due today.</p>
+        </div>
+        <i class="fa-solid fa-up-down-left-right text-slate-600 text-xs shrink-0"></i>
+      </div>
+      <div class="py-2 space-y-1.5 max-h-48 overflow-y-auto">
+        ${due.map(function(item) {
+          var isOverdue = window.RevOpsStore.isCommitmentOverdue(item);
+          return `
+            <div class="flex items-center justify-between bg-slate-800/90 px-2.5 py-1.5 rounded-lg border ${isOverdue ? 'border-rose-700/70' : 'border-slate-700'} text-xs gap-2">
+              <div class="min-w-0">
+                <div class="font-semibold text-slate-100 truncate" title="${escapeHtml(item.commitment || '')}">${escapeHtml(item.commitment || '')}</div>
+                <div class="text-[10px] ${isOverdue ? 'text-rose-400 font-bold' : 'text-slate-400'}">${isOverdue ? 'Overdue' : 'Due today'} &bull; ${escapeHtml(_isoDateToDisplay(item.datePromised))}</div>
+              </div>
+              <div class="shrink-0 flex items-center gap-1">
+                ${item.status !== 'In Progress' ? `<button onclick="quickSetCommitmentStatus('${item.id}', 'In Progress')" class="px-2 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-100 rounded-lg text-[10px] font-bold cursor-pointer" title="Mark as In Progress">In Progress</button>` : ''}
+                <button onclick="quickSetCommitmentStatus('${item.id}', 'Completed')" class="px-2 py-1.5 bg-emerald-700 hover:bg-emerald-600 text-emerald-50 rounded-lg text-[10px] font-bold cursor-pointer" title="Mark as Completed">Done</button>
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    `;
+    document.body.appendChild(popup);
+    makeFollowUpPopupDraggable(popup, document.getElementById('commitments-due-popup-handle'), 'commitmentsPopupPos');
+  } catch(e) {
+    console.warn("Commitments due popup check failed:", e);
+  }
+}
+window.checkCommitmentsDuePopup = checkCommitmentsDuePopup;
+
+function quickSetCommitmentStatus(id, status) {
+  var result = window.RevOpsStore.setCommitmentStatus(id, status);
+  if (!result.success) {
+    alert("Could not update this commitment - please try again.");
+    return;
+  }
+  if (typeof renderCommitmentsTable === 'function') renderCommitmentsTable();
+  checkCommitmentsDuePopup();
+}
+window.quickSetCommitmentStatus = quickSetCommitmentStatus;
+
 // Lets the user drag the persistent follow-ups-due popup anywhere on
 // screen, since its default corner can sit on top of other controls
 // (reported: hiding the Lead Owner filter / search row on leads.html).
 // Position is remembered across the popup's frequent rebuilds (it is
 // torn down and recreated on every checkFollowUpDuePopup() call) by
 // reading/writing a single localStorage key.
-function makeFollowUpPopupDraggable(popup, handle) {
+function makeFollowUpPopupDraggable(popup, handle, posKey) {
   if (!popup || !handle) return;
-  var POS_KEY = 'followupPopupPos';
+  var POS_KEY = posKey || 'followupPopupPos';
 
   function clamp(left, top) {
     var maxLeft = window.innerWidth - popup.offsetWidth - 4;
@@ -885,6 +958,7 @@ function renderRevOpsNavbar(userName, userRole, hasDirectReports) {
   ];
 
   var perfItems = [
+    { title: "Commitment Register", path: "commitments.html", desc: "Every meeting commitment: owner, due date, status", icon: "📌", show: true },
     { title: "My Scorecard", path: "my-scorecard.html", desc: "Personal scorecard & achievement rating", icon: "🎯", show: true },
     { title: "Daily Work (DWM)", path: "dwm.html", desc: "Daily task logs & plan vs actuals", icon: "📅", show: true },
     { title: "KRAs & Target Metrics", path: "kra-targets.html", desc: "Key result areas & quarterly goals", icon: "📊", show: true },
@@ -992,6 +1066,7 @@ function renderRevOpsNavbar(userName, userRole, hasDirectReports) {
     checkAssignedServiceTicketsPopup();
     checkPendingApprovalsPopup();
     checkFollowUpDuePopup();
+    checkCommitmentsDuePopup();
   }, 400);
 }
 
@@ -1857,7 +1932,7 @@ function getRevOpsNavigationHtml(userName, userRole, employeeId, userEmail, role
         ${renderTopDropdown("Service & Quality", "🛠️", serviceItems, ['service-tickets.html', 'amc-contracts.html', 'service-leads.html', 'amc-quotes.html', 'amc-orders.html', 'amc-invoices.html', 'parts-sales.html', 'warranty-management.html'])}
         ${renderTopDropdown("Finance", "💰", financeItems, ['expenses.html', 'payroll.html'])}
         ${renderTopDropdown("People & HR", "👥", hrItems, ['employees.html', 'attendance.html', 'my-team.html'])}
-        ${renderTopDropdown("Performance", "🎯", perfItems, ['my-scorecard.html', 'dwm.html', 'kra-targets.html', 'reviews.html', 'aop-targets.html', 'user-guide.html'])}
+        ${renderTopDropdown("Performance", "🎯", perfItems, ['commitments.html', 'my-scorecard.html', 'dwm.html', 'kra-targets.html', 'reviews.html', 'aop-targets.html', 'user-guide.html'])}
         ${isAdmin ? `<a href="reports.html" class="${currentPath === 'reports.html' ? 'px-2.5 py-1.5 rounded-lg text-xs font-bold bg-[#982B68] text-white shadow-xs' : 'px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-300 hover:bg-slate-800 hover:text-white transition-all'}">📈 Reports</a>` : ''}
       </nav>
 

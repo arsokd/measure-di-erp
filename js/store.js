@@ -90,7 +90,7 @@ Object.assign(window.RevOpsStore, {
 
   reseedAllData: function() {
     console.log("Force re-seeding complete RevOps dataset...");
-    var collections = ['employees', 'kraTargets', 'aopTargets', 'orders', 'dwmActivities', 'attendance', 'leads', 'payments', 'reviews', 'expenses', 'projectsMaster', 'clientsMaster', 'sparePartsMaster', 'productsMaster', 'bankDetailsMaster', 'clientEquipmentMaster', 'auditLogs', 'expenseSplits', 'travelPolicyMaster', 'travelApprovals', 'budgets', 'serviceTickets', 'quotations', 'invoices'];
+    var collections = ['employees', 'kraTargets', 'aopTargets', 'orders', 'dwmActivities', 'attendance', 'leads', 'payments', 'reviews', 'expenses', 'projectsMaster', 'clientsMaster', 'sparePartsMaster', 'productsMaster', 'bankDetailsMaster', 'clientEquipmentMaster', 'auditLogs', 'expenseSplits', 'travelPolicyMaster', 'travelApprovals', 'budgets', 'serviceTickets', 'quotations', 'invoices', 'commitments'];
     collections.forEach(function(c) { localStorage.removeItem(c); });
     localStorage.removeItem('revops_seeded_v17');
     localStorage.removeItem('revops_seeded_v18');
@@ -217,7 +217,7 @@ Object.assign(window.RevOpsStore, {
     if (!window.db) return;
     console.log("Syncing data to Firebase Firestore...");
     var self = this;
-    var collections = ['employees', 'kraTargets', 'aopTargets', 'orders', 'dwmActivities', 'attendance', 'leads', 'payments', 'reviews', 'expenses', 'projectsMaster', 'clientsMaster', 'sparePartsMaster', 'productsMaster', 'bankDetailsMaster', 'clientEquipmentMaster', 'auditLogs', 'expenseSplits', 'travelPolicyMaster', 'travelApprovals', 'budgets', 'serviceTickets', 'quotations', 'invoices'];
+    var collections = ['employees', 'kraTargets', 'aopTargets', 'orders', 'dwmActivities', 'attendance', 'leads', 'payments', 'reviews', 'expenses', 'projectsMaster', 'clientsMaster', 'sparePartsMaster', 'productsMaster', 'bankDetailsMaster', 'clientEquipmentMaster', 'auditLogs', 'expenseSplits', 'travelPolicyMaster', 'travelApprovals', 'budgets', 'serviceTickets', 'quotations', 'invoices', 'commitments'];
     collections.forEach(function(colName) {
       var items = window.RevOpsStore.getCollection(colName) || [];
       items.forEach(function(item) {
@@ -2069,7 +2069,7 @@ Object.assign(window.RevOpsStore, {
     // that change back down, so two devices on the same account silently
     // diverge forever (e.g. one shows 3 HSN codes, another shows 5) - each
     // only ever sees whatever it personally added.
-    var collections = ['employees', 'kraTargets', 'aopTargets', 'orders', 'dwmActivities', 'attendance', 'leads', 'payments', 'reviews', 'expenses', 'projectsMaster', 'clientsMaster', 'sparePartsMaster', 'expenseSplits', 'travelPolicyMaster', 'travelApprovals', 'budgets', 'serviceTickets', 'quotations', 'invoices', 'productsMaster', 'clientEquipmentMaster', 'bankDetailsMaster', 'companyMaster', 'leadSourceMaster', 'industryVerticalMaster', 'projectSectorMaster', 'verticalClassificationMaster', 'currencyMaster', 'hsnCodeMaster', 'sparePartCategoryMaster', 'complaintCategoryMaster', 'slaResponseTierMaster', 'amcContractTierMaster', 'pmVisitFrequencyMaster', 'amcInvoicingMilestoneMaster', 'amcContractDurationMaster', 'componentsMaster', 'productBomLines'];
+    var collections = ['employees', 'kraTargets', 'aopTargets', 'orders', 'dwmActivities', 'attendance', 'leads', 'payments', 'reviews', 'expenses', 'projectsMaster', 'clientsMaster', 'sparePartsMaster', 'expenseSplits', 'travelPolicyMaster', 'travelApprovals', 'budgets', 'serviceTickets', 'quotations', 'invoices', 'productsMaster', 'clientEquipmentMaster', 'bankDetailsMaster', 'companyMaster', 'leadSourceMaster', 'industryVerticalMaster', 'projectSectorMaster', 'verticalClassificationMaster', 'currencyMaster', 'hsnCodeMaster', 'sparePartCategoryMaster', 'complaintCategoryMaster', 'slaResponseTierMaster', 'amcContractTierMaster', 'pmVisitFrequencyMaster', 'amcInvoicingMilestoneMaster', 'amcContractDurationMaster', 'componentsMaster', 'productBomLines', 'commitments'];
     var self = this;
     collections.forEach(function(colName) {
       try {
@@ -3799,6 +3799,65 @@ Object.assign(window.RevOpsStore, {
         null,
         rec
       );
+    }
+    return { success: true, record: rec };
+  },
+
+  // ============ COMMITMENT REGISTER (A-1) ============
+  // Every commitment made in a review meeting - who owes what, to whom,
+  // by when - tracked in one place instead of scattered meeting notes,
+  // per the 24-Nov K-30 review's own explicit ask ("every commitment is
+  // recorded and reviewed"). Status is strictly Pending -> In Progress ->
+  // Completed; "overdue" is a derived read (date promised has passed and
+  // it's still not Completed), never a stored status of its own, so it
+  // can never go stale the way a manually-set flag could.
+  COMMITMENT_STATUSES: ['Pending', 'In Progress', 'Completed'],
+
+  isCommitmentOverdue: function(c, todayISO) {
+    if (!c || c.status === 'Completed') return false;
+    var due = String(c.datePromised || '').slice(0, 10);
+    if (!due) return false;
+    return due < (todayISO || getLocalTodayISO());
+  },
+
+  // Everything still open (Pending/In Progress) and due today or earlier,
+  // for the signed-in owner - the single source the global "Commitments
+  // Due" popup (auth-guard.js) renders from, same pattern as
+  // getDueFollowUps() above.
+  getDueCommitments: function(employeeId, todayISO) {
+    var self = this;
+    todayISO = todayISO || getLocalTodayISO();
+    var all = this.getCollection('commitments') || [];
+    return all.filter(function(c) {
+      return c.employeeId === employeeId && c.status !== 'Completed' && String(c.datePromised || '').slice(0, 10) <= todayISO;
+    }).sort(function(a, b) {
+      return String(a.datePromised || '').localeCompare(String(b.datePromised || ''));
+    });
+  },
+
+  // Marks a commitment Completed (or moves it between Pending/In Progress)
+  // from a single quick action - dateDone is set automatically the first
+  // time it becomes Completed, never overwritten on a later status change
+  // back and forth, so it always reflects when it was FIRST actually done.
+  setCommitmentStatus: function(id, newStatus, remarks) {
+    if (this.COMMITMENT_STATUSES.indexOf(newStatus) === -1) return { success: false, reason: 'invalid-status' };
+    var items = this.getCollection('commitments') || [];
+    var rec = items.find(function(it) { return it.id === id; });
+    if (!rec) return { success: false, reason: 'not-found' };
+
+    var oldState = JSON.parse(JSON.stringify(rec));
+    rec.status = newStatus;
+    if (newStatus === 'Completed' && !rec.dateDone) {
+      rec.dateDone = getLocalTodayISO();
+    } else if (newStatus !== 'Completed') {
+      rec.dateDone = '';
+    }
+    if (remarks !== undefined) rec.remarks = remarks;
+    rec.updatedAt = new Date().toISOString();
+    this.saveRecord('commitments', rec);
+
+    if (this.logAudit) {
+      this.logAudit('Commitments', rec.id, 'UPDATE', 'Commitment status set to "' + newStatus + '"', oldState, rec);
     }
     return { success: true, record: rec };
   }

@@ -6272,6 +6272,125 @@ async function testDeleteLeadsByNumber(browser) {
   return failures;
 }
 
+// ---------------------------------------------------------------------
+// Commitment Register (A-1, 24-Nov K-30 review): every commitment made
+// in a review meeting, tracked centrally - overdue detection, the daily
+// "Commitments Due" popup with a one-click Done action, and that
+// deleting one is restricted to Super Admin/Admin same as every other
+// collection in this app.
+async function testCommitmentRegister(browser) {
+  const failures = [];
+  const { page } = await newPage(browser);
+
+  await page.goto(BASE_URL + '/commitments.html', { waitUntil: 'networkidle', timeout: 30000 });
+  await page.waitForTimeout(600);
+
+  const yesterday = await page.evaluate(function () {
+    return new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  });
+
+  await page.evaluate(function () {
+    openCommitmentModal();
+  });
+  await page.waitForTimeout(150);
+
+  await page.evaluate(function (dueDate) {
+    document.getElementById('inp-commit-text').value = 'Send corrected 5-year product report';
+    document.getElementById('inp-commit-owner').value = 'E-001';
+    document.getElementById('inp-commit-givenby').value = 'E-001';
+    document.getElementById('inp-commit-datepromised').value = dueDate;
+    document.getElementById('inp-commit-status').value = 'Pending';
+    handleSaveCommitment({ preventDefault: function () {} });
+  }, yesterday);
+  await page.waitForTimeout(300);
+
+  const saved = await page.evaluate(function () {
+    return (window.RevOpsStore.getCollection('commitments') || [])[0];
+  });
+  assertTrue(!!saved && saved.commitment === 'Send corrected 5-year product report', 'Commitment Register: saves with the entered text', failures);
+  assertEqual(saved && saved.status, 'Pending', 'Commitment Register: new commitment starts Pending', failures);
+
+  const rowInfo = await page.evaluate(function () {
+    var row = document.querySelector('#commitments-tbody tr');
+    return row ? { html: row.innerHTML, overdueStatCount: document.getElementById('stat-overdue').innerText } : null;
+  });
+  assertTrue(!!rowInfo && rowInfo.html.indexOf('(Overdue)') !== -1, 'Commitment Register: a commitment promised yesterday is marked Overdue on the list', failures);
+  assertEqual(rowInfo && rowInfo.overdueStatCount, '1', 'Commitment Register: Overdue stat card counts it', failures);
+
+  const popupInfo = await page.evaluate(function () {
+    checkCommitmentsDuePopup();
+    var popup = document.getElementById('commitments-due-global-popup');
+    return popup ? { hasText: popup.innerText.indexOf('Send corrected 5-year product report') !== -1, hasOverdueLabel: popup.innerText.indexOf('Overdue') !== -1 } : null;
+  });
+  assertTrue(!!popupInfo && popupInfo.hasText, 'Commitment Register: the Commitments Due popup shows an overdue, not-yet-done commitment for its owner', failures);
+  assertTrue(!!popupInfo && popupInfo.hasOverdueLabel, 'Commitment Register: the popup labels it Overdue, not just "due"', failures);
+
+  const afterComplete = await page.evaluate(function () {
+    var id = (window.RevOpsStore.getCollection('commitments') || [])[0].id;
+    quickSetCommitmentStatus(id, 'Completed');
+    return {
+      record: (window.RevOpsStore.getCollection('commitments') || [])[0],
+      popupGone: !document.getElementById('commitments-due-global-popup')
+    };
+  });
+  assertEqual(afterComplete.record.status, 'Completed', 'Commitment Register: popup\'s "Done" action marks it Completed', failures);
+  assertTrue(!!afterComplete.record.dateDone, 'Commitment Register: dateDone is set automatically on completion', failures);
+  assertTrue(afterComplete.popupGone, 'Commitment Register: popup clears once nothing is left due', failures);
+
+  // Role gate: a plain staff member cannot delete; Super Admin/Admin can.
+  const staffDeleteBlocked = await (async function () {
+    // Its own isolated context (a plain browser.newPage() can't open a
+    // second page in `page`'s own context - Playwright requires
+    // browser.newContext() for that), so it seeds its own copy of the
+    // same commitment rather than sharing `page`'s localStorage.
+    const staffContext = await browser.newContext();
+    const staffPage = await staffContext.newPage();
+    const staffErrors = [];
+    staffPage.on('pageerror', function (err) { staffErrors.push(err.message); });
+    await staffPage.addInitScript(function () {
+      localStorage.setItem('userRole', 'staff');
+      localStorage.setItem('userEmail', 'techsupport@measuredi.com');
+      localStorage.setItem('userName', 'Mrs. Krithika');
+      localStorage.setItem('employeeId', 'E-006');
+    });
+    await staffPage.goto(BASE_URL + '/commitments.html', { waitUntil: 'networkidle', timeout: 30000 });
+    await staffPage.waitForTimeout(400);
+    await staffPage.evaluate(function (dueDate) {
+      window.RevOpsStore.saveCollection('commitments', [{
+        id: 'commit_staff_delete_test', commitment: 'Staff delete-block test', employeeId: 'E-001', givenByEmployeeId: 'E-001',
+        vertical: 'Sales', datePromised: dueDate, status: 'Pending', dateDone: '', remarks: ''
+      }]);
+    }, yesterday);
+    const before = await staffPage.evaluate(function () { return (window.RevOpsStore.getCollection('commitments') || []).length; });
+    const after = await staffPage.evaluate(function () {
+      var id = (window.RevOpsStore.getCollection('commitments') || [])[0].id;
+      deleteCommitment(id);
+      return (window.RevOpsStore.getCollection('commitments') || []).length;
+    });
+    const noErrors = staffErrors.length === 0;
+    await staffContext.close();
+    return { before: before, after: after, noErrors: noErrors };
+  })();
+  assertEqual(staffDeleteBlocked.before, staffDeleteBlocked.after, 'Commitment Register: a staff-role user cannot delete a commitment', failures);
+  assertTrue(staffDeleteBlocked.noErrors, 'Commitment Register: no page errors while a staff user is blocked from deleting', failures);
+
+  const adminDeleteWorks = await page.evaluate(function () {
+    var originalConfirm = window.confirm;
+    window.confirm = function () { return true; };
+    var before = (window.RevOpsStore.getCollection('commitments') || []).length;
+    var id = (window.RevOpsStore.getCollection('commitments') || [])[0].id;
+    deleteCommitment(id);
+    var after = (window.RevOpsStore.getCollection('commitments') || []).length;
+    window.confirm = originalConfirm;
+    return { before: before, after: after };
+  });
+  assertEqual(adminDeleteWorks.after, adminDeleteWorks.before - 1, 'Commitment Register: Super Admin can delete a commitment', failures);
+
+  await page.evaluate(function () { window.RevOpsStore.saveCollection('commitments', []); });
+  await page.close();
+  return failures;
+}
+
 const TESTS = [
   ['SLA day-based seeding, migration, severity dropdown & date math', testSlaDayBasedSeedingAndMigration],
   ['Ticket email subject line', testQuotationVerticalAndTicketSubject],
@@ -6339,7 +6458,8 @@ const TESTS = [
   ['Quotation PDF now includes Bank Remittance Instructions and a full Standard Terms & Conditions section, not just the line-items page', testQuotationMultiPagePdfContent],
   ['Delete Leads by Number: preview, confirmation, case-insensitive matching, not-found inputs skipped', testDeleteLeadsByNumber],
   ['Attachments (Lead/Quotation/Order/Invoice) upload to Firebase Storage for a genuine 100 MB cap, with an upload-in-progress save guard', testAttachmentStorageMigration],
-  ['Emailing an attachment (not just uploading it) is capped at a real, deliverable 25 MB per message, resolved server-side instead of through the browser\'s own POST body', testEmailAttachmentSizeLimitAndServerSideRefs]
+  ['Emailing an attachment (not just uploading it) is capped at a real, deliverable 25 MB per message, resolved server-side instead of through the browser\'s own POST body', testEmailAttachmentSizeLimitAndServerSideRefs],
+  ['Commitment Register: overdue detection, the daily Commitments Due popup with one-click Done, Super Admin/Admin-only delete', testCommitmentRegister]
 ];
 
 (async () => {
