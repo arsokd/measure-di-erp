@@ -3615,10 +3615,82 @@ Object.assign(window.RevOpsStore, {
 
   // A quotation only needs active chasing while its outcome is still
   // undecided - once internally Rejected (back to the drafting table, not
-  // a customer-facing wait) or Converted to Order (won), there's nothing
-  // left to follow up on.
+  // a customer-facing wait), Lost (the client said no / went cold), or
+  // Converted to Order (won), there's nothing left to follow up on.
   quotationNeedsFollowUp: function(status) {
-    return ['Rejected', 'Converted to Order'].indexOf(status) === -1;
+    return ['Rejected', 'Converted to Order', 'Lost'].indexOf(status) === -1;
+  },
+
+  // Closes out a Quotation that was sent to the client but will never
+  // become an Order - distinct from the existing 'Rejected' status, which
+  // actually means an internal approver rejected it before it ever
+  // reached the client (back to drafting, not a dead deal). Mirrors
+  // leads' Lost handling: a mandatory reason, never silent, and never
+  // re-closes an already-won quotation out from under it.
+  markQuotationLost: function(quoteId, reason, note) {
+    if (!reason) return { success: false, reason: 'reason-required' };
+    var quotes = this.getCollection('quotations') || [];
+    var q = quotes.find(function(it) { return it.id === quoteId; });
+    if (!q) return { success: false, reason: 'not-found' };
+    if (q.status === 'Converted to Order') return { success: false, reason: 'already-converted' };
+    if (q.status === 'Lost') return { success: true, alreadyClosed: true };
+
+    var empName = (typeof localStorage !== 'undefined' && localStorage.getItem('userName')) || 'System User';
+    var empId = (typeof localStorage !== 'undefined' && localStorage.getItem('employeeId')) || '';
+    var oldState = JSON.parse(JSON.stringify(q));
+    q.status = 'Lost';
+    q.lostReason = reason;
+    q.lostNote = (note || '').trim();
+    q.lostAt = new Date().toISOString();
+    q.lostBy = empName;
+    q.lostByEmpId = empId;
+    q.updatedAt = new Date().toISOString();
+    this.saveRecord('quotations', q);
+
+    if (this.logAudit) {
+      this.logAudit('Quotations', q.quoteNumber || q.id, 'UPDATE', 'Quotation marked Lost: ' + reason, oldState, q);
+    }
+    return { success: true };
+  },
+
+  // Closes out a Lead that will never convert, from a single quick action
+  // (e.g. the Follow-ups Due popup) rather than the full Edit Lead form -
+  // but still obeys the exact same stage rule that form enforces: a lead
+  // that never reached Quoted is an early disqualification (Trashed, no
+  // reason required), while one that did reach Quoted or later is a real
+  // Lost sale (reason required). Never re-closes a lead already Won/Lost/
+  // Trashed.
+  markLeadClosedNoSale: function(leadId, reason, note) {
+    var leads = this.getCollection('leads') || [];
+    var lead = leads.find(function(l) { return l.id === leadId; });
+    if (!lead) return { success: false, reason: 'not-found' };
+
+    var currentStage = lead.status || lead.stage;
+    if (this.LEAD_EXIT_STAGES.indexOf(currentStage) !== -1 || currentStage === 'Won') {
+      return { success: true, alreadyClosed: true };
+    }
+
+    var quotedRank = this.LEAD_PIPELINE_STAGES.indexOf('Quoted');
+    var currentRank = this.LEAD_PIPELINE_STAGES.indexOf(currentStage);
+    var targetStage = currentRank >= quotedRank ? 'Lost' : 'Trashed';
+    if (targetStage === 'Lost' && !reason) return { success: false, reason: 'reason-required' };
+
+    var empName = (typeof localStorage !== 'undefined' && localStorage.getItem('userName')) || 'System User';
+    var empId = (typeof localStorage !== 'undefined' && localStorage.getItem('employeeId')) || '';
+    var oldState = JSON.parse(JSON.stringify(lead));
+    lead.status = targetStage;
+    lead.stage = targetStage;
+    if (targetStage === 'Lost') {
+      lead.lostReason = reason;
+      lead.lostRemarks = (note || '').trim();
+    }
+    lead.updatedAt = new Date().toISOString();
+    this.saveRecord('leads', lead);
+
+    if (this.logAudit) {
+      this.logAudit('Leads', lead.leadNumber || lead.id, 'UPDATE', 'Lead marked ' + targetStage + ' from the Follow-ups popup' + (reason ? (': ' + reason) : ''), oldState, lead);
+    }
+    return { success: true, targetStage: targetStage };
   },
 
   // YYYY-MM-DD strings compare correctly with plain string comparison;

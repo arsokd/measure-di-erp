@@ -704,6 +704,13 @@ var currentEditingQuoteId = null;
           return `<span class="px-2 py-1 rounded-full text-[10px] font-black uppercase bg-rose-100 text-rose-800 border border-rose-300">
             ❌ Discount Rejected
           </span>`;
+        } else if (q.status === 'Lost') {
+          return `<div class="inline-flex flex-col items-center">
+            <span class="px-2 py-1 rounded-full text-[10px] font-black uppercase bg-slate-200 text-slate-700 border border-slate-400">
+              💔 Lost
+            </span>
+            ${q.lostReason ? `<span class="text-[9px] text-slate-500 mt-0.5 font-medium">${escapeHtml(q.lostReason)}</span>` : ''}
+          </div>`;
         } else {
           return `<span class="px-2 py-1 rounded-full text-[10px] font-black uppercase bg-slate-100 text-slate-700 border border-slate-300">
             📝 Draft

@@ -261,6 +261,97 @@ function submitLogFollowUp(colName, id) {
 }
 window.submitLogFollowUp = submitLogFollowUp;
 
+// The "Sale Lost" quick action from the Follow-ups Due popup - closes a
+// Lead or Quotation out as a dead deal without opening the full Edit
+// form. For a Lead still earlier than "Quoted", this mirrors the exact
+// same rule the full Edit Lead form enforces: it becomes Trashed (early
+// disqualification, no reason needed), not Lost - only a lead that was
+// actually quoted, or a Quotation itself, needs a real Lost reason.
+function openMarkLostModal(colName, id, ref, customerName, currentStatus) {
+  closeMarkLostModal();
+  var isLead = colName === 'leads';
+  var willBeTrashed = false;
+  if (isLead) {
+    var stages = window.RevOpsStore.LEAD_PIPELINE_STAGES || [];
+    var quotedRank = stages.indexOf('Quoted');
+    var currentRank = stages.indexOf(currentStatus);
+    willBeTrashed = currentRank < quotedRank;
+  }
+  var reasons = window.RevOpsStore.LEAD_LOST_REASONS || [];
+
+  var modal = document.createElement('div');
+  modal.id = 'mark-lost-modal';
+  modal.className = 'fixed inset-0 z-[60] bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4';
+  modal.innerHTML = `
+    <div class="bg-slate-900 w-full max-w-md rounded-2xl shadow-2xl border border-rose-700/60 overflow-hidden">
+      <div class="px-5 py-3.5 bg-rose-950/40 border-b border-rose-900/60 flex items-center justify-between">
+        <h3 class="text-sm font-bold text-rose-200 flex items-center gap-2"><i class="fa-solid fa-heart-crack"></i><span>${willBeTrashed ? 'Close This Out (No Sale)' : 'Mark as Lost'}</span></h3>
+        <button type="button" onclick="closeMarkLostModal()" class="text-slate-400 hover:text-white text-lg font-bold p-1 cursor-pointer">&times;</button>
+      </div>
+      <div class="p-5 space-y-3">
+        <p class="text-xs text-slate-300">${escapeHtml(ref || '')} &bull; <span class="font-semibold text-white">${escapeHtml(customerName || '')}</span></p>
+        ${willBeTrashed ? `
+          <p class="text-[11px] text-slate-400 bg-slate-800/70 border border-slate-700 rounded-xl p-2.5">This lead hasn't reached the Quoted stage yet, so it will be marked <span class="font-bold text-slate-200">Trashed</span> (an early disqualification) rather than Lost.</p>
+        ` : `
+          <div>
+            <label class="block text-[10px] font-bold uppercase text-slate-400 tracking-wider mb-1">Reason *</label>
+            <select id="inp-marklost-reason" class="w-full px-3 py-2 bg-slate-950 border border-slate-750 rounded-xl text-xs text-white focus:outline-none focus:border-rose-500">
+              <option value="">-- Select a reason --</option>
+              ${reasons.map(function(r) { return '<option value="' + escapeHtml(r) + '">' + escapeHtml(r) + '</option>'; }).join('')}
+            </select>
+          </div>
+        `}
+        <div>
+          <label class="block text-[10px] font-bold uppercase text-slate-400 tracking-wider mb-1">Note (optional)</label>
+          <textarea id="inp-marklost-note" rows="2" placeholder="Anything else worth recording" class="w-full px-3 py-2 bg-slate-950 border border-slate-750 rounded-xl text-xs text-white focus:outline-none focus:border-rose-500"></textarea>
+        </div>
+        <div class="flex items-center justify-end gap-2 pt-1">
+          <button type="button" onclick="closeMarkLostModal()" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold cursor-pointer">Cancel</button>
+          <button type="button" onclick="submitMarkLost('${colName}', '${id}')" class="px-4 py-2 bg-rose-700 hover:bg-rose-600 text-white rounded-xl text-xs font-bold shadow-lg cursor-pointer">${willBeTrashed ? 'Confirm' : 'Mark as Lost'}</button>
+        </div>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+}
+window.openMarkLostModal = openMarkLostModal;
+
+function closeMarkLostModal() {
+  var el = document.getElementById('mark-lost-modal');
+  if (el) el.remove();
+}
+window.closeMarkLostModal = closeMarkLostModal;
+
+function submitMarkLost(colName, id) {
+  var reasonField = document.getElementById('inp-marklost-reason');
+  var reason = reasonField ? reasonField.value : '';
+  if (reasonField && !reason) {
+    alert("Please select a reason.");
+    return;
+  }
+  var note = document.getElementById('inp-marklost-note').value;
+
+  var result = colName === 'leads'
+    ? window.RevOpsStore.markLeadClosedNoSale(id, reason, note)
+    : window.RevOpsStore.markQuotationLost(id, reason, note);
+
+  if (!result.success) {
+    if (result.reason === 'already-converted') {
+      alert("This quotation has already been converted to an Order — it can't be marked Lost.");
+    } else if (result.reason === 'reason-required') {
+      alert("Please select a reason.");
+    } else {
+      alert("Could not update this record — please try again.");
+    }
+    return;
+  }
+  closeMarkLostModal();
+  if (typeof renderLeadsTable === 'function') renderLeadsTable();
+  if (typeof renderQuotations === 'function') renderQuotations();
+  checkFollowUpDuePopup();
+}
+window.submitMarkLost = submitMarkLost;
+
 // Persistent, intentionally-not-permanently-dismissible popup: re-checks
 // and re-renders on every single page load for as long as the signed-in
 // user has anything due. Unlike checkPendingApprovalsPopup above, there is
@@ -304,14 +395,24 @@ function checkFollowUpDuePopup() {
       <div class="py-2 space-y-1.5 max-h-48 overflow-y-auto">
         ${due.map(function(item) {
           var typeLabel = item.colName === 'leads' ? 'Lead' : 'Quotation';
+          var saleClosedHref = item.colName === 'leads'
+            ? ('quotations.html?action=new&leadId=' + encodeURIComponent(item.id))
+            : ('orders.html?bookFromQuote=' + encodeURIComponent(item.id));
+          var saleClosedTitle = item.colName === 'leads'
+            ? 'Create the Quotation that closes this deal'
+            : 'Book the Order against this Quotation';
           return `
-            <div class="flex items-center justify-between bg-slate-800/90 px-2.5 py-1.5 rounded-lg border border-slate-700 text-xs gap-2">
+            <div class="bg-slate-800/90 px-2.5 py-1.5 rounded-lg border border-slate-700 text-xs space-y-1.5">
               <div class="min-w-0">
                 <div class="font-semibold text-slate-100 truncate">${escapeHtml(item.customerName)}</div>
                 ${item.productSummary ? `<div class="text-[10px] text-amber-300/90 truncate" title="${escapeHtml(item.productSummary)}">${escapeHtml(item.productSummary)}</div>` : ''}
                 <div class="text-[10px] text-slate-400">${typeLabel} ${escapeHtml(item.ref)} &bull; ${item.followUpCount} logged so far</div>
               </div>
-              <button onclick="openLogFollowUpModal('${item.colName}', '${item.id}', '${escapeHtml(item.ref)}', '${escapeHtml(item.customerName)}')" class="shrink-0 px-2.5 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-[10px] font-bold cursor-pointer">Log Follow-up</button>
+              <div class="flex items-center gap-1.5">
+                <button onclick="openLogFollowUpModal('${item.colName}', '${item.id}', '${escapeHtml(item.ref)}', '${escapeHtml(item.customerName)}')" class="flex-1 px-2 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-[10px] font-bold cursor-pointer" title="Note what happened and set the next follow-up date">Follow-up</button>
+                <button onclick="openMarkLostModal('${item.colName}', '${item.id}', '${escapeHtml(item.ref)}', '${escapeHtml(item.customerName)}', '${escapeHtml(item.status || '')}')" class="flex-1 px-2 py-1.5 bg-rose-800 hover:bg-rose-700 text-rose-100 rounded-lg text-[10px] font-bold cursor-pointer" title="Close this out as no sale">Sale Lost</button>
+                <a href="${saleClosedHref}" class="flex-1 px-2 py-1.5 bg-emerald-700 hover:bg-emerald-600 text-emerald-50 rounded-lg text-[10px] font-bold text-center cursor-pointer" title="${saleClosedTitle}">Sale Closed →</a>
+              </div>
             </div>
           `;
         }).join('')}
