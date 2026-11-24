@@ -540,8 +540,9 @@
         }
 
         if (usageSnapEl) {
-          if (targetEmp && targetEmp.lastActiveAt) {
-            var lastActiveDate = new Date(targetEmp.lastActiveAt);
+          var activity = window.RevOpsStore.getUserActivity(empId);
+          if (activity && activity.lastActiveAt) {
+            var lastActiveDate = new Date(activity.lastActiveAt);
             var daysAgo = Math.floor((Date.now() - lastActiveDate.getTime()) / (1000 * 60 * 60 * 24));
             usageSnapEl.innerText = daysAgo <= 0 ? 'Active today' : (daysAgo === 1 ? 'Active yesterday' : ('Active ' + daysAgo + ' days ago'));
           } else {

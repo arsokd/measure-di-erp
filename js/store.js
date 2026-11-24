@@ -90,7 +90,7 @@ Object.assign(window.RevOpsStore, {
 
   reseedAllData: function() {
     console.log("Force re-seeding complete RevOps dataset...");
-    var collections = ['employees', 'kraTargets', 'aopTargets', 'orders', 'dwmActivities', 'attendance', 'leads', 'payments', 'reviews', 'expenses', 'projectsMaster', 'clientsMaster', 'sparePartsMaster', 'productsMaster', 'bankDetailsMaster', 'clientEquipmentMaster', 'auditLogs', 'expenseSplits', 'travelPolicyMaster', 'travelApprovals', 'budgets', 'serviceTickets', 'quotations', 'invoices', 'commitments', 'monthlyPlans'];
+    var collections = ['employees', 'kraTargets', 'aopTargets', 'orders', 'dwmActivities', 'attendance', 'leads', 'payments', 'reviews', 'expenses', 'projectsMaster', 'clientsMaster', 'sparePartsMaster', 'productsMaster', 'bankDetailsMaster', 'clientEquipmentMaster', 'auditLogs', 'expenseSplits', 'travelPolicyMaster', 'travelApprovals', 'budgets', 'serviceTickets', 'quotations', 'invoices', 'commitments', 'monthlyPlans', 'userActivity'];
     collections.forEach(function(c) { localStorage.removeItem(c); });
     localStorage.removeItem('revops_seeded_v17');
     localStorage.removeItem('revops_seeded_v18');
@@ -217,7 +217,7 @@ Object.assign(window.RevOpsStore, {
     if (!window.db) return;
     console.log("Syncing data to Firebase Firestore...");
     var self = this;
-    var collections = ['employees', 'kraTargets', 'aopTargets', 'orders', 'dwmActivities', 'attendance', 'leads', 'payments', 'reviews', 'expenses', 'projectsMaster', 'clientsMaster', 'sparePartsMaster', 'productsMaster', 'bankDetailsMaster', 'clientEquipmentMaster', 'auditLogs', 'expenseSplits', 'travelPolicyMaster', 'travelApprovals', 'budgets', 'serviceTickets', 'quotations', 'invoices', 'commitments', 'monthlyPlans'];
+    var collections = ['employees', 'kraTargets', 'aopTargets', 'orders', 'dwmActivities', 'attendance', 'leads', 'payments', 'reviews', 'expenses', 'projectsMaster', 'clientsMaster', 'sparePartsMaster', 'productsMaster', 'bankDetailsMaster', 'clientEquipmentMaster', 'auditLogs', 'expenseSplits', 'travelPolicyMaster', 'travelApprovals', 'budgets', 'serviceTickets', 'quotations', 'invoices', 'commitments', 'monthlyPlans', 'userActivity'];
     collections.forEach(function(colName) {
       var items = window.RevOpsStore.getCollection(colName) || [];
       items.forEach(function(item) {
@@ -2069,7 +2069,7 @@ Object.assign(window.RevOpsStore, {
     // that change back down, so two devices on the same account silently
     // diverge forever (e.g. one shows 3 HSN codes, another shows 5) - each
     // only ever sees whatever it personally added.
-    var collections = ['employees', 'kraTargets', 'aopTargets', 'orders', 'dwmActivities', 'attendance', 'leads', 'payments', 'reviews', 'expenses', 'projectsMaster', 'clientsMaster', 'sparePartsMaster', 'expenseSplits', 'travelPolicyMaster', 'travelApprovals', 'budgets', 'serviceTickets', 'quotations', 'invoices', 'productsMaster', 'clientEquipmentMaster', 'bankDetailsMaster', 'companyMaster', 'leadSourceMaster', 'industryVerticalMaster', 'projectSectorMaster', 'verticalClassificationMaster', 'currencyMaster', 'hsnCodeMaster', 'sparePartCategoryMaster', 'complaintCategoryMaster', 'slaResponseTierMaster', 'amcContractTierMaster', 'pmVisitFrequencyMaster', 'amcInvoicingMilestoneMaster', 'amcContractDurationMaster', 'componentsMaster', 'productBomLines', 'commitments', 'monthlyPlans'];
+    var collections = ['employees', 'kraTargets', 'aopTargets', 'orders', 'dwmActivities', 'attendance', 'leads', 'payments', 'reviews', 'expenses', 'projectsMaster', 'clientsMaster', 'sparePartsMaster', 'expenseSplits', 'travelPolicyMaster', 'travelApprovals', 'budgets', 'serviceTickets', 'quotations', 'invoices', 'productsMaster', 'clientEquipmentMaster', 'bankDetailsMaster', 'companyMaster', 'leadSourceMaster', 'industryVerticalMaster', 'projectSectorMaster', 'verticalClassificationMaster', 'currencyMaster', 'hsnCodeMaster', 'sparePartCategoryMaster', 'complaintCategoryMaster', 'slaResponseTierMaster', 'amcContractTierMaster', 'pmVisitFrequencyMaster', 'amcInvoicingMilestoneMaster', 'amcContractDurationMaster', 'componentsMaster', 'productBomLines', 'commitments', 'monthlyPlans', 'userActivity'];
     var self = this;
     collections.forEach(function(colName) {
       try {
@@ -3978,6 +3978,33 @@ Object.assign(window.RevOpsStore, {
     toSave.updatedAt = new Date().toISOString();
     this.saveRecord('monthlyPlans', toSave);
     return toSave;
+  },
+
+  // ============ APP USAGE / LAST-ACTIVE TRACKING ============
+  // Its own tiny collection (see firestore.rules) rather than a field on
+  // employees/{docId} (write there is leadership/admin only - a plain
+  // staff/manager stamping their own usage there would silently never
+  // reach Firestore) or activeSessions/{uid} (read there is self-only,
+  // to protect the session token living in the same doc). Broad read,
+  // self-write only, nothing sensitive - just a timestamp.
+  touchUserActivity: function(employeeId) {
+    if (!employeeId) return;
+    var items = this.getCollection('userActivity') || [];
+    var existing = items.find(function(it) { return it.employeeId === employeeId; });
+    var lastActive = existing && existing.lastActiveAt ? new Date(existing.lastActiveAt) : null;
+    if (lastActive && !isNaN(lastActive.getTime()) && (Date.now() - lastActive.getTime()) <= 60 * 60 * 1000) {
+      return; // stamped within the last hour already - nothing to do
+    }
+    this.saveRecord('userActivity', {
+      id: employeeId,
+      employeeId: employeeId,
+      lastActiveAt: new Date().toISOString()
+    });
+  },
+
+  getUserActivity: function(employeeId) {
+    var items = this.getCollection('userActivity') || [];
+    return items.find(function(it) { return it.employeeId === employeeId; }) || null;
   }
 });
 

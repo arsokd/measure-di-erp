@@ -6479,8 +6479,9 @@ async function testReviewPackPlanCommitmentsUsage(browser) {
   await page.evaluate(function () {
     var threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
     window.RevOpsStore.saveCollection('employees', (window.RevOpsStore.getCollection('employees') || []).concat([
-      { employeeId: 'E-960', fullName: 'Review Ext Staff', vertical: 'Sales', designation: 'Exec', lastActiveAt: threeDaysAgo }
+      { employeeId: 'E-960', fullName: 'Review Ext Staff', vertical: 'Sales', designation: 'Exec' }
     ]));
+    window.RevOpsStore.saveCollection('userActivity', [{ id: 'E-960', employeeId: 'E-960', lastActiveAt: threeDaysAgo }]);
     window.RevOpsStore.saveCollection('kraTargets', [
       { id: 'kra_rev_ext', employeeId: 'E-960', kraName: 'Over all Orders', kpiType: 'Amount', annualTarget: 1200000, targetValue: 1200000, monthlyTarget: 100000, weight: 60, financialYear: '2026-27' }
     ]);
@@ -6509,10 +6510,11 @@ async function testReviewPackPlanCommitmentsUsage(browser) {
   });
   assertEqual(result.commitments, '1 / 2 kept', 'Review Pack: counts only commitments promised within the selected period (2 of 3 seeded fall inside Nov)', failures);
   assertEqual(result.planValue, '40%', 'Review Pack: Plan vs Actual (Value) matches the real Monthly Plan computation (40000 / 100000)', failures);
-  assertEqual(result.appUsage, 'Active 3 days ago', 'Review Pack: App Usage reflects the employee\'s real lastActiveAt', failures);
+  assertEqual(result.appUsage, 'Active 3 days ago', 'Review Pack: App Usage reflects RevOpsStore.getUserActivity, a collection of its own - never a field on employees (write there is leadership/admin only, so a plain staff/manager\'s own usage stamp would never reach Firestore)', failures);
 
-  // checkAuth() itself stamps a real, throttled lastActiveAt - set once on
-  // sign-in, not touched again within the same hour.
+  // checkAuth() itself stamps a real, throttled lastActiveAt via
+  // touchUserActivity - set once on sign-in, not touched again within the
+  // same hour.
   const usageStamp = await (async function () {
     const usagePage = await browser.newContext().then(function (ctx) { return ctx.newPage(); });
     await usagePage.addInitScript(function () {
@@ -6529,17 +6531,17 @@ async function testReviewPackPlanCommitmentsUsage(browser) {
     await usagePage.reload({ waitUntil: 'networkidle' });
     await usagePage.waitForTimeout(400);
     const first = await usagePage.evaluate(function () {
-      return (window.RevOpsStore.getCollection('employees') || []).find(function (e) { return e.employeeId === 'E-970'; }).lastActiveAt;
+      return window.RevOpsStore.getUserActivity('E-970').lastActiveAt;
     });
     await usagePage.reload({ waitUntil: 'networkidle' });
     await usagePage.waitForTimeout(400);
     const second = await usagePage.evaluate(function () {
-      return (window.RevOpsStore.getCollection('employees') || []).find(function (e) { return e.employeeId === 'E-970'; }).lastActiveAt;
+      return window.RevOpsStore.getUserActivity('E-970').lastActiveAt;
     });
     await usagePage.context().close();
     return { first: first, second: second };
   })();
-  assertTrue(!!usageStamp.first, 'App Usage: checkAuth stamps a real lastActiveAt on sign-in', failures);
+  assertTrue(!!usageStamp.first, 'App Usage: checkAuth stamps a real lastActiveAt on sign-in, into its own collection', failures);
   assertEqual(usageStamp.first, usageStamp.second, 'App Usage: not re-stamped on an immediate second page load (throttled to once an hour)', failures);
 
   await page.evaluate(function () {

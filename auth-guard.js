@@ -773,13 +773,15 @@ function checkAuth(allowedRoles) {
 
     // "App usage" tracking for the monthly review pack / health checks -
     // real data (when someone was last actually active), not a guess.
-    // Throttled to once an hour so this doesn't turn into an extra write
-    // on every single page navigation for every signed-in user.
+    // Deliberately its OWN collection (see firestore.rules) rather than a
+    // field on this employees record: employees/{docId} is leadership/
+    // admin write-only, so a staff/manager user stamping their own usage
+    // here would just fail to reach Firestore at all (saveCollection is
+    // local-only anyway). touchUserActivity throttles its own write to
+    // once an hour internally.
     try {
-      var lastActive = currentEmp.lastActiveAt ? new Date(currentEmp.lastActiveAt) : null;
-      if (!lastActive || isNaN(lastActive.getTime()) || (Date.now() - lastActive.getTime()) > 60 * 60 * 1000) {
-        currentEmp.lastActiveAt = new Date().toISOString();
-        empUpdated = true;
+      if (window.RevOpsStore && typeof window.RevOpsStore.touchUserActivity === 'function') {
+        window.RevOpsStore.touchUserActivity(employeeId);
       }
     } catch (eLastActive) {}
 

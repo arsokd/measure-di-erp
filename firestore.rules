@@ -105,6 +105,18 @@ service cloud.firestore {
       allow read, write: if signedIn() && request.auth.uid == uid;
     }
 
+    // "App Usage" / last-active tracking for the Individual Review Pack
+    // and future health checks - deliberately its own tiny collection,
+    // not a field on employees/{docId} (write there is leadership/admin
+    // only) or activeSessions/{uid} (read there is self-only, to protect
+    // the session token sitting in the same doc). Broad read (any
+    // reviewer needs to see anyone's usage), self-write only, and
+    // nothing sensitive in it - just a timestamp.
+    match /userActivity/{employeeId} {
+      allow read: if signedIn();
+      allow write: if signedIn() && myEmployeeId() == employeeId;
+    }
+
     // ---- Sensitive HR / financial: admin write, self-or-admin read ----
     match /payroll/{docId} {
       allow read: if isLeadershipOrAdmin() ||
