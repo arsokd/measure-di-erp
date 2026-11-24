@@ -6461,6 +6461,95 @@ async function testMonthlyPlanVsActual(browser) {
   return failures;
 }
 
+// ---------------------------------------------------------------------
+// Individual Monthly Review Pack extension (A-3, 24-Nov K-30 review):
+// the review snapshot now also shows Commitments kept/missed and
+// Monthly Plan vs Actual (Value) for the selected period, reading the
+// exact same shared functions the Commitment Register and My Scorecard
+// already use - plus a real (throttled) "App Usage" last-active stamp
+// set by checkAuth() on every sign-in, replacing the old no-data-at-all
+// gap both of these had.
+async function testReviewPackPlanCommitmentsUsage(browser) {
+  const failures = [];
+  const { page } = await newPage(browser);
+
+  await page.goto(BASE_URL + '/reviews.html', { waitUntil: 'networkidle', timeout: 30000 });
+  await page.waitForTimeout(600);
+
+  await page.evaluate(function () {
+    var threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
+    window.RevOpsStore.saveCollection('employees', (window.RevOpsStore.getCollection('employees') || []).concat([
+      { employeeId: 'E-960', fullName: 'Review Ext Staff', vertical: 'Sales', designation: 'Exec', lastActiveAt: threeDaysAgo }
+    ]));
+    window.RevOpsStore.saveCollection('kraTargets', [
+      { id: 'kra_rev_ext', employeeId: 'E-960', kraName: 'Over all Orders', kpiType: 'Amount', annualTarget: 1200000, targetValue: 1200000, monthlyTarget: 100000, weight: 60, financialYear: '2026-27' }
+    ]);
+    window.RevOpsStore.saveCollection('orders', [
+      { id: 'ord_rev_ext', employeeId: 'E-960', customerName: 'Rev Ext Co', status: 'Booked', orderValue: 40000, poDate: '2026-11-10', splits: [{ employeeId: 'E-960', percent: 100, role: 'Closing' }] }
+    ]);
+    window.RevOpsStore.saveCollection('commitments', [
+      { id: 'c1', commitment: 'Done one', employeeId: 'E-960', givenByEmployeeId: 'E-001', vertical: 'Sales', datePromised: '2026-11-05', status: 'Completed', dateDone: '2026-11-04', remarks: '' },
+      { id: 'c2', commitment: 'Missed one', employeeId: 'E-960', givenByEmployeeId: 'E-001', vertical: 'Sales', datePromised: '2026-11-10', status: 'Pending', dateDone: '', remarks: '' },
+      { id: 'c3', commitment: 'Outside period', employeeId: 'E-960', givenByEmployeeId: 'E-001', vertical: 'Sales', datePromised: '2026-09-01', status: 'Pending', dateDone: '', remarks: '' }
+    ]);
+    document.getElementById('modal-review-emp').innerHTML = '<option value="E-960">Review Ext Staff</option>';
+    document.getElementById('modal-review-emp').value = 'E-960';
+    document.getElementById('modal-start-date').value = '2026-11-01';
+    document.getElementById('modal-end-date').value = '2026-11-30';
+    recomputeReviewSnapshots();
+  });
+  await page.waitForTimeout(300);
+
+  const result = await page.evaluate(function () {
+    return {
+      commitments: document.getElementById('snap-commitments').innerText,
+      planValue: document.getElementById('snap-plan-value').innerText,
+      appUsage: document.getElementById('snap-app-usage').innerText
+    };
+  });
+  assertEqual(result.commitments, '1 / 2 kept', 'Review Pack: counts only commitments promised within the selected period (2 of 3 seeded fall inside Nov)', failures);
+  assertEqual(result.planValue, '40%', 'Review Pack: Plan vs Actual (Value) matches the real Monthly Plan computation (40000 / 100000)', failures);
+  assertEqual(result.appUsage, 'Active 3 days ago', 'Review Pack: App Usage reflects the employee\'s real lastActiveAt', failures);
+
+  // checkAuth() itself stamps a real, throttled lastActiveAt - set once on
+  // sign-in, not touched again within the same hour.
+  const usageStamp = await (async function () {
+    const usagePage = await browser.newContext().then(function (ctx) { return ctx.newPage(); });
+    await usagePage.addInitScript(function () {
+      localStorage.setItem('userRole', 'staff');
+      localStorage.setItem('userEmail', 'lastactive.test@measuredi.com');
+      localStorage.setItem('userName', 'Last Active Test');
+      localStorage.setItem('employeeId', 'E-970');
+    });
+    await usagePage.goto(BASE_URL + '/dashboard.html', { waitUntil: 'networkidle', timeout: 30000 });
+    await usagePage.waitForTimeout(400);
+    await usagePage.evaluate(function () {
+      window.RevOpsStore.saveCollection('employees', [{ employeeId: 'E-970', fullName: 'Last Active Test', vertical: 'Sales', designation: 'Exec' }]);
+    });
+    await usagePage.reload({ waitUntil: 'networkidle' });
+    await usagePage.waitForTimeout(400);
+    const first = await usagePage.evaluate(function () {
+      return (window.RevOpsStore.getCollection('employees') || []).find(function (e) { return e.employeeId === 'E-970'; }).lastActiveAt;
+    });
+    await usagePage.reload({ waitUntil: 'networkidle' });
+    await usagePage.waitForTimeout(400);
+    const second = await usagePage.evaluate(function () {
+      return (window.RevOpsStore.getCollection('employees') || []).find(function (e) { return e.employeeId === 'E-970'; }).lastActiveAt;
+    });
+    await usagePage.context().close();
+    return { first: first, second: second };
+  })();
+  assertTrue(!!usageStamp.first, 'App Usage: checkAuth stamps a real lastActiveAt on sign-in', failures);
+  assertEqual(usageStamp.first, usageStamp.second, 'App Usage: not re-stamped on an immediate second page load (throttled to once an hour)', failures);
+
+  await page.evaluate(function () {
+    window.RevOpsStore.saveCollection('commitments', []);
+    window.RevOpsStore.saveCollection('orders', []);
+  });
+  await page.close();
+  return failures;
+}
+
 const TESTS = [
   ['SLA day-based seeding, migration, severity dropdown & date math', testSlaDayBasedSeedingAndMigration],
   ['Ticket email subject line', testQuotationVerticalAndTicketSubject],
@@ -6530,7 +6619,8 @@ const TESTS = [
   ['Attachments (Lead/Quotation/Order/Invoice) upload to Firebase Storage for a genuine 100 MB cap, with an upload-in-progress save guard', testAttachmentStorageMigration],
   ['Emailing an attachment (not just uploading it) is capped at a real, deliverable 25 MB per message, resolved server-side instead of through the browser\'s own POST body', testEmailAttachmentSizeLimitAndServerSideRefs],
   ['Commitment Register: overdue detection, the daily Commitments Due popup with one-click Done, Super Admin/Admin-only delete', testCommitmentRegister],
-  ['Monthly Plan vs Actual: real auto-computed actuals, KRA-sourced default target, and next month\'s carry-forward of the unachieved balance', testMonthlyPlanVsActual]
+  ['Monthly Plan vs Actual: real auto-computed actuals, KRA-sourced default target, and next month\'s carry-forward of the unachieved balance', testMonthlyPlanVsActual],
+  ['Individual Review Pack: Commitments kept/missed, Plan vs Actual (Value) and a real throttled App Usage stamp from checkAuth', testReviewPackPlanCommitmentsUsage]
 ];
 
 (async () => {

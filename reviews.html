@@ -190,6 +190,20 @@
                 <span class="text-base font-black text-purple-700" id="snap-score">--</span>
               </div>
             </div>
+            <div class="grid grid-cols-3 gap-2 text-center">
+              <div class="bg-white p-2.5 rounded-xl border border-indigo-100" title="Commitments promised in this period that were (or weren't) marked Completed">
+                <span class="text-[10px] font-bold text-slate-500 uppercase block">Commitments Kept</span>
+                <span class="text-base font-black text-slate-800" id="snap-commitments">--</span>
+              </div>
+              <div class="bg-white p-2.5 rounded-xl border border-indigo-100" title="This period's month(s) Value target achievement, from Monthly Plan vs Actual">
+                <span class="text-[10px] font-bold text-slate-500 uppercase block">Plan vs Actual (Value)</span>
+                <span class="text-base font-black text-slate-800" id="snap-plan-value">--</span>
+              </div>
+              <div class="bg-white p-2.5 rounded-xl border border-indigo-100" title="When this person was last actually active in the app">
+                <span class="text-[10px] font-bold text-slate-500 uppercase block">App Usage</span>
+                <span class="text-sm font-black text-slate-800" id="snap-app-usage">--</span>
+              </div>
+            </div>
           </div>
 
           <div>
@@ -480,6 +494,59 @@
           scoreSnapEl.title = scoreResult.daysScored + ' ratified day(s) counted';
         } else if (scoreSnapEl) {
           scoreSnapEl.innerText = "--";
+        }
+
+        // Commitments kept vs missed, and Monthly Plan vs Actual (Value),
+        // across whatever month(s) the selected review period spans -
+        // both read from the same shared RevOpsStore functions the
+        // Commitment Register and My Scorecard already use, so this
+        // review pack can never disagree with what those pages show.
+        var commitSnapEl = document.getElementById('snap-commitments');
+        var planSnapEl = document.getElementById('snap-plan-value');
+        var usageSnapEl = document.getElementById('snap-app-usage');
+
+        if (commitSnapEl && startDateEl.value && endDateEl.value) {
+          var allCommitments = window.RevOpsStore.getCollection('commitments') || [];
+          var periodCommitments = allCommitments.filter(function(c) {
+            return c.employeeId === empId && c.datePromised && c.datePromised >= startDateEl.value && c.datePromised <= endDateEl.value;
+          });
+          var keptCount = periodCommitments.filter(function(c) { return c.status === 'Completed'; }).length;
+          commitSnapEl.innerText = periodCommitments.length > 0 ? (keptCount + ' / ' + periodCommitments.length + ' kept') : 'None due';
+        } else if (commitSnapEl) {
+          commitSnapEl.innerText = '--';
+        }
+
+        if (planSnapEl && startDateEl.value && endDateEl.value) {
+          var months = [];
+          var cursor = new Date(startDateEl.value + 'T00:00:00');
+          var endCursor = new Date(endDateEl.value + 'T00:00:00');
+          while (cursor <= endCursor && months.length < 12) {
+            var ym = cursor.getFullYear() + '-' + String(cursor.getMonth() + 1).padStart(2, '0');
+            if (months.indexOf(ym) === -1) months.push(ym);
+            cursor.setMonth(cursor.getMonth() + 1);
+          }
+          var totalPlanValue = 0, totalActualValue = 0;
+          months.forEach(function(ym) {
+            var plan = window.RevOpsStore.getOrCreateMonthlyPlan(empId, ym);
+            var actuals = window.RevOpsStore.getMonthlyPlanActuals(empId, ym);
+            totalPlanValue += Number(plan.planValue) || 0;
+            totalActualValue += actuals.value || 0;
+          });
+          var planPct = totalPlanValue > 0 ? Math.round((totalActualValue / totalPlanValue) * 100) : 0;
+          planSnapEl.innerText = planPct + '%';
+          planSnapEl.title = '₹' + totalActualValue.toLocaleString('en-IN') + ' achieved vs ₹' + totalPlanValue.toLocaleString('en-IN') + ' planned, over ' + months.length + ' month(s)';
+        } else if (planSnapEl) {
+          planSnapEl.innerText = '--';
+        }
+
+        if (usageSnapEl) {
+          if (targetEmp && targetEmp.lastActiveAt) {
+            var lastActiveDate = new Date(targetEmp.lastActiveAt);
+            var daysAgo = Math.floor((Date.now() - lastActiveDate.getTime()) / (1000 * 60 * 60 * 24));
+            usageSnapEl.innerText = daysAgo <= 0 ? 'Active today' : (daysAgo === 1 ? 'Active yesterday' : ('Active ' + daysAgo + ' days ago'));
+          } else {
+            usageSnapEl.innerText = 'No activity logged';
+          }
         }
       }
 

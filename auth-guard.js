@@ -771,6 +771,18 @@ function checkAuth(allowedRoles) {
       empUpdated = true;
     }
 
+    // "App usage" tracking for the monthly review pack / health checks -
+    // real data (when someone was last actually active), not a guess.
+    // Throttled to once an hour so this doesn't turn into an extra write
+    // on every single page navigation for every signed-in user.
+    try {
+      var lastActive = currentEmp.lastActiveAt ? new Date(currentEmp.lastActiveAt) : null;
+      if (!lastActive || isNaN(lastActive.getTime()) || (Date.now() - lastActive.getTime()) > 60 * 60 * 1000) {
+        currentEmp.lastActiveAt = new Date().toISOString();
+        empUpdated = true;
+      }
+    } catch (eLastActive) {}
+
     // Keep active session role, name, email and ID synchronized
     if (currentEmp.role && localStorage.getItem('userRole') !== currentEmp.role) {
       localStorage.setItem('userRole', currentEmp.role);
