@@ -3,6 +3,9 @@
       var chartVerticalDonut = null;
       var chartPipelineFunnel = null;
       var chartTeamContribution = null;
+      var chartCommitmentsStatus = null;
+      var chartProductivitySnapshot = null;
+      var chartOpportunitySnapshot = null;
 
       // Active Preset Tracking
       var currentPreset = 'Full';
@@ -506,6 +509,141 @@
         try { renderPipelineFunnelChart(filteredLeads, false, periodInfo); } catch(e3) { console.error("Pipeline funnel error:", e3); }
         try { renderSalesConversionFunnel(filteredLeads, periodInfo); } catch(e4) { console.error("Conversion funnel error:", e4); }
         try { renderTeamContributionChart(employees, currRev.employees, selectedFy, periodRatio, periodInfo); } catch(e5) { console.error("Team contribution chart error:", e5); }
+        try { renderPmsSnapshotWidgets(employees); } catch(e6) { console.error("PMS snapshot widgets error:", e6); }
+      }
+
+      // PMS SNAPSHOT (24-Nov K-30 review): Commitments, Productivity and
+      // Service/Spares Opportunity, surfaced right on the Executive
+      // Dashboard instead of only on their own dedicated pages - pure
+      // aggregation of numbers already computed correctly elsewhere
+      // (isCommitmentOverdue, getProductivityForMonth,
+      // getServiceSparesOpportunities), nothing new invented here.
+      function renderPmsSnapshotWidgets(employees) {
+        // 1. Commitments Status (as of today, company-wide).
+        var commitments = window.RevOpsStore.getCollection('commitments') || [];
+        var todayISO = typeof getLocalTodayISO === 'function' ? getLocalTodayISO() : new Date().toISOString().slice(0, 10);
+        var completedCount = 0, overdueCount = 0, openCount = 0;
+        commitments.forEach(function(c) {
+          if (c.status === 'Completed') { completedCount++; }
+          else if (window.RevOpsStore.isCommitmentOverdue(c, todayISO)) { overdueCount++; }
+          else { openCount++; }
+        });
+        var commitTotal = completedCount + overdueCount + openCount;
+
+        var commitLegend = document.getElementById('commitments-status-legend');
+        if (commitLegend) {
+          if (commitTotal > 0) {
+            commitLegend.innerHTML = `
+              <div><span class="font-bold text-emerald-600 block">${completedCount}</span>Completed</div>
+              <div><span class="font-bold text-amber-600 block">${openCount}</span>Open</div>
+              <div><span class="font-bold text-rose-600 block">${overdueCount}</span>Overdue</div>
+            `;
+          } else {
+            commitLegend.innerHTML = `<div class="col-span-3 text-slate-400">No commitments logged yet</div>`;
+          }
+        }
+
+        var commitCtxEl = document.getElementById('commitmentsStatusChart');
+        if (commitCtxEl) {
+          var commitCtx = commitCtxEl.getContext('2d');
+          if (chartCommitmentsStatus) chartCommitmentsStatus.destroy();
+          chartCommitmentsStatus = new Chart(commitCtx, {
+            type: 'doughnut',
+            data: {
+              labels: ['Completed', 'Open', 'Overdue'],
+              datasets: [{
+                data: [completedCount, openCount, overdueCount],
+                backgroundColor: ['#059669', '#d97706', '#e11d48'],
+                borderWidth: 2,
+                borderColor: '#ffffff'
+              }]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: { legend: { display: false } },
+              cutout: '68%'
+            }
+          });
+        }
+
+        // 2. Productivity Snapshot (team average, this month) - same
+        // getProductivityForMonth the Productivity Dashboard itself uses.
+        var attendance = window.RevOpsStore.getCollection('attendance') || [];
+        var dwmActivities = window.RevOpsStore.getCollection('dwmActivities') || [];
+        var now = new Date();
+        var yearMonth = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+        var activeEmps = (employees || []).filter(function(e) { return e.employeeId !== 'E-001'; });
+        var scorePcts = [], dwmPcts = [];
+        activeEmps.forEach(function(emp) {
+          var prod = window.RevOpsStore.getProductivityForMonth(emp.employeeId, yearMonth, attendance, dwmActivities);
+          if (prod.daysScored > 0) scorePcts.push(prod.avgScore);
+          dwmPcts.push(prod.dwmPct);
+        });
+        function avgOf(arr) { return arr.length > 0 ? Math.round(arr.reduce(function(s, v) { return s + v; }, 0) / arr.length) : 0; }
+        var avgScore = avgOf(scorePcts);
+        var avgDwm = avgOf(dwmPcts);
+
+        var prodCtxEl = document.getElementById('productivitySnapshotChart');
+        if (prodCtxEl) {
+          var prodCtx = prodCtxEl.getContext('2d');
+          if (chartProductivitySnapshot) chartProductivitySnapshot.destroy();
+          chartProductivitySnapshot = new Chart(prodCtx, {
+            type: 'bar',
+            data: {
+              labels: ['Daily Productivity Score', 'DWM Compliance'],
+              datasets: [{
+                data: [avgScore, avgDwm],
+                backgroundColor: ['#4f46e5', '#059669'],
+                borderRadius: 6,
+                maxBarThickness: 36
+              }]
+            },
+            options: {
+              indexAxis: 'y',
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: {
+                legend: { display: false },
+                tooltip: { callbacks: { label: function(ctx) { return ctx.raw + '%'; } } }
+              },
+              scales: {
+                x: { min: 0, max: 100, ticks: { callback: function(v) { return v + '%'; } } }
+              }
+            }
+          });
+        }
+
+        // 3. Service & Spares Opportunity (as of today, company-wide).
+        var opportunities = window.RevOpsStore.getServiceSparesOpportunities();
+        var oppCounts = { 'AMC Conversion': 0, 'AMC Renewal Due': 0, 'Repeat Claims': 0 };
+        opportunities.forEach(function(o) { if (oppCounts[o.type] !== undefined) oppCounts[o.type]++; });
+
+        var oppCtxEl = document.getElementById('opportunitySnapshotChart');
+        if (oppCtxEl) {
+          var oppCtx = oppCtxEl.getContext('2d');
+          if (chartOpportunitySnapshot) chartOpportunitySnapshot.destroy();
+          chartOpportunitySnapshot = new Chart(oppCtx, {
+            type: 'bar',
+            data: {
+              labels: ['AMC Conversion', 'Renewal Due', 'Repeat Claims'],
+              datasets: [{
+                data: [oppCounts['AMC Conversion'], oppCounts['AMC Renewal Due'], oppCounts['Repeat Claims']],
+                backgroundColor: ['#e11d48', '#d97706', '#4f46e5'],
+                borderRadius: 6,
+                maxBarThickness: 36
+              }]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: { legend: { display: false } },
+              scales: {
+                y: { beginAtZero: true, ticks: { precision: 0 } }
+              }
+            }
+          });
+        }
       }
 
       function calculateTrendBadge(currentVal, prevVal, label) {
@@ -819,66 +957,77 @@
         return raw;
       }
 
+      // Graphical ranked bar list (not a data table) - each row is an
+      // inline horizontal progress bar sized to % achieved, so the whole
+      // team's standing reads as a shape at a glance instead of a column
+      // of numbers. Sorted by % achieved, highest first - a real
+      // leaderboard ranking, not just whatever order employees load in.
       function renderLeaderboardRows(employees, achievedMap, selectedFy, periodRatio, periodInfo) {
-        var tbody = document.getElementById('leaderboard-tbody');
-        tbody.innerHTML = "";
+        var container = document.getElementById('leaderboard-tbody');
+        container.innerHTML = "";
         var kras = window.RevOpsStore.getCollection('kraTargets') || [];
 
         var shortLabel = (periodInfo && periodInfo.shortLabel) ? periodInfo.shortLabel : 'Period';
-        var thTarget = document.getElementById('th-leaderboard-target');
-        if (thTarget) {
-          thTarget.innerText = shortLabel + ' Target';
+        var periodDesc = document.getElementById('leaderboard-period-desc');
+        if (periodDesc) {
+          periodDesc.innerText = 'Contribution-weighted revenue vs ' + shortLabel + ' target (Excluding MD) • ranked by % achieved';
         }
 
-        employees.forEach(function(emp) {
-          if (emp.employeeId === 'E-001') return; // Business Head excluded
+        var rows = employees.filter(function(emp) { return emp.employeeId !== 'E-001'; }).map(function(emp) {
           var annualTarget = getEmployeeTarget(emp, selectedFy, kras);
           var target = Math.round(annualTarget * (periodRatio || 1.0));
           var achieved = Number(achievedMap[emp.employeeId]) || 0;
           var pct = target > 0 ? Math.round((achieved / target) * 100) : 0;
+          return { emp: emp, target: target, achieved: achieved, pct: pct };
+        });
+        rows.sort(function(a, b) { return b.pct - a.pct; });
 
+        if (rows.length === 0) {
+          container.innerHTML = '<div class="py-8 text-center text-slate-400 text-xs">No team members match.</div>';
+          return;
+        }
+
+        container.innerHTML = rows.map(function(r, idx) {
+          var emp = r.emp, pct = r.pct;
+          var barClass = "bg-rose-500";
           var pillClass = "bg-rose-100 text-rose-800";
           var statusText = "Needs Push";
           if (pct >= 90) {
+            barClass = "bg-emerald-500";
             pillClass = "bg-emerald-100 text-emerald-800";
             statusText = "On Track";
           } else if (pct >= 70) {
+            barClass = "bg-amber-500";
             pillClass = "bg-amber-100 text-amber-800";
             statusText = "Moderate";
           }
 
-          var tr = document.createElement('tr');
-          tr.className = "hover:bg-slate-50 transition-colors";
-          tr.innerHTML = `
-            <td class="py-3 px-4 font-semibold text-slate-900">
-              <div class="flex items-center space-x-2">
-                <div class="w-7 h-7 rounded-full bg-indigo-100 text-indigo-700 font-bold text-xs flex items-center justify-center shrink-0">
-                  ${emp.fullName.charAt(0)}
+          return `
+            <div class="flex items-center gap-3 py-3 px-3 hover:bg-slate-50 rounded-xl transition-colors">
+              <div class="w-5 text-center font-black text-slate-300 text-xs shrink-0">${idx + 1}</div>
+              <div class="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 font-bold text-xs flex items-center justify-center shrink-0">
+                ${escapeHtml(emp.fullName.charAt(0))}
+              </div>
+              <div class="w-36 sm:w-44 shrink-0 min-w-0">
+                <div class="font-bold text-slate-900 text-xs truncate">${escapeHtml(emp.fullName)}</div>
+                <div class="text-[10px] text-slate-400 truncate">${escapeHtml(emp.designation)} &bull; ${escapeHtml(emp.vertical)}</div>
+              </div>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center justify-between text-[11px] mb-1 gap-2">
+                  <span class="text-slate-500 truncate">${formatINR(r.achieved)} / ${formatINR(r.target)}</span>
+                  <span class="font-black ${pct >= 90 ? 'text-emerald-600' : (pct >= 70 ? 'text-amber-600' : 'text-rose-600')} shrink-0">${pct}%</span>
                 </div>
-                <div>
-                  <div class="font-bold text-slate-900">${emp.fullName}</div>
-                  <div class="text-[10px] text-slate-400 font-mono">${emp.employeeId}</div>
+                <div class="h-2.5 bg-slate-100 rounded-full overflow-hidden">
+                  <div class="${barClass} h-2.5 rounded-full transition-all" style="width:${Math.min(pct, 100)}%"></div>
                 </div>
               </div>
-            </td>
-            <td class="py-3 px-4">
-              <div class="text-slate-800 font-medium">${emp.designation}</div>
-              <div class="text-[11px] text-slate-500">${emp.vertical}</div>
-            </td>
-            <td class="py-3 px-4 text-right font-medium text-slate-600">${formatINR(target)}</td>
-            <td class="py-3 px-4 text-right font-bold text-slate-900">${formatINR(achieved)}</td>
-            <td class="py-3 px-4 text-right font-black text-indigo-600">${pct}%</td>
-            <td class="py-3 px-4 text-center">
-              <span class="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${pillClass}">${statusText}</span>
-            </td>
-            <td class="py-3 px-4 text-center">
-              <a href="my-scorecard.html?employeeId=${emp.employeeId}" class="text-indigo-600 hover:text-indigo-800 font-semibold text-xs hover:underline">
-                Scorecard &rarr;
+              <span class="hidden md:inline-block px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${pillClass} shrink-0">${statusText}</span>
+              <a href="my-scorecard.html?employeeId=${encodeURIComponent(emp.employeeId)}" class="text-indigo-600 hover:text-indigo-800 shrink-0" title="Open Scorecard">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
               </a>
-            </td>
+            </div>
           `;
-          tbody.appendChild(tr);
-        });
+        }).join('');
       }
 
       function filterLeaderboard() {

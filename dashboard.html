@@ -393,35 +393,70 @@
 
       </div>
 
-      <!-- TEAM LEADERBOARD TABLE -->
+      <!-- PMS SNAPSHOT: COMMITMENTS, PRODUCTIVITY & SERVICE/SPARES OPPORTUNITY -->
+      <div class="space-y-3">
+        <h2 class="text-xs font-bold uppercase tracking-wider text-slate-500">Performance Management Snapshot (This Month)</h2>
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+          <!-- Commitments Status -->
+          <div class="bg-white p-6 rounded-2xl shadow-xs border border-slate-200 space-y-4 flex flex-col justify-between">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h2 class="text-base font-bold text-slate-900 flex items-center space-x-2">
+                <span>📌</span><span>Commitments Status</span>
+              </h2>
+              <a href="k30-rollup.html" class="text-xs font-semibold text-indigo-600 hover:underline shrink-0">K-30 Rollup &rarr;</a>
+            </div>
+            <div class="relative h-44 w-full flex items-center justify-center">
+              <canvas id="commitmentsStatusChart"></canvas>
+            </div>
+            <div id="commitments-status-legend" class="grid grid-cols-3 gap-2 text-center text-[11px] pt-2 border-t border-slate-100">
+              <!-- Populated dynamically -->
+            </div>
+          </div>
+
+          <!-- Productivity Snapshot -->
+          <div class="bg-white p-6 rounded-2xl shadow-xs border border-slate-200 space-y-4 flex flex-col justify-between">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h2 class="text-base font-bold text-slate-900 flex items-center space-x-2">
+                <span>⚡</span><span>Productivity (Team Avg)</span>
+              </h2>
+              <a href="productivity-dashboard.html" class="text-xs font-semibold text-indigo-600 hover:underline shrink-0">Full Dashboard &rarr;</a>
+            </div>
+            <div class="relative h-44 w-full">
+              <canvas id="productivitySnapshotChart"></canvas>
+            </div>
+          </div>
+
+          <!-- Service & Spares Opportunity -->
+          <div class="bg-white p-6 rounded-2xl shadow-xs border border-slate-200 space-y-4 flex flex-col justify-between">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h2 class="text-base font-bold text-slate-900 flex items-center space-x-2">
+                <span>💡</span><span>Service &amp; Spares Opportunity</span>
+              </h2>
+              <a href="service-spares-opportunity.html" class="text-xs font-semibold text-indigo-600 hover:underline shrink-0">View All &rarr;</a>
+            </div>
+            <div class="relative h-44 w-full">
+              <canvas id="opportunitySnapshotChart"></canvas>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- TEAM LEADERBOARD: RANKED BAR LIST (graphical, not a data table) -->
       <div class="bg-white rounded-2xl shadow-xs border border-slate-200 overflow-hidden">
         <div class="p-6 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-slate-50/50">
           <div>
             <h2 class="text-lg font-bold text-slate-900">Team Leaderboard & Individual Contribution</h2>
-            <p class="text-xs text-slate-500">Contribution-weighted revenue against individual targets (Excluding MD)</p>
+            <p class="text-xs text-slate-500" id="leaderboard-period-desc">Contribution-weighted revenue against individual targets (Excluding MD) &bull; ranked by % achieved</p>
           </div>
           <div class="flex items-center space-x-2">
             <input type="text" id="leaderboard-search" oninput="filterLeaderboard()" placeholder="Search team member..." class="px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs w-52 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
           </div>
         </div>
 
-        <div class="overflow-x-auto">
-          <table class="w-full text-left border-collapse">
-            <thead>
-              <tr class="bg-slate-100/80 border-b border-slate-200 text-[11px] font-bold uppercase tracking-wider text-slate-600">
-                <th class="py-3 px-4">Employee</th>
-                <th class="py-3 px-4">Designation & Vertical</th>
-                <th id="th-leaderboard-target" class="py-3 px-4 text-right">Period Target</th>
-                <th class="py-3 px-4 text-right">Achieved Revenue</th>
-                <th class="py-3 px-4 text-right">% Achieved</th>
-                <th class="py-3 px-4 text-center">Status</th>
-                <th class="py-3 px-4 text-center">Action</th>
-              </tr>
-            </thead>
-            <tbody id="leaderboard-tbody" class="divide-y divide-slate-100 text-xs">
-              <!-- Rendered dynamically -->
-            </tbody>
-          </table>
+        <div id="leaderboard-tbody" class="divide-y divide-slate-100 p-2">
+          <!-- Rendered dynamically -->
         </div>
       </div>
 

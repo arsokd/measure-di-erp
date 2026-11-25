@@ -7215,6 +7215,168 @@ async function testPmsBulkUploadTemplates(browser) {
   return failures;
 }
 
+// ---------------------------------------------------------------------
+// Executive Dashboard redesign: the Team Leaderboard is now a ranked,
+// graphical bar list (not a <table>), sorted by % achieved; and 3 new
+// chart widgets - Commitments Status, Productivity Snapshot, and
+// Service/Spares Opportunity - surface this session's PMS data directly
+// on the Dashboard, computed from the same shared helpers their own
+// dedicated pages already use (nothing re-invented here).
+// ---------------------------------------------------------------------
+async function testDashboardGraphicalLeaderboardAndPmsSnapshot(browser) {
+  const failures = [];
+  const page = await browser.newPage({ viewport: { width: 1440, height: 1200 } });
+  page.on('dialog', async function (d) { await d.dismiss().catch(function () {}); });
+  await page.addInitScript(function () {
+    localStorage.setItem('userRole', 'super_admin');
+    localStorage.setItem('userEmail', 'murugan@measuredi.com');
+    localStorage.setItem('userName', 'Mr. Murugan V');
+    localStorage.setItem('employeeId', 'E-001');
+    // Chart.js loads from a CDN this sandbox's network policy blocks, so
+    // dashboard.js's own "retry until Chart.js is ready" guard would spin
+    // forever here (same reason testDashboardHrSnapshot mocks it) - a
+    // real browser with normal internet access loads the genuine library.
+    window.Chart = function (ctx, config) {
+      this.config = config;
+      this.destroy = function () {};
+      this.update = function () {};
+      this.data = config && config.data;
+    };
+  });
+  await page.goto(BASE_URL + '/dashboard.html', { waitUntil: 'networkidle', timeout: 30000 });
+  await page.waitForTimeout(800);
+
+  const state = await page.evaluate(function () {
+    function iso(d) { return d.toISOString().slice(0, 10); }
+    var today = new Date();
+
+    window.RevOpsStore.saveCollection('commitments', [
+      { id: 'dash_c1', employeeId: 'E-004', commitment: 'x', datePromised: iso(today), status: 'Completed' },
+      { id: 'dash_c2', employeeId: 'E-004', commitment: 'y', datePromised: iso(new Date(today.getTime() - 5 * 86400000)), status: 'Pending' },
+      { id: 'dash_c3', employeeId: 'E-004', commitment: 'z', datePromised: iso(new Date(today.getTime() + 5 * 86400000)), status: 'Pending' }
+    ]);
+    var exp = new Date(today); exp.setDate(exp.getDate() - 100);
+    window.RevOpsStore.saveCollection('clientEquipmentMaster', [
+      { id: 'dash_e1', customerName: 'Dashboard Regression Co', equipmentModel: 'Scale X', vertical: 'Projects', expiryDate: iso(exp), claims: [], statusOverride: null }
+    ]);
+    window.RevOpsStore.saveCollection('amcContracts', []);
+
+    renderDashboardData();
+
+    var lbEl = document.getElementById('leaderboard-tbody');
+    var rows = Array.from(lbEl.querySelectorAll(':scope > div'));
+    var pcts = rows.map(function (r) {
+      var m = r.innerText.match(/(\d+)%/);
+      return m ? parseInt(m[1], 10) : null;
+    }).filter(function (v) { return v !== null; });
+
+    return {
+      containerTagName: lbEl.tagName,
+      hasRealTable: !!document.querySelector('#leaderboard-tbody table'),
+      hasOldThId: !!document.getElementById('th-leaderboard-target'),
+      rowCount: rows.length,
+      pcts: pcts,
+      commitLegendText: document.getElementById('commitments-status-legend').innerText,
+      commitChartData: (typeof chartCommitmentsStatus !== 'undefined' && chartCommitmentsStatus) ? chartCommitmentsStatus.config.data.datasets[0].data : null,
+      prodChartLabels: (typeof chartProductivitySnapshot !== 'undefined' && chartProductivitySnapshot) ? chartProductivitySnapshot.config.data.labels : null,
+      oppChartData: (typeof chartOpportunitySnapshot !== 'undefined' && chartOpportunitySnapshot) ? chartOpportunitySnapshot.config.data.datasets[0].data : null
+    };
+  });
+
+  assertEqual(state.containerTagName, 'DIV', 'Team Leaderboard container is now a <div>, not a <table>', failures);
+  assertTrue(!state.hasRealTable, 'Team Leaderboard no longer renders a <table> element at all', failures);
+  assertTrue(!state.hasOldThId, 'The old "Period Target" <th> is gone (replaced by the period description text)', failures);
+  assertTrue(state.rowCount > 0, 'Leaderboard renders at least one graphical ranked row', failures);
+  var isSortedDesc = true;
+  for (var i = 1; i < state.pcts.length; i++) {
+    if (state.pcts[i] > state.pcts[i - 1]) { isSortedDesc = false; break; }
+  }
+  assertTrue(isSortedDesc, 'Leaderboard rows are ranked by % achieved, highest first - got ' + JSON.stringify(state.pcts), failures);
+
+  assertTrue(state.commitLegendText.indexOf('Completed') !== -1 && state.commitLegendText.indexOf('Overdue') !== -1, 'Commitments Status widget legend shows Completed/Open/Overdue', failures);
+  assertEqual(JSON.stringify(state.commitChartData), JSON.stringify([1, 1, 1]), 'Commitments Status donut shows exactly 1 Completed / 1 Open / 1 Overdue from the seeded fixture', failures);
+  assertEqual(JSON.stringify(state.prodChartLabels), JSON.stringify(['Daily Productivity Score', 'DWM Compliance']), 'Productivity Snapshot chart is wired with the right 2 series', failures);
+  assertEqual(JSON.stringify(state.oppChartData), JSON.stringify([1, 0, 0]), 'Service/Spares Opportunity widget shows exactly 1 AMC Conversion from the seeded expired-warranty equipment', failures);
+
+  await page.evaluate(function () {
+    window.RevOpsStore.saveCollection('commitments', []);
+    window.RevOpsStore.saveCollection('clientEquipmentMaster', []);
+  });
+  await page.close();
+  return failures;
+}
+
+// ---------------------------------------------------------------------
+// A-6 follow-up: the Industry tag added to Quotations and Orders must
+// also be bulk-uploadable (found missing from the Data Center templates
+// while auditing bulk-upload coverage for this session's PMS work -
+// Leads already had it, Quotations/Orders did not).
+// ---------------------------------------------------------------------
+async function testQuotationOrderBulkUploadIncludesIndustry(browser) {
+  const failures = [];
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 }, acceptDownloads: true });
+  page.on('dialog', async function (d) { await d.dismiss().catch(function () {}); });
+  await page.addInitScript(function () {
+    localStorage.setItem('userRole', 'super_admin');
+    localStorage.setItem('userEmail', 'murugan@measuredi.com');
+    localStorage.setItem('userName', 'Mr. Murugan V');
+    localStorage.setItem('employeeId', 'E-001');
+  });
+  await page.goto(BASE_URL + '/dashboard.html', { waitUntil: 'networkidle', timeout: 30000 });
+  await page.waitForTimeout(600);
+
+  await page.evaluate(function () {
+    window.RevOpsStore.saveCollection('projectSectorMaster', [{ id: 'psect_steel_bulk', name: 'Steel', isActive: true }]);
+  });
+
+  async function downloadFor(collectionValue) {
+    await page.evaluate(function () { openDataImportExportModal(); });
+    await page.waitForTimeout(200);
+    await page.selectOption('#data-import-collection', collectionValue);
+    const [dl] = await Promise.all([
+      page.waitForEvent('download'),
+      page.evaluate(function () { downloadCSVTemplate(); })
+    ]);
+    return fs.readFileSync(await dl.path(), 'utf8');
+  }
+
+  const quotCsv = await downloadFor('quotations');
+  assertTrue(quotCsv.indexOf(',industry,') !== -1 || quotCsv.split('\n')[0].indexOf('industry') !== -1, 'Quotations bulk-upload template now includes an "industry" column', failures);
+  assertTrue(quotCsv.indexOf('industry — one of the values above') !== -1, 'Quotations template notes "industry" is strict (sourced from Project Sector / Origin)', failures);
+
+  const ordersCsv = await downloadFor('orders');
+  assertTrue(ordersCsv.split('\n')[0].indexOf('industry') !== -1, 'Orders bulk-upload template now includes an "industry" column', failures);
+  assertTrue(ordersCsv.indexOf('industry — one of the values above') !== -1, 'Orders template notes "industry" is strict (sourced from Project Sector / Origin)', failures);
+
+  const uploadResult = await page.evaluate(function () {
+    window.RevOpsStore.saveCollection('quotations', []);
+    window.RevOpsStore.bulkUploadItems('quotations', [
+      { quoteNumber: 'QT-BULK-IND-01', customerName: 'Bulk Industry Quote Co', vertical: 'Projects', industry: 'steel' }
+    ], function () {});
+
+    window.RevOpsStore.saveCollection('orders', []);
+    window.RevOpsStore.bulkUploadItems('orders', [
+      { orderId: 'ORD-BULK-IND-01', customerName: 'Bulk Industry Order Co', vertical: 'Projects', industry: 'steel', orderValue: '100000' }
+    ], function () {});
+
+    return {
+      quote: window.RevOpsStore.getCollection('quotations')[0],
+      order: window.RevOpsStore.getCollection('orders')[0]
+    };
+  });
+  assertTrue(!!uploadResult.quote, 'bulkUploadItems saves a real quotation with industry', failures);
+  if (uploadResult.quote) assertEqual(uploadResult.quote.industry, 'Steel', 'bulkUploadItems normalizes quotation industry "steel" against Project Sector / Origin to "Steel"', failures);
+  assertTrue(!!uploadResult.order, 'bulkUploadItems saves a real order with industry', failures);
+  if (uploadResult.order) assertEqual(uploadResult.order.industry, 'Steel', 'bulkUploadItems normalizes order industry "steel" against Project Sector / Origin to "Steel"', failures);
+
+  await page.evaluate(function () {
+    window.RevOpsStore.saveCollection('quotations', []);
+    window.RevOpsStore.saveCollection('orders', []);
+  });
+  await page.close();
+  return failures;
+}
+
 const TESTS = [
   ['SLA day-based seeding, migration, severity dropdown & date math', testSlaDayBasedSeedingAndMigration],
   ['Ticket email subject line', testQuotationVerticalAndTicketSubject],
@@ -7291,7 +7453,9 @@ const TESTS = [
   ['A-9: AOP FY27-28 structure (no invented numbers) and the fabricated ₹1 Crore "Projects" target fix', testAopFy2728StructureAndZeroTargetFix],
   ['A-10: Service/Spares Opportunity Tracker - AMC Conversion, Renewal Due & Repeat Claims, computed live from the installed base', testServiceSparesOpportunityTracker],
   ['A-5: K-30 Rollup Report - revenue, industry mix, commitments, plan vs actual, productivity, attendance & opportunity, all rolled up from existing data', testK30RollupReport],
-  ['PMS Bulk Upload: Commitments, Monthly Plan vs Actual, AOP Targets, Installed Equipment & AMC Contracts are all bulk-uploadable via the Data Center', testPmsBulkUploadTemplates]
+  ['PMS Bulk Upload: Commitments, Monthly Plan vs Actual, AOP Targets, Installed Equipment & AMC Contracts are all bulk-uploadable via the Data Center', testPmsBulkUploadTemplates],
+  ['Executive Dashboard redesign: graphical ranked Team Leaderboard (no <table>) + Commitments/Productivity/Opportunity snapshot widgets', testDashboardGraphicalLeaderboardAndPmsSnapshot],
+  ['Quotation/Order bulk-upload templates now include the Industry column (A-6 follow-up)', testQuotationOrderBulkUploadIncludesIndustry]
 ];
 
 (async () => {

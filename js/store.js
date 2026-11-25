@@ -2426,14 +2426,19 @@ Object.assign(window.RevOpsStore, {
       },
       orders: {
         filename: "measure_di_orders_template.csv",
-        headers: "orderId,customerName,companyId,vertical,quotationId,leadId,poNumber,poDate,orderValue,gstPercent,advancePercent",
+        // industry (A-6, 24-Nov K-30 review) - same Project Sector /
+        // Origin list Leads/Quotations already use, so revenue-by-
+        // industry reporting stays consistent across the whole deal
+        // chain for a bulk-imported order too.
+        headers: "orderId,customerName,companyId,vertical,industry,quotationId,leadId,poNumber,poDate,orderValue,gstPercent,advancePercent",
         legendFields: [
           { column: 'vertical', collectionName: 'verticalClassificationMaster' },
+          { column: 'industry', collectionName: 'projectSectorMaster' },
           { column: 'gstPercent', values: ['18', '12', '5', '0'] },
           { column: 'companyId', collectionName: 'companyMaster', valueField: 'id' }
         ],
         sampleRows: [
-          "ORD-2026-99,JSW Steel Limited,company_measuredi,Projects,,,PO-JSW-99812,02/08/2026,1500000,18,30"
+          "ORD-2026-99,JSW Steel Limited,company_measuredi,Projects,Steel,,,PO-JSW-99812,02/08/2026,1500000,18,30"
         ]
       },
       invoices: {
@@ -2456,13 +2461,16 @@ Object.assign(window.RevOpsStore, {
         // quotation is created with its commercial header set and its
         // line items are then added by opening it in the app, the same
         // as any quotation that needs a correction.
-        headers: "quoteNumber,leadId,companyId,customerName,contactPerson,email,mobile,address,vertical,employeeId,validityDays,deliveryLeadTime,advancePercent,overallDiscountPercent,termsAndConditions",
+        // industry (A-6, 24-Nov K-30 review) - same Project Sector /
+        // Origin list Leads/Orders already use.
+        headers: "quoteNumber,leadId,companyId,customerName,contactPerson,email,mobile,address,vertical,industry,employeeId,validityDays,deliveryLeadTime,advancePercent,overallDiscountPercent,termsAndConditions",
         legendFields: [
           { column: 'vertical', collectionName: 'verticalClassificationMaster' },
+          { column: 'industry', collectionName: 'projectSectorMaster' },
           { column: 'companyId', collectionName: 'companyMaster', valueField: 'id' }
         ],
         sampleRows: [
-          "QT-2026-004,,company_measuredi,Sundaram Fasteners Ltd,Mr. S. K. Raman,sk.raman@sfl.co.in,9884512345,\"Plot 14, Ambattur Industrial Estate, Chennai\",Projects,E-002,30,3-4 Weeks from advance PO,50,10,\"1. 50% advance along with Purchase Order. 2. Balance 50% before dispatch.\""
+          "QT-2026-004,,company_measuredi,Sundaram Fasteners Ltd,Mr. S. K. Raman,sk.raman@sfl.co.in,9884512345,\"Plot 14, Ambattur Industrial Estate, Chennai\",Projects,Steel,E-002,30,3-4 Weeks from advance PO,50,10,\"1. 50% advance along with Purchase Order. 2. Balance 50% before dispatch.\""
         ]
       },
       dwmActivities: {
