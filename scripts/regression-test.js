@@ -6878,6 +6878,102 @@ async function testAopFy2728StructureAndZeroTargetFix(browser) {
   return failures;
 }
 
+// ---------------------------------------------------------------------
+// A-10: Service/Spares Opportunity Tracker (24-Nov K-30 review).
+// Deliberately computes only from data already in the app
+// (clientEquipmentMaster + amcContracts) - structure ready for Ms.
+// Dipa's corrected 5-year installed-base data, nothing fabricated.
+// ---------------------------------------------------------------------
+async function testServiceSparesOpportunityTracker(browser) {
+  const failures = [];
+
+  // Part A: the opportunity logic itself, with controlled fixture data
+  // covering every rule (and every exclusion) at once.
+  {
+    const { page } = await newPage(browser);
+    await page.goto(BASE_URL + '/service-spares-opportunity.html', { waitUntil: 'networkidle', timeout: 30000 });
+    await page.waitForTimeout(600);
+
+    const state = await page.evaluate(function () {
+      function isoOffset(days) {
+        var d = new Date();
+        d.setDate(d.getDate() + days);
+        return d.toISOString().slice(0, 10);
+      }
+
+      window.RevOpsStore.saveCollection('clientEquipmentMaster', [
+        // Warranty expired, no AMC in place -> AMC Conversion opportunity.
+        { id: 'eq_opp_1', customerName: 'Opportunity Conversion Co', equipmentModel: 'Test Scale A', vertical: 'Projects', expiryDate: isoOffset(-100), claims: [], statusOverride: null },
+        // Warranty expired but already marked Converted to AMC -> excluded.
+        { id: 'eq_opp_2', customerName: 'Already Converted Co', equipmentModel: 'Test Scale B', vertical: 'Projects', expiryDate: isoOffset(-50), claims: [], statusOverride: 'Converted to AMC' },
+        // Warranty expired, but this customer has an active AMC contract -> excluded.
+        { id: 'eq_opp_3', customerName: 'Has Active AMC Co', equipmentModel: 'Test Scale C', vertical: 'Projects', expiryDate: isoOffset(-30), claims: [], statusOverride: null },
+        // Warranty still active -> not a conversion opportunity.
+        { id: 'eq_opp_4', customerName: 'Still Under Warranty Co', equipmentModel: 'Test Scale D', vertical: 'Projects', expiryDate: isoOffset(200), claims: [], statusOverride: null },
+        // 2 claims logged -> Repeat Claims opportunity.
+        { id: 'eq_opp_5', customerName: 'Repeat Claims Co', equipmentModel: 'Test Scale E', vertical: 'Service and Parts', expiryDate: isoOffset(200), claims: [{ rmaNumber: 'RMA-1' }, { rmaNumber: 'RMA-2' }], statusOverride: null },
+        // Only 1 claim -> not flagged.
+        { id: 'eq_opp_6', customerName: 'Single Claim Co', equipmentModel: 'Test Scale F', vertical: 'Service and Parts', expiryDate: isoOffset(200), claims: [{ rmaNumber: 'RMA-1' }], statusOverride: null }
+      ]);
+      window.RevOpsStore.saveCollection('amcContracts', [
+        // This customer's "active AMC" shields eq_opp_3 from a conversion flag.
+        { id: 'amc_opp_1', contractNumber: 'AMC-OPP-1', customerName: 'Has Active AMC Co', equipmentModel: 'Test Scale C', vertical: 'Projects', annualValue: 240000, endDate: isoOffset(300) },
+        // Renews in 30 days -> AMC Renewal Due, with its own real annualValue.
+        { id: 'amc_opp_2', contractNumber: 'AMC-OPP-2', customerName: 'Renewal Due Co', equipmentModel: 'Test Scale G', vertical: 'Projects', annualValue: 180000, endDate: isoOffset(30) },
+        // Renews in 200 days -> not due yet, not flagged.
+        { id: 'amc_opp_3', contractNumber: 'AMC-OPP-3', customerName: 'Not Due Yet Co', equipmentModel: 'Test Scale H', vertical: 'Projects', annualValue: 150000, endDate: isoOffset(200) }
+      ]);
+
+      renderServiceSparesOpportunities();
+
+      return {
+        statTotal: document.getElementById('opp-stat-total').innerText,
+        statConversion: document.getElementById('opp-stat-conversion').innerText,
+        statRenewal: document.getElementById('opp-stat-renewal').innerText,
+        statRepeat: document.getElementById('opp-stat-repeat').innerText,
+        tableText: document.getElementById('opportunity-tbody').innerText
+      };
+    });
+
+    assertEqual(state.statConversion, '1', 'Opportunity Tracker: exactly 1 AMC Conversion opportunity (the other 3 equipment rows are correctly excluded)', failures);
+    assertEqual(state.statRenewal, '1', 'Opportunity Tracker: exactly 1 AMC Renewal Due opportunity (30-day contract, not the 200-day one)', failures);
+    assertEqual(state.statRepeat, '1', 'Opportunity Tracker: exactly 1 Repeat Claims opportunity (2+ claims, not the single-claim one)', failures);
+    assertEqual(state.statTotal, '3', 'Opportunity Tracker: Total Opportunities is the sum of all 3 types', failures);
+    assertTrue(state.tableText.indexOf('Opportunity Conversion Co') !== -1, 'Opportunity Tracker: shows the AMC Conversion customer', failures);
+    assertTrue(state.tableText.indexOf('Already Converted Co') === -1, 'Opportunity Tracker: excludes equipment already marked Converted to AMC', failures);
+    assertTrue(state.tableText.indexOf('Has Active AMC Co') === -1, 'Opportunity Tracker: excludes a customer who already has an active AMC contract', failures);
+    assertTrue(state.tableText.indexOf('Still Under Warranty Co') === -1, 'Opportunity Tracker: excludes equipment still under warranty', failures);
+    assertTrue(state.tableText.indexOf('Renewal Due Co') !== -1 && state.tableText.indexOf('₹1.80 L') !== -1, 'Opportunity Tracker: AMC Renewal Due shows the real ₹1.80 L contract value, not an invented figure', failures);
+    assertTrue(state.tableText.indexOf('Not Due Yet Co') === -1, 'Opportunity Tracker: a contract renewing in 200 days is not flagged yet', failures);
+    assertTrue(state.tableText.indexOf('Repeat Claims Co') !== -1, 'Opportunity Tracker: shows the Repeat Claims customer', failures);
+    assertTrue(state.tableText.indexOf('Single Claim Co') === -1, 'Opportunity Tracker: a single claim does not count as "repeat"', failures);
+
+    await page.evaluate(function () {
+      window.RevOpsStore.saveCollection('clientEquipmentMaster', []);
+      window.RevOpsStore.saveCollection('amcContracts', []);
+    });
+    await page.close();
+  }
+
+  // Part B: admin-only access.
+  {
+    const page = await browser.newPage();
+    await page.addInitScript(function () {
+      localStorage.setItem('userRole', 'staff');
+      localStorage.setItem('userEmail', 'oppstaff@measuredi.com');
+      localStorage.setItem('userName', 'Opportunity Staff Test');
+      localStorage.setItem('employeeId', 'E-006');
+    });
+    await page.goto(BASE_URL + '/service-spares-opportunity.html', { waitUntil: 'load', timeout: 15000 });
+    await page.waitForTimeout(600);
+    const staffResult = await page.evaluate(function () { return { finalPath: window.location.pathname }; });
+    assertTrue(staffResult.finalPath.indexOf('service-spares-opportunity.html') === -1, 'Opportunity Tracker: a staff-role user is redirected away (super_admin/admin only), got ' + staffResult.finalPath, failures);
+    await page.close();
+  }
+
+  return failures;
+}
+
 const TESTS = [
   ['SLA day-based seeding, migration, severity dropdown & date math', testSlaDayBasedSeedingAndMigration],
   ['Ticket email subject line', testQuotationVerticalAndTicketSubject],
@@ -6951,7 +7047,8 @@ const TESTS = [
   ['Individual Review Pack: Commitments kept/missed, Plan vs Actual (Value) and a real throttled App Usage stamp from checkAuth', testReviewPackPlanCommitmentsUsage],
   ['A-6: Industry tag carried through Quotation/Order, Reports "Revenue & Pipeline by Industry" table, and the isOrderWon() fix for live "Booked" orders', testIndustryTagThroughQuotationOrderReports],
   ['A-7: Productivity Dashboard - ratified Daily Productivity Score + DWM Compliance %, per-person, per-month, admin-only', testProductivityDashboard],
-  ['A-9: AOP FY27-28 structure (no invented numbers) and the fabricated ₹1 Crore "Projects" target fix', testAopFy2728StructureAndZeroTargetFix]
+  ['A-9: AOP FY27-28 structure (no invented numbers) and the fabricated ₹1 Crore "Projects" target fix', testAopFy2728StructureAndZeroTargetFix],
+  ['A-10: Service/Spares Opportunity Tracker - AMC Conversion, Renewal Due & Repeat Claims, computed live from the installed base', testServiceSparesOpportunityTracker]
 ];
 
 (async () => {

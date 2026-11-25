@@ -989,6 +989,7 @@ function renderRevOpsNavbar(userName, userRole, hasDirectReports) {
   // exclusively one of them.
   var serviceItems = [
     { title: "Service & Spares Leads", path: "service-leads.html", desc: "Dedicated pipeline for Spare Parts, Paid Services, AMC Renewals & Calls", icon: "🎯", show: true, group: null },
+    { title: "Service & Spares Opportunity", path: "service-spares-opportunity.html", desc: "AMC conversion, renewal-due & repeat-claim opportunities, computed live from the installed base", icon: "💡", show: isAdmin, group: null },
 
     { title: "Service Tickets & QC", path: "service-tickets.html", desc: "Breakdown calls, on-site diagnostics, field SLAs & QC alerts", icon: "🛠️", show: true, group: "Service" },
     { title: "Warranty & Equipment Health", path: "warranty-management.html", desc: "Installed base warranty tracking, RMA claims & 1-click AMC conversion", icon: "🛡️", show: true, group: "Service" },
@@ -1944,7 +1945,7 @@ function getRevOpsNavigationHtml(userName, userRole, employeeId, userEmail, role
           <a href="master-data.html" class="${currentPath === 'master-data.html' ? 'px-2.5 py-1.5 rounded-lg text-xs font-bold bg-[#982B68] text-white shadow-xs' : 'px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-300 hover:bg-slate-800 hover:text-white transition-all'}">🗄️ Master Data</a>
         ` : ''}
         ${renderTopDropdown("Sales", "📈", salesItems, ['leads.html', 'quotations.html', 'orders.html', 'invoices.html', 'payments.html', 'audit-logs.html', 'support-tickets.html'])}
-        ${renderTopDropdown("Service & Quality", "🛠️", serviceItems, ['service-tickets.html', 'amc-contracts.html', 'service-leads.html', 'amc-quotes.html', 'amc-orders.html', 'amc-invoices.html', 'parts-sales.html', 'warranty-management.html'])}
+        ${renderTopDropdown("Service & Quality", "🛠️", serviceItems, ['service-tickets.html', 'amc-contracts.html', 'service-leads.html', 'amc-quotes.html', 'amc-orders.html', 'amc-invoices.html', 'parts-sales.html', 'warranty-management.html', 'service-spares-opportunity.html'])}
         ${renderTopDropdown("Finance", "💰", financeItems, ['expenses.html', 'payroll.html'])}
         ${renderTopDropdown("People & HR", "👥", hrItems, ['employees.html', 'attendance.html', 'my-team.html'])}
         ${renderTopDropdown("Performance", "🎯", perfItems, ['commitments.html', 'my-scorecard.html', 'dwm.html', 'kra-targets.html', 'reviews.html', 'aop-targets.html', 'productivity-dashboard.html', 'user-guide.html'])}

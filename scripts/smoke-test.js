@@ -72,7 +72,8 @@ const PAGES_TO_CHECK = [
   'sop.html',
   'support-tickets.html',
   'user-guide.html',
-  'warranty-management.html'
+  'warranty-management.html',
+  'service-spares-opportunity.html'
 ];
 
 async function checkPage(browser, path) {

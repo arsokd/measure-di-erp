@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <script src="js/error-monitor.js"></script>
+    <script src="js/report-problem.js" defer></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#982B68" />
+    <link rel="icon" href="/icons/favicon-32.png" sizes="32x32" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="K-30 ERP" />
+    <script src="pwa-register.js" defer></script>
+    <title>K-30_ERP - Service &amp; Spares Opportunity</title>
+    <link rel="stylesheet" href="/src/index.css">
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="js/firebase-init.js" defer></script>
+    <script src="js/store.js" defer></script>
+    <script src="js/seed-data.js" defer></script>
+    <script src="auth-guard.js" defer></script>
+  </head>
+  <body class="bg-slate-50 min-h-screen text-slate-800">
+
+    <!-- Navbar Container -->
+    <div id="navbar-container"></div>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+
+      <!-- Header -->
+      <div class="bg-white p-6 rounded-2xl shadow-xs border border-slate-200">
+        <h1 class="text-2xl font-bold text-slate-900 tracking-tight">Service &amp; Spares Opportunity Tracker</h1>
+        <p class="text-sm text-slate-500 mt-1">Computed live from the installed equipment base (Warranty &amp; Equipment Health) and AMC Contracts already in the app - no figures invented. Ms. Dipa's corrected 5-year installed-base data will flow straight into this the moment it's entered or uploaded, with no change needed here.</p>
+      </div>
+
+      <!-- Stat Cards -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="bg-white p-5 rounded-2xl shadow-xs border border-slate-200">
+          <div class="text-[11px] font-bold uppercase text-slate-400 tracking-wider">Total Opportunities</div>
+          <div id="opp-stat-total" class="text-2xl font-black text-slate-900 mt-1">0</div>
+        </div>
+        <div class="bg-white p-5 rounded-2xl shadow-xs border border-rose-200">
+          <div class="text-[11px] font-bold uppercase text-rose-500 tracking-wider">AMC Conversion (Warranty Expired)</div>
+          <div id="opp-stat-conversion" class="text-2xl font-black text-rose-600 mt-1">0</div>
+        </div>
+        <div class="bg-white p-5 rounded-2xl shadow-xs border border-amber-200">
+          <div class="text-[11px] font-bold uppercase text-amber-500 tracking-wider">AMC Renewal Due (60 days)</div>
+          <div id="opp-stat-renewal" class="text-2xl font-black text-amber-600 mt-1">0</div>
+        </div>
+        <div class="bg-white p-5 rounded-2xl shadow-xs border border-indigo-200">
+          <div class="text-[11px] font-bold uppercase text-indigo-500 tracking-wider">Repeat Claims (Spares/Service)</div>
+          <div id="opp-stat-repeat" class="text-2xl font-black text-indigo-600 mt-1">0</div>
+        </div>
+      </div>
+
+      <!-- Opportunity Table -->
+      <div class="bg-white rounded-2xl shadow-xs border border-slate-200 overflow-hidden space-y-4">
+        <div class="p-6 border-b border-slate-200">
+          <h2 class="text-lg font-bold text-slate-900">Opportunities</h2>
+          <p class="text-xs text-slate-500">"Est. Value" is shown only where it's a real figure already in the app (an existing AMC contract's own annual value) - never a guessed number.</p>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="bg-slate-50 border-b border-slate-200 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                <th class="py-3 px-4">Customer</th>
+                <th class="py-3 px-4">Equipment / Vertical</th>
+                <th class="py-3 px-4">Opportunity</th>
+                <th class="py-3 px-4">Detail</th>
+                <th class="py-3 px-4 text-right">Est. Value (Rs.)</th>
+              </tr>
+            </thead>
+            <tbody id="opportunity-tbody" class="divide-y divide-slate-100 text-xs">
+              <!-- Rendered dynamically -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </main>
+
+    <script src="js/service-spares-opportunity.js"></script>
+  </body>
+</html>

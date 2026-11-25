@@ -116,6 +116,7 @@ export default defineConfig(({ mode }) => {
           amcInvoices: path.resolve(__dirname, 'amc-invoices.html'),
           partsSales: path.resolve(__dirname, 'parts-sales.html'),
           warrantyManagement: path.resolve(__dirname, 'warranty-management.html'),
+          serviceSparesOpportunity: path.resolve(__dirname, 'service-spares-opportunity.html'),
           auditLogs: path.resolve(__dirname, 'audit-logs.html'),
           invoices: path.resolve(__dirname, 'invoices.html'),
           masterData: path.resolve(__dirname, 'master-data.html'),
