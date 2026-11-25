@@ -6974,6 +6974,247 @@ async function testServiceSparesOpportunityTracker(browser) {
   return failures;
 }
 
+// ---------------------------------------------------------------------
+// A-5: K-30 Rollup Report (24-Nov K-30 review). Pure aggregation of
+// numbers already computed correctly elsewhere - every assertion here
+// is checked against an expectation computed the same way the page
+// itself computes it (never a hardcoded guess), so the test stays
+// correct regardless of which real calendar day it happens to run on.
+// ---------------------------------------------------------------------
+async function testK30RollupReport(browser) {
+  const failures = [];
+  const { page } = await newPage(browser);
+  await page.goto(BASE_URL + '/k30-rollup.html', { waitUntil: 'networkidle', timeout: 30000 });
+  await page.waitForTimeout(600);
+
+  const state = await page.evaluate(function () {
+    function isoOffset(days) {
+      var d = new Date();
+      d.setDate(d.getDate() + days);
+      return d.toISOString().slice(0, 10);
+    }
+    var today = new Date();
+    var yearMonth = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0');
+    var firstOfMonth = isoOffset(-(today.getDate() - 1));
+    var financialYear = getFinancialYear(yearMonth + '-01');
+
+    // Employees: replaced wholesale with exactly one test employee, so
+    // the "team average" IS that one employee's own numbers - otherwise
+    // the real seeded roster's other employees (with no data seeded for
+    // them) would dilute every average toward 0 and make this flaky.
+    window.RevOpsStore.saveCollection('employees', [
+      { employeeId: 'E-ROLL-01', fullName: 'Rollup Test Employee', role: 'staff', isActive: true }
+    ]);
+
+    // 1. Revenue + Industry: one won order this month for E-ROLL-01.
+    window.RevOpsStore.saveCollection('orders', [
+      { id: 'ord_roll_1', poNumber: 'PO-ROLL-1', status: 'Booked', industry: 'Steel', orderValue: 300000, orderDate: isoOffset(0), employeeId: 'E-ROLL-01', splits: [{ employeeId: 'E-ROLL-01', percent: 100, role: 'Closing' }] }
+    ]);
+
+    // 2. AOP: a real custom target for this month's FY.
+    window.RevOpsStore.saveCollection('aopTargets', [
+      { id: 'aop_roll_1', financialYear: financialYear, companyTarget: 50000000 }
+    ]);
+
+    // 3. Commitments: one Completed, one still-open - both dated the
+    // 1st of this month, so "this month" membership never depends on
+    // which day the suite happens to run on.
+    window.RevOpsStore.saveCollection('commitments', [
+      { id: 'commit_roll_1', employeeId: 'E-ROLL-01', commitment: 'Completed one', datePromised: firstOfMonth, status: 'Completed' },
+      { id: 'commit_roll_2', employeeId: 'E-ROLL-01', commitment: 'Open one', datePromised: firstOfMonth, status: 'Pending' }
+    ]);
+    var expectedOverdue = firstOfMonth < getLocalTodayISO() ? 1 : 0;
+
+    // 4. Monthly Plan vs Actual: Visits is a direct stored actual (no
+    // other collection involved) - 5 of 10 planned -> exactly 50%.
+    window.RevOpsStore.saveCollection('monthlyPlans', [
+      { id: 'plan_roll_1', employeeId: 'E-ROLL-01', month: yearMonth, planVisits: 10, actualVisits: 5, planEnquiries: 0, planValue: 0 }
+    ]);
+
+    // 5. Productivity: 1 Ratified day scored 100%, 1 DWM-updated day.
+    window.RevOpsStore.saveCollection('attendance', [
+      { id: 'att_roll_1', employeeId: 'E-ROLL-01', date: isoOffset(0).split('-').reverse().join('/'), status: 'Completed', autoScore: 100, finalScore: 100, scoreRatificationStatus: 'Ratified' }
+    ]);
+    window.RevOpsStore.saveCollection('dwmActivities', [
+      { id: 'dwm_roll_1', employeeId: 'E-ROLL-01', date: isoOffset(0).split('-').reverse().join('/'), isTicked: true, accomplishmentStatus: 'Done' }
+    ]);
+    var expectedDwmPct = Math.min(100, Math.round((1 / today.getDate()) * 100));
+    var expectedAttendancePct = Math.min(100, Math.round((1 / window.RevOpsStore.computeWorkingDaysElapsedInMonth(today.getFullYear(), today.getMonth() + 1, today.getDate())) * 100));
+
+    // 6. Service/Spares Opportunity: one AMC Conversion case.
+    window.RevOpsStore.saveCollection('clientEquipmentMaster', [
+      { id: 'eq_roll_1', customerName: 'Rollup Opportunity Co', equipmentModel: 'Roll Scale', vertical: 'Projects', expiryDate: isoOffset(-100), claims: [], statusOverride: null }
+    ]);
+    window.RevOpsStore.saveCollection('amcContracts', []);
+
+    document.getElementById('rollup-month-select').value = yearMonth;
+    renderK30Rollup();
+
+    return {
+      wonOrders: document.getElementById('roll-stat-wonorders').innerText,
+      wonRevenue: document.getElementById('roll-stat-wonrevenue').innerText,
+      aopTarget: document.getElementById('roll-stat-aoptarget').innerText,
+      industryText: document.getElementById('roll-industry-tbody').innerText,
+      commitTotal: document.getElementById('roll-commit-total').innerText,
+      commitCompleted: document.getElementById('roll-commit-completed').innerText,
+      commitOpen: document.getElementById('roll-commit-open').innerText,
+      commitOverdue: document.getElementById('roll-commit-overdue').innerText,
+      planVisits: document.getElementById('roll-plan-visits').innerText,
+      prodScore: document.getElementById('roll-prod-score').innerText,
+      prodDwm: document.getElementById('roll-prod-dwm').innerText,
+      attendancePct: document.getElementById('roll-attendance-pct').innerText,
+      oppTotal: document.getElementById('roll-opp-total').innerText,
+      oppConversion: document.getElementById('roll-opp-conversion').innerText,
+      expectedOverdue: expectedOverdue,
+      expectedDwmPct: expectedDwmPct,
+      expectedAttendancePct: expectedAttendancePct
+    };
+  });
+
+  assertEqual(state.wonOrders, '1', 'K-30 Rollup: Won Orders This Month counts the real booked order', failures);
+  assertEqual(state.wonRevenue, '₹3.00 L', 'K-30 Rollup: Won Revenue This Month matches the order value', failures);
+  assertEqual(state.aopTarget, '₹5.00 Cr', 'K-30 Rollup: Full-Year AOP Target shows the real entered figure for this month\'s FY', failures);
+  assertTrue(state.industryText.indexOf('Steel') !== -1, 'K-30 Rollup: Revenue by Industry table shows the Steel row', failures);
+  assertEqual(state.commitTotal, '2', 'K-30 Rollup: Commitments Total counts both this-month commitments', failures);
+  assertEqual(state.commitCompleted, '1', 'K-30 Rollup: Commitments Completed counts the Completed one', failures);
+  assertEqual(state.commitOpen, '1', 'K-30 Rollup: Commitments Open counts the still-Pending one', failures);
+  assertEqual(state.commitOverdue, String(state.expectedOverdue), 'K-30 Rollup: Commitments Overdue matches isCommitmentOverdue()\'s own verdict', failures);
+  assertEqual(state.planVisits, '50%', 'K-30 Rollup: Monthly Plan vs Actual Visits is exactly 5/10 = 50%', failures);
+  assertEqual(state.prodScore, '100%', 'K-30 Rollup: Productivity Daily Score averages the single Ratified 100% day', failures);
+  assertEqual(state.prodDwm, state.expectedDwmPct + '%', 'K-30 Rollup: Productivity DWM Compliance matches the same math getProductivityForMonth uses', failures);
+  assertEqual(state.attendancePct, state.expectedAttendancePct + '%', 'K-30 Rollup: Attendance matches computeAttendanceCompliance\'s own verdict', failures);
+  assertEqual(state.oppTotal, '1', 'K-30 Rollup: Service/Spares Opportunity Total surfaces the seeded AMC Conversion case', failures);
+  assertEqual(state.oppConversion, '1', 'K-30 Rollup: AMC Conversion stat matches', failures);
+
+  await page.evaluate(function () {
+    window.RevOpsStore.saveCollection('orders', []);
+    window.RevOpsStore.saveCollection('aopTargets', []);
+    window.RevOpsStore.saveCollection('commitments', []);
+    window.RevOpsStore.saveCollection('monthlyPlans', []);
+    window.RevOpsStore.saveCollection('attendance', []);
+    window.RevOpsStore.saveCollection('dwmActivities', []);
+    window.RevOpsStore.saveCollection('clientEquipmentMaster', []);
+  });
+  await page.close();
+
+  // Admin-only access.
+  const staffPage = await browser.newPage();
+  await staffPage.addInitScript(function () {
+    localStorage.setItem('userRole', 'staff');
+    localStorage.setItem('userEmail', 'rollstaff@measuredi.com');
+    localStorage.setItem('userName', 'Rollup Staff Test');
+    localStorage.setItem('employeeId', 'E-006');
+  });
+  await staffPage.goto(BASE_URL + '/k30-rollup.html', { waitUntil: 'load', timeout: 15000 });
+  await staffPage.waitForTimeout(600);
+  const staffResult = await staffPage.evaluate(function () { return { finalPath: window.location.pathname }; });
+  assertTrue(staffResult.finalPath.indexOf('k30-rollup.html') === -1, 'K-30 Rollup: a staff-role user is redirected away (super_admin/admin only), got ' + staffResult.finalPath, failures);
+  await staffPage.close();
+
+  return failures;
+}
+
+// ---------------------------------------------------------------------
+// PMS Bulk Upload (24-Nov K-30 review): every PMS collection built this
+// session - Commitments, Monthly Plan vs Actual, AOP Targets, the
+// installed Equipment/Warranty base, and AMC Contracts - must be
+// bulk-uploadable through the same Data Center used for everything else
+// in the app, not a one-record-at-a-time-only island. Also covers the
+// amcContracts realtime-sync gap found while wiring this up: it was
+// missing from all 3 of store.js's own collection-sync lists, so a
+// bulk-uploaded (or any) change to it would never reach an already-open
+// session on another device.
+// ---------------------------------------------------------------------
+async function testPmsBulkUploadTemplates(browser) {
+  const failures = [];
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 }, acceptDownloads: true });
+  page.on('dialog', async function (d) { await d.dismiss().catch(function () {}); });
+  await page.addInitScript(function () {
+    localStorage.setItem('userRole', 'super_admin');
+    localStorage.setItem('userEmail', 'murugan@measuredi.com');
+    localStorage.setItem('userName', 'Mr. Murugan V');
+    localStorage.setItem('employeeId', 'E-001');
+  });
+  await page.goto(BASE_URL + '/dashboard.html', { waitUntil: 'networkidle', timeout: 30000 });
+  await page.waitForTimeout(600);
+
+  // Part A: all 5 PMS collections are offered in the Data Center's own
+  // Import dropdown, and each downloads a real, collection-specific
+  // template (not silently falling back to the generic "clients" one).
+  const dropdownOptions = await page.evaluate(function () {
+    openDataImportExportModal();
+    return Array.from(document.getElementById('data-import-collection').options).map(function (o) { return o.value; });
+  });
+  ['commitments', 'monthlyPlans', 'aopTargets', 'clientEquipmentMaster', 'amcContracts'].forEach(function (col) {
+    assertIncludes(dropdownOptions, col, 'Data Center Import dropdown offers "' + col + '"', failures);
+  });
+
+  async function downloadFor(collectionValue) {
+    await page.evaluate(function () { openDataImportExportModal(); });
+    await page.waitForTimeout(200);
+    await page.selectOption('#data-import-collection', collectionValue);
+    const [dl] = await Promise.all([
+      page.waitForEvent('download'),
+      page.evaluate(function () { downloadCSVTemplate(); })
+    ]);
+    return fs.readFileSync(await dl.path(), 'utf8');
+  }
+
+  const commitCsv = await downloadFor('commitments');
+  assertTrue(commitCsv.indexOf('datePromised') !== -1, 'Commitments template is real (has datePromised), not the generic placeholder', failures);
+  assertTrue(commitCsv.indexOf('status — one of the values above') !== -1, 'Commitments template notes "status" is strict', failures);
+
+  const planCsv = await downloadFor('monthlyPlans');
+  assertTrue(planCsv.indexOf('planVisits') !== -1 && planCsv.indexOf('actualVisits') !== -1, 'Monthly Plan vs Actual template is real', failures);
+
+  const aopCsv = await downloadFor('aopTargets');
+  assertTrue(aopCsv.indexOf('annualTarget') !== -1 && aopCsv.indexOf('lineItem') !== -1, 'AOP Targets template is real (Top Sheet line-item shape)', failures);
+  assertTrue(aopCsv.indexOf('2027-28') !== -1, 'AOP Targets sample row demonstrates the new FY27-28 (A-9)', failures);
+
+  const equipCsv = await downloadFor('clientEquipmentMaster');
+  assertTrue(equipCsv.indexOf('warrantyTier') !== -1 && equipCsv.indexOf('commissioningDate') !== -1, 'Installed Equipment template is real', failures);
+  assertTrue(equipCsv.indexOf('warrantyTier — one of the values above') !== -1, 'Installed Equipment template notes "warrantyTier" is strict', failures);
+
+  const amcCsv = await downloadFor('amcContracts');
+  assertTrue(amcCsv.indexOf('contractTier') !== -1 && amcCsv.indexOf('pmFrequency') !== -1, 'AMC Contracts template is real', failures);
+  assertTrue(amcCsv.indexOf('contractTier — one of the values above') !== -1, 'AMC Contracts template notes "contractTier" is strict (sourced from amcContractTierMaster)', failures);
+
+  // Part B: the actual bulkUploadItems() write path - numeric coercion,
+  // legend normalization, and a real Firestore-collection-name match -
+  // round-tripped for 2 representative collections.
+  const uploadResult = await page.evaluate(function () {
+    window.RevOpsStore.saveCollection('commitments', []);
+    window.RevOpsStore.bulkUploadItems('commitments', [
+      { employeeId: 'E-004', givenByEmployeeId: 'E-001', commitment: 'Bulk-uploaded commitment', vertical: 'projects', datePromised: '2026-12-10', status: ' completed ' }
+    ], function () {});
+
+    window.RevOpsStore.saveCollection('amcContracts', []);
+    window.RevOpsStore.bulkUploadItems('amcContracts', [
+      { contractNumber: 'AMC-BULK-01', customerName: 'Bulk Upload Test Co', annualValue: '240000', startDate: '2027-04-01', endDate: '2028-03-31' }
+    ], function () {});
+
+    return {
+      commit: window.RevOpsStore.getCollection('commitments')[0],
+      amc: window.RevOpsStore.getCollection('amcContracts')[0]
+    };
+  });
+  assertTrue(!!uploadResult.commit, 'bulkUploadItems saves a real commitment record', failures);
+  if (uploadResult.commit) {
+    assertEqual(uploadResult.commit.status, 'Completed', 'bulkUploadItems normalizes "completed" against the Commitments status legend to "Completed"', failures);
+  }
+  assertTrue(!!uploadResult.amc, 'bulkUploadItems saves a real AMC contract record', failures);
+  if (uploadResult.amc) {
+    assertEqual(uploadResult.amc.annualValue, 240000, 'bulkUploadItems coerces amcContracts.annualValue to a real number, not a string', failures);
+  }
+
+  await page.evaluate(function () {
+    window.RevOpsStore.saveCollection('commitments', []);
+    window.RevOpsStore.saveCollection('amcContracts', []);
+  });
+  await page.close();
+  return failures;
+}
+
 const TESTS = [
   ['SLA day-based seeding, migration, severity dropdown & date math', testSlaDayBasedSeedingAndMigration],
   ['Ticket email subject line', testQuotationVerticalAndTicketSubject],
@@ -7048,7 +7289,9 @@ const TESTS = [
   ['A-6: Industry tag carried through Quotation/Order, Reports "Revenue & Pipeline by Industry" table, and the isOrderWon() fix for live "Booked" orders', testIndustryTagThroughQuotationOrderReports],
   ['A-7: Productivity Dashboard - ratified Daily Productivity Score + DWM Compliance %, per-person, per-month, admin-only', testProductivityDashboard],
   ['A-9: AOP FY27-28 structure (no invented numbers) and the fabricated ₹1 Crore "Projects" target fix', testAopFy2728StructureAndZeroTargetFix],
-  ['A-10: Service/Spares Opportunity Tracker - AMC Conversion, Renewal Due & Repeat Claims, computed live from the installed base', testServiceSparesOpportunityTracker]
+  ['A-10: Service/Spares Opportunity Tracker - AMC Conversion, Renewal Due & Repeat Claims, computed live from the installed base', testServiceSparesOpportunityTracker],
+  ['A-5: K-30 Rollup Report - revenue, industry mix, commitments, plan vs actual, productivity, attendance & opportunity, all rolled up from existing data', testK30RollupReport],
+  ['PMS Bulk Upload: Commitments, Monthly Plan vs Actual, AOP Targets, Installed Equipment & AMC Contracts are all bulk-uploadable via the Data Center', testPmsBulkUploadTemplates]
 ];
 
 (async () => {

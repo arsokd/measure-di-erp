@@ -972,6 +972,7 @@ function renderRevOpsNavbar(userName, userRole, hasDirectReports) {
   ];
 
   var perfItems = [
+    { title: "K-30 Rollup Report", path: "k30-rollup.html", desc: "One-page weekly/monthly roll-up: revenue, industry mix, commitments, plan vs actual, productivity, attendance & opportunity", icon: "📈", show: isAdmin },
     { title: "Commitment Register", path: "commitments.html", desc: "Every meeting commitment: owner, due date, status", icon: "📌", show: true },
     { title: "My Scorecard", path: "my-scorecard.html", desc: "Personal scorecard & achievement rating", icon: "🎯", show: true },
     { title: "Daily Work (DWM)", path: "dwm.html", desc: "Daily task logs & plan vs actuals", icon: "📅", show: true },
@@ -1412,6 +1413,13 @@ function openDataImportExportModal() {
                 <option value="attendance">Attendance Records</option>
                 <option value="kraTargets">KRA Targets</option>
               </optgroup>
+              <optgroup label="Performance Management (PMS)">
+                <option value="commitments">Commitments (Review Meeting Register)</option>
+                <option value="monthlyPlans">Monthly Plan vs Actual</option>
+                <option value="aopTargets">AOP Targets (Top Sheet Line Items)</option>
+                <option value="clientEquipmentMaster">Installed Equipment / Warranty Base</option>
+                <option value="amcContracts">AMC Contracts</option>
+              </optgroup>
             </select>
           </div>
 
@@ -1458,6 +1466,11 @@ function openDataImportExportModal() {
               <option value="leads">CRM Pipeline</option>
               <option value="payments">Payment Collections</option>
               <option value="attendance">Attendance Logs</option>
+              <option value="commitments">Commitments (PMS)</option>
+              <option value="monthlyPlans">Monthly Plan vs Actual (PMS)</option>
+              <option value="aopTargets">AOP Targets (PMS)</option>
+              <option value="clientEquipmentMaster">Installed Equipment / Warranty Base (PMS)</option>
+              <option value="amcContracts">AMC Contracts (PMS)</option>
             </select>
           </div>
 
@@ -1577,7 +1590,7 @@ function executeDataExportJSON() {
   var col = document.getElementById('data-export-collection')?.value || 'all';
   var exportData = {};
   if (col === 'all') {
-    var cols = ['employees', 'kraTargets', 'aopTargets', 'orders', 'dwmActivities', 'attendance', 'leads', 'payments', 'reviews', 'quotations', 'expenses', 'serviceTickets'];
+    var cols = ['employees', 'kraTargets', 'aopTargets', 'orders', 'dwmActivities', 'attendance', 'leads', 'payments', 'reviews', 'quotations', 'expenses', 'serviceTickets', 'commitments', 'monthlyPlans', 'clientEquipmentMaster', 'amcContracts'];
     cols.forEach(function(c) {
       exportData[c] = window.RevOpsStore.getCollection(c) || [];
     });
@@ -1948,7 +1961,7 @@ function getRevOpsNavigationHtml(userName, userRole, employeeId, userEmail, role
         ${renderTopDropdown("Service & Quality", "🛠️", serviceItems, ['service-tickets.html', 'amc-contracts.html', 'service-leads.html', 'amc-quotes.html', 'amc-orders.html', 'amc-invoices.html', 'parts-sales.html', 'warranty-management.html', 'service-spares-opportunity.html'])}
         ${renderTopDropdown("Finance", "💰", financeItems, ['expenses.html', 'payroll.html'])}
         ${renderTopDropdown("People & HR", "👥", hrItems, ['employees.html', 'attendance.html', 'my-team.html'])}
-        ${renderTopDropdown("Performance", "🎯", perfItems, ['commitments.html', 'my-scorecard.html', 'dwm.html', 'kra-targets.html', 'reviews.html', 'aop-targets.html', 'productivity-dashboard.html', 'user-guide.html'])}
+        ${renderTopDropdown("Performance", "🎯", perfItems, ['k30-rollup.html', 'commitments.html', 'my-scorecard.html', 'dwm.html', 'kra-targets.html', 'reviews.html', 'aop-targets.html', 'productivity-dashboard.html', 'user-guide.html'])}
         ${isAdmin ? `<a href="reports.html" class="${currentPath === 'reports.html' ? 'px-2.5 py-1.5 rounded-lg text-xs font-bold bg-[#982B68] text-white shadow-xs' : 'px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-300 hover:bg-slate-800 hover:text-white transition-all'}">📈 Reports</a>` : ''}
       </nav>
 

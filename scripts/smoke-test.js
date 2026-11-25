@@ -43,6 +43,7 @@ const PAGES_TO_CHECK = [
   'employees.html',
   'commitments.html',
   'productivity-dashboard.html',
+  'k30-rollup.html',
   'approvals.html',
   'quotations.html',
   'invoices.html',

@@ -90,7 +90,7 @@ Object.assign(window.RevOpsStore, {
 
   reseedAllData: function() {
     console.log("Force re-seeding complete RevOps dataset...");
-    var collections = ['employees', 'kraTargets', 'aopTargets', 'orders', 'dwmActivities', 'attendance', 'leads', 'payments', 'reviews', 'expenses', 'projectsMaster', 'clientsMaster', 'sparePartsMaster', 'productsMaster', 'bankDetailsMaster', 'clientEquipmentMaster', 'auditLogs', 'expenseSplits', 'travelPolicyMaster', 'travelApprovals', 'budgets', 'serviceTickets', 'quotations', 'invoices', 'commitments', 'monthlyPlans', 'userActivity'];
+    var collections = ['employees', 'kraTargets', 'aopTargets', 'orders', 'dwmActivities', 'attendance', 'leads', 'payments', 'reviews', 'expenses', 'projectsMaster', 'clientsMaster', 'sparePartsMaster', 'productsMaster', 'bankDetailsMaster', 'clientEquipmentMaster', 'amcContracts', 'auditLogs', 'expenseSplits', 'travelPolicyMaster', 'travelApprovals', 'budgets', 'serviceTickets', 'quotations', 'invoices', 'commitments', 'monthlyPlans', 'userActivity'];
     collections.forEach(function(c) { localStorage.removeItem(c); });
     localStorage.removeItem('revops_seeded_v17');
     localStorage.removeItem('revops_seeded_v18');
@@ -217,7 +217,7 @@ Object.assign(window.RevOpsStore, {
     if (!window.db) return;
     console.log("Syncing data to Firebase Firestore...");
     var self = this;
-    var collections = ['employees', 'kraTargets', 'aopTargets', 'orders', 'dwmActivities', 'attendance', 'leads', 'payments', 'reviews', 'expenses', 'projectsMaster', 'clientsMaster', 'sparePartsMaster', 'productsMaster', 'bankDetailsMaster', 'clientEquipmentMaster', 'auditLogs', 'expenseSplits', 'travelPolicyMaster', 'travelApprovals', 'budgets', 'serviceTickets', 'quotations', 'invoices', 'commitments', 'monthlyPlans', 'userActivity'];
+    var collections = ['employees', 'kraTargets', 'aopTargets', 'orders', 'dwmActivities', 'attendance', 'leads', 'payments', 'reviews', 'expenses', 'projectsMaster', 'clientsMaster', 'sparePartsMaster', 'productsMaster', 'bankDetailsMaster', 'clientEquipmentMaster', 'amcContracts', 'auditLogs', 'expenseSplits', 'travelPolicyMaster', 'travelApprovals', 'budgets', 'serviceTickets', 'quotations', 'invoices', 'commitments', 'monthlyPlans', 'userActivity'];
     collections.forEach(function(colName) {
       var items = window.RevOpsStore.getCollection(colName) || [];
       items.forEach(function(item) {
@@ -1702,6 +1702,28 @@ Object.assign(window.RevOpsStore, {
     return { pct: pct, dwmDaysCount: dwmDaysCount, elapsedDaysThisMonth: elapsedDaysThisMonth };
   },
 
+  // Shared by getProductivityForMonth and the K-30 Rollup Report: works
+  // out the right "as of" reference point for a 'YYYY-MM' month - today,
+  // if that month is still in progress, or the month's real last day
+  // otherwise - so a past month is never short-changed and the current
+  // month is never projected forward past today.
+  _refDateForYearMonth: function(yearMonth) {
+    var m = /^(\d{4})-(\d{2})$/.exec(String(yearMonth || ''));
+    if (!m) return null;
+    var year = parseInt(m[1], 10), month = parseInt(m[2], 10);
+    var today = new Date();
+    var isCurrentMonth = (year === today.getFullYear() && month === (today.getMonth() + 1));
+    var lastDayOfMonth = new Date(year, month, 0).getDate();
+    var refDate = isCurrentMonth ? today : new Date(year, month - 1, lastDayOfMonth);
+    var endDay = isCurrentMonth ? today.getDate() : lastDayOfMonth;
+    var monthPad = String(month).padStart(2, '0');
+    return {
+      refDate: refDate,
+      startDateDDMMYYYY: '01/' + monthPad + '/' + year,
+      endDateDDMMYYYY: String(endDay).padStart(2, '0') + '/' + monthPad + '/' + year
+    };
+  },
+
   // Productivity Dashboard (A-7, 24-Nov K-30 review). Deliberately NOT a
   // new invented metric - "productivity" here is exactly the two numbers
   // this app already computes and already has a manager-ratification
@@ -1711,21 +1733,11 @@ Object.assign(window.RevOpsStore, {
   // Scorecard). yearMonth is 'YYYY-MM'. A month still in progress is
   // capped at today, never projected forward to the month's end.
   getProductivityForMonth: function(employeeId, yearMonth, attendance, dwmActivities) {
-    var m = /^(\d{4})-(\d{2})$/.exec(String(yearMonth || ''));
-    if (!m) return { avgScore: 0, daysScored: 0, dwmPct: 0, dwmDaysCount: 0, elapsedDays: 0, overallPct: 0 };
-    var year = parseInt(m[1], 10), month = parseInt(m[2], 10);
-    var today = new Date();
-    var isCurrentMonth = (year === today.getFullYear() && month === (today.getMonth() + 1));
-    var lastDayOfMonth = new Date(year, month, 0).getDate();
-    var refDate = isCurrentMonth ? today : new Date(year, month - 1, lastDayOfMonth);
-    var endDay = isCurrentMonth ? today.getDate() : lastDayOfMonth;
+    var range = this._refDateForYearMonth(yearMonth);
+    if (!range) return { avgScore: 0, daysScored: 0, dwmPct: 0, dwmDaysCount: 0, elapsedDays: 0, overallPct: 0 };
 
-    var monthPad = String(month).padStart(2, '0');
-    var startDate = '01/' + monthPad + '/' + year;
-    var endDate = String(endDay).padStart(2, '0') + '/' + monthPad + '/' + year;
-
-    var scoreResult = this.computeRatifiedScoreAverage(employeeId, startDate, endDate, attendance);
-    var dwmResult = this.computeDwmCompliance([employeeId], dwmActivities, refDate);
+    var scoreResult = this.computeRatifiedScoreAverage(employeeId, range.startDateDDMMYYYY, range.endDateDDMMYYYY, attendance);
+    var dwmResult = this.computeDwmCompliance([employeeId], dwmActivities, range.refDate);
     var overallPct = scoreResult.daysScored > 0 ? Math.round((scoreResult.avgScore + dwmResult.pct) / 2) : dwmResult.pct;
 
     return {
@@ -2105,7 +2117,7 @@ Object.assign(window.RevOpsStore, {
     // that change back down, so two devices on the same account silently
     // diverge forever (e.g. one shows 3 HSN codes, another shows 5) - each
     // only ever sees whatever it personally added.
-    var collections = ['employees', 'kraTargets', 'aopTargets', 'orders', 'dwmActivities', 'attendance', 'leads', 'payments', 'reviews', 'expenses', 'projectsMaster', 'clientsMaster', 'sparePartsMaster', 'expenseSplits', 'travelPolicyMaster', 'travelApprovals', 'budgets', 'serviceTickets', 'quotations', 'invoices', 'productsMaster', 'clientEquipmentMaster', 'bankDetailsMaster', 'companyMaster', 'leadSourceMaster', 'industryVerticalMaster', 'projectSectorMaster', 'verticalClassificationMaster', 'currencyMaster', 'hsnCodeMaster', 'sparePartCategoryMaster', 'complaintCategoryMaster', 'slaResponseTierMaster', 'amcContractTierMaster', 'pmVisitFrequencyMaster', 'amcInvoicingMilestoneMaster', 'amcContractDurationMaster', 'componentsMaster', 'productBomLines', 'commitments', 'monthlyPlans', 'userActivity'];
+    var collections = ['employees', 'kraTargets', 'aopTargets', 'orders', 'dwmActivities', 'attendance', 'leads', 'payments', 'reviews', 'expenses', 'projectsMaster', 'clientsMaster', 'sparePartsMaster', 'expenseSplits', 'travelPolicyMaster', 'travelApprovals', 'budgets', 'serviceTickets', 'quotations', 'invoices', 'productsMaster', 'clientEquipmentMaster', 'amcContracts', 'bankDetailsMaster', 'companyMaster', 'leadSourceMaster', 'industryVerticalMaster', 'projectSectorMaster', 'verticalClassificationMaster', 'currencyMaster', 'hsnCodeMaster', 'sparePartCategoryMaster', 'complaintCategoryMaster', 'slaResponseTierMaster', 'amcContractTierMaster', 'pmVisitFrequencyMaster', 'amcInvoicingMilestoneMaster', 'amcContractDurationMaster', 'componentsMaster', 'productBomLines', 'commitments', 'monthlyPlans', 'userActivity'];
     var self = this;
     collections.forEach(function(colName) {
       try {
@@ -2497,6 +2509,68 @@ Object.assign(window.RevOpsStore, {
         ],
         sampleRows: [
           "E-004,Territory Revenue Generation,Conduct minimum 3 customer plant visits daily and log quote follow-ups,Revenue (INR),10000000,Sales"
+        ]
+      },
+      // ============ PMS BULK UPLOAD TEMPLATES (24-Nov K-30 review) ============
+      // Everything built for the Performance Management System must be
+      // bulk-uploadable the same way every other master list already is -
+      // not a one-record-at-a-time-only island.
+      commitments: {
+        filename: "measure_di_commitments_template.csv",
+        headers: "employeeId,givenByEmployeeId,commitment,vertical,meetingName,datePromised,status,remarks",
+        legendFields: [
+          { column: 'vertical', collectionName: 'verticalClassificationMaster' },
+          { column: 'status', values: ['Pending', 'In Progress', 'Completed'] }
+        ],
+        sampleRows: [
+          "E-004,E-001,Send revised AMC proposal to JSW Steel,Projects,24-Nov K-30 Review,2026-12-05,Pending,Awaiting updated pricing from Ops"
+        ]
+      },
+      monthlyPlans: {
+        filename: "measure_di_monthly_plans_template.csv",
+        headers: "employeeId,month,planVisits,planEnquiries,planQuotations,planOrders,planValue,actualVisits",
+        legendFields: [],
+        sampleRows: [
+          "E-004,2026-12,20,8,5,2,2500000,0"
+        ]
+      },
+      aopTargets: {
+        filename: "measure_di_aop_targets_template.csv",
+        // Line-item shape (as shown on the AOP "Top Sheet") - the only
+        // one of aopTargets' two record shapes that is genuinely tabular;
+        // the Company/Vertical benchmark shape is set/edited on the AOP
+        // Configuration page itself, since it carries a nested object
+        // (verticalTargets) a flat CSV row can't represent.
+        headers: "financialYear,lineItem,vertical,subVertical,annualTarget,ownerEmployeeId,rollupType,splitBasis,notes",
+        legendFields: [
+          { column: 'vertical', values: ['Sales', 'Service/Parts', 'Projects'] }
+        ],
+        sampleRows: [
+          "2027-28,Territory Revenue - North,Sales,Equipment Sales,20000000,E-004,Leaf target,Even split across quarters,Awaiting Director's FY27-28 benchmark"
+        ]
+      },
+      clientEquipmentMaster: {
+        filename: "measure_di_client_equipment_template.csv",
+        headers: "customerName,equipmentModel,serialNumber,location,vertical,commissioningDate,warrantyTier,expiryDate",
+        legendFields: [
+          { column: 'vertical', collectionName: 'verticalClassificationMaster' },
+          { column: 'warrantyTier', values: ['Standard 12-Month OEM', 'Extended 24-Month Premium', 'Replacement Part 6-Month'] }
+        ],
+        sampleRows: [
+          "JSW Steel Limited,Wireless Crane Scale 50T (CS-50W),CS-50T-2026-001,Toranagallu Slag Yard Ballari Karnataka,Projects,2026-09-15,Standard 12-Month OEM,2027-09-14"
+        ]
+      },
+      amcContracts: {
+        filename: "measure_di_amc_contracts_template.csv",
+        headers: "contractNumber,customerName,location,equipmentModel,serialNumbers,contractTier,annualValue,invoicingMilestone,startDate,endDate,financialYear,slaResponse,assignedEngineerId,pmFrequency",
+        legendFields: [
+          { column: 'contractTier', collectionName: 'amcContractTierMaster' },
+          { column: 'invoicingMilestone', collectionName: 'amcInvoicingMilestoneMaster' },
+          { column: 'slaResponse', collectionName: 'slaResponseTierMaster' },
+          { column: 'pmFrequency', collectionName: 'pmVisitFrequencyMaster' }
+        ],
+        sampleRows: [
+          "AMC-2027-050,JSW Steel Limited,Toranagallu Slag Yard Ballari Karnataka,Wireless Crane Scale 50T (CS-50W),CS-50T-2026-001,Comprehensive,240000,25% Quarterly Advance,2027-04-01,2028-03-31,2027-28,4 Hours Emergency,E-004,Quarterly (4 Visits/Year)"
         ]
       }
     };
@@ -3001,7 +3075,12 @@ Object.assign(window.RevOpsStore, {
     dwmActivities: 'dwmActivities',
     payments: 'payments',
     attendance: 'attendance',
-    kraTargets: 'kraTargets'
+    kraTargets: 'kraTargets',
+    commitments: 'commitments',
+    monthlyPlans: 'monthlyPlans',
+    aopTargets: 'aopTargets',
+    clientEquipmentMaster: 'clientEquipmentMaster',
+    amcContracts: 'amcContracts'
   },
 
   getOrderDate: function(order) {
@@ -3565,7 +3644,10 @@ Object.assign(window.RevOpsStore, {
     invoices: ['taxableValue', 'taxAmount', 'grandTotal'],
     projectsMaster: ['projectValue', 'budgetINR'],
     sparePartsMaster: ['unitPrice', 'gstPercent', 'stockQty', 'minReorderLevel', 'leadTimeDays'],
-    clientsMaster: ['creditPeriodDays']
+    clientsMaster: ['creditPeriodDays'],
+    monthlyPlans: ['planVisits', 'planEnquiries', 'planQuotations', 'planOrders', 'planValue', 'actualVisits'],
+    aopTargets: ['annualTarget'],
+    amcContracts: ['annualValue']
   },
   coerceCsvNumericFields: function(colName, record) {
     var fields = this.CSV_NUMERIC_FIELDS[colName];
@@ -4041,6 +4123,91 @@ Object.assign(window.RevOpsStore, {
   getUserActivity: function(employeeId) {
     var items = this.getCollection('userActivity') || [];
     return items.find(function(it) { return it.employeeId === employeeId; }) || null;
+  },
+
+  // Service/Spares Opportunity Tracker (A-10, 24-Nov K-30 review) - the
+  // single source of truth for these 3 opportunity rules, so the
+  // dedicated tracker page and the K-30 Rollup Report's summary always
+  // agree. Computes ONLY from data already in the app (clientEquipmentMaster
+  // + amcContracts) - nothing invented. Day-math mirrors
+  // warranty-management.js's computeWarrantyStatus and amc-contracts.js's
+  // computeAmcStatus exactly.
+  getServiceSparesOpportunities: function() {
+    var equipment = this.getCollection('clientEquipmentMaster') || [];
+    var amcContracts = this.getCollection('amcContracts') || [];
+
+    function daysRemaining(dateStr) {
+      var today = new Date();
+      var d = new Date(dateStr);
+      return Math.ceil((d - today) / (1000 * 60 * 60 * 24));
+    }
+
+    // A customer counts as "already on AMC" for conversion purposes if
+    // they have ANY contract that hasn't itself expired - loose match by
+    // customerName (the same join key both collections already carry),
+    // rather than invented equipment-to-contract linkage that doesn't
+    // exist in the data model yet.
+    var customersWithActiveAmc = {};
+    amcContracts.forEach(function(c) {
+      if (daysRemaining(c.endDate) >= 0) {
+        customersWithActiveAmc[c.customerName] = true;
+      }
+    });
+
+    var opportunities = [];
+
+    // 1. AMC Conversion: warranty expired, not already marked converted,
+    // and the customer has no currently-active AMC contract.
+    equipment.forEach(function(w) {
+      if (w.statusOverride === 'Converted to AMC') return;
+      if (customersWithActiveAmc[w.customerName]) return;
+      var d = daysRemaining(w.expiryDate);
+      if (d < 0) {
+        opportunities.push({
+          type: 'AMC Conversion',
+          customerName: w.customerName,
+          equipmentModel: w.equipmentModel,
+          vertical: w.vertical,
+          detail: 'Warranty expired ' + Math.abs(d) + ' days ago, no AMC contract in place',
+          estValue: null
+        });
+      }
+    });
+
+    // 2. AMC Renewal Due: an existing contract expiring within 60 days -
+    // same threshold amc-contracts.js itself uses for "Expiring Soon".
+    // Est. Value is the contract's OWN real annualValue, never a guess.
+    amcContracts.forEach(function(c) {
+      var d = daysRemaining(c.endDate);
+      if (d >= 0 && d <= 60) {
+        opportunities.push({
+          type: 'AMC Renewal Due',
+          customerName: c.customerName,
+          equipmentModel: c.equipmentModel,
+          vertical: c.vertical || '',
+          detail: 'Contract ' + (c.contractNumber || '') + ' renews in ' + d + ' days',
+          estValue: Number(c.annualValue) || null
+        });
+      }
+    });
+
+    // 3. Repeat Claims: 2+ warranty claims logged on the same equipment -
+    // a real signal of recurring trouble, worth a spares/service visit.
+    equipment.forEach(function(w) {
+      var claimCount = Array.isArray(w.claims) ? w.claims.length : 0;
+      if (claimCount >= 2) {
+        opportunities.push({
+          type: 'Repeat Claims',
+          customerName: w.customerName,
+          equipmentModel: w.equipmentModel,
+          vertical: w.vertical,
+          detail: claimCount + ' warranty claims logged on this unit',
+          estValue: null
+        });
+      }
+    });
+
+    return opportunities;
   }
 });
 
