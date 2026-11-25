@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <script src="js/error-monitor.js"></script>
+    <script src="js/report-problem.js" defer></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#982B68" />
+    <link rel="icon" href="/icons/favicon-32.png" sizes="32x32" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="K-30 ERP" />
+    <script src="pwa-register.js" defer></script>
+    <title>K-30_ERP - Productivity Dashboard</title>
+    <link rel="stylesheet" href="/src/index.css">
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="js/firebase-init.js" defer></script>
+    <script src="js/store.js" defer></script>
+    <script src="js/seed-data.js" defer></script>
+    <script src="auth-guard.js" defer></script>
+  </head>
+  <body class="bg-slate-50 min-h-screen text-slate-800">
+
+    <!-- Navbar Container -->
+    <div id="navbar-container"></div>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+
+      <!-- Header -->
+      <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-white p-6 rounded-2xl shadow-xs border border-slate-200">
+        <div>
+          <h1 class="text-2xl font-bold text-slate-900 tracking-tight">Productivity Dashboard</h1>
+          <p class="text-sm text-slate-500 mt-1">Daily Productivity Score (manager-ratified) and DWM Compliance %, per person, per month - the same two numbers already tracked and reviewed elsewhere in the app, never a separate invented measure.</p>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <select id="prod-month-select" onchange="renderProductivityDashboard()" class="px-3.5 py-2 bg-indigo-50 border border-indigo-200 text-indigo-700 font-bold text-xs rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer">
+            <!-- Populated dynamically: current month + last 11 months -->
+          </select>
+        </div>
+      </div>
+
+      <!-- Stat Cards -->
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div class="bg-white p-5 rounded-2xl shadow-xs border border-slate-200">
+          <div class="text-[11px] font-bold uppercase text-slate-400 tracking-wider">Team Avg Daily Productivity Score</div>
+          <div id="prod-stat-score" class="text-2xl font-black text-indigo-600 mt-1">0%</div>
+          <div class="text-[11px] text-slate-400 mt-0.5">Ratified/Modified days only</div>
+        </div>
+        <div class="bg-white p-5 rounded-2xl shadow-xs border border-slate-200">
+          <div class="text-[11px] font-bold uppercase text-slate-400 tracking-wider">Team Avg DWM Compliance</div>
+          <div id="prod-stat-dwm" class="text-2xl font-black text-emerald-600 mt-1">0%</div>
+          <div class="text-[11px] text-slate-400 mt-0.5">Days with DWM actually updated</div>
+        </div>
+        <div class="bg-white p-5 rounded-2xl shadow-xs border border-slate-200">
+          <div class="text-[11px] font-bold uppercase text-slate-400 tracking-wider">Pending Score Ratifications</div>
+          <div id="prod-stat-pending" class="text-2xl font-black text-amber-600 mt-1">0</div>
+          <div class="text-[11px] text-slate-400 mt-0.5">Days awaiting manager ratify/modify/reject</div>
+        </div>
+      </div>
+
+      <!-- Per-Employee Table -->
+      <div class="bg-white rounded-2xl shadow-xs border border-slate-200 overflow-hidden space-y-4">
+        <div class="p-6 border-b border-slate-200">
+          <h2 class="text-lg font-bold text-slate-900">Per-Person Productivity</h2>
+          <p class="text-xs text-slate-500">Overall % is a simple average of the two columns to its left - not a new metric, just a quick glance across both.</p>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="bg-slate-50 border-b border-slate-200 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                <th class="py-3 px-4">Employee</th>
+                <th class="py-3 px-4 text-center">Daily Productivity Score (Avg)</th>
+                <th class="py-3 px-4 text-center">Days Scored</th>
+                <th class="py-3 px-4 text-center">DWM Compliance %</th>
+                <th class="py-3 px-4 text-center">Overall %</th>
+              </tr>
+            </thead>
+            <tbody id="productivity-tbody" class="divide-y divide-slate-100 text-xs">
+              <!-- Rendered dynamically -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </main>
+
+    <script src="js/productivity-dashboard.js"></script>
+  </body>
+</html>

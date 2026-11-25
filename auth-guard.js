@@ -978,6 +978,7 @@ function renderRevOpsNavbar(userName, userRole, hasDirectReports) {
     { title: "KRAs & Target Metrics", path: "kra-targets.html", desc: "Key result areas & quarterly goals", icon: "📊", show: true },
     { title: "Performance Reviews", path: "reviews.html", desc: "360 appraisal feedback & ratings", icon: "📝", show: showTeamAndReviews },
     { title: "Annual Operating Plan (AOP)", path: "aop-targets.html", desc: "Company revenue targets & strategy", icon: "🏆", show: isAdmin },
+    { title: "Productivity Dashboard", path: "productivity-dashboard.html", desc: "Daily Productivity Score & DWM Compliance %, per person, per month", icon: "⚡", show: isAdmin },
     { title: "Standard Operating Procedures (SOP)", path: "sop.html", desc: "New joiner training & role-based operational procedures", icon: "📜", show: true },
     { title: "User Guide & PDF Manual", path: "user-guide.html", desc: "Comprehensive RevOps SOP & live PDF manual", icon: "📖", show: true }
   ];
@@ -1946,7 +1947,7 @@ function getRevOpsNavigationHtml(userName, userRole, employeeId, userEmail, role
         ${renderTopDropdown("Service & Quality", "🛠️", serviceItems, ['service-tickets.html', 'amc-contracts.html', 'service-leads.html', 'amc-quotes.html', 'amc-orders.html', 'amc-invoices.html', 'parts-sales.html', 'warranty-management.html'])}
         ${renderTopDropdown("Finance", "💰", financeItems, ['expenses.html', 'payroll.html'])}
         ${renderTopDropdown("People & HR", "👥", hrItems, ['employees.html', 'attendance.html', 'my-team.html'])}
-        ${renderTopDropdown("Performance", "🎯", perfItems, ['commitments.html', 'my-scorecard.html', 'dwm.html', 'kra-targets.html', 'reviews.html', 'aop-targets.html', 'user-guide.html'])}
+        ${renderTopDropdown("Performance", "🎯", perfItems, ['commitments.html', 'my-scorecard.html', 'dwm.html', 'kra-targets.html', 'reviews.html', 'aop-targets.html', 'productivity-dashboard.html', 'user-guide.html'])}
         ${isAdmin ? `<a href="reports.html" class="${currentPath === 'reports.html' ? 'px-2.5 py-1.5 rounded-lg text-xs font-bold bg-[#982B68] text-white shadow-xs' : 'px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-300 hover:bg-slate-800 hover:text-white transition-all'}">📈 Reports</a>` : ''}
       </nav>
 

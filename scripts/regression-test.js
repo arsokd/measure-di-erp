@@ -6704,6 +6704,180 @@ async function testIndustryTagThroughQuotationOrderReports(browser) {
   return failures;
 }
 
+// ---------------------------------------------------------------------
+// A-7: Productivity Dashboard (24-Nov K-30 review). Deliberately NOT a
+// new invented productivity measure - it's the same two numbers already
+// computed and manager-ratified elsewhere (Daily Productivity Score via
+// computeRatifiedScoreAverage, DWM Compliance % via computeDwmCompliance),
+// surfaced per-person per-month on one admin-only page.
+// ---------------------------------------------------------------------
+async function testProductivityDashboard(browser) {
+  const failures = [];
+
+  // Part A: the shared store helper itself - averages only Ratified/
+  // Modified days, ignores Pending/Rejected, and never projects a
+  // still-in-progress month forward.
+  {
+    const { page } = await newPage(browser);
+    await page.goto(BASE_URL + '/productivity-dashboard.html', { waitUntil: 'networkidle', timeout: 30000 });
+    await page.waitForTimeout(400);
+
+    const helperResult = await page.evaluate(function () {
+      var today = new Date();
+      var ym = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0');
+      var mm = String(today.getMonth() + 1).padStart(2, '0');
+      var yyyy = today.getFullYear();
+      var attendance = [
+        { id: 'att_prod_1', employeeId: 'E-PROD-HELPER', date: '01/' + mm + '/' + yyyy, status: 'Completed', autoScore: 80, finalScore: 80, scoreRatificationStatus: 'Ratified' },
+        { id: 'att_prod_2', employeeId: 'E-PROD-HELPER', date: String(today.getDate()).padStart(2, '0') + '/' + mm + '/' + yyyy, status: 'Completed', autoScore: 100, finalScore: 100, scoreRatificationStatus: 'Modified' },
+        { id: 'att_prod_3', employeeId: 'E-PROD-HELPER', date: '02/' + mm + '/' + yyyy, status: 'Completed', autoScore: 50, finalScore: null, scoreRatificationStatus: 'Pending' }
+      ];
+      var dwmActivities = [
+        { id: 'dwm_prod_1', employeeId: 'E-PROD-HELPER', date: '01/' + mm + '/' + yyyy, isTicked: true, accomplishmentStatus: 'Done' }
+      ];
+      var result = window.RevOpsStore.getProductivityForMonth('E-PROD-HELPER', ym, attendance, dwmActivities);
+      var expectedDwmPct = Math.min(100, Math.round((1 / today.getDate()) * 100));
+      return { result: result, expectedDwmPct: expectedDwmPct };
+    });
+    assertEqual(helperResult.result.avgScore, 90, 'getProductivityForMonth: averages only the 2 Ratified/Modified days (80, 100) -> 90, ignoring the Pending one', failures);
+    assertEqual(helperResult.result.daysScored, 2, 'getProductivityForMonth: daysScored counts only Ratified/Modified days', failures);
+    assertEqual(helperResult.result.dwmPct, helperResult.expectedDwmPct, 'getProductivityForMonth: DWM Compliance % matches 1 updated day / elapsed days this month', failures);
+    assertEqual(helperResult.result.overallPct, Math.round((90 + helperResult.expectedDwmPct) / 2), 'getProductivityForMonth: Overall % is the average of the score and DWM % columns', failures);
+
+    await page.close();
+  }
+
+  // Part B: the page itself - admin-only, renders a real per-employee
+  // row with the same numbers the helper produces, plus a Pending
+  // Ratifications count.
+  {
+    const { page } = await newPage(browser);
+    await page.goto(BASE_URL + '/productivity-dashboard.html', { waitUntil: 'networkidle', timeout: 30000 });
+    await page.waitForTimeout(600);
+
+    const pageResult = await page.evaluate(function () {
+      var today = new Date();
+      var mm = String(today.getMonth() + 1).padStart(2, '0');
+      var yyyy = today.getFullYear();
+      var employees = (window.RevOpsStore.getCollection('employees') || []).filter(function (e) { return e.employeeId !== 'E-PROD-PAGE'; });
+      employees.push({ employeeId: 'E-PROD-PAGE', fullName: 'Productivity Page Test', role: 'staff', isActive: true });
+      window.RevOpsStore.saveCollection('employees', employees);
+      window.RevOpsStore.saveCollection('attendance', [
+        { id: 'att_prodpage_1', employeeId: 'E-PROD-PAGE', date: '01/' + mm + '/' + yyyy, status: 'Completed', autoScore: 80, finalScore: 80, scoreRatificationStatus: 'Ratified' },
+        { id: 'att_prodpage_2', employeeId: 'E-PROD-PAGE', date: '03/' + mm + '/' + yyyy, status: 'Completed', autoScore: 50, finalScore: null, scoreRatificationStatus: 'Pending' }
+      ]);
+      window.RevOpsStore.saveCollection('dwmActivities', []);
+      populateProductivityMonthSelect();
+      renderProductivityDashboard();
+      return {
+        monthSelectValue: document.getElementById('prod-month-select').value,
+        tableText: document.getElementById('productivity-tbody').innerText,
+        pendingStat: document.getElementById('prod-stat-pending').innerText
+      };
+    });
+    var expectedMonth = (function () { var d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); })();
+    assertEqual(pageResult.monthSelectValue, expectedMonth, 'Productivity Dashboard: month selector defaults to the current month', failures);
+    assertTrue(pageResult.tableText.indexOf('Productivity Page Test') !== -1, 'Productivity Dashboard: table shows the test employee', failures);
+    assertTrue(pageResult.tableText.indexOf('80%') !== -1, 'Productivity Dashboard: shows the ratified 80% Daily Productivity Score', failures);
+    assertTrue(parseInt(pageResult.pendingStat, 10) >= 1, 'Productivity Dashboard: Pending Score Ratifications stat counts the Pending-status day', failures);
+
+    await page.evaluate(function () { window.RevOpsStore.saveCollection('attendance', []); window.RevOpsStore.saveCollection('dwmActivities', []); });
+    await page.close();
+  }
+
+  // Part C: admin-only access - a staff-role user is redirected away,
+  // never sees the table.
+  {
+    const page = await browser.newPage();
+    await page.addInitScript(function () {
+      localStorage.setItem('userRole', 'staff');
+      localStorage.setItem('userEmail', 'prodstaff@measuredi.com');
+      localStorage.setItem('userName', 'Productivity Staff Test');
+      localStorage.setItem('employeeId', 'E-006');
+    });
+    await page.goto(BASE_URL + '/productivity-dashboard.html', { waitUntil: 'load', timeout: 15000 });
+    await page.waitForTimeout(600);
+    const staffResult = await page.evaluate(function () { return { finalPath: window.location.pathname }; });
+    assertTrue(staffResult.finalPath.indexOf('productivity-dashboard.html') === -1, 'Productivity Dashboard: a staff-role user is redirected away (super_admin/admin only), got ' + staffResult.finalPath, failures);
+    await page.close();
+  }
+
+  return failures;
+}
+
+// ---------------------------------------------------------------------
+// A-9: AOP FY27-28 structure (24-Nov K-30 review). FY27-28 is added as a
+// selectable year, wired to the existing aopTargets collection/save
+// forms - with NO invented numbers: it must show ₹0 until the Director's
+// real targets are entered. Also fixes a pre-existing bug found while
+// building this: the Vertical Targets table's "Projects" row (and any
+// vertical with a genuinely zero/unset target) was silently shown as a
+// fabricated ₹1,00,00,000 instead of ₹0, on EVERY financial year - not
+// just the new one - because of a `|| 10000000` fallback that treated 0
+// as "missing" instead of "really zero".
+// ---------------------------------------------------------------------
+async function testAopFy2728StructureAndZeroTargetFix(browser) {
+  const failures = [];
+  const { page } = await newPage(browser);
+  await page.goto(BASE_URL + '/aop-targets.html', { waitUntil: 'networkidle', timeout: 30000 });
+  await page.waitForTimeout(600);
+
+  await page.evaluate(function () {
+    window.RevOpsStore.saveCollection('aopTargets', []);
+  });
+
+  const fySelectOptions = await page.evaluate(function () {
+    return Array.from(document.getElementById('fy-select').options).map(function (o) { return o.value; });
+  });
+  assertIncludes(fySelectOptions, '2027-28', 'AOP: Financial Year selector now offers "2027-28"', failures);
+
+  // No custom aopTargets record for 2027-28 -> must show real zeros, not
+  // numbers borrowed from another year or a made-up placeholder.
+  await page.selectOption('#fy-select', '2027-28');
+  await page.waitForTimeout(200);
+  const fy2728State = await page.evaluate(function () {
+    return {
+      companyInput: document.getElementById('inp-company-aop').value,
+      verticalsText: document.getElementById('aop-verticals-tbody').innerText
+    };
+  });
+  assertEqual(fy2728State.companyInput, '0', 'AOP FY27-28: Company AOP Target shows 0 (not borrowed from another FY) until the Director\'s numbers are entered', failures);
+  assertTrue(fy2728State.verticalsText.indexOf('₹0') !== -1 || /\b0\b/.test(fy2728State.verticalsText), 'AOP FY27-28: Vertical Targets table shows ₹0, nothing invented', failures);
+  assertTrue(fy2728State.verticalsText.indexOf('₹1.00 Cr') === -1 && fy2728State.verticalsText.indexOf('1,00,00,000') === -1, 'AOP FY27-28: Vertical Targets table does NOT show the old fabricated ₹1 Crore placeholder for an unset target', failures);
+
+  // Regression-fix check on an EXISTING, currently-live FY: "Projects"
+  // has always defaulted to a real 0 target with no custom override -
+  // before this fix it silently showed ₹1,00,00,000 instead.
+  await page.selectOption('#fy-select', '2026-27');
+  await page.waitForTimeout(200);
+  const fy2627ProjectsRow = await page.evaluate(function () {
+    var rows = Array.from(document.querySelectorAll('#aop-verticals-tbody tr'));
+    var row = rows.find(function (r) { return r.innerText.indexOf('Projects') !== -1; });
+    return row ? row.innerText : null;
+  });
+  assertTrue(!!fy2627ProjectsRow, 'AOP FY2026-27: Projects row renders', failures);
+  if (fy2627ProjectsRow) {
+    assertTrue(fy2627ProjectsRow.indexOf('1,00,00,000') === -1 && fy2627ProjectsRow.indexOf('₹1.00 Cr') === -1, 'AOP FY2026-27: Projects target is no longer the fabricated ₹1 Crore placeholder - got: ' + fy2627ProjectsRow.replace(/\n/g, ' | '), failures);
+    assertTrue(/(?:^|\D)0(?:\D|$)/.test(fy2627ProjectsRow) || fy2627ProjectsRow.indexOf('₹0') !== -1, 'AOP FY2026-27: Projects target correctly shows 0 - got: ' + fy2627ProjectsRow.replace(/\n/g, ' | '), failures);
+  }
+
+  // A real FY27-28 target CAN now be entered and saved through the
+  // existing "Set Company AOP" form, exactly like any other year.
+  await page.selectOption('#fy-select', '2027-28');
+  await page.waitForTimeout(200);
+  await page.fill('#inp-company-aop', '120000000');
+  const savedFy2728 = await page.evaluate(function () {
+    document.querySelector('form[onsubmit="handleSaveCompanyAop(event)"]').requestSubmit();
+    return (window.RevOpsStore.getCollection('aopTargets') || []).find(function (a) { return a.financialYear === '2027-28' && a.companyTarget !== undefined; });
+  });
+  assertTrue(!!savedFy2728, 'AOP FY27-28: a real Company AOP target can be entered and saved through the existing form', failures);
+  if (savedFy2728) assertEqual(savedFy2728.companyTarget, 120000000, 'AOP FY27-28: the saved target is the real entered figure, not a placeholder', failures);
+
+  await page.evaluate(function () { window.RevOpsStore.saveCollection('aopTargets', []); });
+  await page.close();
+  return failures;
+}
+
 const TESTS = [
   ['SLA day-based seeding, migration, severity dropdown & date math', testSlaDayBasedSeedingAndMigration],
   ['Ticket email subject line', testQuotationVerticalAndTicketSubject],
@@ -6775,7 +6949,9 @@ const TESTS = [
   ['Commitment Register: overdue detection, the daily Commitments Due popup with one-click Done, Super Admin/Admin-only delete', testCommitmentRegister],
   ['Monthly Plan vs Actual: real auto-computed actuals, KRA-sourced default target, and next month\'s carry-forward of the unachieved balance', testMonthlyPlanVsActual],
   ['Individual Review Pack: Commitments kept/missed, Plan vs Actual (Value) and a real throttled App Usage stamp from checkAuth', testReviewPackPlanCommitmentsUsage],
-  ['A-6: Industry tag carried through Quotation/Order, Reports "Revenue & Pipeline by Industry" table, and the isOrderWon() fix for live "Booked" orders', testIndustryTagThroughQuotationOrderReports]
+  ['A-6: Industry tag carried through Quotation/Order, Reports "Revenue & Pipeline by Industry" table, and the isOrderWon() fix for live "Booked" orders', testIndustryTagThroughQuotationOrderReports],
+  ['A-7: Productivity Dashboard - ratified Daily Productivity Score + DWM Compliance %, per-person, per-month, admin-only', testProductivityDashboard],
+  ['A-9: AOP FY27-28 structure (no invented numbers) and the fabricated ₹1 Crore "Projects" target fix', testAopFy2728StructureAndZeroTargetFix]
 ];
 
 (async () => {

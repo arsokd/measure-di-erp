@@ -94,6 +94,7 @@ export default defineConfig(({ mode }) => {
           employees: path.resolve(__dirname, 'employees.html'),
           kraTargets: path.resolve(__dirname, 'kra-targets.html'),
           aopTargets: path.resolve(__dirname, 'aop-targets.html'),
+          productivityDashboard: path.resolve(__dirname, 'productivity-dashboard.html'),
           leads: path.resolve(__dirname, 'leads.html'),
           quotations: path.resolve(__dirname, 'quotations.html'),
           orders: path.resolve(__dirname, 'orders.html'),

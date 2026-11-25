@@ -14,10 +14,15 @@ document.addEventListener('DOMContentLoaded', function() {
         // FY 2025-26: Company Target = ₹10 Crore (100M) - Full Year
         // FY 2026-27: Company Target = ₹6.67 Crore (66.67M) - 4 Months Pro-Rata (Apr-Jul 2026 elapsed)
         // All FYs: Company Target = ₹24.67 Crore (246.67M) - Combined Total
+        // FY 2027-28 has no benchmark yet (the Director's FY27-28 numbers
+        // aren't finalized) - deliberately all zeros rather than reusing
+        // another year's figures, so the page honestly shows "not set yet"
+        // until a real target is entered via "Set Company AOP" below.
         var fyDefaults = {
           '2024-25': { company: 80000000, sales: 20000000, service: 60000000, projects: 0, sub: 'Full Year Target (12 Months)' },
           '2025-26': { company: 100000000, sales: 25000000, service: 75000000, projects: 0, sub: 'Full Year Target (12 Months)' },
           '2026-27': { company: 66666667, sales: 16666667, service: 50000000, projects: 0, sub: '4 Months Pro-Rata Target (Apr-Jul)' },
+          '2027-28': { company: 0, sales: 0, service: 0, projects: 0, sub: 'Not yet set - awaiting FY27-28 target finalization' },
           'All':     { company: 246666667, sales: 61666667, service: 185000000, projects: 0, sub: 'Combined All FYs Target' }
         };
 
@@ -137,9 +142,14 @@ document.addEventListener('DOMContentLoaded', function() {
         var tbody = document.getElementById('aop-verticals-tbody');
         tbody.innerHTML = "";
 
+        // A genuinely zero/not-yet-set target (e.g. "Projects" in every FY
+        // so far, or any vertical in a brand-new FY like 2027-28 before
+        // the Director's numbers are finalized) must show as 0, never
+        // silently inflated to a made-up ₹1 Crore placeholder - that was a
+        // real bug: it looked exactly like a genuine admin-set target.
         var verticals = ["Sales", "Service/Parts", "Projects"];
         verticals.forEach(function(v) {
-          var target = verticalTargets[v] || 10000000;
+          var target = (verticalTargets[v] !== undefined && verticalTargets[v] !== null) ? verticalTargets[v] : 10000000;
           var won = actuals[v] || 0;
           var pct = target > 0 ? Math.round((won / target) * 100) : 0;
 

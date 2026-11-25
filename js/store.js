@@ -1702,6 +1702,42 @@ Object.assign(window.RevOpsStore, {
     return { pct: pct, dwmDaysCount: dwmDaysCount, elapsedDaysThisMonth: elapsedDaysThisMonth };
   },
 
+  // Productivity Dashboard (A-7, 24-Nov K-30 review). Deliberately NOT a
+  // new invented metric - "productivity" here is exactly the two numbers
+  // this app already computes and already has a manager-ratification
+  // workflow for: the Daily Productivity Score (computeRatifiedScoreAverage
+  // - Ratified/Modified days only, same as reviews.html's snapshot) and
+  // DWM Compliance % (computeDwmCompliance - same as the Dashboard/
+  // Scorecard). yearMonth is 'YYYY-MM'. A month still in progress is
+  // capped at today, never projected forward to the month's end.
+  getProductivityForMonth: function(employeeId, yearMonth, attendance, dwmActivities) {
+    var m = /^(\d{4})-(\d{2})$/.exec(String(yearMonth || ''));
+    if (!m) return { avgScore: 0, daysScored: 0, dwmPct: 0, dwmDaysCount: 0, elapsedDays: 0, overallPct: 0 };
+    var year = parseInt(m[1], 10), month = parseInt(m[2], 10);
+    var today = new Date();
+    var isCurrentMonth = (year === today.getFullYear() && month === (today.getMonth() + 1));
+    var lastDayOfMonth = new Date(year, month, 0).getDate();
+    var refDate = isCurrentMonth ? today : new Date(year, month - 1, lastDayOfMonth);
+    var endDay = isCurrentMonth ? today.getDate() : lastDayOfMonth;
+
+    var monthPad = String(month).padStart(2, '0');
+    var startDate = '01/' + monthPad + '/' + year;
+    var endDate = String(endDay).padStart(2, '0') + '/' + monthPad + '/' + year;
+
+    var scoreResult = this.computeRatifiedScoreAverage(employeeId, startDate, endDate, attendance);
+    var dwmResult = this.computeDwmCompliance([employeeId], dwmActivities, refDate);
+    var overallPct = scoreResult.daysScored > 0 ? Math.round((scoreResult.avgScore + dwmResult.pct) / 2) : dwmResult.pct;
+
+    return {
+      avgScore: scoreResult.avgScore,
+      daysScored: scoreResult.daysScored,
+      dwmPct: dwmResult.pct,
+      dwmDaysCount: dwmResult.dwmDaysCount,
+      elapsedDays: dwmResult.elapsedDaysThisMonth,
+      overallPct: overallPct
+    };
+  },
+
   // Computes a Special Assignment's duration in decimal hours from
   // "HH:MM" 24-hour start/end time strings (what a native <input
   // type="time"> gives back). Returns null if the range is invalid (end
