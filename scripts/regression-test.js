@@ -7465,6 +7465,7 @@ async function testLeadRegistryVisibilityAndSortOrder(browser) {
       return {
         ownerFilterHidden: document.getElementById('lead-filter-wrapper').classList.contains('hidden'),
         ownerOptions: Array.from(document.getElementById('lead-emp-filter').options).map(function (o) { return o.value; }),
+        ownerFilterValue: document.getElementById('lead-emp-filter').value,
         statCount: document.getElementById('stat-lead-count').innerText,
         idx1: tbodyText.indexOf('LD-VIS-1'),
         idx2: tbodyText.indexOf('LD-VIS-2'),
@@ -7474,6 +7475,7 @@ async function testLeadRegistryVisibilityAndSortOrder(browser) {
 
     assertTrue(!state.ownerFilterHidden, 'Lead Registry: the "Lead Owner" filter is shown for a canViewAllLeads holder', failures);
     assertIncludes(state.ownerOptions, 'E-LEAD-B', 'Lead Registry: Lead Owner filter lists every employee, including ones who can\'t themselves see all leads', failures);
+    assertEqual(state.ownerFilterValue, 'All', 'Lead Registry: Lead Owner filter\'s underlying select.value is explicitly set to "All" after population (the fix for the dropdown rendering blank)', failures);
     assertEqual(state.statCount, '3', 'Lead Registry: a canViewAllLeads holder sees every lead the team generated', failures);
     assertTrue(state.idx3 < state.idx2 && state.idx2 < state.idx1, 'Lead Registry: full team view is chronologically sorted newest-first (LD-VIS-3, LD-VIS-2, LD-VIS-1)', failures);
 

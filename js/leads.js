@@ -219,13 +219,22 @@ var currentLeadContacts = [];
           var select = document.getElementById('lead-emp-filter');
           if (wrapper && select) {
             wrapper.classList.remove('hidden');
-            select.innerHTML = `<option value="All">All Lead Owners</option>`;
-            employees.forEach(function(e) {
-              var opt = document.createElement('option');
-              opt.value = e.employeeId;
-              opt.innerText = e.fullName + " (" + e.employeeId + ")";
-              select.appendChild(opt);
-            });
+            var currentOwnerVal = select.value;
+            // Build the whole option list as one HTML string and assign it
+            // in a single write, then conditionally restore .value - this
+            // mirrors populateLeadVerticalFilter() above exactly (the one
+            // dropdown on this page already proven to render correctly
+            // once searchable-select.js/Tom Select enhances it). The
+            // previous version built the "All" option via one innerHTML
+            // write and then appended each employee option in a separate
+            // follow-up loop; Tom Select's combobox never picked up any
+            // selection from that two-step build, so it rendered blank.
+            select.innerHTML = '<option value="All">All Lead Owners</option>' + employees.map(function(e) {
+              return '<option value="' + escapeHtml(e.employeeId) + '">' + escapeHtml(e.fullName + " (" + e.employeeId + ")") + '</option>';
+            }).join('');
+            if (currentOwnerVal && (currentOwnerVal === 'All' || employees.some(function(e) { return e.employeeId === currentOwnerVal; }))) {
+              select.value = currentOwnerVal;
+            }
           }
         }
 
