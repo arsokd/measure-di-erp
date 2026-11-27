@@ -587,6 +587,7 @@ function clearLocalAuthSessionFlags() {
   localStorage.removeItem('isDirector');
   localStorage.removeItem('isFinalApprover');
   localStorage.removeItem('isFinanceHead');
+  localStorage.removeItem('canViewAllLeads');
   localStorage.removeItem('sessionToken');
 }
 window.clearLocalAuthSessionFlags = clearLocalAuthSessionFlags;
@@ -805,7 +806,7 @@ function checkAuth(allowedRoles) {
     // directly on its users/{uid} Firestore doc, not via the Employees
     // page), leave localStorage alone rather than stomping the correct
     // value login.html just loaded from users/{uid} back to "false".
-    ['isPrimaryApprover', 'isDirector', 'isFinalApprover', 'isFinanceHead'].forEach(function(flagKey) {
+    ['isPrimaryApprover', 'isDirector', 'isFinalApprover', 'isFinanceHead', 'canViewAllLeads'].forEach(function(flagKey) {
       if (currentEmp[flagKey] === undefined) return;
       var flagVal = String(currentEmp[flagKey] === true);
       if (localStorage.getItem(flagKey) !== flagVal) {
@@ -839,7 +840,8 @@ function checkAuth(allowedRoles) {
         isPrimaryApprover: localStorage.getItem('isPrimaryApprover') === 'true',
         isDirector: localStorage.getItem('isDirector') === 'true',
         isFinalApprover: localStorage.getItem('isFinalApprover') === 'true',
-        isFinanceHead: localStorage.getItem('isFinanceHead') === 'true'
+        isFinanceHead: localStorage.getItem('isFinanceHead') === 'true',
+        canViewAllLeads: localStorage.getItem('canViewAllLeads') === 'true'
       };
       window.db.collection('users').doc(realUid).get().then(function(snap) {
         var existing = snap.exists ? snap.data() : {};

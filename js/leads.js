@@ -10,6 +10,16 @@ var currentLeadContacts = [];
       // act on anything. Mirrors firestore.rules' isLeadOwnerAssigneeOrAdmin()
       // - this is the client-side UI gate; the Firestore rule is what
       // actually enforces it.
+      // Lead Registry visibility (distinct from canEditLead/canReassignLead
+      // above, and from role entirely): only whoever holds the
+      // canViewAllLeads flag - set per-person on the Employees page, e.g.
+      // Murugan, Anitha, the Director - sees every lead the whole team
+      // generates. Everyone else, regardless of role (including Admin/
+      // Manager), sees only leads they created or are assigned to.
+      function canViewAllTeamLeads() {
+        return typeof hasApprovalAuthority === 'function' && hasApprovalAuthority('canViewAllLeads');
+      }
+
       function canEditLead(lead) {
         if (!lead) return true; // creating a brand-new lead - the creator always can
         if (window.isLeadershipOrAdmin && window.isLeadershipOrAdmin()) return true;
@@ -196,12 +206,15 @@ var currentLeadContacts = [];
       }
 
       function initLeadsPage() {
-        var userRole = localStorage.getItem('userRole');
         var employees = window.RevOpsStore.getCollection('employees') || [];
 
         populateLeadVerticalFilter();
 
-        if (userRole === 'super_admin' || userRole === 'admin' || userRole === 'manager') {
+        // The "Lead Owner" filter only makes sense for whoever can actually
+        // see every lead (see canViewAllTeamLeads below) - everyone else
+        // only ever sees their own, so a dropdown of other people's names
+        // would be empty noise.
+        if (canViewAllTeamLeads()) {
           var wrapper = document.getElementById('lead-filter-wrapper');
           var select = document.getElementById('lead-emp-filter');
           if (wrapper && select) {
@@ -825,6 +838,14 @@ var currentLeadContacts = [];
         var funnelContainer = document.getElementById('funnel-stages-bar');
         if (!funnelContainer) return;
 
+        // Same Lead Registry visibility rule as renderLeadsTable() - this
+        // bar must never reveal team-wide stage counts to someone who
+        // isn't allowed to see the leads behind them.
+        if (!canViewAllTeamLeads()) {
+          var myEmpId = localStorage.getItem('employeeId');
+          leads = leads.filter(function(l) { return l.employeeId === myEmpId || l.assignedToEmployeeId === myEmpId; });
+        }
+
         var stageCounts = {};
         stagesList.forEach(function(s) { stageCounts[s] = 0; });
         leads.forEach(function(l) {
@@ -847,8 +868,8 @@ var currentLeadContacts = [];
       }
 
       function renderLeadsTable() {
-        var userRole = localStorage.getItem('userRole');
         var myEmpId = localStorage.getItem('employeeId');
+        var canSeeAllLeads = canViewAllTeamLeads();
         var searchQuery = (document.getElementById('lead-search-input').value || '').toLowerCase();
         
         var vertFilter = document.getElementById('lead-vertical-filter').value;
@@ -866,7 +887,7 @@ var currentLeadContacts = [];
             var leadFy = typeof getFinancialYear === 'function' ? getFinancialYear(l.createdDate || l.createdAt) : '2026-27';
             if (leadFy !== selectedFy) return false;
           }
-          if (userRole === 'staff' && l.employeeId !== myEmpId && l.assignedToEmployeeId !== myEmpId) return false;
+          if (!canSeeAllLeads && l.employeeId !== myEmpId && l.assignedToEmployeeId !== myEmpId) return false;
           if (selectedFilterEmp !== 'All' && l.employeeId !== selectedFilterEmp) return false;
           if (vertFilter !== 'All' && l.vertical !== vertFilter) return false;
           if (stageFilter !== 'All' && (l.stage || l.status) !== stageFilter) return false;
@@ -877,6 +898,24 @@ var currentLeadContacts = [];
                           (l.productSpec || '').toLowerCase().includes(searchQuery) ||
                           (l.contactPerson || '').toLowerCase().includes(searchQuery);
           return textMatch;
+        });
+
+        // Chronological order, newest created first - the registry is a
+        // live tracker, so fresh activity should surface at the top
+        // without the team having to scroll or re-sort it themselves.
+        filtered.sort(function(a, b) {
+          function createdTime(l) {
+            if (l.createdAt) {
+              var dIso = new Date(l.createdAt);
+              if (!isNaN(dIso.getTime())) return dIso.getTime();
+            }
+            if (l.createdDate) {
+              var dDmy = parseDateDDMMYYYY(l.createdDate);
+              if (dDmy && !isNaN(dDmy.getTime())) return dDmy.getTime();
+            }
+            return 0;
+          }
+          return createdTime(b) - createdTime(a);
         });
 
         // Metrics computation

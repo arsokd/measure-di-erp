@@ -205,6 +205,7 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('inp-is-director-ratifier').checked = !!emp.isDirector;
         document.getElementById('inp-is-final-approver').checked = !!emp.isFinalApprover;
         document.getElementById('inp-is-finance-head').checked = !!emp.isFinanceHead;
+        document.getElementById('inp-can-view-all-leads').checked = !!emp.canViewAllLeads;
         document.getElementById('inp-aop-target').value = (emp.primaryAopTarget !== undefined && emp.primaryAopTarget !== null) ? emp.primaryAopTarget : 0;
         document.getElementById('inp-monthly-ctc').value = emp.monthlyCtc || 75000;
         document.getElementById('inp-bank-name').value = emp.bankName || 'HDFC Bank';
@@ -482,6 +483,7 @@ document.addEventListener('DOMContentLoaded', function() {
           isDirector: document.getElementById('inp-is-director-ratifier').checked,
           isFinalApprover: document.getElementById('inp-is-final-approver').checked,
           isFinanceHead: document.getElementById('inp-is-finance-head').checked,
+          canViewAllLeads: document.getElementById('inp-can-view-all-leads').checked,
           primaryAopTarget: document.getElementById('inp-aop-target').value !== "" ? Number(document.getElementById('inp-aop-target').value) : 0,
           monthlyCtc: document.getElementById('inp-monthly-ctc').value !== "" ? Number(document.getElementById('inp-monthly-ctc').value) : 75000,
           bankName: document.getElementById('inp-bank-name').value.trim(),
@@ -513,7 +515,8 @@ document.addEventListener('DOMContentLoaded', function() {
               isPrimaryApprover: empData.isPrimaryApprover,
               isDirector: empData.isDirector,
               isFinalApprover: empData.isFinalApprover,
-              isFinanceHead: empData.isFinanceHead
+              isFinanceHead: empData.isFinanceHead,
+              canViewAllLeads: empData.canViewAllLeads
             }, { merge: true }).catch(function(err) {
               console.error("Could not sync users/ role doc for", savedEmp.uid, err);
               window.RevOpsStore.showSyncWarningBanner("Saved locally, but the role/approver change may not have reached the server - please check this employee's permissions again shortly.");

@@ -175,6 +175,7 @@
           var isDirector = false;
           var isFinalApprover = false;
           var isFinanceHead = false;
+          var canViewAllLeads = false;
           try {
             if (window.db) {
               var userDoc = await window.db.collection('users').doc(uid).get();
@@ -186,6 +187,7 @@
                 isDirector = userData.isDirector === true;
                 isFinalApprover = userData.isFinalApprover === true;
                 isFinanceHead = userData.isFinanceHead === true;
+                canViewAllLeads = userData.canViewAllLeads === true;
               }
             }
           } catch (eUserDoc) {
@@ -230,6 +232,11 @@
           localStorage.setItem('isDirector', String(isDirector || (employeeRecord && employeeRecord.isDirector === true)));
           localStorage.setItem('isFinalApprover', String(isFinalApprover || (employeeRecord && employeeRecord.isFinalApprover === true)));
           localStorage.setItem('isFinanceHead', String(isFinanceHead || (employeeRecord && employeeRecord.isFinanceHead === true)));
+          // Lead Registry visibility — separate from role entirely: only
+          // whoever holds this flag (plus the Director, who always can)
+          // sees every lead; everyone else sees only leads they created or
+          // are assigned to, regardless of role (see leads.js).
+          localStorage.setItem('canViewAllLeads', String(canViewAllLeads || (employeeRecord && employeeRecord.canViewAllLeads === true)));
 
           // Single-active-session enforcement: this device's own copy of a
           // fresh random token, plus the authoritative copy in Firestore

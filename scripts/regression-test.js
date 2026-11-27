@@ -7377,6 +7377,151 @@ async function testQuotationOrderBulkUploadIncludesIndustry(browser) {
   return failures;
 }
 
+// ---------------------------------------------------------------------
+// Lead Registry visibility overhaul (27-Nov request): a new per-employee
+// "Can View All Leads" flag (set on the Employees page, independent of
+// role) now decides who sees the whole team's leads - NOT the role
+// (a 'manager' or even 'admin' without the flag is restricted just like
+// 'staff' used to be), and NOT a hardcoded name. Everyone else sees only
+// leads they created or are assigned to. The "Lead Owner" filter dropdown
+// is only shown to flag-holders. The registry is sorted newest-created
+// first.
+// ---------------------------------------------------------------------
+async function testLeadRegistryVisibilityAndSortOrder(browser) {
+  const failures = [];
+
+  // Part A: a 'manager' with NO canViewAllLeads flag - proves the rule is
+  // the flag, not the role (managers used to see everything).
+  {
+    const page = await browser.newPage();
+    await page.addInitScript(function () {
+      localStorage.setItem('userRole', 'manager');
+      localStorage.setItem('userEmail', 'leadvisb@measuredi.com');
+      localStorage.setItem('userName', 'B Test');
+      localStorage.setItem('employeeId', 'E-LEAD-B');
+    });
+    await page.goto(BASE_URL + '/leads.html', { waitUntil: 'networkidle', timeout: 30000 });
+    await page.waitForTimeout(600);
+
+    const state = await page.evaluate(function () {
+      // seedFixture is defined in the Node context; inline the same seed here.
+      window.RevOpsStore.saveCollection('employees', [
+        { employeeId: 'E-LEAD-A', fullName: 'Murugan Test', role: 'super_admin', isActive: true, canViewAllLeads: true },
+        { employeeId: 'E-LEAD-B', fullName: 'B Test', role: 'manager', isActive: true, canViewAllLeads: false },
+        { employeeId: 'E-LEAD-C', fullName: 'C Test', role: 'staff', isActive: true, canViewAllLeads: false }
+      ]);
+      window.RevOpsStore.saveCollection('leads', [
+        { id: 'lead_vis_1', leadNumber: 'LD-VIS-1', customerName: 'Lead Owned By B', employeeId: 'E-LEAD-B', stage: 'Contacted', createdAt: '2026-06-01T10:00:00.000Z', createdDate: '01/06/2026' },
+        { id: 'lead_vis_2', leadNumber: 'LD-VIS-2', customerName: 'Lead Owned By C Unrelated', employeeId: 'E-LEAD-C', stage: 'Qualified', createdAt: '2026-06-02T10:00:00.000Z', createdDate: '02/06/2026' },
+        { id: 'lead_vis_3', leadNumber: 'LD-VIS-3', customerName: 'Lead Assigned To B', employeeId: 'E-LEAD-C', assignedToEmployeeId: 'E-LEAD-B', stage: 'Won', createdAt: '2026-06-03T10:00:00.000Z', createdDate: '03/06/2026' }
+      ]);
+      initLeadsPage();
+      return {
+        tbodyText: document.getElementById('leads-tbody').innerText,
+        ownerFilterHidden: document.getElementById('lead-filter-wrapper').classList.contains('hidden'),
+        statCount: document.getElementById('stat-lead-count').innerText,
+        idx1: document.getElementById('leads-tbody').innerText.indexOf('LD-VIS-1'),
+        idx3: document.getElementById('leads-tbody').innerText.indexOf('LD-VIS-3')
+      };
+    });
+
+    assertTrue(state.ownerFilterHidden, 'Lead Registry: the "Lead Owner" filter is hidden for someone without canViewAllLeads, even though their role is "manager"', failures);
+    assertEqual(state.statCount, '2', 'Lead Registry: a manager without the flag sees only their own + assigned leads (2 of 3), not the role-based "see everything" of before', failures);
+    assertTrue(state.tbodyText.indexOf('Lead Owned By B') !== -1, 'Lead Registry: sees their own lead', failures);
+    assertTrue(state.tbodyText.indexOf('Lead Assigned To B') !== -1, 'Lead Registry: sees a lead assigned to them even though someone else owns it', failures);
+    assertTrue(state.tbodyText.indexOf('Lead Owned By C Unrelated') === -1, 'Lead Registry: does NOT see an unrelated colleague\'s lead, despite being a "manager"', failures);
+    assertTrue(state.idx3 !== -1 && state.idx1 !== -1 && state.idx3 < state.idx1, 'Lead Registry: newest-created lead (LD-VIS-3) renders above an older one (LD-VIS-1)', failures);
+
+    await page.close();
+  }
+
+  // Part B: the flag-holder sees everything, in full chronological order,
+  // and gets the Lead Owner filter populated with every name.
+  {
+    const page = await browser.newPage();
+    await page.addInitScript(function () {
+      localStorage.setItem('userRole', 'super_admin');
+      localStorage.setItem('userEmail', 'leadvisa@measuredi.com');
+      localStorage.setItem('userName', 'A Test');
+      localStorage.setItem('employeeId', 'E-LEAD-A');
+      localStorage.setItem('canViewAllLeads', 'true');
+    });
+    await page.goto(BASE_URL + '/leads.html', { waitUntil: 'networkidle', timeout: 30000 });
+    await page.waitForTimeout(600);
+
+    const state = await page.evaluate(function () {
+      window.RevOpsStore.saveCollection('employees', [
+        { employeeId: 'E-LEAD-A', fullName: 'Murugan Test', role: 'super_admin', isActive: true, canViewAllLeads: true },
+        { employeeId: 'E-LEAD-B', fullName: 'B Test', role: 'manager', isActive: true, canViewAllLeads: false },
+        { employeeId: 'E-LEAD-C', fullName: 'C Test', role: 'staff', isActive: true, canViewAllLeads: false }
+      ]);
+      window.RevOpsStore.saveCollection('leads', [
+        { id: 'lead_vis_1', leadNumber: 'LD-VIS-1', customerName: 'Lead Owned By B', employeeId: 'E-LEAD-B', stage: 'Contacted', createdAt: '2026-06-01T10:00:00.000Z', createdDate: '01/06/2026' },
+        { id: 'lead_vis_2', leadNumber: 'LD-VIS-2', customerName: 'Lead Owned By C Unrelated', employeeId: 'E-LEAD-C', stage: 'Qualified', createdAt: '2026-06-02T10:00:00.000Z', createdDate: '02/06/2026' },
+        { id: 'lead_vis_3', leadNumber: 'LD-VIS-3', customerName: 'Lead Assigned To B', employeeId: 'E-LEAD-C', assignedToEmployeeId: 'E-LEAD-B', stage: 'Won', createdAt: '2026-06-03T10:00:00.000Z', createdDate: '03/06/2026' }
+      ]);
+      initLeadsPage();
+      var tbodyText = document.getElementById('leads-tbody').innerText;
+      return {
+        ownerFilterHidden: document.getElementById('lead-filter-wrapper').classList.contains('hidden'),
+        ownerOptions: Array.from(document.getElementById('lead-emp-filter').options).map(function (o) { return o.value; }),
+        statCount: document.getElementById('stat-lead-count').innerText,
+        idx1: tbodyText.indexOf('LD-VIS-1'),
+        idx2: tbodyText.indexOf('LD-VIS-2'),
+        idx3: tbodyText.indexOf('LD-VIS-3')
+      };
+    });
+
+    assertTrue(!state.ownerFilterHidden, 'Lead Registry: the "Lead Owner" filter is shown for a canViewAllLeads holder', failures);
+    assertIncludes(state.ownerOptions, 'E-LEAD-B', 'Lead Registry: Lead Owner filter lists every employee, including ones who can\'t themselves see all leads', failures);
+    assertEqual(state.statCount, '3', 'Lead Registry: a canViewAllLeads holder sees every lead the team generated', failures);
+    assertTrue(state.idx3 < state.idx2 && state.idx2 < state.idx1, 'Lead Registry: full team view is chronologically sorted newest-first (LD-VIS-3, LD-VIS-2, LD-VIS-1)', failures);
+
+    await page.close();
+  }
+
+  // Part C: the Funnel Stage Bar on the same page must respect the exact
+  // same visibility rule - it reads the leads collection independently.
+  {
+    const page = await browser.newPage();
+    await page.addInitScript(function () {
+      localStorage.setItem('userRole', 'manager');
+      localStorage.setItem('userEmail', 'leadvisfunnel@measuredi.com');
+      localStorage.setItem('userName', 'B Test');
+      localStorage.setItem('employeeId', 'E-LEAD-B');
+    });
+    await page.goto(BASE_URL + '/leads.html', { waitUntil: 'networkidle', timeout: 30000 });
+    await page.waitForTimeout(600);
+    const funnelText = await page.evaluate(function () {
+      window.RevOpsStore.saveCollection('leads', [
+        { id: 'lead_funnel_1', leadNumber: 'LD-F-1', customerName: 'Owned By B', employeeId: 'E-LEAD-B', stage: 'Contacted', createdAt: '2026-06-01T10:00:00.000Z', createdDate: '01/06/2026' },
+        { id: 'lead_funnel_2', leadNumber: 'LD-F-2', customerName: 'Owned By C', employeeId: 'E-LEAD-C', stage: 'Qualified', createdAt: '2026-06-02T10:00:00.000Z', createdDate: '02/06/2026' }
+      ]);
+      renderFunnelBar();
+      return document.getElementById('funnel-stages-bar').innerText;
+    });
+    var contactedIdx = funnelText.indexOf('Contacted');
+    var countBeforeContacted = funnelText.slice(0, contactedIdx).trim().split('\n').pop();
+    assertEqual(countBeforeContacted, '1', 'Funnel Stage Bar: counts the restricted viewer\'s own "Contacted" lead', failures);
+    var qualifiedIdx = funnelText.indexOf('Qualified');
+    var countBeforeQualified = funnelText.slice(0, qualifiedIdx).trim().split('\n').pop();
+    assertEqual(countBeforeQualified, '0', 'Funnel Stage Bar: does NOT count an unrelated colleague\'s "Qualified" lead for a restricted viewer', failures);
+    await page.close();
+  }
+
+  await (async () => {
+    const page = await browser.newPage();
+    await page.goto(BASE_URL + '/leads.html', { waitUntil: 'networkidle', timeout: 30000 });
+    await page.evaluate(function () {
+      window.RevOpsStore.saveCollection('leads', []);
+      window.RevOpsStore.saveCollection('employees', []);
+    });
+    await page.close();
+  })();
+
+  return failures;
+}
+
 const TESTS = [
   ['SLA day-based seeding, migration, severity dropdown & date math', testSlaDayBasedSeedingAndMigration],
   ['Ticket email subject line', testQuotationVerticalAndTicketSubject],
@@ -7455,7 +7600,8 @@ const TESTS = [
   ['A-5: K-30 Rollup Report - revenue, industry mix, commitments, plan vs actual, productivity, attendance & opportunity, all rolled up from existing data', testK30RollupReport],
   ['PMS Bulk Upload: Commitments, Monthly Plan vs Actual, AOP Targets, Installed Equipment & AMC Contracts are all bulk-uploadable via the Data Center', testPmsBulkUploadTemplates],
   ['Executive Dashboard redesign: graphical ranked Team Leaderboard (no <table>) + Commitments/Productivity/Opportunity snapshot widgets', testDashboardGraphicalLeaderboardAndPmsSnapshot],
-  ['Quotation/Order bulk-upload templates now include the Industry column (A-6 follow-up)', testQuotationOrderBulkUploadIncludesIndustry]
+  ['Quotation/Order bulk-upload templates now include the Industry column (A-6 follow-up)', testQuotationOrderBulkUploadIncludesIndustry],
+  ['Lead Registry visibility: canViewAllLeads flag (not role) gates seeing everyone\'s leads, Owner filter, and the Funnel Stage Bar; registry sorts newest-created first', testLeadRegistryVisibilityAndSortOrder]
 ];
 
 (async () => {
