@@ -220,15 +220,32 @@ var currentLeadContacts = [];
           if (wrapper && select) {
             wrapper.classList.remove('hidden');
             var currentOwnerVal = select.value;
+
+            // searchable-select.js (Tom Select) enhances every <select> on
+            // the page exactly once, at DOMContentLoaded - before this
+            // wrapper div is ever unhidden, while this control is still
+            // display:none and empty. Tom Select measures a collapsed,
+            // invisible container at that moment and never recovers once
+            // the wrapper is shown later: it renders as a tiny box with no
+            // working dropdown, even though the right names are genuinely
+            // in its option list underneath. Tear that broken instance down
+            // and swap in a plain, un-enhanced clone of the <select> now
+            // that the control is actually visible - searchable-select.js's
+            // own "a <select> was just added to the page" watcher picks the
+            // clone up and builds Tom Select against it fresh, this time
+            // while it has real, visible layout to measure.
+            if (select.tomselect) {
+              try { select.tomselect.destroy(); } catch (eDestroy) {}
+            }
+            var freshSelect = select.cloneNode(false);
+            delete freshSelect.dataset.ssEnhanced;
+            select.parentNode.replaceChild(freshSelect, select);
+            select = freshSelect;
+
             // Build the whole option list as one HTML string and assign it
             // in a single write, then conditionally restore .value - this
             // mirrors populateLeadVerticalFilter() above exactly (the one
-            // dropdown on this page already proven to render correctly
-            // once searchable-select.js/Tom Select enhances it). The
-            // previous version built the "All" option via one innerHTML
-            // write and then appended each employee option in a separate
-            // follow-up loop; Tom Select's combobox never picked up any
-            // selection from that two-step build, so it rendered blank.
+            // dropdown on this page already proven to render correctly).
             select.innerHTML = '<option value="All">All Lead Owners</option>' + employees.map(function(e) {
               return '<option value="' + escapeHtml(e.employeeId) + '">' + escapeHtml(e.fullName + " (" + e.employeeId + ")") + '</option>';
             }).join('');
