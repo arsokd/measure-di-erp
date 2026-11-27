@@ -306,10 +306,19 @@ export async function handler(event) {
   var allowed = getAllowedUserIds();
   if (allowed.indexOf(fromId) === -1) {
     if (update.message) {
+      // Found via real emulator testing while converting this function for
+      // the move to Firebase: this call sits outside the try/catch below
+      // (by design, further down, so an allowlisted user's query never
+      // crash-exits), but a transient failure reaching Telegram's API here
+      // was going uncaught - an edge case (an unknown user messaging the
+      // bot right when Telegram's API has a hiccup) that would fail this
+      // request instead of the "always 200 so Telegram doesn't
+      // retry-storm" behavior every other path here already has. Swallow
+      // it the same way.
       await callTelegramApi('sendMessage', {
         chat_id: chatId,
         text: 'You are not authorized to use this bot. Your Telegram user ID is ' + fromId + ' - share this with your admin to be added.'
-      });
+      }).catch(function () {});
     }
     return { statusCode: 200, body: 'ok' };
   }

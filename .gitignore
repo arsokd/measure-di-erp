@@ -8,3 +8,7 @@ coverage/
 *.lock
 .env*
 !.env.example
+
+# Firebase emulator local secret overrides - never real secrets, never committed
+functions/.secret.local
+functions/.env.local

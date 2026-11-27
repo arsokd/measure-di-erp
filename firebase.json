@@ -1,0 +1,64 @@
+{
+  "hosting": {
+    "public": "dist",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      { "source": "/.netlify/functions/reset-password", "function": "resetPassword" },
+      { "source": "/.netlify/functions/change-own-password", "function": "changeOwnPassword" },
+      { "source": "/.netlify/functions/cleanup-legacy-passwords", "function": "cleanupLegacyPasswords" },
+      { "source": "/.netlify/functions/get-gmail-thread", "function": "getGmailThread" },
+      { "source": "/.netlify/functions/send-email", "function": "sendEmail" },
+      { "source": "/.netlify/functions/send-gmail", "function": "sendGmail" },
+      { "source": "/api/sheet-sync", "function": "sheetSync" },
+      { "source": "/api/telegram-webhook", "function": "telegramWebhook" },
+      { "source": "**", "destination": "/index.html" }
+    ],
+    "headers": [
+      {
+        "source": "**/*.html",
+        "headers": [{ "key": "Cache-Control", "value": "no-cache" }]
+      },
+      {
+        "source": "/js/**",
+        "headers": [{ "key": "Cache-Control", "value": "no-cache" }]
+      },
+      {
+        "source": "/auth-guard.js",
+        "headers": [{ "key": "Cache-Control", "value": "no-cache" }]
+      },
+      {
+        "source": "/pwa-register.js",
+        "headers": [{ "key": "Cache-Control", "value": "no-cache" }]
+      },
+      {
+        "source": "**",
+        "headers": [
+          { "key": "X-Frame-Options", "value": "SAMEORIGIN" },
+          { "key": "X-Content-Type-Options", "value": "nosniff" },
+          { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" }
+        ]
+      }
+    ]
+  },
+  "functions": {
+    "source": "functions",
+    "runtime": "nodejs20"
+  },
+  "firestore": {
+    "rules": "firestore.rules"
+  },
+  "storage": {
+    "rules": "storage.rules"
+  },
+  "emulators": {
+    "functions": { "port": 5001 },
+    "firestore": { "port": 8080 },
+    "auth": { "port": 9099 },
+    "hosting": { "port": 5000 },
+    "ui": { "enabled": true }
+  }
+}

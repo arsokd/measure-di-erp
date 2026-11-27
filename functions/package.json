@@ -1,0 +1,15 @@
+{
+  "name": "measure-di-erp-functions",
+  "description": "Cloud Functions for Firebase - converted from the Netlify Functions this app used to run on. See _netlify-adapter.js for why each function's handler body was kept unchanged.",
+  "type": "module",
+  "engines": {
+    "node": "20"
+  },
+  "main": "index.js",
+  "dependencies": {
+    "firebase-admin": "^14.2.0",
+    "firebase-functions": "^7.4.0",
+    "google-auth-library": "^10.6.2"
+  },
+  "private": true
+}
