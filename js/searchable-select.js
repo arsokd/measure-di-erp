@@ -121,7 +121,21 @@
         create: false,
         allowEmptyOption: true,
         maxOptions: null,
-        placeholder: select.getAttribute('data-placeholder') || undefined
+        placeholder: select.getAttribute('data-placeholder') || undefined,
+        // Many pages in this app put selects inside a rounded card that
+        // uses overflow:hidden purely to clip the table underneath to its
+        // rounded corners (e.g. leads.html's Lead Registry card). Left at
+        // its default, Tom Select nests the open dropdown panel inside
+        // that same card, so it gets silently clipped away the moment it
+        // would extend past the card's edge - the control itself looks
+        // and behaves correctly (it opens, a value can still be set
+        // programmatically), but no option list is ever visible to click,
+        // which is worse than an outright missing feature because nothing
+        // *looks* broken until you actually try to pick something. Opening
+        // the panel into <body> instead escapes every ancestor's overflow
+        // clipping; Tom Select still positions it directly under the
+        // control itself.
+        dropdownParent: 'body'
       });
 
       if (select.disabled) instance.disable();
