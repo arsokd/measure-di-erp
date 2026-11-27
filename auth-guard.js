@@ -352,6 +352,46 @@ function submitMarkLost(colName, id) {
 }
 window.submitMarkLost = submitMarkLost;
 
+// The "Sale Closed" quick action from the Follow-ups Due popup. Per the
+// real SOP: a deal isn't genuinely closed until its Quotation, Order AND
+// Invoice are all actually raised - this never just assumes that and
+// jumps to "create the next document" (the old, misleading behavior).
+// getDealChainNextStep works out what's really still missing and this
+// either takes the user there, or - the rare case where everything is
+// already genuinely raised but the record somehow never auto-advanced to
+// Won/Converted (the everyday path already removes it from this popup
+// the moment that happens on its own) - resolves it in place right now.
+function handleSaleClosedClick(colName, id) {
+  var step = window.RevOpsStore.getDealChainNextStep(colName, id);
+  if (step.step !== 'done') {
+    window.location.href = step.href;
+    return;
+  }
+
+  if (colName === 'leads' && step.leadId) {
+    window.RevOpsStore.advanceLeadStage(step.leadId, 'Won', {}, 'Lead marked Won from the Follow-ups popup - Quotation, Order and Invoice were all already raised.');
+  }
+  if (step.quoteId) {
+    var quotes = window.RevOpsStore.getCollection('quotations') || [];
+    var q = quotes.find(function(it) { return it.id === step.quoteId; });
+    if (q && q.status !== 'Converted to Order') {
+      var oldQuoteState = JSON.parse(JSON.stringify(q));
+      q.status = 'Converted to Order';
+      q.updatedAt = new Date().toISOString();
+      window.RevOpsStore.saveRecord('quotations', q);
+      if (window.RevOpsStore.logAudit) {
+        window.RevOpsStore.logAudit('Quotations', q.quoteNumber || q.id, 'UPDATE', 'Quotation marked Converted to Order from the Follow-ups popup - Order and Invoice were already raised.', oldQuoteState, q);
+      }
+    }
+  }
+
+  alert('Quotation, Order and Invoice are all raised for this deal - marked as Sale Closed.');
+  if (typeof renderLeadsTable === 'function') renderLeadsTable();
+  if (typeof renderQuotations === 'function') renderQuotations();
+  checkFollowUpDuePopup();
+}
+window.handleSaleClosedClick = handleSaleClosedClick;
+
 // Persistent, intentionally-not-permanently-dismissible popup: re-checks
 // and re-renders on every single page load for as long as the signed-in
 // user has anything due. Unlike checkPendingApprovalsPopup above, there is
@@ -395,12 +435,12 @@ function checkFollowUpDuePopup() {
       <div class="py-2 space-y-1.5 max-h-48 overflow-y-auto">
         ${due.map(function(item) {
           var typeLabel = item.colName === 'leads' ? 'Lead' : 'Quotation';
-          var saleClosedHref = item.colName === 'leads'
-            ? ('quotations.html?action=new&leadId=' + encodeURIComponent(item.id))
-            : ('orders.html?bookFromQuote=' + encodeURIComponent(item.id));
-          var saleClosedTitle = item.colName === 'leads'
-            ? 'Create the Quotation that closes this deal'
-            : 'Book the Order against this Quotation';
+          // "Sale Closed" never just assumes the deal is done - it checks
+          // what's actually been raised so far (Quotation -> Order ->
+          // Invoice, the real SOP) and routes to whichever one is
+          // genuinely still missing, rather than always jumping straight
+          // to "create a Quotation." See getDealChainNextStep in store.js.
+          var nextStep = window.RevOpsStore.getDealChainNextStep(item.colName, item.id);
           return `
             <div class="bg-slate-800/90 px-2.5 py-1.5 rounded-lg border border-slate-700 text-xs space-y-1.5">
               <div class="min-w-0">
@@ -411,7 +451,7 @@ function checkFollowUpDuePopup() {
               <div class="flex items-center gap-1.5">
                 <button onclick="openLogFollowUpModal('${item.colName}', '${item.id}', '${escapeHtml(item.ref)}', '${escapeHtml(item.customerName)}')" class="flex-1 px-2 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-[10px] font-bold cursor-pointer" title="Note what happened and set the next follow-up date">Follow-up</button>
                 <button onclick="openMarkLostModal('${item.colName}', '${item.id}', '${escapeHtml(item.ref)}', '${escapeHtml(item.customerName)}', '${escapeHtml(item.status || '')}')" class="flex-1 px-2 py-1.5 bg-rose-800 hover:bg-rose-700 text-rose-100 rounded-lg text-[10px] font-bold cursor-pointer" title="Close this out as no sale">Sale Lost</button>
-                <a href="${saleClosedHref}" class="flex-1 px-2 py-1.5 bg-emerald-700 hover:bg-emerald-600 text-emerald-50 rounded-lg text-[10px] font-bold text-center cursor-pointer" title="${saleClosedTitle}">Sale Closed →</a>
+                <button onclick="handleSaleClosedClick('${item.colName}', '${item.id}')" class="flex-1 px-2 py-1.5 bg-emerald-700 hover:bg-emerald-600 text-emerald-50 rounded-lg text-[10px] font-bold text-center cursor-pointer" title="${escapeHtml(nextStep.title)}">${escapeHtml(nextStep.label)}</button>
               </div>
             </div>
           `;

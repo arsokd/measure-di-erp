@@ -77,6 +77,28 @@ var currentTab = 'All';
             }
           }, 100);
         }
+
+        // Arriving from the Follow-ups Due popup's "Sale Closed" action
+        // (see getDealChainNextStep in store.js / handleSaleClosedClick in
+        // auth-guard.js) once it's worked out the Order is booked but no
+        // Invoice has been raised against it yet - open straight into a
+        // prefilled New Invoice rather than leaving the person to find and
+        // select the right pending PO themselves. Only for whoever can
+        // actually raise one (same Finance/Accounts-only gate the "Raise
+        // Invoice" button itself already enforces above) - for anyone else
+        // this just lands on the page normally, since opening the modal
+        // for someone who can't save from it would be worse than not
+        // opening it at all.
+        var fromOrderId = invUrlParams.get('fromOrder');
+        if (fromOrderId && userRole !== 'staff') {
+          window.history.replaceState({}, '', 'invoices.html');
+          openInvoiceModal();
+          var orderSourceSelect = document.getElementById('inp-inv-order-source');
+          if (orderSourceSelect) {
+            orderSourceSelect.value = fromOrderId;
+            autoPopulateFromOrder(fromOrderId);
+          }
+        }
       }
 
       function populateBankDropdown() {

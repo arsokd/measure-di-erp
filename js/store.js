@@ -3825,6 +3825,96 @@ Object.assign(window.RevOpsStore, {
     return { success: true, targetStage: targetStage };
   },
 
+  // A single date sortable across both the ISO createdAt orders use and
+  // the DD/MM/YYYY createdDate quotations use, so "most recent" can
+  // compare apples to apples; falls back to epoch 0 (sorts last) when
+  // neither is present or parseable, rather than throwing.
+  _sortableRecordDate: function(rec) {
+    if (!rec) return 0;
+    var raw = rec.createdAt || rec.poDate || rec.createdDate || '';
+    if (!raw) return 0;
+    var d = String(raw).indexOf('/') !== -1 ? parseDateDDMMYYYY(raw) : new Date(raw);
+    return (d && !isNaN(d.getTime())) ? d.getTime() : 0;
+  },
+
+  // Single source of truth for "what does this deal actually still need
+  // before it can honestly be called Sale Closed" - used by the
+  // Follow-ups Due popup's "Sale Closed" action so it never just assumes
+  // a Lead/Quotation reminder means the deal is done. Per the Director's
+  // own instruction: follow the real SOP (Quotation -> Order -> Invoice,
+  // each one genuinely raised) rather than let one button quietly skip
+  // straight to "create the next document" and call that "closed."
+  //
+  // A Lead or Quotation only disappears from the Follow-ups Due popup in
+  // the first place once it's genuinely finished (advanceLeadStage sets a
+  // Lead to Won only when an Invoice is actually raised against its
+  // Order; a Quotation leaves follow-up tracking the moment it's
+  // Converted to Order) - so by construction, anything still showing up
+  // as "due" always has a real next step. The 'done' case below is a
+  // safety net for a record that somehow didn't auto-advance (a status
+  // field edited directly, or older data migrated in), not the everyday
+  // path.
+  getDealChainNextStep: function(colName, id) {
+    var quotations = this.getCollection('quotations') || [];
+    var orders = this.getCollection('orders') || [];
+    var invoices = this.getCollection('invoices') || [];
+    var self = this;
+
+    var lead = null;
+    var quote = null;
+    if (colName === 'leads') {
+      lead = (this.getCollection('leads') || []).find(function(l) { return l.id === id; }) || null;
+      var leadQuotes = quotations.filter(function(q) { return q.leadId === id; });
+      leadQuotes.sort(function(a, b) { return self._sortableRecordDate(b) - self._sortableRecordDate(a); });
+      quote = leadQuotes[0] || null;
+    } else {
+      quote = quotations.find(function(q) { return q.id === id; }) || null;
+    }
+
+    if (!quote) {
+      return {
+        step: 'quotation',
+        href: 'quotations.html?action=new&leadId=' + encodeURIComponent(id),
+        label: 'Create Quotation →',
+        title: 'No Quotation has been raised for this lead yet - that has to happen first.'
+      };
+    }
+
+    var matchingOrders = orders.filter(function(o) {
+      return o.quotationId === quote.id || (lead && o.leadId === lead.id);
+    });
+    matchingOrders.sort(function(a, b) { return self._sortableRecordDate(b) - self._sortableRecordDate(a); });
+    var order = matchingOrders[0] || null;
+
+    if (!order) {
+      return {
+        step: 'order',
+        href: 'orders.html?bookFromQuote=' + encodeURIComponent(quote.id),
+        label: 'Book Order →',
+        title: 'Quotation ' + (quote.quoteNumber || quote.id) + ' is raised, but no Order has been booked against it yet.'
+      };
+    }
+
+    var invoice = invoices.find(function(inv) { return inv.orderId === order.id; }) || null;
+
+    if (!invoice) {
+      return {
+        step: 'invoice',
+        href: 'invoices.html?action=new&fromOrder=' + encodeURIComponent(order.id),
+        label: 'Raise Invoice →',
+        title: 'Order ' + (order.poNumber || order.id) + ' is booked, but no Invoice has been raised against it yet.'
+      };
+    }
+
+    return {
+      step: 'done',
+      label: 'Sale Closed ✓',
+      title: 'Quotation, Order and Invoice are all raised - this deal is genuinely closed.',
+      leadId: lead ? lead.id : (quote ? quote.leadId : null),
+      quoteId: quote ? quote.id : null
+    };
+  },
+
   // YYYY-MM-DD strings compare correctly with plain string comparison;
   // normalizes anything longer (e.g. a full ISO datetime in a legacy
   // postponedUntil field) down to just the date portion first.

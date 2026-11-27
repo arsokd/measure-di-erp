@@ -7524,6 +7524,88 @@ async function testLeadRegistryVisibilityAndSortOrder(browser) {
   return failures;
 }
 
+// ---------------------------------------------------------------------
+// "Sale Closed" gating (27-Nov follow-up): clicking "Sale Closed" from the
+// Follow-ups Due popup must never just assume the deal is done - it has
+// to check whether a Quotation, an Order and an Invoice have each
+// genuinely been raised, and route to whichever is actually still
+// missing (per the Director's/consultant's own instruction: follow the
+// real SOP, don't deviate). getDealChainNextStep (js/store.js) is the
+// single source of truth this is built on; handleSaleClosedClick
+// (auth-guard.js) is the click handler that reads it.
+// ---------------------------------------------------------------------
+async function testSaleClosedDealChainGating(browser) {
+  const failures = [];
+  const page = await browser.newPage();
+  await page.addInitScript(function () {
+    localStorage.setItem('userRole', 'super_admin');
+    localStorage.setItem('userEmail', 'dealchain@measuredi.com');
+    localStorage.setItem('userName', 'Deal Chain Test');
+    localStorage.setItem('employeeId', 'E-DC-1');
+  });
+  await page.goto(BASE_URL + '/leads.html', { waitUntil: 'networkidle', timeout: 30000 });
+  await page.waitForTimeout(500);
+
+  const state = await page.evaluate(function () {
+    window.RevOpsStore.saveCollection('employees', [
+      { employeeId: 'E-DC-1', fullName: 'Deal Chain Test', role: 'super_admin', isActive: true }
+    ]);
+    window.RevOpsStore.saveCollection('leads', [
+      { id: 'lead_dc_1', leadNumber: 'LD-DC-1', customerName: 'DealChain Co', employeeId: 'E-DC-1', status: 'Contacted', stage: 'Contacted', createdAt: '2026-06-01T10:00:00.000Z', createdDate: '01/06/2026', followUpDate: '2026-06-01' }
+    ]);
+    window.RevOpsStore.saveCollection('quotations', []);
+    window.RevOpsStore.saveCollection('orders', []);
+    window.RevOpsStore.saveCollection('invoices', []);
+
+    var results = {};
+
+    // Step 1: no Quotation yet at all.
+    results.step1 = window.RevOpsStore.getDealChainNextStep('leads', 'lead_dc_1');
+
+    // Step 2: a Quotation now exists for this lead, but no Order.
+    window.RevOpsStore.saveCollection('quotations', [
+      { id: 'quote_dc_1', quoteNumber: 'QT-DC-1', leadId: 'lead_dc_1', customerName: 'DealChain Co', employeeId: 'E-DC-1', status: 'Sent', createdDate: '02/06/2026' }
+    ]);
+    results.step2FromLead = window.RevOpsStore.getDealChainNextStep('leads', 'lead_dc_1');
+    results.step2FromQuote = window.RevOpsStore.getDealChainNextStep('quotations', 'quote_dc_1');
+
+    // Step 3: an Order now exists against that Quotation, but no Invoice.
+    window.RevOpsStore.saveCollection('orders', [
+      { id: 'order_dc_1', poNumber: 'PO-DC-1', quotationId: 'quote_dc_1', leadId: 'lead_dc_1', customerName: 'DealChain Co', employeeId: 'E-DC-1', status: 'Booked', createdAt: '2026-06-03T10:00:00.000Z' }
+    ]);
+    results.step3FromLead = window.RevOpsStore.getDealChainNextStep('leads', 'lead_dc_1');
+
+    // Step 4: an Invoice now exists against that Order - everything the
+    // real SOP requires is genuinely in place.
+    window.RevOpsStore.saveCollection('invoices', [
+      { id: 'invoice_dc_1', invoiceNumber: 'INV-DC-1', orderId: 'order_dc_1', customerName: 'DealChain Co', employeeId: 'E-DC-1', status: 'Paid' }
+    ]);
+    results.step4FromLead = window.RevOpsStore.getDealChainNextStep('leads', 'lead_dc_1');
+
+    // The resolve-in-place safety net: the lead's own status field never
+    // got flipped to Won (simulating an older record / a direct edit) even
+    // though the chain is genuinely complete - handleSaleClosedClick must
+    // fix that rather than silently no-op.
+    window.handleSaleClosedClick('leads', 'lead_dc_1');
+    var leadAfter = window.RevOpsStore.getCollection('leads').find(function (l) { return l.id === 'lead_dc_1'; });
+    results.leadStatusAfterResolve = leadAfter.status;
+
+    return results;
+  });
+
+  assertEqual(state.step1.step, 'quotation', 'Sale Closed gating: no Quotation yet -> routes to Create Quotation', failures);
+  assertEqual(state.step2FromLead.step, 'order', 'Sale Closed gating: Quotation exists but no Order -> routes to Book Order (checked from the Lead)', failures);
+  assertEqual(state.step2FromQuote.step, 'order', 'Sale Closed gating: same check, directly on the Quotation itself', failures);
+  assertTrue(state.step2FromLead.href.indexOf('bookFromQuote=quote_dc_1') !== -1, 'Sale Closed gating: Book Order link references the actual linked Quotation', failures);
+  assertEqual(state.step3FromLead.step, 'invoice', 'Sale Closed gating: Order exists but no Invoice -> routes to Raise Invoice', failures);
+  assertTrue(state.step3FromLead.href.indexOf('fromOrder=order_dc_1') !== -1, 'Sale Closed gating: Raise Invoice link references the actual linked Order', failures);
+  assertEqual(state.step4FromLead.step, 'done', 'Sale Closed gating: Quotation + Order + Invoice all genuinely raised -> accepted as done', failures);
+  assertEqual(state.leadStatusAfterResolve, 'Won', 'Sale Closed gating: resolving a genuinely-complete chain marks the Lead Won', failures);
+
+  await page.close();
+  return failures;
+}
+
 const TESTS = [
   ['SLA day-based seeding, migration, severity dropdown & date math', testSlaDayBasedSeedingAndMigration],
   ['Ticket email subject line', testQuotationVerticalAndTicketSubject],
@@ -7603,7 +7685,8 @@ const TESTS = [
   ['PMS Bulk Upload: Commitments, Monthly Plan vs Actual, AOP Targets, Installed Equipment & AMC Contracts are all bulk-uploadable via the Data Center', testPmsBulkUploadTemplates],
   ['Executive Dashboard redesign: graphical ranked Team Leaderboard (no <table>) + Commitments/Productivity/Opportunity snapshot widgets', testDashboardGraphicalLeaderboardAndPmsSnapshot],
   ['Quotation/Order bulk-upload templates now include the Industry column (A-6 follow-up)', testQuotationOrderBulkUploadIncludesIndustry],
-  ['Lead Registry visibility: canViewAllLeads flag (not role) gates seeing everyone\'s leads, Owner filter, and the Funnel Stage Bar; registry sorts newest-created first', testLeadRegistryVisibilityAndSortOrder]
+  ['Lead Registry visibility: canViewAllLeads flag (not role) gates seeing everyone\'s leads, Owner filter, and the Funnel Stage Bar; registry sorts newest-created first', testLeadRegistryVisibilityAndSortOrder],
+  ['Follow-ups Due "Sale Closed" follows the real SOP: routes to whichever of Quotation/Order/Invoice is actually still missing, never assumes the deal is done', testSaleClosedDealChainGating]
 ];
 
 (async () => {
